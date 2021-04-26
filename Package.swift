@@ -4,11 +4,11 @@
 import PackageDescription
 
 let package = Package(
-    name: "Rokt_Widget",
+    name: "Rokt-Widget",
     platforms: [.iOS(.v9)],
     products: [
         .library(
-            name: "Rokt_Widget",
+            name: "Rokt-Widget",
             targets: ["Rokt_Widget"]),
     ],
     dependencies: [],
