@@ -10,7 +10,7 @@ Add below code to the `dependencies` value of your `Package.swift`.
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/ROKT/rokt-sdk-ios.git", .upToNextMajor(from: "3.5.0-alpha.2"))
+    .package(url: "https://github.com/ROKT/rokt-sdk-ios.git", .upToNextMajor(from: "3.5.0"))
 ]
 ```
 
