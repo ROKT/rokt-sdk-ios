@@ -6,8 +6,12 @@ The Rokt iOS SDK enables you to integrate Rokt into your native iOS mobile apps 
 
 The [Swift Package Manager](https://swift.org/package-manager/) is a tool for automating the distribution of Swift code and is integrated into the `swift` compiler.
 
-Add below code to the `dependencies` value of your `Package.swift`.
+On Xcode: 
+* Go to File > Swift Packages > Add Package Dependency
+* Add `https://github.com/ROKT/rokt-sdk-ios.git`
+* Select *Up to Next Major* with *3.5.0*
 
+or add below code to the `dependencies` part of `Package.swift`.
 ```swift
 dependencies: [
     .package(url: "https://github.com/ROKT/rokt-sdk-ios.git", .upToNextMajor(from: "3.5.0"))
