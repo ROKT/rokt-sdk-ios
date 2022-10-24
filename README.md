@@ -9,12 +9,12 @@ The [Swift Package Manager](https://swift.org/package-manager/) is a tool for au
 On Xcode: 
 * Go to File > Swift Packages > Add Package Dependency
 * Add `https://github.com/ROKT/rokt-sdk-ios.git`
-* Select *Up to Next Major* with *3.8.0*
+* Select *Up to Next Major* with *3.9.0*
 
 or add below code to the `dependencies` part of `Package.swift`.
 ```swift
 dependencies: [
-    .package(url: "https://github.com/ROKT/rokt-sdk-ios.git", .upToNextMajor(from: "3.8.0"))
+    .package(url: "https://github.com/ROKT/rokt-sdk-ios.git", .upToNextMajor(from: "3.9.0"))
 ]
 ```
 
