@@ -4,8 +4,8 @@ The Rokt iOS SDK enables you to integrate Rokt into your native iOS mobile apps 
 
 ## Resident Experts
 
-- Danial Motahari - danial.motahari@rokt.com
 - Emmanuel Tugado - emmanuel.tugado@rokt.com
+- Danial Motahari - danial.motahari@rokt.com
 
 ## License
 
@@ -22,7 +22,11 @@ You may obtain a copy of the License at https://rokt.com/sdk-license-2-0/
 
 Download the latest version of [Xcode](https://developer.apple.com/xcode/). Xcode 11 and above comes with a [built-in Swift Package Manager](https://developer.apple.com/documentation/xcode/adding-package-dependencies-to-your-app).
 
-For more information on Swift Package Manager open in [Swift official documentation](https://swift.org/package-manager/)
+For more information on Swift Package Manager, open [Swift official documentation](https://swift.org/package-manager/)
+
+## Project structure
+
+`Package.swift` is the [main package manifest](https://developer.apple.com/documentation/packagedescription) that defines updated configurations to the Rokt iOS SDK package as required by the Swift Package Manager.
 
 ## How to install
 
@@ -50,21 +54,58 @@ If you are having trouble installing and are receiving an error saying that the 
 
 ## How to test integration
 
-Import and initialise module for testing
+The following steps test an overlay placement - only 2 explicit calls, `init` and `execute`, are needed.
+
+### 1. Initialise module for testing
 
 ```swift
-//file => AppDelegate.swift
-
 import Rokt_Widget
 
 func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplicationLaunchOptionsKey: Any]?) -> Bool {
-    Rokt.initWith(roktTagId: "222")
+    Rokt.initWith(roktTagId: "your_tag_id_here")
     return true
 }
 ```
 
-The above uses the Test Rokt Account ID `222` to reveal a demo integration.
+Contact Rokt for the Rokt Account ID associated with your account and enter your unique Rokt Account ID as the `roktTagId`.
 
-**Important:** Before you launch in production, contact Rokt for the Rokt Account ID associated with your account and replace the Test Rokt Account ID with your unique Rokt Account ID.
+### 2. Execute (overlay placement)
+
+Firstly define in `ViewController` e.g.
+
+```swift
+func showWidget() {
+    let attributes = ["email": "j.smith1674613477652@example.com",
+            "firstname": "Jenny",
+            "lastname": "Smith",
+            "mobile": "(555)867-5309",
+            "postcode": "90210",
+            "country": "US",
+            "sandbox": "true"]
+
+    Rokt.execute(viewName: "your_view_name_here", attributes: attributes, onLoad: {
+        // Optional callback for when the Rokt placement loads
+    }, onUnLoad: {
+        // Optional callback for when the Rokt placement unloads
+    }, onShouldShowLoadingIndicator: {
+        // Optional callback to show a loading indicator
+    }, onShouldHideLoadingIndicator: {
+        // Optional callback to hide a loading indicator
+    }, onEmbeddedSizeChange: { selectedPlacement, widgetHeight in
+        // Optional callback to get selectedPlacement and height required by the placement every time the height of the placement changes
+    })
+}
+```
+
+Replace `viewName` in the above snippet with your configured view name
+
+Then, call this function with delay when the placement needs to be shown (sample snippet below called from `viewDidAppear`)
+
+```swift
+DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+    self.showWidget()
+}
+```
+
 
 For more information please visit [official docs](https://docs.rokt.com/docs/developers/integration-guides/ios/overview)
