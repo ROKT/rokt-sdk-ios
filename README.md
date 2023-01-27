@@ -2,6 +2,8 @@
 
 The Rokt iOS SDK enables you to integrate Rokt into your native iOS mobile apps to drive more value from, and for, your customers. The SDK is built to be lightweight, secure, and simple to integrate and maintain, resulting in minimal lift for your engineering team.
 
+For more information please visit [official docs](https://docs.rokt.com/docs/developers/integration-guides/ios/overview)
+
 ## License
 
 Copyright 2020 Rokt Pte Ltd
@@ -58,7 +60,7 @@ Contact Rokt for the Rokt Account ID associated with your account and enter your
 
 ### 2. Execute (overlay placement)
 
-Firstly define in `ViewController` e.g.
+To test your integration with an overlay placement, firstly define in `ViewController` e.g.
 
 ```swift
 func showWidget() {
@@ -85,8 +87,9 @@ func showWidget() {
 ```
 
 Replace `viewName` in the above snippet with your configured view name.
-**Important**  Before launching in production, remove `"sandbox": "true"`. The [sandbox environment](https://docs.rokt.com/developers/integration-guides/ios/reference/sandbox-integration/) is intended for acceptance testing, meaning that while it follows the production configuration, it does not charge advertisers or generate revenue.
+
+**Important:**  Before launching in production, remove `"sandbox": "true"`. The [sandbox environment](https://docs.rokt.com/developers/integration-guides/ios/reference/sandbox-integration/) is intended for acceptance testing, meaning that while it follows the production configuration, it does not charge advertisers or generate revenue.
 
 Finally, call this function in **any subsequent view** where the placement needs to be shown. Placement will not appear when called in the first view of the application as initialization requires time.
 
-For more information please visit [official docs](https://docs.rokt.com/docs/developers/integration-guides/ios/overview)
+To test your integration with embedded placement, [view steps here](https://docs.rokt.com/developers/integration-guides/ios/how-to/adding-a-placement#embedded-placements)
