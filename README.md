@@ -99,13 +99,13 @@ func showWidget() {
 
 Replace `viewName` in the above snippet with your configured view name
 
-Then, call this function with delay when the placement needs to be shown (sample snippet below called from `viewDidAppear`)
+Finally, call this function when the placement needs to be shown.
+**Important** Function needs to be called either in a delay function (snippet below) or on button click to allow some time for initialization.
 
 ```swift
 DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
     self.showWidget()
 }
 ```
-
 
 For more information please visit [official docs](https://docs.rokt.com/docs/developers/integration-guides/ios/overview)
