@@ -32,12 +32,12 @@ To install for iOS development:
 On Xcode: 
 * Go to File > Add Packages
 * Enter Package URL `https://github.com/ROKT/rokt-sdk-ios.git`
-* Select *Up to Next Major* with *3.15.7*
+* Select *Up to Next Major* with *4.0.0-beta.3*
 
 Alternatively add below code to the `dependencies` part of `Package.swift`.
 ```swift
 dependencies: [
-    .package(url: "https://github.com/ROKT/rokt-sdk-ios.git", .upToNextMajor(from: "3.15.7"))
+    .package(url: "https://github.com/ROKT/rokt-sdk-ios.git", .upToNextMajor(from: "4.0.0-beta.3"))
 ]
 ```
 
