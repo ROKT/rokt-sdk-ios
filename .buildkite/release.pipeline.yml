@@ -1,0 +1,12 @@
+env:
+  MAC_BK_AGENT: eng-prod-us-west-2-mac-arm-macos-build-medium
+
+steps:
+  - label: ":swift: Update Swift Package"
+    commands:
+      - . ~/.zshrc
+      - rbenv local 2.7.6
+      - ./.buildkite/bin/update_version.sh "${VERSION}"
+      - ./.buildkite/bin/create_tag_and_update_branch.sh "${VERSION}" Package.swift
+    agents:
+      queue: ${MAC_BK_AGENT}
