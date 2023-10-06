@@ -7,6 +7,7 @@ set -eu
 # $3 README.md file location
 
 FILE_LOCATION="https://rokt-eng-us-west-2-mobile-sdk-artefacts.s3.amazonaws.com/ios/"$1"/Rokt_Widget.xcframework.zip"
+brew install wget
 wget "${FILE_LOCATION}"
 CHECKSUM=$(swift package compute-checksum Rokt_Widget.xcframework.zip)
 
