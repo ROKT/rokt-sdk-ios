@@ -8,6 +8,7 @@ git config user.email "nativeappsdev@rokt.com"
 git config user.name "nativeappsdev"
 
 git tag -d "$1" || true
+git checkout "${BUILDKITE_BRANCH}"
 git add Package.swift
 git add README.md
 git commit -m "$1"
