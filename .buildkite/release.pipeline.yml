@@ -6,7 +6,7 @@ steps:
     commands:
       - . ~/.zshrc
       - rbenv local 2.7.6
-      - ./.buildkite/bin/update_version.sh "${VERSION}"
-      - ./.buildkite/bin/create_tag_and_update_branch.sh "${VERSION}" Package.swift
+      - ./.buildkite/bin/update_version.sh "${VERSION}" Package.swift README.md
+      - ./.buildkite/bin/create_tag_and_update_branch.sh "${VERSION}"
     agents:
       queue: ${MAC_BK_AGENT}
