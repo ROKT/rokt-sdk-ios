@@ -10,9 +10,9 @@ git config user.name "nativeappsdev"
 
 git tag -d "$1" || true
 git stash
-git checkout "${BUILDKITE_BRANCH}"
+git fetch origin "${BUILDKITE_BRANCH}"
+git reset --hard origin/"${BUILDKITE_BRANCH}"
 git stash pop
-git pull
 git add Package.swift
 git add README.md
 git commit -m "$1"
