@@ -1,1 +1,1 @@
-// empty source file to make Swift package manager register the Rokt_WidgetTargets target
+// empty source file to make Swift package manager register the RoktWidget target
