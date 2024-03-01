@@ -9,14 +9,14 @@ let package = Package(
     products: [
         .library(
             name: "Rokt-Widget",
-            targets: ["Rokt_WidgetTargets"]),
+            targets: ["RoktWidget"]),
     ],
     dependencies: [],
     targets: [
         .binaryTarget(name: "Rokt_Widget",
                       url: "https://apps.rokt.com/msdk/ios/3.17.0/Rokt_Widget.xcframework.zip",
                       checksum: "d1f245a1e5e9672cba267bd65b4c31244e14a130bcaaa8ee44b6239fb8a6fbb6"),
-        .target(name: "Rokt_WidgetTargets",
+        .target(name: "RoktWidget",
                 dependencies: [
                     .target(name: "Rokt_Widget")
                 ],
