@@ -5,7 +5,7 @@ steps:
   - label: ":swift: Update Swift Package"
     commands:
       - . ~/.zshrc
-      - rbenv local 2.7.6
+      - rbenv local 3.2.2
       - ./.buildkite/bin/update_version.sh "${VERSION}" Package.swift README.md
       - ./.buildkite/bin/create_tag_and_update_branch.sh "${VERSION}" "${SPM_UPDATE}"
     agents:
