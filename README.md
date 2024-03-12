@@ -29,12 +29,14 @@ For more information on Swift Package Manager, open [Swift official documentatio
 
 To install for iOS development:
 
-On Xcode: 
-* Go to File > Add Packages
-* Enter Package URL `https://github.com/ROKT/rokt-sdk-ios.git`
-* Select *Up to Next Major* with *3.17.0*
+On Xcode:
+
+-   Go to File > Add Packages
+-   Enter Package URL `https://github.com/ROKT/rokt-sdk-ios.git`
+-   Select _Up to Next Major_ with _3.17.0_
 
 Alternatively add below code to the `dependencies` part of `Package.swift`.
+
 ```swift
 dependencies: [
     .package(url: "https://github.com/ROKT/rokt-sdk-ios.git", .upToNextMajor(from: "3.17.0"))
@@ -88,7 +90,7 @@ func showWidget() {
 
 Replace `viewName` in the above snippet with your configured view name.
 
-**Important:**  Before launching in production, remove `"sandbox": "true"`. The [sandbox environment](https://docs.rokt.com/developers/integration-guides/ios/reference/sandbox-integration/) is intended for acceptance testing, meaning that while it follows the production configuration, it does not charge advertisers or generate revenue.
+**Important:** Before launching in production, remove `"sandbox": "true"`. The [sandbox environment](https://docs.rokt.com/developers/integration-guides/ios/reference/sandbox-integration/) is intended for acceptance testing, meaning that while it follows the production configuration, it does not charge advertisers or generate revenue.
 
 Finally, call this function in **any subsequent view** where the placement needs to be shown. Placement will not appear when called in the first view of the application as initialization requires time.
 
