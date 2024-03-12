@@ -1,11 +1,11 @@
 env:
-  ENG_BK_AGENT: eng-default
+  MAC_BK_AGENT: eng-prod-us-west-2-mac-arm-macos-build-medium
 
 steps:
   - label: ":broom: Code Quality Scan with trunk"
     key: "trunk"
     agents:
-      queue: ${ENG_BK_AGENT}
+      queue: ${MAC_BK_AGENT}
     plugins:
       - ssh://git@github.com/ROKT/trunk-buildkite-plugin.git#stable:
           team: Mobile-Integrations
