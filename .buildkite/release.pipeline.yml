@@ -3,16 +3,6 @@ env:
   ENG_BK_AGENT: eng-default
 
 steps:
-  - label: ":broom: Code Quality Scan with trunk"
-    key: "trunk"
-    agents:
-      queue: ${ENG_BK_AGENT}
-    plugins:
-      - ssh://git@github.com/ROKT/trunk-buildkite-plugin.git#stable:
-          team: Mobile-Integrations
-          check_args: --ci --all
-    soft_fail: true
-
   - label: ":swift: Update Swift Package"
     commands:
       - . ~/.zshrc
