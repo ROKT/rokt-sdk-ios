@@ -1,4 +1,1 @@
-steps:
-  - label: ":pipeline:"
-    commands:
-      - echo Done
+# pipeline.yml
