@@ -1,1 +1,9 @@
-# pipeline.yml
+env:
+  ENG_BK_AGENT: eng-default
+
+steps:
+  - label: ":pipeline:"
+    commands:
+      - echo Done
+    agents:
+      queue: ${ENG_BK_AGENT}
