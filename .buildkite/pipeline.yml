@@ -1,0 +1,4 @@
+steps:
+  - label: ":pipeline:"
+    commands:
+      - echo Done
