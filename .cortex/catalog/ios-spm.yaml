@@ -1,0 +1,33 @@
+#checkov:skip=CKV_OPENAPI_4:Not required to have auth schema defs
+openapi: 3.0.0
+info:
+  title: Rokt iOS SDK
+  x-cortex-tag: iOS-spm-sdk
+  x-cortex-type: service
+  description: |
+    Rokt iOS Swift package
+  x-cortex-git:
+    github:
+      repository: ROKT/rokt-sdk-ios
+
+  x-cortex-owners:
+    - type: group
+      name: mobile-integrations
+      provider: CORTEX
+  x-cortex-groups:
+    - lang-swift
+
+  x-cortex-oncall:
+    opsgenie:
+      type: SCHEDULE
+      id: Mobile Integrations_schedule
+
+  x-cortex-ci-cd:
+    buildkite:
+      pipelines:
+        - slug: ios-spm
+
+  x-cortex-link:
+    - name: Mobile SDK Detailed Error View
+      type: dashboard
+      url: https://rokt.datadoghq.com/dashboard/nsi-c8c-gtd
