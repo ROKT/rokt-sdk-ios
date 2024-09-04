@@ -1,0 +1,46 @@
+# This file controls the behavior of Trunk: https://docs.trunk.io/cli
+# To learn more about the format of this file, see https://docs.trunk.io/reference/trunk-yaml
+version: 0.1
+cli:
+  version: 1.20.1
+  sha256:
+    darwin_arm64: ccf460a7f4357ac0a2750bc3e1a602ae41ee342bc7fa7b22c1cdf3046aecacff
+    darwin_x86_64: 91743ec926223583ad42b3951e79a57e3d85d2d398a78b97bcf09b83e3774a7f
+    linux_arm64: eae75b5212644238dbcf747d9974bef58068d5b4240dcd8c1234d452f417779e
+    linux_x86_64: 9a32c464da3d7d5dc3e4254ea28fd4130539d8e92665d22649bd01b670fe2cab
+    mingw_x86_64: 40e31a59f49974d270ede5a4d57c4b7bc671d01b3676c72b1463d4e76434a4db
+    windows_x86_64: 1dd4f633dccbea2b7854ca62e2faff9a08af48a2964171c0a5839991cda5e971
+# Trunk provides extensibility via plugins. (https://docs.trunk.io/plugins)
+plugins:
+  sources:
+    - id: trunk
+      ref: v1.4.4
+      uri: https://github.com/trunk-io/plugins
+# Many linters and tools depend on runtimes - configure them here. (https://docs.trunk.io/runtimes)
+runtimes:
+  enabled:
+    - go@1.21.0
+    - node@18.12.1
+    - python@3.10.8
+# This is the section where you manage your linters. (https://docs.trunk.io/check/configuration)
+lint:
+  enabled:
+    - checkov@3.2.34
+    - git-diff-check
+    - markdownlint@0.39.0
+    - prettier@3.2.5
+    - shellcheck@0.10.0
+    - shfmt@3.6.0
+    - trivy@0.49.1
+    - trufflehog@3.69.0
+  disabled:
+    - yamllint
+  ignore:
+    - linters: [prettier]
+      paths:
+        - "**/infra/kube/**" # prettier doesn't understand helm templates
+actions:
+  enabled:
+    - trunk-check-pre-push
+    - trunk-fmt-pre-commit
+    - trunk-upgrade-available
