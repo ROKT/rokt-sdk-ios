@@ -1,5 +1,6 @@
 env:
   MAC_BK_AGENT: eng-prod-us-west-2-mac-arm-macos-build-medium
+  ENG_BK_AGENT: eng-default
 
 steps:
   - label: ":swift: Update Swift Package"

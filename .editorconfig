@@ -1,0 +1,23 @@
+# https://editorconfig.org/
+# all availabile properties: https://github.com/editorconfig/editorconfig/wiki/EditorConfig-Properties
+
+# top-most EditorConfig file
+root = true
+
+[*]
+indent_style = space
+indent_size = 4
+trim_trailing_whitespace = true
+insert_final_newline = true
+# don't set end_of_line; let correct git setting checkout the appropriate one for OS
+charset = utf-8
+
+# not supported everywhere (notably, VSCode) at time of writing
+# https://github.com/editorconfig/editorconfig/wiki/EditorConfig-Properties#max_line_length
+max_line_length = 120
+
+[*.{json,yml,yaml,html,tf}]
+indent_size = 2
+
+[*.go]
+indent_style = tab
