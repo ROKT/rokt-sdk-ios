@@ -1,0 +1,95 @@
+name: Merge to master
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  setup-and-version:
+    runs-on: ubuntu-latest
+    outputs:
+      release-version: ${{ steps.version-file.outputs.release-version }}
+      version-changed: ${{ steps.version-changed.outputs.any_changed }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+
+      - name: Check if VERSION file changed
+        id: version-changed
+        uses: tj-actions/changed-files@2f7c5bfce28377bc069a65ba478de0a74aa0ca32 # v46.0.1
+        with:
+          files: VERSION
+
+      - name: Get current version
+        id: version-file
+        run: |
+          version_from_file=$(head -n 1 VERSION)
+          echo "release-version=$version_from_file" >> $GITHUB_OUTPUT
+
+  release-rokt-sdk:
+    needs: setup-and-version
+    runs-on: ubuntu-latest
+    if: needs.setup-and-version.outputs.version-changed == 'true'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+
+      - name: Get changelog content
+        id: get-changelog
+        run: |
+          # Get the content between the latest version header and the next version header
+          version="${{ needs.setup-and-version.outputs.release-version }}"
+          changelog=$(awk -v version="$version" '
+            BEGIN { p=0 }
+            /^## \['"$version"'\]/ { p=1; next }
+            /^## \[/ { if(p) exit }
+            p { print }
+          ' CHANGELOG.md)
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$changelog" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
+        with:
+          tag_name: ${{ needs.setup-and-version.outputs.release-version }}
+          name: Release ${{ needs.setup-and-version.outputs.release-version }}
+          body: |
+            Release ${{ needs.setup-and-version.outputs.release-version }}
+            ## Changelog
+            ${{ steps.get-changelog.outputs.changelog }}
+          files: Rokt_Widget.xcframework.zip
+
+  publish-rokt-sdk:
+    needs: release-rokt-sdk
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@84684c07c1965536eb4802c8daf1a77968df0cb1 #v1.239.0
+        with:
+          ruby-version: 3.2.2
+          bundler-cache: true
+
+      - name: Install CocoaPods
+        run: |
+          sudo gem install cocoapods
+
+      - name: Validate Podspec
+        run: |
+          pod spec lint Rokt-Widget.podspec --allow-warnings --verbose
+
+      - name: Publish to CocoaPods
+        run: |
+          pod trunk push Rokt-Widget.podspec --allow-warnings
+        env:
+          COCOAPODS_TRUNK_TOKEN: ${{ secrets.COCOAPODS_TRUNK_TOKEN }}
