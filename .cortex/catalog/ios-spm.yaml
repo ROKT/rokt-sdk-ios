@@ -12,7 +12,7 @@ info:
 
   x-cortex-owners:
     - type: group
-      name: "new-integrations"
+      name: sdk-engineering
       provider: CORTEX
   x-cortex-groups:
     - lang-swift
