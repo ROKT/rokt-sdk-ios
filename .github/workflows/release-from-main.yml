@@ -72,7 +72,7 @@ jobs:
             Release ${{ needs.setup-and-version.outputs.release-version }}
             ## Changelog
             ${{ steps.get-changelog.outputs.changelog }}
-          files: .Rokt_Widget.xcframework.zip
+          files: Rokt_Widget.xcframework.zip
 
   publish-rokt-sdk:
     needs: release-rokt-sdk
