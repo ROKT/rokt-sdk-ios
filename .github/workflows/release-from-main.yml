@@ -31,6 +31,9 @@ jobs:
         run: |
           version_from_file=$(head -n 1 VERSION)
           echo "release-version=$version_from_file" >> $GITHUB_OUTPUT
+          # debug
+          echo "version_from_file: $version_from_file"
+          echo "Version changed: ${{ steps.version-changed.outputs.any_changed }}"
 
   release-rokt-sdk:
     needs: setup-and-version
