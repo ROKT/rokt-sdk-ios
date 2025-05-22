@@ -1,0 +1,70 @@
+name: Merge to main
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - VERSION
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release-rokt-sdk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+
+      - name: Get current version
+        id: version-file
+        run: |
+          version_from_file=$(head -n 1 VERSION)
+          echo "release-version=$version_from_file" >> $GITHUB_OUTPUT
+
+      - name: Get changelog content
+        id: get-changelog
+        uses: ffurrer2/extract-release-notes@cae32133495112d23e3569ad04fef240ba4e7bc8 # v2.3.0
+        with:
+          changelog_file: CHANGELOG.md
+
+      - name: Create Release
+        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
+        with:
+          tag_name: ${{ steps.version-file.outputs.release-version }}
+          name: Release ${{ steps.version-file.outputs.release-version }}
+          body: |
+            Release ${{ steps.version-file.outputs.release-version }}
+            ## Changelog
+            ${{ steps.get-changelog.outputs.changelog }}
+          files: Rokt_Widget.xcframework.zip
+
+  publish-rokt-sdk:
+    needs: release-rokt-sdk
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@84684c07c1965536eb4802c8daf1a77968df0cb1 #v1.239.0
+        with:
+          ruby-version: 3.2.2
+          bundler-cache: true
+
+      - name: Install CocoaPods
+        run: |
+          sudo gem install cocoapods
+
+      - name: Validate Podspec
+        run: |
+          pod spec lint Rokt-Widget.podspec --allow-warnings --verbose
+
+      - name: Publish to CocoaPods
+        run: |
+          pod trunk push Rokt-Widget.podspec --allow-warnings
+        env:
+          COCOAPODS_TRUNK_TOKEN: ${{ secrets.COCOAPODS_TRUNK_TOKEN }}
