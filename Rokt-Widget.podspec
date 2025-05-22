@@ -8,9 +8,9 @@
 
 Pod::Spec.new do |s|
   s.name             = 'Rokt-Widget'
-  s.version          = '4.9.0'
+  s.version          = '4.9.1'
   s.summary          = 'Rokt Mobile SDK to integrate ROKT Api into iOS application'
-  s.swift_version    = '5.0'
+  s.swift_version    = '6.0'
 
   s.description      = <<-DESC
   Rokt Mobile SDK to integrate ROKT Api into iOS application. Available in cocoa pod.
@@ -26,7 +26,7 @@ Pod::Spec.new do |s|
   s.author           = { 'ROKT DEV' => 'nativeappsdev@rokt.com' }
   s.source           = { :http => 'https://github.com/ROKT/rokt-sdk-ios/releases/download/' + s.version.to_s + '/Rokt_Widget.xcframework.zip' }
 
-  s.ios.deployment_target = '10.0'
+  s.ios.deployment_target = '12.0'
   s.ios.vendored_frameworks = 'Rokt_Widget.xcframework'
 
 end

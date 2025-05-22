@@ -1,29 +1,22 @@
-name: Merge to master
+name: Merge to main
 
 on:
   push:
     branches:
-      - master
+      - main
+    paths:
+      - VERSION
 
 permissions:
   contents: write
   packages: write
 
 jobs:
-  setup-and-version:
+  release-rokt-sdk:
     runs-on: ubuntu-latest
-    outputs:
-      release-version: ${{ steps.version-file.outputs.release-version }}
-      version-changed: ${{ steps.version-changed.outputs.any_changed }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
-
-      - name: Check if VERSION file changed
-        id: version-changed
-        uses: tj-actions/changed-files@2f7c5bfce28377bc069a65ba478de0a74aa0ca32 # v46.0.1
-        with:
-          files: VERSION
 
       - name: Get current version
         id: version-file
@@ -31,37 +24,19 @@ jobs:
           version_from_file=$(head -n 1 VERSION)
           echo "release-version=$version_from_file" >> $GITHUB_OUTPUT
 
-  release-rokt-sdk:
-    needs: setup-and-version
-    runs-on: ubuntu-latest
-    if: needs.setup-and-version.outputs.version-changed == 'true'
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
-
       - name: Get changelog content
         id: get-changelog
-        run: |
-          # Get the content between the latest version header and the next version header
-          version="${{ needs.setup-and-version.outputs.release-version }}"
-          changelog=$(awk -v version="$version" '
-            BEGIN { p=0 }
-            /^## \['"$version"'\]/ { p=1; next }
-            /^## \[/ { if(p) exit }
-            p { print }
-          ' CHANGELOG.md)
-          echo "changelog<<EOF" >> $GITHUB_OUTPUT
-          echo "$changelog" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+        uses: ffurrer2/extract-release-notes@cae32133495112d23e3569ad04fef240ba4e7bc8 # v2.3.0
+        with:
+          changelog_file: CHANGELOG.md
 
       - name: Create Release
         uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
         with:
-          tag_name: ${{ needs.setup-and-version.outputs.release-version }}
-          name: Release ${{ needs.setup-and-version.outputs.release-version }}
+          tag_name: ${{ steps.version-file.outputs.release-version }}
+          name: Release ${{ steps.version-file.outputs.release-version }}
           body: |
-            Release ${{ needs.setup-and-version.outputs.release-version }}
+            Release ${{ steps.version-file.outputs.release-version }}
             ## Changelog
             ${{ steps.get-changelog.outputs.changelog }}
           files: Rokt_Widget.xcframework.zip
