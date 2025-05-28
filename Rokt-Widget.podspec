@@ -10,7 +10,7 @@ Pod::Spec.new do |s|
   s.name             = 'Rokt-Widget'
   s.version          = '4.10.0'
   s.summary          = 'Rokt Mobile SDK to integrate ROKT Api into iOS application'
-  s.swift_version    = '6.0'
+  s.swift_version    = '5.0'
 
   s.description      = <<-DESC
   Rokt Mobile SDK to integrate ROKT Api into iOS application. Available in cocoa pod.
