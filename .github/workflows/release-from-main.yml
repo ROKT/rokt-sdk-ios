@@ -38,7 +38,7 @@ jobs:
           body: |
             Release ${{ steps.version-file.outputs.release-version }}
             ## Changelog
-            ${{ steps.get-changelog.outputs.changelog }}
+            ${{ steps.get-changelog.outputs.release_notes }}
           files: Rokt_Widget.xcframework.zip
 
   publish-rokt-sdk:
