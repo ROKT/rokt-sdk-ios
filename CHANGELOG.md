@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [4.12.1] - 2025-08-08
+
+### Changed
+
+- Add Discover to supported Apple Pay networks
+
 ## [4.12.0] - 2025-08-05
 
 ### Added
@@ -160,7 +166,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/4.12.0...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/4.12.1...HEAD
+[4.12.1]: https://github.com/ROKT/rokt-sdk-ios/compare/4.12.0...4.12.1
 [4.12.0]: https://github.com/ROKT/rokt-sdk-ios/compare/4.11.0...4.12.0
 [4.11.0]: https://github.com/ROKT/rokt-sdk-ios/compare/4.10.0...4.11.0
 [4.10.0]: https://github.com/ROKT/rokt-sdk-ios/compare/4.9.1...4.10.0
