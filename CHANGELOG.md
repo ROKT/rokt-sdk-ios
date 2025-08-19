@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [4.13.0] - 2025-08-19
 
+### Changed
+
+- UX Helper version updated to [0.7.0](https://github.com/ROKT/rokt-ux-helper-ios/blob/main/CHANGELOG.md#070---2025-08-19)
+
 ## [4.12.1] - 2025-08-08
 
 ### Changed
