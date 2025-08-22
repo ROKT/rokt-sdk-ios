@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [4.14.0] - 2025-08-22
 
+### Fixed
+
+- Handle negative values in `Progression` predicate of `When` component
+
 ## [4.13.0] - 2025-08-19
 
 ### Changed
