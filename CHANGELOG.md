@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [4.14.1] - 2025-09-22
 
+### Fixed
+
+- Fixed thread safety crash in DistributionComponents when transitioning between offers
+
 ## [4.14.0] - 2025-08-22
 
 ### Fixed
