@@ -8,7 +8,7 @@ let package = Package(
     platforms: [.iOS(.v10)],
     products: [
         .library(
-            name: "Rokt-Widget",
+            name: "Rokt_Widget",
             targets: ["Rokt_Widget"]),
     ],
     dependencies: [],
