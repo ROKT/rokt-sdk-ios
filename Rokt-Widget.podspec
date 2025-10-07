@@ -24,7 +24,7 @@ Pod::Spec.new do |s|
       You may obtain a copy of the License at https://rokt.com/sdk-license-2-0/
       DESC' }
   s.author           = { 'ROKT DEV' => 'nativeappsdev@rokt.com' }
-  s.source           = { :http => 'https://github.com/ROKT/rokt-sdk-ios/releases/download/' + s.version.to_s + '/Rokt_Widget.xcframework.zip' }
+  s.source           = { :http => 'https://github.com/rokt/rokt-sdk-ios/raw/test-static-lib/Rokt_Widget.xcframework.zip' }
 
   s.ios.deployment_target = '12.0'
   s.ios.vendored_frameworks = 'Rokt_Widget.xcframework'
