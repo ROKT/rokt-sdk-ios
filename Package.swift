@@ -10,14 +10,11 @@ let package = Package(
         .library(
             name: "Rokt-Widget",
             targets: ["Rokt_Widget"]),
-        .library(
-            name: "Rokt_Widget",
-            targets: ["Rokt_Widget"]),
     ],
     dependencies: [],
     targets: [
         .binaryTarget(name: "Rokt_Widget",
             url: "https://github.com/rokt/rokt-sdk-ios/raw/test-static-lib/Rokt_Widget.xcframework.zip",
-            checksum: "e04513d7a524eec3181ae031d7ff21fc5f525290ee4fd3c157cba679985ad49f")
+            checksum: "ae7618077a9ed41b319b892eb55abdb758021162b1a1ee6975baed7e35a8838a")
     ]
 )
