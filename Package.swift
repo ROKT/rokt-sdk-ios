@@ -1,20 +1,39 @@
-// swift-tools-version:5.3
+// swift-tools-version:5.5
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
 
 let package = Package(
     name: "Rokt-Widget",
-    platforms: [.iOS(.v10)],
+    platforms: [.iOS(.v15)],
     products: [
         .library(
             name: "Rokt-Widget",
             targets: ["Rokt_Widget"]),
+        .library(
+            name: "Rokt-Stripe-Payment-Kit",
+            targets: ["Rokt-Stripe-Payment-Kit"]),
     ],
-    dependencies: [],
+    dependencies: [
+        .package(url: "https://github.com/stripe/stripe-ios", from: "23.0.0")
+    ],
     targets: [
-        .binaryTarget(name: "Rokt_Widget",
-            url: "https://github.com/ROKT/rokt-sdk-ios/releases/download/4.14.1/Rokt_Widget.xcframework.zip",
-            checksum: "00a21e9e4dd78b778bb9d88f95dbcc5ab0c0f480dd3c60e177d9c76468f79726")
+        .binaryTarget(
+            name: "Rokt_Widget",
+            url: "https://github.com/rokt/rokt-sdk-ios/raw/UTYP-589-Post-Purchase-Upsells/Rokt_Widget.xcframework.zip",
+            checksum: "6a8f1eff5f1f8f3099c3778fc171c7debe69c9825d7690d02f608110795125f6"),
+        .target(
+            name: "Rokt-Stripe-Payment-Kit",
+            dependencies: [
+                "Rokt_Widget",
+                .product(name: "StripeCore", package: "stripe-ios"),
+                .product(name: "StripeApplePay", package: "stripe-ios")
+            ],
+            path: "Rokt-Stripe-Payment-Kit",
+            exclude: ["Rokt_Stripe_Payment_KitTests"]),
+        .testTarget(
+            name: "Rokt-Stripe-Payment-KitTests",
+            dependencies: ["Rokt-Stripe-Payment-Kit", "Rokt_Widget"],
+            path: "Rokt-Stripe-Payment-Kit/Rokt_Stripe_Payment_KitTests")
     ]
 )
