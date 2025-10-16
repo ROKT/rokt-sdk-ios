@@ -15,7 +15,7 @@ let package = Package(
             targets: ["Rokt-Stripe-Payment-Kit"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/stripe/stripe-ios", from: "23.0.0")
+        .package(url: "https://github.com/stripe/stripe-ios", from: "24.23.1")
     ],
     targets: [
         .binaryTarget(
@@ -26,8 +26,7 @@ let package = Package(
             name: "Rokt-Stripe-Payment-Kit",
             dependencies: [
                 "Rokt_Widget",
-                .product(name: "StripeCore", package: "stripe-ios"),
-                .product(name: "StripeApplePay", package: "stripe-ios")
+                .product(name: "Stripe", package: "stripe-ios")
             ],
             path: "Rokt-Stripe-Payment-Kit",
             exclude: ["Rokt_Stripe_Payment_KitTests"]),
