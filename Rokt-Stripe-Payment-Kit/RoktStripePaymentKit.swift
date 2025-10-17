@@ -27,7 +27,7 @@ public class RoktStripePaymentKit: PaymentKit, ObservableObject {
 
     // MARK: - Private Properties
 
-    private let stripePublishableKey = "REPLACE_WITH_ROKT_STRIPE_PUBLISHABLE_KEY"
+    private let stripePublishableKey = "pk_test_51QrRbaDg9xZkkBE2WZcoYYO4sDkZTuIL7BcoNX1b6K49zM0I80VlUgAumWIlZV5jIxQe4QxXxHLDvqaiEWq8bki600FXgjAy5k"
     private let countryCode: String
     private let currencyCode: String
 
