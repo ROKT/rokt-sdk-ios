@@ -45,38 +45,22 @@ internal class StripeApplePayManager: NSObject {
             item.quantity > 0,
             item.unitPrice > 0
         else {
-            let error = PaymentError(
-                code: "INVALID_PAYMENT_ITEM",
-                message: "Payment item has invalid properties"
-            )
-            completion(PaymentResult(success: false, error: error))
+            completion(PaymentResult(success: false, message: "Payment item has invalid properties"))
             return
         }
 
         guard !merchantId.isEmpty else {
-            let error = PaymentError(
-                code: "INVALID_MERCHANT_ID",
-                message: "Merchant ID cannot be empty"
-            )
-            completion(PaymentResult(success: false, error: error))
+            completion(PaymentResult(success: false, message: "Merchant ID cannot be empty"))
             return
         }
 
         guard PKPaymentAuthorizationController.canMakePayments() else {
-            let error = PaymentError(
-                code: "APPLE_PAY_NOT_AVAILABLE",
-                message: "Apple Pay is not available on this device"
-            )
-            completion(PaymentResult(success: false, error: error))
+            completion(PaymentResult(success: false, message: "Apple Pay is not available on this device"))
             return
         }
 
         guard item.totalPrice > 0 else {
-            let error = PaymentError(
-                code: "INVALID_ITEM_PRICE",
-                message: "Item price must be greater than zero"
-            )
-            completion(PaymentResult(success: false, error: error))
+            completion(PaymentResult(success: false, message: "Item price must be greater than zero"))
             return
         }
 
@@ -96,11 +80,7 @@ internal class StripeApplePayManager: NSObject {
                 delegate: delegate
             )
         else {
-            let error = PaymentError(
-                code: "APPLE_PAY_CONTEXT_FAILED",
-                message: "Failed to create Apple Pay context"
-            )
-            completion(PaymentResult(success: false, error: error))
+            completion(PaymentResult(success: false, message: "Failed to create Apple Pay context"))
             return
         }
 
@@ -212,11 +192,7 @@ private class StripeApplePayDelegate: NSObject, ApplePayContextDelegate {
     ) {
         // Check if payment has been prepared with shipping address
         guard isPaymentPrepared, clientSecret != nil else {
-            let error = PaymentError(
-                code: "PAYMENT_NOT_PREPARED",
-                message: "Payment must be prepared with shipping address before completion"
-            )
-            completion(nil, error)
+            completion(nil, "Payment must be prepared with shipping address before completion")
             return
         }
 
@@ -239,23 +215,19 @@ private class StripeApplePayDelegate: NSObject, ApplePayContextDelegate {
         case .error:
             let paymentResult = PaymentResult(
                 success: false,
-                error: PaymentError(
-                    code: "STRIPE_ERROR", message: error?.localizedDescription ?? "Unknown error"
-                )
+                message: error?.localizedDescription ?? "Unknown error"
             )
             completion(paymentResult)
         case .userCancellation:
             let paymentResult = PaymentResult(
                 success: false,
-                error: PaymentError(
-                    code: "APPLE_PAY_CANCELED", message: "Apple Pay was canceled by user"
-                )
+                message: "Apple Pay was canceled by user"
             )
             completion(paymentResult)
         @unknown default:
             let paymentResult = PaymentResult(
                 success: false,
-                error: PaymentError(code: "UNKNOWN_STATUS", message: "Unknown payment status")
+                message: "Unknown payment status"
             )
             completion(paymentResult)
         }
@@ -303,19 +275,16 @@ private class StripeApplePayDelegate: NSObject, ApplePayContextDelegate {
                 )
                 handler(update)
 
-            case .failure(let error):
-                // Reset preparation state on error
+            case .failure(let message):
+                // Reset preparation state on message
                 self.isPaymentPrepared = false
                 self.clientSecret = nil
                 self.paymentIntentId = nil
 
-                // Return empty update on error
-                let update = PKPaymentRequestShippingContactUpdate(
-                    errors: nil,
-                    paymentSummaryItems: [],
-                    shippingMethods: []
-                )
-                handler(update)
+                DispatchQueue.main.async {
+                    self.context?.dismiss { }
+                    self.completion(PaymentResult(success: false, message: message))
+                }
             }
         }
     }
