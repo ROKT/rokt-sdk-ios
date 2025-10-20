@@ -27,7 +27,7 @@ public class RoktStripePaymentKit: PaymentKit, ObservableObject {
 
     // MARK: - Private Properties
 
-    private let stripePublishableKey = "pk_test_51QrRbaDg9xZkkBE2WZcoYYO4sDkZTuIL7BcoNX1b6K49zM0I80VlUgAumWIlZV5jIxQe4QxXxHLDvqaiEWq8bki600FXgjAy5k"
+    private let stripePublishableKey = "pk_test_51IAmSrCXN0Yfj1ZyasihW0GWytRkTdKCRZXp9b2t7HMrcJrY87Brmn0Ahe5kkDd2yfpqBIeuEAuPN1V2CXrefePl00SuzXxRoH"
     private let countryCode: String
     private let currencyCode: String
 
@@ -75,22 +75,18 @@ public class RoktStripePaymentKit: PaymentKit, ObservableObject {
         completion: @escaping (PaymentResult) -> Void
     ) {
       guard #available(iOS 13.0, *) else {
-        let error = PaymentError(
-            code: "IOS_VERSION_INCOMPATIBLE",
-            message:
-            "Stripe SDK requires iOS 13.0 or later. Current version: \(UIDevice.current.systemVersion)"
-        )
-        completion(PaymentResult(success: false, error: error))
+        completion(PaymentResult(
+            success: false,
+            message: "Stripe SDK requires iOS 13.0 or later. Current version: \(UIDevice.current.systemVersion)"
+        ))
         return
       }
 
         guard let stripeApplePayManager = stripeApplePayManager else {
-          let error = PaymentError(
-              code: "APPLE_PAY_NOT_CONFIGURED",
-              message:
-              "Apple Pay not configured. Please provide applePayMerchantId during initialization."
-          )
-          completion(PaymentResult(success: false, error: error))
+          completion(PaymentResult(
+              success: false,
+              message: "Apple Pay not configured. Please provide applePayMerchantId during initialization."
+          ))
           return
         }
 
