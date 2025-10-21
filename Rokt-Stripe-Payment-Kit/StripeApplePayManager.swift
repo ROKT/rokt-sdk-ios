@@ -190,9 +190,9 @@ private class StripeApplePayDelegate: NSObject, ApplePayContextDelegate {
         paymentInformation: PKPayment,
         completion: @escaping STPIntentClientSecretCompletionBlock
     ) {
-        // Check if payment has been prepared with shipping address
+        // Check if payment has been prepared
         guard isPaymentPrepared, clientSecret != nil else {
-            completion(nil, "Payment must be prepared with shipping address before completion")
+            completion(nil, NSError(domain: "StripeApplePayManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Payment must be prepared before completion"]))
             return
         }
 
@@ -282,8 +282,7 @@ private class StripeApplePayDelegate: NSObject, ApplePayContextDelegate {
                 self.paymentIntentId = nil
 
                 DispatchQueue.main.async {
-                    self.context?.dismiss { }
-                    self.completion(PaymentResult(success: false, message: message))
+                    self.completion(PaymentResult(success: false, message: message.localizedDescription))
                 }
             }
         }
