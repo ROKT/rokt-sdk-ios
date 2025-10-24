@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+- RoktUXHelper version 0.7.4
+- New animation styles supported in DataImageCarousel
+
+### Fixed
+
+- Fixed ProgressComponent
+
 ## [4.14.2] - 2025-10-24
 
 ## [4.14.1] - 2025-09-22
