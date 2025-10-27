@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [4.14.2] - 2025-10-24
+
+- RoktUXHelper version 0.7.4
+- New animation styles supported in DataImageCarousel
+
+### Fixed
+
+- Fixed ProgressComponent
+
 ## [4.14.1] - 2025-09-22
 
 ### Fixed
@@ -184,7 +193,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.1...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.2...HEAD
+[4.14.2]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.1...4.14.2
 [4.14.1]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.0...4.14.1
 [4.14.0]: https://github.com/ROKT/rokt-sdk-ios/compare/4.13.0...4.14.0
 [4.13.0]: https://github.com/ROKT/rokt-sdk-ios/compare/4.12.1...4.13.0
