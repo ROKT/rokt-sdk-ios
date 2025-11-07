@@ -20,7 +20,7 @@ let package = Package(
     targets: [
         .binaryTarget(
             name: "Rokt_Widget",
-            url: "https://github.com/rokt/rokt-sdk-ios/raw/refactor/payment-kit/Rokt_Widget.xcframework.zip",
+            url: "https://github.com/rokt/rokt-sdk-ios/raw/UTYP-589-Post-Purchase-Upsells/Rokt_Widget.xcframework.zip",
             checksum: "496420c9df797cb3614abf0756be93aef03889fb568de4a2e6163b81d0e39ffc"),
         .target(
             name: "Rokt-Stripe-Payment-Kit",
