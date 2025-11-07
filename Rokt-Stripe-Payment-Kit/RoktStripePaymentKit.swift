@@ -55,9 +55,9 @@ public class RoktStripePaymentKit: PaymentKit, ObservableObject {
         self.currencyCode = currencyCode
     }
 
-    public func onRegister(parameters: [String: String]) {
+    public func onRegister(parameters: [String: String]) -> Bool {
         guard let stripeKey = parameters["stripeKey"] else {
-            return
+            return false
         }
 
         let stripeAPIClient = STPAPIClient(publishableKey: stripeKey)
@@ -68,6 +68,8 @@ public class RoktStripePaymentKit: PaymentKit, ObservableObject {
             countryCode: countryCode,
             currencyCode: currencyCode
         )
+
+        return true
     }
 
     public func onUnregister() {
