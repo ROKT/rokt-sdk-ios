@@ -176,7 +176,6 @@ private class StripeApplePayDelegate: NSObject, ApplePayContextDelegate {
     // Track if payment has been prepared with shipping address
     private var isPaymentPrepared = false
     private var clientSecret: String?
-    private var paymentIntentId: String?
 
     init(apiClient: STPAPIClient, preparePayment: @escaping PreparePayment, completion: @escaping (PaymentResult) -> Void) {
         self.apiClient = apiClient
@@ -191,13 +190,20 @@ private class StripeApplePayDelegate: NSObject, ApplePayContextDelegate {
         completion: @escaping STPIntentClientSecretCompletionBlock
     ) {
         // Check if payment has been prepared
-        guard isPaymentPrepared, clientSecret != nil else {
-            completion(nil, NSError(domain: "StripeApplePayManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Payment must be prepared before completion"]))
+        guard self.isPaymentPrepared, self.clientSecret != nil else {
+            completion(
+                nil,
+                NSError(
+                    domain: "StripeApplePayManager",
+                    code: -1,
+                    userInfo: [NSLocalizedDescriptionKey: "Payment must be prepared before completion"]
+                )
+            )
             return
         }
 
         // Use the prepared client secret
-        completion(clientSecret, nil)
+        completion(self.clientSecret, nil)
     }
 
     func applePayContext(
@@ -209,7 +215,7 @@ private class StripeApplePayDelegate: NSObject, ApplePayContextDelegate {
         case .success:
             let paymentResult = PaymentResult(
                 success: true,
-                transactionId: paymentIntentId ?? "unknown"
+                transactionId: "unknown"
             )
             completion(paymentResult)
         case .error:
@@ -248,9 +254,11 @@ private class StripeApplePayDelegate: NSObject, ApplePayContextDelegate {
             case .success(let preparation):
                 self.isPaymentPrepared = true
                 self.clientSecret = preparation.paymentProviderData.getValue(for: "clientSecret")
-                self.paymentIntentId = preparation.paymentProviderData.getValue(for: "paymentIntentId")
 
                 let merchantName = preparation.paymentProviderData.getValue(for: "merchantName")
+                let merchantAccountId = preparation.paymentProviderData.getValue(for: "merchantAccountId")
+
+                self.apiClient.stripeAccount = merchantAccountId
 
                 // Convert string values to Decimal
                 let subtotal = Decimal(string: preparation.subtotal) ?? 0
@@ -275,15 +283,20 @@ private class StripeApplePayDelegate: NSObject, ApplePayContextDelegate {
                 )
                 handler(update)
 
-            case .failure(let message):
+            case .failure(let error):
                 // Reset preparation state on message
                 self.isPaymentPrepared = false
                 self.clientSecret = nil
-                self.paymentIntentId = nil
 
-                DispatchQueue.main.async {
-                    self.completion(PaymentResult(success: false, message: message.localizedDescription))
-                }
+                let applePayError = PKPaymentRequest.paymentShippingAddressUnserviceableError(
+                    withLocalizedDescription: "Something went wrong. Please try again."
+                )
+                let update = PKPaymentRequestShippingContactUpdate(
+                    errors: [applePayError],
+                    paymentSummaryItems: [],
+                    shippingMethods: []
+                )
+                handler(update)
             }
         }
     }
@@ -294,7 +307,7 @@ private class StripeApplePayDelegate: NSObject, ApplePayContextDelegate {
         }
 
         return ShippingAttributes(
-            address1: postalAddress.street,
+            address1: "123 Placeholder St", // Apple Pay does not provide this field, but it is required by the API call
             city: postalAddress.city,
             state: postalAddress.state,
             postalCode: postalAddress.postalCode,
