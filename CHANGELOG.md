@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [4.14.4] - 2025-11-20
+
+### Fixed
+
+- Embedded hosting controller cleanup to remove view controller lifecycle management
+
 ## [4.14.3] - 2025-11-06
 
 ### Fixed
@@ -72,6 +78,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 - FirstPositiveEngagement is now emitted for all execute calls
 
 ## [4.10.0] - 2025-05-28
+
+### Added
+
+- Real time events
 
 ### Changed
 
@@ -201,7 +211,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.3...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.4...HEAD
+[4.14.4]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.3...4.14.4
 [4.14.3]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.2...4.14.3
 [4.14.2]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.1...4.14.2
 [4.14.1]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.0...4.14.1
