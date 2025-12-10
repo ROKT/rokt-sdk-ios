@@ -14,7 +14,7 @@ let package = Package(
     dependencies: [],
     targets: [
         .binaryTarget(name: "Rokt_Widget",
-            url: "https://github.com/ROKT/rokt-sdk-ios/releases/download/4.14.4/Rokt_Widget.xcframework.zip",
-            checksum: "9f498680446bf0031a5ab7c06b76ba06eb1f0211eb29351a68acb05747f08795")
+            url: "https://github.com/ROKT/rokt-sdk-ios/releases/download/4.14.5/Rokt_Widget.xcframework.zip",
+            checksum: "87ed29b6688dffee2c532d54d3d27436eaa048844dd5deaa309051e0f3c30d01")
     ]
 )
