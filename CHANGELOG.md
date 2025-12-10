@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 ### Changed
 
 - Reverted temporary iOS view controller hierarchy changes introduced in 4.14.4.
+- RoktUXHelper version [0.7.5](https://github.com/ROKT/rokt-ux-helper-ios/releases/tag/0.7.5)
+
+### Fixed
+
+- Fix ScrollableColumn and ScrollableRow ignoring dimension maxHeight/maxWidth constraints when weight is set
 
 ## [4.14.4] - 2025-11-20
 
