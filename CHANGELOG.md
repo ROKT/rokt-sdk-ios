@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [4.14.5] - 2025-12-10
+
+### Changed
+
+- Reverted temporary iOS view controller hierarchy changes introduced in 4.14.4.
+
 ## [4.14.4] - 2025-11-20
 
 ### Fixed
@@ -211,7 +217,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.4...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.5...HEAD
+[4.14.5]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.4...4.14.5
 [4.14.4]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.3...4.14.4
 [4.14.3]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.2...4.14.3
 [4.14.2]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.1...4.14.2
