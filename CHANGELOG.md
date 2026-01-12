@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [4.14.6] - 2026-01-12
+
+### Fixed
+
+- Fixed thread safety crash when processing platform events
+
 ## [4.14.5] - 2025-12-10
 
 ### Changed
@@ -222,7 +228,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.5...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.6...HEAD
+[4.14.6]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.5...4.14.6
 [4.14.5]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.4...4.14.5
 [4.14.4]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.3...4.14.4
 [4.14.3]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.2...4.14.3
