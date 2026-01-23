@@ -21,7 +21,7 @@ let package = Package(
         .binaryTarget(
             name: "Rokt_Widget",
             url: "https://github.com/rokt/rokt-sdk-ios/raw/UTYP-589-Post-Purchase-Upsells/Rokt_Widget.xcframework.zip",
-            checksum: "506410145498d94a667acab41b9d4da92b037f39873c2a313294c4d2e21a0b74"),
+            checksum: "edb6fb2216cb19081632bd46c615df0cb318f5a31e5af47875f4f26af372d6d0"),
         .target(
             name: "Rokt-Stripe-Payment-Kit",
             dependencies: [
