@@ -228,6 +228,7 @@ private class StripeApplePayDelegate: NSObject, ApplePayContextDelegate {
             let paymentResult = PaymentResult(
                 success: false,
                 message: "Apple Pay was canceled by user",
+                isCancelled: true
             )
             completion(paymentResult)
         @unknown default:
