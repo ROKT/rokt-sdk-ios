@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [4.15.0] - 2026-01-30
+
+### Added
+
+- Added support for getting and setting session ID. If you use multiple integrations, such as webview and native within your app you can now set session ID so it is maintained across integration types.
+
+### Changed
+
+- Updated timing data capture logic and added `x-rokt-trace-id` header
+
 ## [4.14.6] - 2026-01-12
 
 ### Fixed
@@ -228,7 +238,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.6...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/4.15.0...HEAD
+[4.15.0]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.6...4.15.0
 [4.14.6]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.5...4.14.6
 [4.14.5]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.4...4.14.5
 [4.14.4]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.3...4.14.4
