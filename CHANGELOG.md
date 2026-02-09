@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [4.16.1] - 2026-02-09
+
+### Added
+
+- Add `PlacementOptions` to support passing joint SDK timing data for placement selection
+
+### Fixed
+
+- Remove false positive font diagnostics requests on the first time init
+
 ## [4.16.0] - 2026-02-05
 
 ### Added
@@ -248,7 +258,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.0...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.1...HEAD
+[4.16.1]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.0...4.16.1
 [4.16.0]: https://github.com/ROKT/rokt-sdk-ios/compare/4.15.0...4.16.0
 [4.15.0]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.6...4.15.0
 [4.14.6]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.5...4.14.6
