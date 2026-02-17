@@ -1,0 +1,15 @@
+disabled_rules:
+  - identifier_name
+  - force_cast
+  - weak_delegate
+  - function_parameter_count
+  - file_length
+  - type_body_length
+
+included:
+  - Sources
+  - Example/rokt
+
+excluded:
+  - Example/Tests
+  - Tests

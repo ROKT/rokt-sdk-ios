@@ -1,0 +1,412 @@
+{
+  "page": {
+    "versionId": "1603606476230",
+    "pageId": "edecb4b2-91a5-4fd7-859f-82347b6e79fd",
+    "pageType": "Confirmation",
+    "category": "Transaction",
+    "platformType": "iOS",
+    "targetingRules": [
+      {
+        "inverse": false,
+        "regex": ["viewname:[^;]*testView2[^;]*;"]
+      }
+    ],
+    "hasPlacements": true
+  },
+  "pageDetectionTime": "2023-03-05T23:44:13.7049799+00:00",
+  "sessionId": "afbc0187-2d0f-4ac2-b852-a60a1e02b1a0",
+  "token": "FAKE_Utopmost-tokenE_TESTING_PURPOSES_ONLY",
+  "placementContext": {
+    "roktTagId": "",
+    "pageInstanceGuid": "afbc0187-2d0f-4ad4-be6b-7545f9273565",
+    "token": "FAKE_PLACEMENT_TOKEN_TESTING_PURPOSES_ONLY"
+  },
+  "placements": [],
+  "plugins": [
+    {
+      "plugin": {
+        "id": "2732370593714667533",
+        "name": "test layout",
+        "targetElementSelector": "Location1",
+        "config": {
+          "instanceGuid": "21b61e93-24bd-4735-995a-2f14d0673ec2",
+          "token": "FAKE_Uplugin-config-tokenE_TESTING_PURPOSES_ONLY",
+          "outerLayoutSchema": "{\"breakpoints\":{\"Landscape\":500,\"Portrait\":560},\"layout\":{\"type\":\"Column\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"border\":{\"borderRadius\":15,\"borderWidth\":\"1\",\"borderColor\":{\"light\":\"#A9A9A9\",\"dark\":\"#A9A9A9\"}},\"background\":{\"backgroundColor\":{\"light\":\"#FFFFFF\",\"dark\":\"#FFFFFF\"}},\"spacing\":{\"padding\":\"10 10 10 10\"}}}]}},\"children\":[{\"type\":\"CarouselDistribution\",\"node\":{\"viewableItems\":[1,2],\"peekThroughSize\":[{\"type\":\"Fixed\",\"value\":10},{\"type\":\"Fixed\",\"value\":20}],\"styles\":{\"elements\":{\"own\":[{\"default\":{\"container\":{\"alignItems\":\"flex-start\",\"gap\":10},\"border\":{\"borderRadius\":15,\"borderWidth\":\"1\",\"borderColor\":{\"light\":\"#000000\",\"dark\":\"#000000\"}},\"spacing\":{\"padding\":\"6 6 6 6\"}}}]}}}},{\"type\":\"Row\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"dimension\":{\"width\":{\"type\":\"fit\",\"value\":\"fit-width\"}},\"spacing\":{\"margin\":\"8 0 0 0\"}}}]}},\"children\":[{\"type\":\"BasicText\",\"node\":{\"value\":\"%^STATE.indicatorPosition^% of %^STATE.totalOffers^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":11,\"fontWeight\":\"400\",\"lineHeight\":14.3,\"fontFamily\":\"GintoRegular\",\"textColor\":{\"light\":\"#666666\",\"dark\":\"#666666\"}}}}]}}}},{\"type\":\"ProgressIndicator\",\"node\":{\"indicator\":\"\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"container\":{\"justifyContent\":\"center\"},\"spacing\":{\"padding\":\"10 10 10 10\"},\"flexChild\":{\"alignSelf\":\"center\"}}}],\"indicator\":[{\"default\":{\"container\":{\"alignItems\":\"center\",\"justifyContent\":\"center\"},\"border\":{\"borderRadius\":10},\"background\":{\"backgroundColor\":{\"light\":\"#E6E6E6\",\"dark\":\"#E6E6E6\"}},\"dimension\":{\"width\":{\"type\":\"fixed\",\"value\":12},\"height\":{\"type\":\"fixed\",\"value\":12}},\"text\":{\"textColor\":{\"light\":\"#000000\",\"dark\":\"#000000\"},\"horizontalTextAlign\":\"center\",\"fontSize\":8,\"fontFamily\":\"arial\"}}}],\"activeIndicator\":[{\"default\":{\"background\":{\"backgroundColor\":{\"light\":\"#F5C1C4\",\"dark\":\"#F5C1C4\"}}}}]}}}},{\"type\":\"RichText\",\"node\":{\"value\":\"Powered by <a href=\\\"https://www.rokt.com\\\">Rokt</a> - <a href=\\\"https://www.rokt.com/privacy-policy/\\\">Privacy Policy</a>\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":11,\"fontWeight\":\"400\",\"lineHeight\":14.3,\"fontFamily\":\"GintoRegular\",\"textColor\":{\"light\":\"#666666\",\"dark\":\"#666666\"},\"horizontalTextAlign\":\"end\"},\"flexChild\":{\"weight\":1}}}],\"link\":[{\"default\":{\"text\":{\"textDecoration\":\"underline\",\"textColor\":{\"light\":\"#666666\",\"dark\":\"#666666\"}}}}]}}}}]}},{\"type\":\"ProgressIndicator\",\"node\":{\"indicator\":\"%^STATE.IndicatorPosition^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"container\":{\"justifyContent\":\"center\"},\"spacing\":{\"padding\":\"10 10 10 10\"},\"flexChild\":{\"alignSelf\":\"center\"}}}],\"indicator\":[{\"default\":{\"container\":{\"alignItems\":\"center\",\"justifyContent\":\"center\"},\"border\":{\"borderRadius\":10},\"background\":{\"backgroundColor\":{\"light\":\"#ff0000\",\"dark\":\"#ff0000\"}},\"dimension\":{\"width\":{\"type\":\"fixed\",\"value\":20},\"height\":{\"type\":\"fixed\",\"value\":20}},\"text\":{\"textColor\":{\"light\":\"#000000\",\"dark\":\"#000000\"},\"horizontalTextAlign\":\"center\",\"fontSize\":8,\"fontFamily\":\"arial\"}}}],\"activeIndicator\":[{\"default\":{\"background\":{\"backgroundColor\":{\"light\":\"#F5C1C4\",\"dark\":\"#F5C1C4\"}}}}]}}}}]}}}",
+          "slots": [
+            {
+              "instanceGuid": "f0620e60-279e-475f-8e68-1b3816c06911",
+              "token": "FAKE_SLOT_TOKEN_TESTING_PURPOSES_ONLY",
+              "layoutVariant": {
+                "layoutVariantId": "layout_variant_id",
+                "moduleName": "",
+                "layoutVariantSchema": "{\"type\":\"Column\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"padding\":\"0\"}}}]}},\"children\":[{\"type\":\"Row\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"dimension\":{\"width\":{\"type\":\"fit\",\"value\":\"fit-width\"}}}}]}},\"children\":[{\"type\":\"Column\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"flexChild\":{\"weight\":1}}}]}},\"children\":[{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.creative.title|^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":17,\"fontWeight\":\"700\",\"lineHeight\":22.1,\"textColor\":{\"light\":\"#000000\",\"dark\":\"#000000\"}}}}]}}}}]}}]}},{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.creative.copy|^% %^DATA.creativeLink.termsAndConditions|^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"2 0 0 0\"},\"text\":{\"fontSize\":13,\"fontWeight\":\"400\",\"lineHeight\":16.9,\"textColor\":{\"light\":\"#333333\",\"dark\":\"#333333\"}}}}],\"link\":[{\"default\":{\"text\":{\"textDecoration\":\"underline\",\"textColor\":{\"light\":\"#333333\",\"dark\":\"#333333\"}}}}]}}}},{\"type\":\"Row\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"dimension\":{\"width\":{\"type\":\"fit\",\"value\":\"fit-width\"}},\"spacing\":{\"margin\":\"8 0 0 0\"}}}]}},\"children\":[{\"type\":\"CreativeResponse\",\"node\":{\"responseKey\":\"positive\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"padding\":\"6 12 6 12\"},\"border\":{\"borderRadius\":20},\"container\":{\"justifyContent\":\"center\",\"alignItems\":\"center\"},\"dimension\":{\"width\":{\"type\":\"fit\",\"value\":\"wrap-content\"},\"minHeight\":40},\"flexChild\":{\"alignSelf\":\"flex-start\"},\"background\":{\"backgroundColor\":{\"light\":\"#333333\",\"dark\":\"#333333\"}}}}]}},\"children\":[{\"type\":\"Column\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"dimension\":{\"height\":{\"type\":\"fixed\",\"value\":20},\"width\":{\"type\":\"fixed\",\"value\":20}}}}]}},\"children\":[{\"type\":\"StaticImage\",\"node\":{\"url\":{\"light\":\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAABRCAYAAABFTSEIAAAACXBIWXMAACxLAAAsSwGlPZapAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAIESURBVHgB7drhUcJAEIbhjRVoJ5aAlZhO0BKsgHSCHUAJdIAdnOfwOeI44IXcJru33zvD4I9wtz4ckh+KMMYYY4wxxhhjsepEqZTSKj+t8+MxP+4LX3aQuh1GXLvPj7eu68a8RqeMt05+ex7zu1Y/gXmAPj9txHdP+SS+l1x4J/Ub9Q4abV16ocYJPEr53zyrfeQT+FByocYJbKHiA6ABuJdAaQC+SqCqA+LbKwyi5o10L6dv5JU4LB8ENRvT5TdukyokEauFFxKwJl44wNp4oQA18MIAauGFANTEax5wAt5QeqG02hQ8vD4u4FQ8rBETsAYe1okHWAsPa8UCrImH9eIA1sbDmjEANfCwbvuAWnhYu21ATTys3y6gNh72aBMw3f7vIMPIfdoDnAsPe7UFOCce9msHcG487NkG4BJ42Nc/4FJ42Ns34JJ42N8v4NJ4mMEnoAU8zOEP0AoeZvEFaAkP8/gBtIaHmXwAWsTDXPYBreJhNtuAlvEwn11A63iY0SagBzzMaQ/QCx5mPZYMJnPlCQ/zbgtm28kcecPDzKuC+XrRziPe2ewvV+Z7Ee08432XZ+nT74/z18+9aNcC3mIRb0I48sS7tVT29U+8S6XxDcJ+SoV38MS7UCr/CA/C/pbK7uAHYZdL1+/gB2H/l063M7szuG2a4w6eMcYYY4wx1k6fnYaQsqMmzDYAAAAASUVORK5CYII=\",\"dark\":\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAABRCAYAAABFTSEIAAAACXBIWXMAACxLAAAsSwGlPZapAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAIESURBVHgB7drhUcJAEIbhjRVoJ5aAlZhO0BKsgHSCHUAJdIAdnOfwOeI44IXcJru33zvD4I9wtz4ckh+KMMYYY4wxxhhjsepEqZTSKj+t8+MxP+4LX3aQuh1GXLvPj7eu68a8RqeMt05+ex7zu1Y/gXmAPj9txHdP+SS+l1x4J/Ub9Q4abV16ocYJPEr53zyrfeQT+FByocYJbKHiA6ABuJdAaQC+SqCqA+LbKwyi5o10L6dv5JU4LB8ENRvT5TdukyokEauFFxKwJl44wNp4oQA18MIAauGFANTEax5wAt5QeqG02hQ8vD4u4FQ8rBETsAYe1okHWAsPa8UCrImH9eIA1sbDmjEANfCwbvuAWnhYu21ATTys3y6gNh72aBMw3f7vIMPIfdoDnAsPe7UFOCce9msHcG487NkG4BJ42Nc/4FJ42Ns34JJ42N8v4NJ4mMEnoAU8zOEP0AoeZvEFaAkP8/gBtIaHmXwAWsTDXPYBreJhNtuAlvEwn11A63iY0SagBzzMaQ/QCx5mPZYMJnPlCQ/zbgtm28kcecPDzKuC+XrRziPe2ewvV+Z7Ee08432XZ+nT74/z18+9aNcC3mIRb0I48sS7tVT29U+8S6XxDcJ+SoV38MS7UCr/CA/C/pbK7uAHYZdL1+/gB2H/l063M7szuG2a4w6eMcYYY4wx1k6fnYaQsqMmzDYAAAAASUVORK5CYII=\"}}}]}},{\"type\":\"BasicText\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"0 0 0 4\"},\"text\":{\"fontSize\":16,\"fontWeight\":\"700\",\"lineHeight\":20.8,\"textColor\":{\"light\":\"#FFFFFF\",\"dark\":\"#FFFFFF\"}}}}]}},\"value\":\"%^DATA.creativeResponse.shortLabel^%\"}}]}},{\"type\":\"CreativeResponse\",\"node\":{\"responseKey\":\"negative\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"0 0 0 12\"},\"container\":{\"justifyContent\":\"center\",\"alignItems\":\"center\"},\"dimension\":{\"width\":{\"type\":\"fit\",\"value\":\"wrap-content\"},\"minHeight\":40},\"flexChild\":{\"alignSelf\":\"flex-start\"}}}]}},\"children\":[{\"type\":\"BasicText\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"0\"},\"text\":{\"fontSize\":14,\"fontWeight\":\"700\",\"lineHeight\":18.2,\"textColor\":{\"light\":\"#333333\",\"dark\":\"#333333\"},\"textDecoration\":\"underline\"}}}]}},\"value\":\"%^DATA.creativeResponse.shortLabel^%\"}}]}}]}},{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.creative.disclaimer|^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":11,\"fontWeight\":\"400\",\"lineHeight\":14.3,\"textColor\":{\"light\":\"#3A4745\",\"dark\":\"#3A4745\"}},\"spacing\":{\"margin\":\"8 0 0 0\"}}}],\"link\":[{\"default\":{\"text\":{\"textDecoration\":\"underline\",\"textColor\":{\"light\":\"#3A4745\",\"dark\":\"#3A4745\"}}}}]}}}}]}}"
+              },
+              "offer": {
+                "campaignId": "2732356476178530325",
+                "creativeId": "2753177872037904542",
+                "creative": {
+                  "referralCreativeId": "2753177872037904542",
+                  "instanceGuid": "8bd6d8a3-0eb0-40cc-b1ce-9abacd666811",
+                  "copy": {
+                    "creative.disclaimer": "**Disclaimer**",
+                    "creative.title": "This is a title",
+                    "creative.copy": "This is an acquire email campaign from Mobile team Account for mobile SDK automated testing.",
+                    "creative.termsAndConditions.link": "/LegalTerms/TermsAndConditions/2753177872037904542",
+                    "creative.termsAndConditions.close.copy": "Close",
+                    "creative.termsAndConditions.title": "Terms of Use",
+                    "creative.privacyPolicy.link": "/LegalTerms/PrivacyPolicy/2753177872037904542",
+                    "creative.privacyPolicy.close.copy": "Close",
+                    "creative.privacyPolicy.title": "Privacy Policy",
+                    "creative.confirmation.message": "Details will go to j.smith_1691638156956@example.com",
+                    "creative.success.title": "Success",
+                    "creative.success.copy": "We have sent a confirmation to j.smith_1691638156956@example.com."
+                  },
+                  "responseOptionsMap": {
+                    "positive": {
+                      "id": "2753177872037904540",
+                      "action": "CaptureOnly",
+                      "instanceGuid": "0b98e478-d97e-4826-bd48-4e1d1a27e15d",
+                      "signalType": "SignalResponse",
+                      "shortLabel": "Yes",
+                      "longLabel": "Yes",
+                      "shortSuccessLabel": "Subscribed",
+                      "isPositive": true,
+                      "url": "",
+                      "token": "FAKE_TOKEN_TESTING_PURPOSES_ONLY"
+                    },
+                    "negative": {
+                      "id": "2753177872037904541",
+                      "action": "CaptureOnly",
+                      "instanceGuid": "da8b86af-edc9-4aec-ae82-862ff4e23f2f",
+                      "signalType": "SignalResponse",
+                      "shortLabel": "No thanks",
+                      "longLabel": "No thanks",
+                      "shortSuccessLabel": "",
+                      "isPositive": false,
+                      "url": "",
+                      "token": "FAKE_TOKEN_TESTING_PURPOSES_ONLY"
+                    }
+                  },
+                  "links": {
+                    "privacyPolicy": {
+                      "url": "/LegalTerms/PrivacyPolicy/2753177872037904542",
+                      "title": "Privacy Policy"
+                    },
+                    "termsAndConditions": {
+                      "url": "/LegalTerms/TermsAndConditions/2753177872037904542",
+                      "title": "Terms of Use"
+                    }
+                  },
+                  "images": {},
+                  "token": "FAKE_TOKEN_TESTING_PURPOSES_ONLY"
+                }
+              }
+            },
+            {
+              "instanceGuid": "13618246-2809-4c0c-81f5-0653fba5c522",
+              "token": "FAKE_SLOT_TOKEN_TESTING_PURPOSES_ONLY",
+              "layoutVariant": {
+                "layoutVariantId": "layout_variant_id",
+                "moduleName": "",
+                "layoutVariantSchema": "{\"type\":\"Column\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"padding\":\"0\"}}}]}},\"children\":[{\"type\":\"Row\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"dimension\":{\"width\":{\"type\":\"fit\",\"value\":\"fit-width\"}}}}]}},\"children\":[{\"type\":\"Column\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"flexChild\":{\"weight\":1}}}]}},\"children\":[{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.creative.title|^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":17,\"fontWeight\":\"700\",\"lineHeight\":22.1,\"textColor\":{\"light\":\"#000000\",\"dark\":\"#000000\"}}}}]}}}}]}}]}},{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.creative.copy|^% %^DATA.creativeLink.termsAndConditions|^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"2 0 0 0\"},\"text\":{\"fontSize\":13,\"fontWeight\":\"400\",\"lineHeight\":16.9,\"textColor\":{\"light\":\"#333333\",\"dark\":\"#333333\"}}}}],\"link\":[{\"default\":{\"text\":{\"textDecoration\":\"underline\",\"textColor\":{\"light\":\"#333333\",\"dark\":\"#333333\"}}}}]}}}},{\"type\":\"Row\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"dimension\":{\"width\":{\"type\":\"fit\",\"value\":\"fit-width\"}},\"spacing\":{\"margin\":\"8 0 0 0\"}}}]}},\"children\":[{\"type\":\"CreativeResponse\",\"node\":{\"responseKey\":\"positive\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"padding\":\"6 12 6 12\"},\"border\":{\"borderRadius\":20},\"container\":{\"justifyContent\":\"center\",\"alignItems\":\"center\"},\"dimension\":{\"width\":{\"type\":\"fit\",\"value\":\"wrap-content\"},\"minHeight\":40},\"flexChild\":{\"alignSelf\":\"flex-start\"},\"background\":{\"backgroundColor\":{\"light\":\"#333333\",\"dark\":\"#333333\"}}}}]}},\"children\":[{\"type\":\"Column\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"dimension\":{\"height\":{\"type\":\"fixed\",\"value\":20},\"width\":{\"type\":\"fixed\",\"value\":20}}}}]}},\"children\":[{\"type\":\"StaticImage\",\"node\":{\"url\":{\"light\":\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAABRCAYAAABFTSEIAAAACXBIWXMAACxLAAAsSwGlPZapAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAIESURBVHgB7drhUcJAEIbhjRVoJ5aAlZhO0BKsgHSCHUAJdIAdnOfwOeI44IXcJru33zvD4I9wtz4ckh+KMMYYY4wxxhhjsepEqZTSKj+t8+MxP+4LX3aQuh1GXLvPj7eu68a8RqeMt05+ex7zu1Y/gXmAPj9txHdP+SS+l1x4J/Ub9Q4abV16ocYJPEr53zyrfeQT+FByocYJbKHiA6ABuJdAaQC+SqCqA+LbKwyi5o10L6dv5JU4LB8ENRvT5TdukyokEauFFxKwJl44wNp4oQA18MIAauGFANTEax5wAt5QeqG02hQ8vD4u4FQ8rBETsAYe1okHWAsPa8UCrImH9eIA1sbDmjEANfCwbvuAWnhYu21ATTys3y6gNh72aBMw3f7vIMPIfdoDnAsPe7UFOCce9msHcG487NkG4BJ42Nc/4FJ42Ns34JJ42N8v4NJ4mMEnoAU8zOEP0AoeZvEFaAkP8/gBtIaHmXwAWsTDXPYBreJhNtuAlvEwn11A63iY0SagBzzMaQ/QCx5mPZYMJnPlCQ/zbgtm28kcecPDzKuC+XrRziPe2ewvV+Z7Ee08432XZ+nT74/z18+9aNcC3mIRb0I48sS7tVT29U+8S6XxDcJ+SoV38MS7UCr/CA/C/pbK7uAHYZdL1+/gB2H/l063M7szuG2a4w6eMcYYY4wx1k6fnYaQsqMmzDYAAAAASUVORK5CYII=\",\"dark\":\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAABRCAYAAABFTSEIAAAACXBIWXMAACxLAAAsSwGlPZapAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAIESURBVHgB7drhUcJAEIbhjRVoJ5aAlZhO0BKsgHSCHUAJdIAdnOfwOeI44IXcJru33zvD4I9wtz4ckh+KMMYYY4wxxhhjsepEqZTSKj+t8+MxP+4LX3aQuh1GXLvPj7eu68a8RqeMt05+ex7zu1Y/gXmAPj9txHdP+SS+l1x4J/Ub9Q4abV16ocYJPEr53zyrfeQT+FByocYJbKHiA6ABuJdAaQC+SqCqA+LbKwyi5o10L6dv5JU4LB8ENRvT5TdukyokEauFFxKwJl44wNp4oQA18MIAauGFANTEax5wAt5QeqG02hQ8vD4u4FQ8rBETsAYe1okHWAsPa8UCrImH9eIA1sbDmjEANfCwbvuAWnhYu21ATTys3y6gNh72aBMw3f7vIMPIfdoDnAsPe7UFOCce9msHcG487NkG4BJ42Nc/4FJ42Ns34JJ42N8v4NJ4mMEnoAU8zOEP0AoeZvEFaAkP8/gBtIaHmXwAWsTDXPYBreJhNtuAlvEwn11A63iY0SagBzzMaQ/QCx5mPZYMJnPlCQ/zbgtm28kcecPDzKuC+XrRziPe2ewvV+Z7Ee08432XZ+nT74/z18+9aNcC3mIRb0I48sS7tVT29U+8S6XxDcJ+SoV38MS7UCr/CA/C/pbK7uAHYZdL1+/gB2H/l063M7szuG2a4w6eMcYYY4wx1k6fnYaQsqMmzDYAAAAASUVORK5CYII=\"}}}]}},{\"type\":\"BasicText\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"0 0 0 4\"},\"text\":{\"fontSize\":16,\"fontWeight\":\"700\",\"lineHeight\":20.8,\"textColor\":{\"light\":\"#FFFFFF\",\"dark\":\"#FFFFFF\"}}}}]}},\"value\":\"%^DATA.creativeResponse.shortLabel^%\"}}]}},{\"type\":\"CreativeResponse\",\"node\":{\"responseKey\":\"negative\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"0 0 0 12\"},\"container\":{\"justifyContent\":\"center\",\"alignItems\":\"center\"},\"dimension\":{\"width\":{\"type\":\"fit\",\"value\":\"wrap-content\"},\"minHeight\":40},\"flexChild\":{\"alignSelf\":\"flex-start\"}}}]}},\"children\":[{\"type\":\"BasicText\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"0\"},\"text\":{\"fontSize\":14,\"fontWeight\":\"700\",\"lineHeight\":18.2,\"textColor\":{\"light\":\"#333333\",\"dark\":\"#333333\"},\"textDecoration\":\"underline\"}}}]}},\"value\":\"%^DATA.creativeResponse.shortLabel^%\"}}]}}]}},{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.creative.disclaimer|^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":11,\"fontWeight\":\"400\",\"lineHeight\":14.3,\"textColor\":{\"light\":\"#3A4745\",\"dark\":\"#3A4745\"}},\"spacing\":{\"margin\":\"8 0 0 0\"}}}],\"link\":[{\"default\":{\"text\":{\"textDecoration\":\"underline\",\"textColor\":{\"light\":\"#3A4745\",\"dark\":\"#3A4745\"}}}}]}}}}]}}"
+              },
+              "offer": {
+                "campaignId": "2732344566234284034",
+                "creativeId": "2732356166940819466",
+                "creative": {
+                  "referralCreativeId": "2732356166940819466",
+                  "token": "FAKE_CREATIVE_TOKEN_TESTING_PURPOSES_ONLY",
+                  "instanceGuid": "408881f7-2744-44e0-a94d-f908860ba022",
+                  "copy": {
+                    "creative.copy": "This is an Rokt Commerce Email Campaign from Mobile team Account. This should appear in prime position for the mobile SDK automated testing. ",
+                    "creative.termsAndConditions.link": "/LegalTerms/TermsAndConditions/2732356166940819466",
+                    "creative.termsAndConditions.close.copy": "Close",
+                    "creative.termsAndConditions.title": "Terms of Use",
+                    "creative.privacyPolicy.link": "/LegalTerms/PrivacyPolicy/2732356166940819466",
+                    "creative.privacyPolicy.close.copy": "Close",
+                    "creative.privacyPolicy.title": "Privacy Policy",
+                    "creative.confirmation.message": "Details will go to j.smith_1691638156956@example.com",
+                    "creative.success.title": "Success",
+                    "creative.disclaimer": "Test disclaimer Success",
+                    "creative.title": "Second offer title",
+                    "creative.success.copy": "We have sent a confirmation to j.smith_1691638156956@example.com."
+                  },
+                  "responseOptionsMap": {
+                    "positive": {
+                      "id": "2732356166940819464",
+                      "action": "CaptureOnly",
+                      "instanceGuid": "8536d750-4a4a-44e5-a613-a79460221378",
+                      "signalType": "SignalResponse",
+                      "shortLabel": "Yes",
+                      "longLabel": "Yes",
+                      "shortSuccessLabel": "Subscribed",
+                      "isPositive": true,
+                      "url": "",
+                      "token": "FAKE_TOKEN_TESTING_PURPOSES_ONLY"
+                    },
+                    "negative": {
+                      "id": "2732356166940819465",
+                      "action": "CaptureOnly",
+                      "instanceGuid": "e9c9b035-d186-4227-99b6-0089ad45c13c",
+                      "signalType": "SignalResponse",
+                      "shortLabel": "No thanks",
+                      "longLabel": "No thanks",
+                      "shortSuccessLabel": "",
+                      "isPositive": false,
+                      "url": "",
+                      "token": "FAKE_TOKEN_TESTING_PURPOSES_ONLY"
+                    }
+                  },
+                  "links": {
+                    "privacyPolicy": {
+                      "url": "/LegalTerms/PrivacyPolicy/2732356166940819466",
+                      "title": "Privacy Policy"
+                    },
+                    "termsAndConditions": {
+                      "url": "/LegalTerms/TermsAndConditions/2732356166940819466",
+                      "title": "Terms of Use"
+                    }
+                  },
+                  "images": {}
+                }
+              }
+            },
+            {
+              "instanceGuid": "0419a0a9-5169-4724-9f0e-403068a37033",
+              "token": "FAKE_SLOT_TOKEN_TESTING_PURPOSES_ONLY",
+              "layoutVariant": {
+                "layoutVariantId": "layout_variant_id",
+                "moduleName": "",
+                "layoutVariantSchema": "{\"type\":\"Column\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"padding\":\"0\"}}}]}},\"children\":[{\"type\":\"Row\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"dimension\":{\"width\":{\"type\":\"fit\",\"value\":\"fit-width\"}}}}]}},\"children\":[{\"type\":\"Column\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"flexChild\":{\"weight\":1}}}]}},\"children\":[{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.creative.title|^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":17,\"fontWeight\":\"700\",\"lineHeight\":22.1,\"textColor\":{\"light\":\"#000000\",\"dark\":\"#000000\"}}}}]}}}}]}}]}},{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.creative.copy|^% %^DATA.creativeLink.termsAndConditions|^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"2 0 0 0\"},\"text\":{\"fontSize\":13,\"fontWeight\":\"400\",\"lineHeight\":16.9,\"textColor\":{\"light\":\"#333333\",\"dark\":\"#333333\"}}}}],\"link\":[{\"default\":{\"text\":{\"textDecoration\":\"underline\",\"textColor\":{\"light\":\"#333333\",\"dark\":\"#333333\"}}}}]}}}},{\"type\":\"Row\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"dimension\":{\"width\":{\"type\":\"fit\",\"value\":\"fit-width\"}},\"spacing\":{\"margin\":\"8 0 0 0\"}}}]}},\"children\":[{\"type\":\"CreativeResponse\",\"node\":{\"responseKey\":\"positive\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"padding\":\"6 12 6 12\"},\"border\":{\"borderRadius\":20},\"container\":{\"justifyContent\":\"center\",\"alignItems\":\"center\"},\"dimension\":{\"width\":{\"type\":\"fit\",\"value\":\"wrap-content\"},\"minHeight\":40},\"flexChild\":{\"alignSelf\":\"flex-start\"},\"background\":{\"backgroundColor\":{\"light\":\"#333333\",\"dark\":\"#333333\"}}}}]}},\"children\":[{\"type\":\"Column\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"dimension\":{\"height\":{\"type\":\"fixed\",\"value\":20},\"width\":{\"type\":\"fixed\",\"value\":20}}}}]}},\"children\":[{\"type\":\"StaticImage\",\"node\":{\"url\":{\"light\":\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAABRCAYAAABFTSEIAAAACXBIWXMAACxLAAAsSwGlPZapAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAIESURBVHgB7drhUcJAEIbhjRVoJ5aAlZhO0BKsgHSCHUAJdIAdnOfwOeI44IXcJru33zvD4I9wtz4ckh+KMMYYY4wxxhhjsepEqZTSKj+t8+MxP+4LX3aQuh1GXLvPj7eu68a8RqeMt05+ex7zu1Y/gXmAPj9txHdP+SS+l1x4J/Ub9Q4abV16ocYJPEr53zyrfeQT+FByocYJbKHiA6ABuJdAaQC+SqCqA+LbKwyi5o10L6dv5JU4LB8ENRvT5TdukyokEauFFxKwJl44wNp4oQA18MIAauGFANTEax5wAt5QeqG02hQ8vD4u4FQ8rBETsAYe1okHWAsPa8UCrImH9eIA1sbDmjEANfCwbvuAWnhYu21ATTys3y6gNh72aBMw3f7vIMPIfdoDnAsPe7UFOCce9msHcG487NkG4BJ42Nc/4FJ42Ns34JJ42N8v4NJ4mMEnoAU8zOEP0AoeZvEFaAkP8/gBtIaHmXwAWsTDXPYBreJhNtuAlvEwn11A63iY0SagBzzMaQ/QCx5mPZYMJnPlCQ/zbgtm28kcecPDzKuC+XrRziPe2ewvV+Z7Ee08432XZ+nT74/z18+9aNcC3mIRb0I48sS7tVT29U+8S6XxDcJ+SoV38MS7UCr/CA/C/pbK7uAHYZdL1+/gB2H/l063M7szuG2a4w6eMcYYY4wx1k6fnYaQsqMmzDYAAAAASUVORK5CYII=\",\"dark\":\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAABRCAYAAABFTSEIAAAACXBIWXMAACxLAAAsSwGlPZapAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAIESURBVHgB7drhUcJAEIbhjRVoJ5aAlZhO0BKsgHSCHUAJdIAdnOfwOeI44IXcJru33zvD4I9wtz4ckh+KMMYYY4wxxhhjsepEqZTSKj+t8+MxP+4LX3aQuh1GXLvPj7eu68a8RqeMt05+ex7zu1Y/gXmAPj9txHdP+SS+l1x4J/Ub9Q4abV16ocYJPEr53zyrfeQT+FByocYJbKHiA6ABuJdAaQC+SqCqA+LbKwyi5o10L6dv5JU4LB8ENRvT5TdukyokEauFFxKwJl44wNp4oQA18MIAauGFANTEax5wAt5QeqG02hQ8vD4u4FQ8rBETsAYe1okHWAsPa8UCrImH9eIA1sbDmjEANfCwbvuAWnhYu21ATTys3y6gNh72aBMw3f7vIMPIfdoDnAsPe7UFOCce9msHcG487NkG4BJ42Nc/4FJ42Ns34JJ42N8v4NJ4mMEnoAU8zOEP0AoeZvEFaAkP8/gBtIaHmXwAWsTDXPYBreJhNtuAlvEwn11A63iY0SagBzzMaQ/QCx5mPZYMJnPlCQ/zbgtm28kcecPDzKuC+XrRziPe2ewvV+Z7Ee08432XZ+nT74/z18+9aNcC3mIRb0I48sS7tVT29U+8S6XxDcJ+SoV38MS7UCr/CA/C/pbK7uAHYZdL1+/gB2H/l063M7szuG2a4w6eMcYYY4wx1k6fnYaQsqMmzDYAAAAASUVORK5CYII=\"}}}]}},{\"type\":\"BasicText\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"0 0 0 4\"},\"text\":{\"fontSize\":16,\"fontWeight\":\"700\",\"lineHeight\":20.8,\"textColor\":{\"light\":\"#FFFFFF\",\"dark\":\"#FFFFFF\"}}}}]}},\"value\":\"%^DATA.creativeResponse.shortLabel^%\"}}]}},{\"type\":\"CreativeResponse\",\"node\":{\"responseKey\":\"negative\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"0 0 0 12\"},\"container\":{\"justifyContent\":\"center\",\"alignItems\":\"center\"},\"dimension\":{\"width\":{\"type\":\"fit\",\"value\":\"wrap-content\"},\"minHeight\":40},\"flexChild\":{\"alignSelf\":\"flex-start\"}}}]}},\"children\":[{\"type\":\"BasicText\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"0\"},\"text\":{\"fontSize\":14,\"fontWeight\":\"700\",\"lineHeight\":18.2,\"textColor\":{\"light\":\"#333333\",\"dark\":\"#333333\"},\"textDecoration\":\"underline\"}}}]}},\"value\":\"%^DATA.creativeResponse.shortLabel^%\"}}]}}]}},{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.creative.disclaimer|^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":11,\"fontWeight\":\"400\",\"lineHeight\":14.3,\"textColor\":{\"light\":\"#3A4745\",\"dark\":\"#3A4745\"}},\"spacing\":{\"margin\":\"8 0 0 0\"}}}],\"link\":[{\"default\":{\"text\":{\"textDecoration\":\"underline\",\"textColor\":{\"light\":\"#3A4745\",\"dark\":\"#3A4745\"}}}}]}}}}]}}"
+              },
+              "offer": {
+                "campaignId": "2742686022843564388",
+                "creativeId": "2742686649908789642",
+                "creative": {
+                  "referralCreativeId": "2742686649908789642",
+                  "instanceGuid": "8c67df18-a7c5-4cb2-869e-aa6074480b33",
+                  "copy": {
+                    "creative.title": "Third offer title",
+                    "creative.disclaimer": "**New** disclaimer added for [testing](https://rokt.com/)",
+                    "creative.copy": "Targeted offer for exclusive customers only!Targeted offer for exclusive customers only!Targeted offer for exclusive customers only!Targeted offer for exclusive customers only!",
+                    "creative.termsAndConditions.link": "/LegalTerms/TermsAndConditions/2742686649908789642",
+                    "creative.termsAndConditions.close.copy": "Close",
+                    "creative.termsAndConditions.title": "Terms of Use",
+                    "creative.privacyPolicy.link": "/LegalTerms/PrivacyPolicy/2742686649908789642",
+                    "creative.privacyPolicy.close.copy": "Close",
+                    "creative.privacyPolicy.title": "Privacy Policy",
+                    "creative.success.title": "Success",
+                    "creative.success.copy": "We have sent a confirmation to j.smith_1691638156956@example.com.",
+                    "creative.image.src": "https://avatars.githubusercontent.com/u/6335212"
+                  },
+                  "responseOptionsMap": {
+                    "positive": {
+                      "id": "2742686649908789639",
+                      "action": "CaptureOnly",
+                      "instanceGuid": "310e1762-f724-43dc-ae26-0b26db5e36ac",
+                      "signalType": "SignalResponse",
+                      "shortLabel": "Yes",
+                      "longLabel": "Yes",
+                      "shortSuccessLabel": "Subscribed",
+                      "isPositive": true,
+                      "url": "",
+                      "token": "FAKE_TOKEN_TESTING_PURPOSES_ONLY"
+                    },
+                    "negative": {
+                      "id": "2742686649908789640",
+                      "action": "CaptureOnly",
+                      "instanceGuid": "14bfc965-dc85-4791-abdf-413fea3c7b4e",
+                      "signalType": "SignalResponse",
+                      "shortLabel": "No thanks",
+                      "longLabel": "No thanks",
+                      "shortSuccessLabel": "",
+                      "isPositive": false,
+                      "url": "",
+                      "token": "FAKE_TOKEN_TESTING_PURPOSES_ONLY"
+                    }
+                  },
+                  "links": {
+                    "privacyPolicy": {
+                      "url": "/LegalTerms/PrivacyPolicy/2742686649908789642",
+                      "title": "Privacy Policy"
+                    },
+                    "termsAndConditions": {
+                      "url": "/LegalTerms/TermsAndConditions/2742686649908789642",
+                      "title": "Terms of Use"
+                    }
+                  },
+                  "images": {
+                    "creativeImage": {
+                      "light": "https://avatars.githubusercontent.com/u/6335212",
+                      "dark": "",
+                      "alt": "",
+                      "title": ""
+                    }
+                  },
+                  "token": "FAKE_TOKEN_TESTING_PURPOSES_ONLY"
+                }
+              }
+            },
+            {
+              "instanceGuid": "f8b08da2-857b-4aab-9d6d-15946989af44",
+              "token": "FAKE_SLOT_TOKEN_TESTING_PURPOSES_ONLY",
+              "layoutVariant": {
+                "layoutVariantId": "layout_variant_id",
+                "moduleName": "",
+                "layoutVariantSchema": "{\"type\":\"Column\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"padding\":\"0\"}}}]}},\"children\":[{\"type\":\"Row\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"dimension\":{\"width\":{\"type\":\"fit\",\"value\":\"fit-width\"}}}}]}},\"children\":[{\"type\":\"Column\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"flexChild\":{\"weight\":1}}}]}},\"children\":[{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.creative.title|^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":17,\"fontWeight\":\"700\",\"lineHeight\":22.1,\"textColor\":{\"light\":\"#000000\",\"dark\":\"#000000\"}}}}]}}}}]}}]}},{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.creative.copy|^% %^DATA.creativeLink.termsAndConditions|^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"2 0 0 0\"},\"text\":{\"fontSize\":13,\"fontWeight\":\"400\",\"lineHeight\":16.9,\"textColor\":{\"light\":\"#333333\",\"dark\":\"#333333\"}}}}],\"link\":[{\"default\":{\"text\":{\"textDecoration\":\"underline\",\"textColor\":{\"light\":\"#333333\",\"dark\":\"#333333\"}}}}]}}}},{\"type\":\"Row\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"dimension\":{\"width\":{\"type\":\"fit\",\"value\":\"fit-width\"}},\"spacing\":{\"margin\":\"8 0 0 0\"}}}]}},\"children\":[{\"type\":\"CreativeResponse\",\"node\":{\"responseKey\":\"positive\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"padding\":\"6 12 6 12\"},\"border\":{\"borderRadius\":20},\"container\":{\"justifyContent\":\"center\",\"alignItems\":\"center\"},\"dimension\":{\"width\":{\"type\":\"fit\",\"value\":\"wrap-content\"},\"minHeight\":40},\"flexChild\":{\"alignSelf\":\"flex-start\"},\"background\":{\"backgroundColor\":{\"light\":\"#333333\",\"dark\":\"#333333\"}}}}]}},\"children\":[{\"type\":\"Column\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"dimension\":{\"height\":{\"type\":\"fixed\",\"value\":20},\"width\":{\"type\":\"fixed\",\"value\":20}}}}]}},\"children\":[{\"type\":\"StaticImage\",\"node\":{\"url\":{\"light\":\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAABRCAYAAABFTSEIAAAACXBIWXMAACxLAAAsSwGlPZapAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAIESURBVHgB7drhUcJAEIbhjRVoJ5aAlZhO0BKsgHSCHUAJdIAdnOfwOeI44IXcJru33zvD4I9wtz4ckh+KMMYYY4wxxhhjsepEqZTSKj+t8+MxP+4LX3aQuh1GXLvPj7eu68a8RqeMt05+ex7zu1Y/gXmAPj9txHdP+SS+l1x4J/Ub9Q4abV16ocYJPEr53zyrfeQT+FByocYJbKHiA6ABuJdAaQC+SqCqA+LbKwyi5o10L6dv5JU4LB8ENRvT5TdukyokEauFFxKwJl44wNp4oQA18MIAauGFANTEax5wAt5QeqG02hQ8vD4u4FQ8rBETsAYe1okHWAsPa8UCrImH9eIA1sbDmjEANfCwbvuAWnhYu21ATTys3y6gNh72aBMw3f7vIMPIfdoDnAsPe7UFOCce9msHcG487NkG4BJ42Nc/4FJ42Ns34JJ42N8v4NJ4mMEnoAU8zOEP0AoeZvEFaAkP8/gBtIaHmXwAWsTDXPYBreJhNtuAlvEwn11A63iY0SagBzzMaQ/QCx5mPZYMJnPlCQ/zbgtm28kcecPDzKuC+XrRziPe2ewvV+Z7Ee08432XZ+nT74/z18+9aNcC3mIRb0I48sS7tVT29U+8S6XxDcJ+SoV38MS7UCr/CA/C/pbK7uAHYZdL1+/gB2H/l063M7szuG2a4w6eMcYYY4wx1k6fnYaQsqMmzDYAAAAASUVORK5CYII=\",\"dark\":\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAABRCAYAAABFTSEIAAAACXBIWXMAACxLAAAsSwGlPZapAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAIESURBVHgB7drhUcJAEIbhjRVoJ5aAlZhO0BKsgHSCHUAJdIAdnOfwOeI44IXcJru33zvD4I9wtz4ckh+KMMYYY4wxxhhjsepEqZTSKj+t8+MxP+4LX3aQuh1GXLvPj7eu68a8RqeMt05+ex7zu1Y/gXmAPj9txHdP+SS+l1x4J/Ub9Q4abV16ocYJPEr53zyrfeQT+FByocYJbKHiA6ABuJdAaQC+SqCqA+LbKwyi5o10L6dv5JU4LB8ENRvT5TdukyokEauFFxKwJl44wNp4oQA18MIAauGFANTEax5wAt5QeqG02hQ8vD4u4FQ8rBETsAYe1okHWAsPa8UCrImH9eIA1sbDmjEANfCwbvuAWnhYu21ATTys3y6gNh72aBMw3f7vIMPIfdoDnAsPe7UFOCce9msHcG487NkG4BJ42Nc/4FJ42Ns34JJ42N8v4NJ4mMEnoAU8zOEP0AoeZvEFaAkP8/gBtIaHmXwAWsTDXPYBreJhNtuAlvEwn11A63iY0SagBzzMaQ/QCx5mPZYMJnPlCQ/zbgtm28kcecPDzKuC+XrRziPe2ewvV+Z7Ee08432XZ+nT74/z18+9aNcC3mIRb0I48sS7tVT29U+8S6XxDcJ+SoV38MS7UCr/CA/C/pbK7uAHYZdL1+/gB2H/l063M7szuG2a4w6eMcYYY4wx1k6fnYaQsqMmzDYAAAAASUVORK5CYII=\"}}}]}},{\"type\":\"BasicText\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"0 0 0 4\"},\"text\":{\"fontSize\":16,\"fontWeight\":\"700\",\"lineHeight\":20.8,\"textColor\":{\"light\":\"#FFFFFF\",\"dark\":\"#FFFFFF\"}}}}]}},\"value\":\"%^DATA.creativeResponse.shortLabel^%\"}}]}},{\"type\":\"CreativeResponse\",\"node\":{\"responseKey\":\"negative\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"0 0 0 12\"},\"container\":{\"justifyContent\":\"center\",\"alignItems\":\"center\"},\"dimension\":{\"width\":{\"type\":\"fit\",\"value\":\"wrap-content\"},\"minHeight\":40},\"flexChild\":{\"alignSelf\":\"flex-start\"}}}]}},\"children\":[{\"type\":\"BasicText\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"0\"},\"text\":{\"fontSize\":14,\"fontWeight\":\"700\",\"lineHeight\":18.2,\"textColor\":{\"light\":\"#333333\",\"dark\":\"#333333\"},\"textDecoration\":\"underline\"}}}]}},\"value\":\"%^DATA.creativeResponse.shortLabel^%\"}}]}}]}},{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.creative.disclaimer|^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":11,\"fontWeight\":\"400\",\"lineHeight\":14.3,\"textColor\":{\"light\":\"#3A4745\",\"dark\":\"#3A4745\"}},\"spacing\":{\"margin\":\"8 0 0 0\"}}}],\"link\":[{\"default\":{\"text\":{\"textDecoration\":\"underline\",\"textColor\":{\"light\":\"#3A4745\",\"dark\":\"#3A4745\"}}}}]}}}}]}}"
+              },
+              "offer": {
+                "campaignId": "2742686022843564388",
+                "creativeId": "2742686649908789642",
+                "creative": {
+                  "referralCreativeId": "2742686649908789642",
+                  "instanceGuid": "8c67df18-a7c5-4cb2-869e-aa6074480b44",
+                  "copy": {
+                    "creative.title": "Fourth offer title",
+                    "creative.disclaimer": "**New** disclaimer added for [testing](https://rokt.com/)",
+                    "creative.copy": "Targeted offer for exclusive customers only!Targeted offer for exclusive customers only!Targeted offer for exclusive customers only!Targeted offer for exclusive customers only!",
+                    "creative.termsAndConditions.link": "/LegalTerms/TermsAndConditions/2742686649908789642",
+                    "creative.termsAndConditions.close.copy": "Close",
+                    "creative.termsAndConditions.title": "Terms of Use",
+                    "creative.privacyPolicy.link": "/LegalTerms/PrivacyPolicy/2742686649908789642",
+                    "creative.privacyPolicy.close.copy": "Close",
+                    "creative.privacyPolicy.title": "Privacy Policy",
+                    "creative.success.title": "Success",
+                    "creative.success.copy": "We have sent a confirmation to j.smith_1691638156956@example.com.",
+                    "creative.image.src": "https://avatars.githubusercontent.com/u/6335212"
+                  },
+                  "responseOptionsMap": {
+                    "positive": {
+                      "id": "2742686649908789639",
+                      "action": "CaptureOnly",
+                      "instanceGuid": "310e1762-f724-43dc-ae26-0b26db5e36ac",
+                      "signalType": "SignalResponse",
+                      "shortLabel": "Yes",
+                      "longLabel": "Yes",
+                      "shortSuccessLabel": "Subscribed",
+                      "isPositive": true,
+                      "url": "",
+                      "token": "FAKE_TOKEN_TESTING_PURPOSES_ONLY"
+                    },
+                    "negative": {
+                      "id": "2742686649908789640",
+                      "action": "CaptureOnly",
+                      "instanceGuid": "14bfc965-dc85-4791-abdf-413fea3c7b4e",
+                      "signalType": "SignalResponse",
+                      "shortLabel": "No thanks",
+                      "longLabel": "No thanks",
+                      "shortSuccessLabel": "",
+                      "isPositive": false,
+                      "url": "",
+                      "token": "FAKE_TOKEN_TESTING_PURPOSES_ONLY"
+                    }
+                  },
+                  "links": {
+                    "privacyPolicy": {
+                      "url": "/LegalTerms/PrivacyPolicy/2742686649908789642",
+                      "title": "Privacy Policy"
+                    },
+                    "termsAndConditions": {
+                      "url": "/LegalTerms/TermsAndConditions/2742686649908789642",
+                      "title": "Terms of Use"
+                    }
+                  },
+                  "images": {
+                    "creativeImage": {
+                      "light": "https://avatars.githubusercontent.com/u/6335212",
+                      "dark": "",
+                      "alt": "",
+                      "title": ""
+                    }
+                  },
+                  "token": "FAKE_TOKEN_TESTING_PURPOSES_ONLY"
+                }
+              }
+            },
+            {
+              "instanceGuid": "d1a10a54-b743-447e-b873-baecfc894a55",
+              "token": "FAKE_SLOT_TOKEN_TESTING_PURPOSES_ONLY",
+              "layoutVariant": {
+                "layoutVariantId": "layout_variant_id",
+                "moduleName": "",
+                "layoutVariantSchema": "{\"type\":\"Column\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"padding\":\"0\"}}}]}},\"children\":[{\"type\":\"Row\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"dimension\":{\"width\":{\"type\":\"fit\",\"value\":\"fit-width\"}}}}]}},\"children\":[{\"type\":\"Column\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"flexChild\":{\"weight\":1}}}]}},\"children\":[{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.creative.title|^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":17,\"fontWeight\":\"700\",\"lineHeight\":22.1,\"textColor\":{\"light\":\"#000000\",\"dark\":\"#000000\"}}}}]}}}}]}}]}},{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.creative.copy|^% %^DATA.creativeLink.termsAndConditions|^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"2 0 0 0\"},\"text\":{\"fontSize\":13,\"fontWeight\":\"400\",\"lineHeight\":16.9,\"textColor\":{\"light\":\"#333333\",\"dark\":\"#333333\"}}}}],\"link\":[{\"default\":{\"text\":{\"textDecoration\":\"underline\",\"textColor\":{\"light\":\"#333333\",\"dark\":\"#333333\"}}}}]}}}},{\"type\":\"Row\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"dimension\":{\"width\":{\"type\":\"fit\",\"value\":\"fit-width\"}},\"spacing\":{\"margin\":\"8 0 0 0\"}}}]}},\"children\":[{\"type\":\"CreativeResponse\",\"node\":{\"responseKey\":\"positive\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"padding\":\"6 12 6 12\"},\"border\":{\"borderRadius\":20},\"container\":{\"justifyContent\":\"center\",\"alignItems\":\"center\"},\"dimension\":{\"width\":{\"type\":\"fit\",\"value\":\"wrap-content\"},\"minHeight\":40},\"flexChild\":{\"alignSelf\":\"flex-start\"},\"background\":{\"backgroundColor\":{\"light\":\"#333333\",\"dark\":\"#333333\"}}}}]}},\"children\":[{\"type\":\"Column\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"dimension\":{\"height\":{\"type\":\"fixed\",\"value\":20},\"width\":{\"type\":\"fixed\",\"value\":20}}}}]}},\"children\":[{\"type\":\"StaticImage\",\"node\":{\"url\":{\"light\":\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAABRCAYAAABFTSEIAAAACXBIWXMAACxLAAAsSwGlPZapAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAIESURBVHgB7drhUcJAEIbhjRVoJ5aAlZhO0BKsgHSCHUAJdIAdnOfwOeI44IXcJru33zvD4I9wtz4ckh+KMMYYY4wxxhhjsepEqZTSKj+t8+MxP+4LX3aQuh1GXLvPj7eu68a8RqeMt05+ex7zu1Y/gXmAPj9txHdP+SS+l1x4J/Ub9Q4abV16ocYJPEr53zyrfeQT+FByocYJbKHiA6ABuJdAaQC+SqCqA+LbKwyi5o10L6dv5JU4LB8ENRvT5TdukyokEauFFxKwJl44wNp4oQA18MIAauGFANTEax5wAt5QeqG02hQ8vD4u4FQ8rBETsAYe1okHWAsPa8UCrImH9eIA1sbDmjEANfCwbvuAWnhYu21ATTys3y6gNh72aBMw3f7vIMPIfdoDnAsPe7UFOCce9msHcG487NkG4BJ42Nc/4FJ42Ns34JJ42N8v4NJ4mMEnoAU8zOEP0AoeZvEFaAkP8/gBtIaHmXwAWsTDXPYBreJhNtuAlvEwn11A63iY0SagBzzMaQ/QCx5mPZYMJnPlCQ/zbgtm28kcecPDzKuC+XrRziPe2ewvV+Z7Ee08432XZ+nT74/z18+9aNcC3mIRb0I48sS7tVT29U+8S6XxDcJ+SoV38MS7UCr/CA/C/pbK7uAHYZdL1+/gB2H/l063M7szuG2a4w6eMcYYY4wx1k6fnYaQsqMmzDYAAAAASUVORK5CYII=\",\"dark\":\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAABRCAYAAABFTSEIAAAACXBIWXMAACxLAAAsSwGlPZapAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAIESURBVHgB7drhUcJAEIbhjRVoJ5aAlZhO0BKsgHSCHUAJdIAdnOfwOeI44IXcJru33zvD4I9wtz4ckh+KMMYYY4wxxhhjsepEqZTSKj+t8+MxP+4LX3aQuh1GXLvPj7eu68a8RqeMt05+ex7zu1Y/gXmAPj9txHdP+SS+l1x4J/Ub9Q4abV16ocYJPEr53zyrfeQT+FByocYJbKHiA6ABuJdAaQC+SqCqA+LbKwyi5o10L6dv5JU4LB8ENRvT5TdukyokEauFFxKwJl44wNp4oQA18MIAauGFANTEax5wAt5QeqG02hQ8vD4u4FQ8rBETsAYe1okHWAsPa8UCrImH9eIA1sbDmjEANfCwbvuAWnhYu21ATTys3y6gNh72aBMw3f7vIMPIfdoDnAsPe7UFOCce9msHcG487NkG4BJ42Nc/4FJ42Ns34JJ42N8v4NJ4mMEnoAU8zOEP0AoeZvEFaAkP8/gBtIaHmXwAWsTDXPYBreJhNtuAlvEwn11A63iY0SagBzzMaQ/QCx5mPZYMJnPlCQ/zbgtm28kcecPDzKuC+XrRziPe2ewvV+Z7Ee08432XZ+nT74/z18+9aNcC3mIRb0I48sS7tVT29U+8S6XxDcJ+SoV38MS7UCr/CA/C/pbK7uAHYZdL1+/gB2H/l063M7szuG2a4w6eMcYYY4wx1k6fnYaQsqMmzDYAAAAASUVORK5CYII=\"}}}]}},{\"type\":\"BasicText\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"0 0 0 4\"},\"text\":{\"fontSize\":16,\"fontWeight\":\"700\",\"lineHeight\":20.8,\"textColor\":{\"light\":\"#FFFFFF\",\"dark\":\"#FFFFFF\"}}}}]}},\"value\":\"%^DATA.creativeResponse.shortLabel^%\"}}]}},{\"type\":\"CreativeResponse\",\"node\":{\"responseKey\":\"negative\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"0 0 0 12\"},\"container\":{\"justifyContent\":\"center\",\"alignItems\":\"center\"},\"dimension\":{\"width\":{\"type\":\"fit\",\"value\":\"wrap-content\"},\"minHeight\":40},\"flexChild\":{\"alignSelf\":\"flex-start\"}}}]}},\"children\":[{\"type\":\"BasicText\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"0\"},\"text\":{\"fontSize\":14,\"fontWeight\":\"700\",\"lineHeight\":18.2,\"textColor\":{\"light\":\"#333333\",\"dark\":\"#333333\"},\"textDecoration\":\"underline\"}}}]}},\"value\":\"%^DATA.creativeResponse.shortLabel^%\"}}]}}]}},{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.creative.disclaimer|^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":11,\"fontWeight\":\"400\",\"lineHeight\":14.3,\"textColor\":{\"light\":\"#3A4745\",\"dark\":\"#3A4745\"}},\"spacing\":{\"margin\":\"8 0 0 0\"}}}],\"link\":[{\"default\":{\"text\":{\"textDecoration\":\"underline\",\"textColor\":{\"light\":\"#3A4745\",\"dark\":\"#3A4745\"}}}}]}}}}]}}"
+              },
+              "offer": {
+                "campaignId": "2742686022843564388",
+                "creativeId": "2742686649908789642",
+                "creative": {
+                  "referralCreativeId": "2742686649908789642",
+                  "token": "FAKE_CREATIVE_TOKEN_TESTING_PURPOSES_ONLY",
+                  "instanceGuid": "8c67df18-a7c5-4cb2-869e-aa6074480b55",
+                  "copy": {
+                    "creative.title": "5th offer title",
+                    "creative.disclaimer": "**New** disclaimer added for [testing](https://rokt.com/)",
+                    "creative.copy": "Targeted offer for exclusive customers only!Targeted offer for exclusive customers only!Targeted offer for exclusive customers only!Targeted offer for exclusive customers only!",
+                    "creative.termsAndConditions.link": "/LegalTerms/TermsAndConditions/2742686649908789642",
+                    "creative.termsAndConditions.close.copy": "Close",
+                    "creative.termsAndConditions.title": "Terms of Use",
+                    "creative.privacyPolicy.link": "/LegalTerms/PrivacyPolicy/2742686649908789642",
+                    "creative.privacyPolicy.close.copy": "Close",
+                    "creative.privacyPolicy.title": "Privacy Policy",
+                    "creative.success.title": "Success",
+                    "creative.success.copy": "We have sent a confirmation to j.smith_1691638156956@example.com.",
+                    "creative.image.src": "https://avatars.githubusercontent.com/u/6335212"
+                  },
+                  "responseOptionsMap": {
+                    "positive": {
+                      "id": "2742686649908789639",
+                      "action": "CaptureOnly",
+                      "instanceGuid": "310e1762-f724-43dc-ae26-0b26db5e36ac",
+                      "signalType": "SignalResponse",
+                      "shortLabel": "Yes",
+                      "longLabel": "Yes",
+                      "shortSuccessLabel": "Subscribed",
+                      "isPositive": true,
+                      "url": "",
+                      "token": "FAKE_TOKEN_TESTING_PURPOSES_ONLY"
+                    },
+                    "negative": {
+                      "id": "2742686649908789640",
+                      "action": "CaptureOnly",
+                      "instanceGuid": "14bfc965-dc85-4791-abdf-413fea3c7b4e",
+                      "signalType": "SignalResponse",
+                      "shortLabel": "No thanks",
+                      "longLabel": "No thanks",
+                      "shortSuccessLabel": "",
+                      "isPositive": false,
+                      "url": "",
+                      "token": "FAKE_TOKEN_TESTING_PURPOSES_ONLY"
+                    }
+                  },
+                  "links": {
+                    "privacyPolicy": {
+                      "url": "/LegalTerms/PrivacyPolicy/2742686649908789642",
+                      "title": "Privacy Policy"
+                    },
+                    "termsAndConditions": {
+                      "url": "/LegalTerms/TermsAndConditions/2742686649908789642",
+                      "title": "Terms of Use"
+                    }
+                  },
+                  "images": {
+                    "creativeImage": {
+                      "light": "https://avatars.githubusercontent.com/u/6335212",
+                      "dark": "",
+                      "alt": "",
+                      "title": ""
+                    }
+                  },
+                  "token": "FAKE_TOKEN_TESTING_PURPOSES_ONLY"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "success": true,
+  "privacyControl": {
+    "limitedUse": true
+  }
+}

@@ -1,0 +1,85 @@
+{
+  "page": {
+    "versionId": "1603606476230",
+    "pageId": "edecb4b2-91a5-4fd7-859f-82347b6e79fd",
+    "pageType": "Confirmation",
+    "category": "Transaction",
+    "platformType": "iOS",
+    "targetingRules": [
+      {
+        "inverse": false,
+        "regex": ["viewname:[^;]*iOSlightboxe2e[^;]*;"]
+      }
+    ],
+    "hasPlacements": true
+  },
+  "pageDetectionTime": "2023-03-05T23:44:13.7049799+00:00",
+  "sessionId": "afbc0187-2d0f-4ac2-b852-a60a1e02b1a0",
+  "placementContext": {
+    "roktTagId": "",
+    "pageInstanceGuid": "afbc0187-2d0f-4ad4-be6b-7545f9273565"
+  },
+  "placements": [],
+  "plugins": [
+    {
+      "plugin": {
+        "id": "2732370593714667533",
+        "name": "testlayout",
+        "targetElementSelector": "Location1",
+        "config": {
+          "instanceGuid": "21b61e93-24bd-4735-995a-2f14d0673ec2",
+          "outerLayoutSchema": "{\"breakpoints\":{\"Landscape\":500,\"Portrait\":560},\"layout\":{\"type\":\"Overlay\",\"node\":{\"settings\":{\"allowBackdropToClose\":true},\"styles\":{\"elements\":{\"self\":[{\"default\":{\"overlayBackdrop\":{\"background\":{\"backgroundColor\":{\"light\":\"#520E0A13\",\"dark\":\"#520E0A13\"}}},\"spacing\":{\"margin\":\"10101010\"},\"background\":{\"backgroundColor\":{\"light\":\"#FFFFFFFF\",\"dark\":\"#FFFFFFFF\"}},\"dimension\":{\"width\":{\"type\":\"fit\",\"value\":\"fit-width\"}}}}]}},\"children\":[{\"type\":\"OneByOneDistribution\"}]}}}",
+          "slots": [
+            {
+              "instanceGuid": "slotInstanceGuid",
+              "offer": {
+                "id": "OfferIdOne",
+                "creative": {
+                  "referralCreativeId": "2732356166940819466",
+                  "instanceGuid": "CreativeInstanceGuidOne",
+                  "responseOptionsMap": {
+                    "positive": {
+                      "id": "2732356166940819464",
+                      "action": "Url",
+                      "instanceGuid": "549a346b-cd76-4f04-bccd-a1168c870e97",
+                      "signalType": "SignalResponse",
+                      "shortLabel": "YES PLEASE",
+                      "longLabel": "Yes",
+                      "shortSuccessLabel": "Subscribed",
+                      "isPositive": true,
+                      "url": "https://rokt.com"
+                    },
+                    "negative": {
+                      "id": "2732356166940819465",
+                      "action": "CaptureOnly",
+                      "instanceGuid": "c94a4aab-8e73-47f1-ad5b-a07bf00703ec",
+                      "signalType": "SignalResponse",
+                      "shortLabel": "No Thanks",
+                      "longLabel": "No thanks",
+                      "shortSuccessLabel": "",
+                      "isPositive": false,
+                      "url": ""
+                    }
+                  },
+                  "copy": {
+                    "title": "MyOfferTitle",
+                    "description": "Offerdescriptiongoeshere"
+                  }
+                }
+              },
+              "layoutVariant": {
+                "layoutVariantId": "layout_variant_id",
+                "moduleName": "",
+                "layoutVariantSchema": "{ \"type\":\"Column\", \"node\":{ \"styles\":{ \"elements\":{ \"self\":[ { \"default\":{ \"container\":{ \"alignItems\":\"flex-end\", }, \"dimension\":{ \"width\":{ \"type\":\"fit\", \"value\":\"fit-width\" } }, } } ] } }, \"children\":[ { \"type\":\"BasicText\", \"node\":{ \"value\":\"BasicTextTop-Stretch-Column=FitWidth\", \"styles\":{ \"elements\":{ \"self\":[ { \"default\":{ \"text\":{ \"fontSize\":12, \"fontWeight\":700, \"lineHeight\":14, \"fontFamily\":\"Arial\", \"horizontalTextAlign\": \"center\" }, \"border\":{ \"borderWidth\":2, \"borderColor\":{ \"light\":\"#0e7d2b\" }, \"borderRadius\":10 }, \"flexChild\":{ \"alignSelf\":\"stretch\" } } } ] } } } }, { \"type\":\"RichText\", \"node\":{ \"value\":\"RichText-Center\", \"styles\":{ \"elements\":{ \"self\":[ { \"default\":{ \"text\":{ \"fontSize\":12, \"fontWeight\":700, \"lineHeight\":14, \"fontFamily\":\"Arial\" }, \"border\":{ \"borderWidth\":2, \"borderColor\":{ \"light\":\"#0e7d2b\" }, \"borderRadius\":10 }, \"flexChild\":{ \"alignSelf\":\"center\" } } } ] } } } }, { \"type\":\"RichText\", \"node\":{ \"value\":\"RichText No flexChild\", \"styles\":{ \"elements\":{ \"self\":[ { \"default\":{ \"text\":{ \"fontSize\":12, \"fontWeight\":700, \"lineHeight\":14, \"fontFamily\":\"Arial\" }, \"border\":{ \"borderWidth\":2, \"borderColor\":{ \"light\":\"#0e7d2b\" }, \"borderRadius\":10 } } } ] } } } }, { \"type\":\"Image\", \"node\":{ \"url\":{ \"light\":\"https:\/\/apps.rokt.com\/userfiles\/3150167630568882187.png\" }, \"styles\":{ \"elements\":{ \"self\":[ { \"default\":{ \"dimension\":{ \"height\":{ \"type\":\"fixed\", \"value\":200 } }, \"flexChild\":{ \"alignSelf\":\"center\" }, \"background\": { \"backgroundColor\": { \"light\": \"#FFFF00\", \"dark\": \"#FFFF00\" } }, \"border\":{ \"borderWidth\":2, \"borderColor\":{ \"light\":\"#0e7d2b\" }, \"borderRadius\":10 } } } ] } } } }, { \"type\":\"BasicText\", \"node\":{ \"value\":\"Congrats,you\u2019veearnedaspecialdealfromAdvertiser1!Signupforemails&claimyour$90offincluding1stboxfreeshipping.\", \"styles\":{ \"elements\":{ \"self\":[ { \"default\":{ \"spacing\":{ \"margin\":\"16000\" }, \"text\":{ \"fontFamily\":\"arial\", \"fontSize\":12, \"fontWeight\":500, \"lineHeight\":2, \"textColor\":{ \"light\":\"#0e7d2b\" } } } } ] } } } }, { \"type\":\"CreativeResponse\", \"node\":{ \"styles\":{ \"elements\":{ \"self\":[ { \"default\":{ \"spacing\":{ \"margin\":\"01000\", \"padding\":\"0000\" }, \"border\":{ \"borderWidth\":\"0\" } } } ] } }, \"children\":[ { \"type\":\"BasicText\", \"node\":{ \"value\":\"End\", \"styles\":{ \"elements\":{ \"self\":[ { \"default\":{ \"text\":{ \"fontFamily\":\"arial\", \"fontSize\":24, \"fontWeight\":500, \"lineHeight\":14, \"textColor\":{ \"light\":\"#0e7d2b\" } }, \"border\":{ \"borderWidth\":2, \"borderColor\":{ \"light\":\"#1a2b3c\" }, \"borderRadius\":10 }, } } ] } } } } ] } }, { \"type\":\"CreativeResponse\", \"node\":{ \"styles\":{ \"elements\":{ \"self\":[ { \"default\":{ \"spacing\":{ \"margin\":\"01000\", \"padding\":\"0000\" }, \"border\":{ \"borderWidth\":2, \"borderColor\":{ \"light\":\"#0e7d2b\" }, \"borderRadius\":10 }, \"flexChild\":{ \"alignSelf\":\"stretch\" }, } } ] } }, \"children\":[ { \"type\":\"BasicText\", \"node\":{ \"value\":\"Center\", \"styles\":{ \"elements\":{ \"self\":[ { \"default\":{ \"text\":{ \"fontFamily\":\"arial\", \"fontSize\":12, \"fontWeight\":500, \"lineHeight\":14, \"textColor\":{ \"light\":\"#000000\" } } }, \"pressed\":{ \"text\":{ \"fontSize\":20, \"fontWeight\":500, \"lineHeight\":14 }, \"background\":{ \"backgroundColor\":{ \"light\":\"#d51a1a\" } } }, \"focussed\":{ \"text\":{ \"fontSize\":20, \"fontWeight\":500, \"lineHeight\":14 }, \"background\":{ \"backgroundColor\":{ \"light\":\"#d51a1a\" } } } } ] } } } } ] } }, { \"type\":\"CreativeResponse\", \"node\":{ \"styles\":{ \"elements\":{ \"self\":[ { \"default\":{ \"spacing\":{ \"margin\":\"01000\", \"padding\":\"0000\" }, \"border\":{ \"borderWidth\":2, \"borderColor\":{ \"light\":\"#0e7d2b\" }, \"borderRadius\":10 }, \"flexChild\":{ \"alignSelf\":\"flex-start\" }, } } ] } }, \"children\":[ { \"type\":\"BasicText\", \"node\":{ \"value\":\"Start\", \"styles\":{ \"elements\":{ \"self\":[ { \"default\":{ \"text\":{ \"fontFamily\":\"arial\", \"fontSize\":12, \"fontWeight\":500, \"lineHeight\":14, \"textColor\":{ \"light\":\"#000000\" } } }, \"pressed\":{ \"text\":{ \"fontSize\":20, \"fontWeight\":500, \"lineHeight\":14 }, \"background\":{ \"backgroundColor\":{ \"light\":\"#d51a1a\" } } }, \"focussed\":{ \"text\":{ \"fontSize\":20, \"fontWeight\":500, \"lineHeight\":14 }, \"background\":{ \"backgroundColor\":{ \"light\":\"#d51a1a\" } } } } ] } } } } ] } }, { \"type\":\"Column\", \"node\":{ \"styles\":{ \"elements\":{ \"self\":[ { \"default\":{ \"dimension\":{ \"height\":{ \"type\":\"fixed\", \"value\":30 } }, \"background\": { \"backgroundColor\": { \"light\": \"#FF00FF\", \"dark\": \"#FF00FF\" } }, \"flexChild\":{ \"alignSelf\":\"center\" }, } } ] } }, \"children\":[ { \"type\":\"BasicText\", \"node\":{ \"value\":\"ColumnParent=center\", } }, ] } }, { \"type\":\"Row\", \"node\":{ \"styles\":{ \"elements\":{ \"self\":[ { \"default\":{ \"dimension\":{ \"height\":{ \"type\":\"fixed\", \"value\":30 } }, \"background\": { \"backgroundColor\": { \"light\": \"#AABBCC\", \"dark\": \"#AABBCC\" } }, \"flexChild\":{ \"alignSelf\":\"flex-start\" }, } } ] } }, \"children\":[ { \"type\":\"BasicText\", \"node\":{ \"value\":\"RowParent=flex-start\", } }, ] } }, { \"type\":\"Row\", \"node\":{ \"styles\":{ \"elements\":{ \"self\":[ { \"default\":{ \"dimension\":{ \"height\":{ \"type\":\"fixed\", \"value\":100 }, \"width\":{ \"type\":\"fit\", \"value\":\"fit-width\" } }, \"background\":{ \"backgroundColor\":{ \"light\":\"#CCDDCC\", \"dark\":\"#CCDDCC\" } }, \"container\":{ \"alignItems\":\"center\" } } } ] } }, \"children\":[ { \"type\":\"BasicText\", \"node\":{ \"value\":\"RowStretch\", \"styles\":{ \"elements\":{ \"self\":[ { \"default\":{ \"text\":{ \"fontSize\":12, \"fontWeight\":700 }, \"border\":{ \"borderWidth\":2, \"borderColor\":{ \"light\":\"#ff00ff\" }, \"borderRadius\":10 }, \"flexChild\":{ \"alignSelf\":\"stretch\" } } } ] } } } }, { \"type\":\"BasicText\", \"node\":{ \"value\":\"RowStart\", \"styles\":{ \"elements\":{ \"self\":[ { \"default\":{ \"text\":{ \"fontSize\":12, \"fontWeight\":700 }, \"border\":{ \"borderWidth\":2, \"borderColor\":{ \"light\":\"#ff00ff\" }, \"borderRadius\":10 }, \"flexChild\":{ \"alignSelf\":\"flex-start\" } } } ] } } } }, { \"type\":\"BasicText\", \"node\":{ \"value\":\"RowEnd\", \"styles\":{ \"elements\":{ \"self\":[ { \"default\":{ \"text\":{ \"fontSize\":12, \"fontWeight\":700 }, \"border\":{ \"borderWidth\":2, \"borderColor\":{ \"light\":\"#ff00ff\" }, \"borderRadius\":10 }, \"flexChild\":{ \"alignSelf\":\"flex-end\" } } } ] } } } }, { \"type\":\"BasicText\", \"node\":{ \"value\":\"RowDefault\", \"styles\":{ \"elements\":{ \"self\":[ { \"default\":{ \"text\":{ \"fontSize\":12, \"fontWeight\":700 }, \"border\":{ \"borderWidth\":2, \"borderColor\":{ \"light\":\"#ff00ff\" }, \"borderRadius\":10 } } } ] } } } } ] } } ] } }"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "success": true,
+  "privacyControl": {
+    "limitedUse": true
+  }
+}

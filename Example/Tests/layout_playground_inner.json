@@ -1,0 +1,271 @@
+{
+  "type": "ScrollableColumn",
+  "node": {
+    "styles": {
+      "elements": {
+        "own": [
+          {
+            "default": {
+              "spacing": {
+                "padding": "15 15 10 15"
+              },
+              "background": {
+                "backgroundColor": {
+                  "light": "#ffffff",
+                  "dark": "#000000"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "children": [
+      {
+        "type": "RichText",
+        "node": {
+          "value": "Jenny, thank you for your purchase:",
+          "styles": {
+            "elements": {
+              "own": [
+                {
+                  "default": {
+                    "text": {
+                      "fontSize": 12,
+                      "fontWeight": "700",
+                      "fontFamily": "Arial",
+                      "lineHeight": 14,
+                      "textColor": {
+                        "light": "#000000",
+                        "dark": "#ffffff"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "type": "Column",
+        "node": {
+          "styles": {
+            "elements": {
+              "own": [
+                {
+                  "default": {
+                    "spacing": {
+                      "padding": "5 0"
+                    },
+                    "container": {
+                      "alignItems": "center",
+                      "justifyContent": "center"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "children": [
+            {
+              "type": "DataImage",
+              "node": {
+                "imageKey": "creativeImage",
+                "styles": {
+                  "elements": {
+                    "own": [
+                      {
+                        "default": {
+                          "dimension": {
+                            "maxHeight": 130
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+
+      {
+        "type": "RichText",
+        "node": {
+          "value": "%^DATA.creativeCopy.creative.copy^%",
+          "styles": {
+            "elements": {
+              "own": [
+                {
+                  "default": {
+                    "spacing": {
+                      "margin": "10 0 0 0"
+                    },
+                    "text": {
+                      "fontSize": 12,
+                      "fontWeight": "500",
+                      "fontFamily": "Arial",
+                      "lineHeight": 14,
+                      "textColor": {
+                        "light": "#000000",
+                        "dark": "#ffffff"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "type": "CreativeResponse",
+        "node": {
+          "responseKey": "positive",
+          "styles": {
+            "elements": {
+              "own": [
+                {
+                  "default": {
+                    "spacing": {
+                      "margin": "20 0 0 0",
+                      "padding": "10 10 10 10"
+                    },
+                    "background": {
+                      "backgroundColor": {
+                        "light": "#000000",
+                        "dark": "#ffffff"
+                      }
+                    },
+                    "dimension": {
+                      "width": {
+                        "type": "fit",
+                        "value": "fit-width"
+                      }
+                    },
+                    "container": {
+                      "justifyContent": "center"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "children": [
+            {
+              "type": "BasicText",
+              "node": {
+                "styles": {
+                  "elements": {
+                    "own": [
+                      {
+                        "default": {
+                          "spacing": {
+                            "margin": "0"
+                          },
+                          "text": {
+                            "fontSize": 12,
+                            "fontWeight": "500",
+                            "lineHeight": 14,
+                            "fontFamily": "Arial",
+                            "textColor": {
+                              "light": "#ffffff",
+                              "dark": "#000000"
+                            }
+                          },
+                          "flexChild": {
+                            "alignSelf": "center"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                "value": "%^DATA.creativeResponse.shortLabel^%"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "CreativeResponse",
+        "node": {
+          "responseKey": "negative",
+          "styles": {
+            "elements": {
+              "own": [
+                {
+                  "default": {
+                    "spacing": {
+                      "margin": "10 0 0 0",
+                      "padding": "10 10 10 10"
+                    },
+                    "dimension": {
+                      "width": {
+                        "type": "fit",
+                        "value": "fit-width"
+                      }
+                    },
+                    "container": {
+                      "justifyContent": "center"
+                    },
+                    "border": {
+                      "borderRadius": 0,
+                      "borderWidth": "2",
+                      "borderColor": {
+                        "light": "#000000",
+                        "dark": "#ffffff"
+                      }
+                    },
+                    "background": {
+                      "backgroundColor": {
+                        "light": "#ffffff",
+                        "dark": "#000000"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "children": [
+            {
+              "type": "BasicText",
+              "node": {
+                "styles": {
+                  "elements": {
+                    "own": [
+                      {
+                        "default": {
+                          "spacing": {
+                            "margin": "0"
+                          },
+                          "text": {
+                            "fontSize": 12,
+                            "fontWeight": "500",
+                            "lineHeight": 14,
+                            "fontFamily": "Arial",
+                            "textColor": {
+                              "light": "#000000",
+                              "dark": "#ffffff"
+                            }
+                          },
+                          "flexChild": {
+                            "alignSelf": "center"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                "value": "%^DATA.creativeResponse.shortLabel^%"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "clientTimeoutMilliseconds": 8000,
+  "defaultLaunchDelayMilliseconds": 1000,
+  "clientSessionTimeoutMilliseconds": 3000,
+  "fonts": [
+    {
+      "fontName": "HelveticaNeue",
+      "fontUrl": "https://apps.rokt.com/bbw/content/fonts/robotomono-thinitalic.ttf"
+    }
+  ],
+  "roktTrackingStatus": true,
+  "featureFlags": {}
+}

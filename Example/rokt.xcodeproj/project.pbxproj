@@ -1,0 +1,2075 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 60;
+	objects = {
+
+/* Begin PBXAggregateTarget section */
+		899F34E02ED0EE4C0080D49E /* Periphery */ = {
+			isa = PBXAggregateTarget;
+			buildConfigurationList = 899F34EB2ED0EE4C0080D49E /* Build configuration list for PBXAggregateTarget "Periphery" */;
+			buildPhases = (
+				899F34EC2ED0EE580080D49E /* ShellScript */,
+			);
+			dependencies = (
+			);
+			name = Periphery;
+			productName = Perophery;
+		};
+/* End PBXAggregateTarget section */
+
+/* Begin PBXBuildFile section */
+		250610FC232F670400E6CBD9 /* TestViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 250610FB232F670400E6CBD9 /* TestViewController.swift */; };
+		250B2B07236AF2430020A450 /* RoktCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 250B2B06236AF2430020A450 /* RoktCell.swift */; };
+		250B2B09236AF29E0020A450 /* OrderCompleteTableViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 250B2B08236AF29E0020A450 /* OrderCompleteTableViewController.swift */; };
+		250CF2482A4BB88B00C6FDE7 /* ValidLayoutEmbedded.swift in Sources */ = {isa = PBXBuildFile; fileRef = 250CF2472A4BB88B00C6FDE7 /* ValidLayoutEmbedded.swift */; };
+		252120F12A4AB1720087B6F9 /* ValidLayoutOverlayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 252120F02A4AB1720087B6F9 /* ValidLayoutOverlayTests.swift */; };
+		25226FED2A412AA7006AFCF7 /* layout_multiple_1.json in Resources */ = {isa = PBXBuildFile; fileRef = 25226FEC2A412AA7006AFCF7 /* layout_multiple_1.json */; };
+		25226FEE2A412AA7006AFCF7 /* layout_multiple_1.json in Resources */ = {isa = PBXBuildFile; fileRef = 25226FEC2A412AA7006AFCF7 /* layout_multiple_1.json */; };
+		25226FF02A413C4A006AFCF7 /* layout_multiple_2.json in Resources */ = {isa = PBXBuildFile; fileRef = 25226FEF2A413C4A006AFCF7 /* layout_multiple_2.json */; };
+		25226FF12A413C4A006AFCF7 /* layout_multiple_2.json in Resources */ = {isa = PBXBuildFile; fileRef = 25226FEF2A413C4A006AFCF7 /* layout_multiple_2.json */; };
+		25226FF32A415861006AFCF7 /* OrderCompleteSwiftUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25226FF22A415861006AFCF7 /* OrderCompleteSwiftUI.swift */; };
+		25226FF42A415861006AFCF7 /* OrderCompleteSwiftUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25226FF22A415861006AFCF7 /* OrderCompleteSwiftUI.swift */; };
+		25226FF62A415C85006AFCF7 /* Toast.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25226FF52A415C85006AFCF7 /* Toast.swift */; };
+		25303FCD29CD640E006A3C90 /* layout_bottomsheet.json in Resources */ = {isa = PBXBuildFile; fileRef = 25303FCC29CD640E006A3C90 /* layout_bottomsheet.json */; };
+		25303FCE29CD640E006A3C90 /* layout_bottomsheet.json in Resources */ = {isa = PBXBuildFile; fileRef = 25303FCC29CD640E006A3C90 /* layout_bottomsheet.json */; };
+		2533E68C29CABD15003E75C5 /* layout_overlay.json in Resources */ = {isa = PBXBuildFile; fileRef = 2533E68B29CABD15003E75C5 /* layout_overlay.json */; };
+		2533E68D29CABD15003E75C5 /* layout_overlay.json in Resources */ = {isa = PBXBuildFile; fileRef = 2533E68B29CABD15003E75C5 /* layout_overlay.json */; };
+		2534233E231F2CCD00463C74 /* MockResponse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2534233D231F2CCD00463C74 /* MockResponse.swift */; };
+		25357BB82A3BCEBB001DC3AD /* layout_embedded_1.json in Resources */ = {isa = PBXBuildFile; fileRef = 25357BB72A3BCEBB001DC3AD /* layout_embedded_1.json */; };
+		25357BB92A3BCEBB001DC3AD /* layout_embedded_1.json in Resources */ = {isa = PBXBuildFile; fileRef = 25357BB72A3BCEBB001DC3AD /* layout_embedded_1.json */; };
+		2536C0C129D29D0A00AABC4F /* ValidLayoutBottomSheetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2536C0C029D29D0A00AABC4F /* ValidLayoutBottomSheetTests.swift */; };
+		2551D27029F8B5EE00369F0B /* layout_overlay_1.json in Resources */ = {isa = PBXBuildFile; fileRef = 2551D26F29F8B5EE00369F0B /* layout_overlay_1.json */; };
+		2551D27129F8B5EE00369F0B /* layout_overlay_1.json in Resources */ = {isa = PBXBuildFile; fileRef = 2551D26F29F8B5EE00369F0B /* layout_overlay_1.json */; };
+		2563ADE92A567B1600E7CB6A /* layout_embedded_2.json in Resources */ = {isa = PBXBuildFile; fileRef = 2563ADE82A567B1600E7CB6A /* layout_embedded_2.json */; };
+		2563ADEA2A567B1600E7CB6A /* layout_embedded_2.json in Resources */ = {isa = PBXBuildFile; fileRef = 2563ADE82A567B1600E7CB6A /* layout_embedded_2.json */; };
+		2567427C25B7DE5700BD655E /* EncryptionUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2567427B25B7DE5700BD655E /* EncryptionUtils.swift */; };
+		2567429225B7F28E00BD655E /* EncryptionUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2567427B25B7DE5700BD655E /* EncryptionUtils.swift */; };
+		25690F9C260AB87C00744387 /* HashUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25690F9B260AB87C00744387 /* HashUtils.swift */; };
+		25690FC0260AE70000744387 /* HashUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25690F9B260AB87C00744387 /* HashUtils.swift */; };
+		257479FE2A70A807009C5B69 /* layout_embedded_4.json in Resources */ = {isa = PBXBuildFile; fileRef = 257479FD2A70A807009C5B69 /* layout_embedded_4.json */; };
+		257479FF2A70A807009C5B69 /* layout_embedded_4.json in Resources */ = {isa = PBXBuildFile; fileRef = 257479FD2A70A807009C5B69 /* layout_embedded_4.json */; };
+		257B63542B4CF0B70026C014 /* layout_grouped_distribution.json in Resources */ = {isa = PBXBuildFile; fileRef = 257B63532B4CF0B70026C014 /* layout_grouped_distribution.json */; };
+		257B63552B4CF0B70026C014 /* layout_grouped_distribution.json in Resources */ = {isa = PBXBuildFile; fileRef = 257B63532B4CF0B70026C014 /* layout_grouped_distribution.json */; };
+		258EDB1724062BBF003202F5 /* RoktTag.swift in Sources */ = {isa = PBXBuildFile; fileRef = 258EDB1624062BBF003202F5 /* RoktTag.swift */; };
+		258EDB1924062D59003202F5 /* Environment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 258EDB1824062D59003202F5 /* Environment.swift */; };
+		25A1E31123EB952A00887B71 /* EventModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25A1E31023EB952A00887B71 /* EventModel.swift */; };
+		25B518482C5722F2001D41FB /* InvalidInitFont.json in Resources */ = {isa = PBXBuildFile; fileRef = 25B518462C5722F2001D41FB /* InvalidInitFont.json */; };
+		25BC81762AFDFCD2007E1A0B /* layout_playground_inner.json in Resources */ = {isa = PBXBuildFile; fileRef = 25BC81752AFDFCD2007E1A0B /* layout_playground_inner.json */; };
+		25BC81782AFDFCE8007E1A0B /* layout_playground_outer.json in Resources */ = {isa = PBXBuildFile; fileRef = 25BC81772AFDFCE8007E1A0B /* layout_playground_outer.json */; };
+		25BC817A2AFDFD2F007E1A0B /* layout_playground.json in Resources */ = {isa = PBXBuildFile; fileRef = 25BC81792AFDFD2F007E1A0B /* layout_playground.json */; };
+		25F4A2F82BCCDBE2001D9087 /* validInitWithoutFeatureFlag.json in Resources */ = {isa = PBXBuildFile; fileRef = 25F4A2F72BCCDBE2001D9087 /* validInitWithoutFeatureFlag.json */; };
+		25F4A2F92BCCDBE2001D9087 /* validInitWithoutFeatureFlag.json in Resources */ = {isa = PBXBuildFile; fileRef = 25F4A2F72BCCDBE2001D9087 /* validInitWithoutFeatureFlag.json */; };
+		25FD47352BF4918B0051C704 /* RoktApplication.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25FD47342BF4918B0051C704 /* RoktApplication.swift */; };
+		25FD47372BF4922C0051C704 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25FD47362BF4922C0051C704 /* main.swift */; };
+		25FEB5872B7C4126008FB3CC /* ValidLayoutGroupedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25FEB5862B7C4126008FB3CC /* ValidLayoutGroupedTests.swift */; };
+		4F31D686213D829100F044CC /* TagIdSelectionTableViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F31D685213D829100F044CC /* TagIdSelectionTableViewController.swift */; };
+		4F4B29B8210B68D600334961 /* OrderCompleteViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCF94A0210931B7000CE923 /* OrderCompleteViewController.swift */; };
+		4F4B29BB210BB44500334961 /* EmptyViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F4B29B9210BB2D700334961 /* EmptyViewController.swift */; };
+		4F59A2F0210A7F83004DC4F5 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 607FACD91AFB9204008FA782 /* Main.storyboard */; };
+		4F7DEE36212DBBAF007DABC4 /* UnitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F7DEE35212DBBAF007DABC4 /* UnitTests.swift */; };
+		4F7DEE3A2133395E007DABC4 /* validInit.json in Resources */ = {isa = PBXBuildFile; fileRef = 4F7DEE392133395E007DABC4 /* validInit.json */; };
+		4F7DEE3C213601C8007DABC4 /* InvalidWidgetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F7DEE3B213601C8007DABC4 /* InvalidWidgetTests.swift */; };
+		4F7DEE3E21360308007DABC4 /* invalidWidget.json in Resources */ = {isa = PBXBuildFile; fileRef = 4F7DEE3D21360308007DABC4 /* invalidWidget.json */; };
+		4F7DEE402136EF8F007DABC4 /* APIErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F7DEE3F2136EF8F007DABC4 /* APIErrorTests.swift */; };
+		4FCF94A1210931B7000CE923 /* OrderCompleteViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCF94A0210931B7000CE923 /* OrderCompleteViewController.swift */; };
+		566460F62DDAFE8900C49EBF /* PassKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 566460F52DDAFE8900C49EBF /* PassKit.framework */; };
+		5881EE5D26D8A2AB006DA89C /* Mocker in Frameworks */ = {isa = PBXBuildFile; productRef = 5881EE5C26D8A2AB006DA89C /* Mocker */; };
+		58EF6D2025E364BE0058A2B2 /* initWithFalseRoktTrackingStatus.json in Resources */ = {isa = PBXBuildFile; fileRef = 58EF6D1F25E364BE0058A2B2 /* initWithFalseRoktTrackingStatus.json */; };
+		58EF6D2125E364BE0058A2B2 /* initWithFalseRoktTrackingStatus.json in Resources */ = {isa = PBXBuildFile; fileRef = 58EF6D1F25E364BE0058A2B2 /* initWithFalseRoktTrackingStatus.json */; };
+		58F0D08F260972FA000A5645 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58F0D08E260972FA000A5645 /* Constants.swift */; };
+		607FACD61AFB9204008FA782 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 607FACD51AFB9204008FA782 /* AppDelegate.swift */; };
+		607FACD81AFB9204008FA782 /* CartViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 607FACD71AFB9204008FA782 /* CartViewController.swift */; };
+		607FACDB1AFB9204008FA782 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 607FACD91AFB9204008FA782 /* Main.storyboard */; };
+		607FACDD1AFB9204008FA782 /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 607FACDC1AFB9204008FA782 /* Images.xcassets */; };
+		607FACE01AFB9204008FA782 /* LaunchScreen.xib in Resources */ = {isa = PBXBuildFile; fileRef = 607FACDE1AFB9204008FA782 /* LaunchScreen.xib */; };
+		8922B0A92ECE64BC0083D05B /* Quick in Frameworks */ = {isa = PBXBuildFile; productRef = 8922B0A82ECE64BC0083D05B /* Quick */; };
+		898FAB782EC50F6A00EFBA65 /* SVProgressHUD in Frameworks */ = {isa = PBXBuildFile; productRef = 898FAB772EC50F6A00EFBA65 /* SVProgressHUD */; };
+		898FAB7A2EC5127100EFBA65 /* SVProgressHUD in Frameworks */ = {isa = PBXBuildFile; productRef = 898FAB792EC5127100EFBA65 /* SVProgressHUD */; };
+		89FA8CA32ECE5C2D00F26E1B /* Nimble-Snapshots in Frameworks */ = {isa = PBXBuildFile; productRef = 89FA8CA22ECE5C2D00F26E1B /* Nimble-Snapshots */; };
+		9908DEDB2C6ED64E00FBDCF6 /* layout_expand_to_show.json in Resources */ = {isa = PBXBuildFile; fileRef = 9908DEDA2C6ED64E00FBDCF6 /* layout_expand_to_show.json */; };
+		9914913E2C4651DE00D3355B /* MockTimingsRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9914913C2C4651D600D3355B /* MockTimingsRequest.swift */; };
+		994970F12ACE06D4000B5071 /* layout_carousel.json in Resources */ = {isa = PBXBuildFile; fileRef = 994970F02ACE06D4000B5071 /* layout_carousel.json */; };
+		994970F22ACE06D4000B5071 /* layout_carousel.json in Resources */ = {isa = PBXBuildFile; fileRef = 994970F02ACE06D4000B5071 /* layout_carousel.json */; };
+		99FB79D22CEC6E4500B7E7EC /* RoktExperienceCacheExecuteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99FB79D12CEC6E4500B7E7EC /* RoktExperienceCacheExecuteTests.swift */; };
+		99FB79D42CEC98B600B7E7EC /* validInitWithCache.json in Resources */ = {isa = PBXBuildFile; fileRef = 99FB79D32CEC98B600B7E7EC /* validInitWithCache.json */; };
+		B17F42DE29F233230047210B /* partner1_overlay_outer.json in Resources */ = {isa = PBXBuildFile; fileRef = B17F42DD29F233230047210B /* partner1_overlay_outer.json */; };
+		B17F42DF29F233230047210B /* partner1_overlay_outer.json in Resources */ = {isa = PBXBuildFile; fileRef = B17F42DD29F233230047210B /* partner1_overlay_outer.json */; };
+		B17F42E129F233E90047210B /* partner1_overlay_inner.json in Resources */ = {isa = PBXBuildFile; fileRef = B17F42E029F233E90047210B /* partner1_overlay_inner.json */; };
+		B17F42E229F233E90047210B /* partner1_overlay_inner.json in Resources */ = {isa = PBXBuildFile; fileRef = B17F42E029F233E90047210B /* partner1_overlay_inner.json */; };
+		B17F42E629F236E10047210B /* partner1_overlay.json in Resources */ = {isa = PBXBuildFile; fileRef = B17F42E529F236E10047210B /* partner1_overlay.json */; };
+		B17F42E729F236E10047210B /* partner1_overlay.json in Resources */ = {isa = PBXBuildFile; fileRef = B17F42E529F236E10047210B /* partner1_overlay.json */; };
+		B180F4602A0B491D0075A9D9 /* ios_complex_test.json in Resources */ = {isa = PBXBuildFile; fileRef = B180F45F2A0B491D0075A9D9 /* ios_complex_test.json */; };
+		B180F4612A0B491D0075A9D9 /* ios_complex_test.json in Resources */ = {isa = PBXBuildFile; fileRef = B180F45F2A0B491D0075A9D9 /* ios_complex_test.json */; };
+		B1851CE6292FAAF50095E1B2 /* QuickSpec+Extension.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1851CE5292FAAF50095E1B2 /* QuickSpec+Extension.swift */; };
+		B3457BC32F45127800AE9D86 /* Rokt-Widget in Frameworks */ = {isa = PBXBuildFile; productRef = B3457BC22F45127800AE9D86 /* Rokt-Widget */; };
+		E03D5691AF889682BC1F89F8 /* (null) in Frameworks */ = {isa = PBXBuildFile; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		607FACE61AFB9204008FA782 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 607FACC81AFB9204008FA782 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 607FACCF1AFB9204008FA782;
+			remoteInfo = rokt;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		251BBF4A2C7D9D77006986E0 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B81E5EA52C784F56004628EF /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		250610FB232F670400E6CBD9 /* TestViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TestViewController.swift; path = ViewControllers/TestViewController.swift; sourceTree = "<group>"; };
+		250B2B06236AF2430020A450 /* RoktCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RoktCell.swift; path = cell/RoktCell.swift; sourceTree = "<group>"; };
+		250B2B08236AF29E0020A450 /* OrderCompleteTableViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrderCompleteTableViewController.swift; sourceTree = "<group>"; };
+		250CF2472A4BB88B00C6FDE7 /* ValidLayoutEmbedded.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValidLayoutEmbedded.swift; sourceTree = "<group>"; };
+		252120F02A4AB1720087B6F9 /* ValidLayoutOverlayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValidLayoutOverlayTests.swift; sourceTree = "<group>"; };
+		25226FEC2A412AA7006AFCF7 /* layout_multiple_1.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = layout_multiple_1.json; sourceTree = "<group>"; };
+		25226FEF2A413C4A006AFCF7 /* layout_multiple_2.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = layout_multiple_2.json; sourceTree = "<group>"; };
+		25226FF22A415861006AFCF7 /* OrderCompleteSwiftUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrderCompleteSwiftUI.swift; sourceTree = "<group>"; };
+		25226FF52A415C85006AFCF7 /* Toast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Toast.swift; sourceTree = "<group>"; };
+		252783A22255CD4000CF5F8E /* Rokt_Widget.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = Rokt_Widget.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		25303FCC29CD640E006A3C90 /* layout_bottomsheet.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = layout_bottomsheet.json; sourceTree = "<group>"; };
+		2533E68B29CABD15003E75C5 /* layout_overlay.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = layout_overlay.json; sourceTree = "<group>"; };
+		2534233D231F2CCD00463C74 /* MockResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MockResponse.swift; path = NetworkMock/MockResponse.swift; sourceTree = "<group>"; };
+		25357BB72A3BCEBB001DC3AD /* layout_embedded_1.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = layout_embedded_1.json; sourceTree = "<group>"; };
+		2536C0C029D29D0A00AABC4F /* ValidLayoutBottomSheetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValidLayoutBottomSheetTests.swift; sourceTree = "<group>"; };
+		2551D26F29F8B5EE00369F0B /* layout_overlay_1.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = layout_overlay_1.json; sourceTree = "<group>"; };
+		2563ADE82A567B1600E7CB6A /* layout_embedded_2.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = layout_embedded_2.json; sourceTree = "<group>"; };
+		2567427B25B7DE5700BD655E /* EncryptionUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EncryptionUtils.swift; sourceTree = "<group>"; };
+		25690F9B260AB87C00744387 /* HashUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HashUtils.swift; sourceTree = "<group>"; };
+		257479FD2A70A807009C5B69 /* layout_embedded_4.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = layout_embedded_4.json; sourceTree = "<group>"; };
+		257B63532B4CF0B70026C014 /* layout_grouped_distribution.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = layout_grouped_distribution.json; sourceTree = "<group>"; };
+		258EDB1624062BBF003202F5 /* RoktTag.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RoktTag.swift; path = model/RoktTag.swift; sourceTree = "<group>"; };
+		258EDB1824062D59003202F5 /* Environment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Environment.swift; path = model/Environment.swift; sourceTree = "<group>"; };
+		25A1E31023EB952A00887B71 /* EventModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EventModel.swift; path = NetworkMock/EventModel.swift; sourceTree = "<group>"; };
+		25B518462C5722F2001D41FB /* InvalidInitFont.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = InvalidInitFont.json; sourceTree = "<group>"; };
+		25BC81752AFDFCD2007E1A0B /* layout_playground_inner.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = layout_playground_inner.json; sourceTree = "<group>"; };
+		25BC81772AFDFCE8007E1A0B /* layout_playground_outer.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = layout_playground_outer.json; sourceTree = "<group>"; };
+		25BC81792AFDFD2F007E1A0B /* layout_playground.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = layout_playground.json; sourceTree = "<group>"; };
+		25F4A2F72BCCDBE2001D9087 /* validInitWithoutFeatureFlag.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = validInitWithoutFeatureFlag.json; sourceTree = "<group>"; };
+		25FD47342BF4918B0051C704 /* RoktApplication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoktApplication.swift; sourceTree = "<group>"; };
+		25FD47362BF4922C0051C704 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		25FEB5862B7C4126008FB3CC /* ValidLayoutGroupedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValidLayoutGroupedTests.swift; sourceTree = "<group>"; };
+		4F31D685213D829100F044CC /* TagIdSelectionTableViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagIdSelectionTableViewController.swift; sourceTree = "<group>"; };
+		4F4B29B9210BB2D700334961 /* EmptyViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EmptyViewController.swift; path = ViewControllers/EmptyViewController.swift; sourceTree = "<group>"; };
+		4F7DEE35212DBBAF007DABC4 /* UnitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnitTests.swift; sourceTree = "<group>"; };
+		4F7DEE392133395E007DABC4 /* validInit.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = validInit.json; sourceTree = "<group>"; };
+		4F7DEE3B213601C8007DABC4 /* InvalidWidgetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvalidWidgetTests.swift; sourceTree = "<group>"; };
+		4F7DEE3D21360308007DABC4 /* invalidWidget.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = invalidWidget.json; sourceTree = "<group>"; };
+		4F7DEE3F2136EF8F007DABC4 /* APIErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIErrorTests.swift; sourceTree = "<group>"; };
+		4FCF94A0210931B7000CE923 /* OrderCompleteViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrderCompleteViewController.swift; sourceTree = "<group>"; };
+		566460F42DDAFAEC00C49EBF /* rokt_Example.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = rokt_Example.entitlements; sourceTree = "<group>"; };
+		566460F52DDAFE8900C49EBF /* PassKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = PassKit.framework; path = System/Library/Frameworks/PassKit.framework; sourceTree = SDKROOT; };
+		581A1393251DCCED00C6DFB5 /* de */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = de; path = de.lproj/Main.strings; sourceTree = "<group>"; };
+		581A1394251DCCEE00C6DFB5 /* de */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = de; path = de.lproj/LaunchScreen.strings; sourceTree = "<group>"; };
+		581A13B5251DCE9100C6DFB5 /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/Main.strings; sourceTree = "<group>"; };
+		581A13B6251DCE9200C6DFB5 /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/LaunchScreen.strings; sourceTree = "<group>"; };
+		581A13B7251DCEC800C6DFB5 /* fr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = fr; path = fr.lproj/Main.strings; sourceTree = "<group>"; };
+		581A13B8251DCEC900C6DFB5 /* fr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = fr; path = fr.lproj/LaunchScreen.strings; sourceTree = "<group>"; };
+		581A13B9251DCED700C6DFB5 /* es */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = es; path = es.lproj/Main.strings; sourceTree = "<group>"; };
+		581A13BA251DCED700C6DFB5 /* es */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = es; path = es.lproj/LaunchScreen.strings; sourceTree = "<group>"; };
+		581A13BD251DCF1B00C6DFB5 /* nl */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = nl; path = nl.lproj/Main.strings; sourceTree = "<group>"; };
+		581A13BE251DCF1C00C6DFB5 /* nl */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = nl; path = nl.lproj/LaunchScreen.strings; sourceTree = "<group>"; };
+		58EF6D1F25E364BE0058A2B2 /* initWithFalseRoktTrackingStatus.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = initWithFalseRoktTrackingStatus.json; sourceTree = "<group>"; };
+		58F0D08E260972FA000A5645 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
+		607FACD01AFB9204008FA782 /* rokt_Example.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = rokt_Example.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		607FACD41AFB9204008FA782 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		607FACD51AFB9204008FA782 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		607FACD71AFB9204008FA782 /* CartViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CartViewController.swift; sourceTree = "<group>"; };
+		607FACDA1AFB9204008FA782 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
+		607FACDC1AFB9204008FA782 /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Images.xcassets; sourceTree = "<group>"; };
+		607FACDF1AFB9204008FA782 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/LaunchScreen.xib; sourceTree = "<group>"; };
+		607FACE51AFB9204008FA782 /* rokt_Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = rokt_Tests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		607FACEA1AFB9204008FA782 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		9908DEDA2C6ED64E00FBDCF6 /* layout_expand_to_show.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = layout_expand_to_show.json; sourceTree = "<group>"; };
+		9914913C2C4651D600D3355B /* MockTimingsRequest.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = MockTimingsRequest.swift; path = NetworkMock/MockTimingsRequest.swift; sourceTree = "<group>"; };
+		994970F02ACE06D4000B5071 /* layout_carousel.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = layout_carousel.json; sourceTree = "<group>"; };
+		99D370752C2D4666002EE94F /* ar */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ar; path = ar.lproj/Main.strings; sourceTree = "<group>"; };
+		99D370762C2D4666002EE94F /* ar */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ar; path = ar.lproj/LaunchScreen.strings; sourceTree = "<group>"; };
+		99FB79D12CEC6E4500B7E7EC /* RoktExperienceCacheExecuteTests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RoktExperienceCacheExecuteTests.swift; sourceTree = "<group>"; };
+		99FB79D32CEC98B600B7E7EC /* validInitWithCache.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = validInitWithCache.json; sourceTree = "<group>"; };
+		B17F42DD29F233230047210B /* partner1_overlay_outer.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = partner1_overlay_outer.json; sourceTree = "<group>"; };
+		B17F42E029F233E90047210B /* partner1_overlay_inner.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = partner1_overlay_inner.json; sourceTree = "<group>"; };
+		B17F42E529F236E10047210B /* partner1_overlay.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = partner1_overlay.json; sourceTree = "<group>"; };
+		B180F45F2A0B491D0075A9D9 /* ios_complex_test.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ios_complex_test.json; sourceTree = "<group>"; };
+		B1851CE5292FAAF50095E1B2 /* QuickSpec+Extension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "QuickSpec+Extension.swift"; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		607FACCD1AFB9204008FA782 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B3457BC32F45127800AE9D86 /* Rokt-Widget in Frameworks */,
+				566460F62DDAFE8900C49EBF /* PassKit.framework in Frameworks */,
+				898FAB782EC50F6A00EFBA65 /* SVProgressHUD in Frameworks */,
+				E03D5691AF889682BC1F89F8 /* (null) in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		607FACE21AFB9204008FA782 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8922B0A92ECE64BC0083D05B /* Quick in Frameworks */,
+				898FAB7A2EC5127100EFBA65 /* SVProgressHUD in Frameworks */,
+				89FA8CA32ECE5C2D00F26E1B /* Nimble-Snapshots in Frameworks */,
+				5881EE5D26D8A2AB006DA89C /* Mocker in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		250610FA232F66CB00E6CBD9 /* ViewControllers */ = {
+			isa = PBXGroup;
+			children = (
+				4F4B29B9210BB2D700334961 /* EmptyViewController.swift */,
+				250610FB232F670400E6CBD9 /* TestViewController.swift */,
+			);
+			name = ViewControllers;
+			sourceTree = "<group>";
+		};
+		250B2B05236AF21D0020A450 /* cell */ = {
+			isa = PBXGroup;
+			children = (
+				250B2B06236AF2430020A450 /* RoktCell.swift */,
+			);
+			name = cell;
+			sourceTree = "<group>";
+		};
+		25226FEB2A412A3E006AFCF7 /* MultipleLayouts */ = {
+			isa = PBXGroup;
+			children = (
+				25226FEC2A412AA7006AFCF7 /* layout_multiple_1.json */,
+				25226FEF2A413C4A006AFCF7 /* layout_multiple_2.json */,
+			);
+			name = MultipleLayouts;
+			sourceTree = "<group>";
+		};
+		2534233C231F2C2900463C74 /* NetworkMock */ = {
+			isa = PBXGroup;
+			children = (
+				2534233D231F2CCD00463C74 /* MockResponse.swift */,
+				25A1E31023EB952A00887B71 /* EventModel.swift */,
+				9914913C2C4651D600D3355B /* MockTimingsRequest.swift */,
+			);
+			name = NetworkMock;
+			sourceTree = "<group>";
+		};
+		25357BB62A3BCDC5001DC3AD /* Embedded */ = {
+			isa = PBXGroup;
+			children = (
+				25357BB72A3BCEBB001DC3AD /* layout_embedded_1.json */,
+				2563ADE82A567B1600E7CB6A /* layout_embedded_2.json */,
+				257479FD2A70A807009C5B69 /* layout_embedded_4.json */,
+				994970F02ACE06D4000B5071 /* layout_carousel.json */,
+			);
+			name = Embedded;
+			sourceTree = "<group>";
+		};
+		2567427A25B7DE3C00BD655E /* utils */ = {
+			isa = PBXGroup;
+			children = (
+				2567427B25B7DE5700BD655E /* EncryptionUtils.swift */,
+				58F0D08E260972FA000A5645 /* Constants.swift */,
+				25690F9B260AB87C00744387 /* HashUtils.swift */,
+				25226FF52A415C85006AFCF7 /* Toast.swift */,
+			);
+			path = utils;
+			sourceTree = "<group>";
+		};
+		258EDB1324062A62003202F5 /* model */ = {
+			isa = PBXGroup;
+			children = (
+				258EDB1624062BBF003202F5 /* RoktTag.swift */,
+				258EDB1824062D59003202F5 /* Environment.swift */,
+			);
+			name = model;
+			sourceTree = "<group>";
+		};
+		25BC81742AFDFC9A007E1A0B /* Playground */ = {
+			isa = PBXGroup;
+			children = (
+				25BC81792AFDFD2F007E1A0B /* layout_playground.json */,
+				25BC81752AFDFCD2007E1A0B /* layout_playground_inner.json */,
+				25BC81772AFDFCE8007E1A0B /* layout_playground_outer.json */,
+			);
+			name = Playground;
+			sourceTree = "<group>";
+		};
+		607FACC71AFB9204008FA782 = {
+			isa = PBXGroup;
+			children = (
+				566460F42DDAFAEC00C49EBF /* rokt_Example.entitlements */,
+				607FACD21AFB9204008FA782 /* Example for rokt */,
+				607FACE81AFB9204008FA782 /* Tests */,
+				607FACD11AFB9204008FA782 /* Products */,
+				73268FAD318278565E3AE8D6 /* Frameworks */,
+			);
+			sourceTree = "<group>";
+		};
+		607FACD11AFB9204008FA782 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				607FACD01AFB9204008FA782 /* rokt_Example.app */,
+				607FACE51AFB9204008FA782 /* rokt_Tests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		607FACD21AFB9204008FA782 /* Example for rokt */ = {
+			isa = PBXGroup;
+			children = (
+				2567427A25B7DE3C00BD655E /* utils */,
+				258EDB1324062A62003202F5 /* model */,
+				250B2B05236AF21D0020A450 /* cell */,
+				25FD47342BF4918B0051C704 /* RoktApplication.swift */,
+				607FACD51AFB9204008FA782 /* AppDelegate.swift */,
+				25FD47362BF4922C0051C704 /* main.swift */,
+				4F31D685213D829100F044CC /* TagIdSelectionTableViewController.swift */,
+				607FACD71AFB9204008FA782 /* CartViewController.swift */,
+				4FCF94A0210931B7000CE923 /* OrderCompleteViewController.swift */,
+				250B2B08236AF29E0020A450 /* OrderCompleteTableViewController.swift */,
+				25226FF22A415861006AFCF7 /* OrderCompleteSwiftUI.swift */,
+				607FACD91AFB9204008FA782 /* Main.storyboard */,
+				607FACDC1AFB9204008FA782 /* Images.xcassets */,
+				607FACDE1AFB9204008FA782 /* LaunchScreen.xib */,
+				607FACD31AFB9204008FA782 /* Supporting Files */,
+			);
+			name = "Example for rokt";
+			path = rokt;
+			sourceTree = "<group>";
+		};
+		607FACD31AFB9204008FA782 /* Supporting Files */ = {
+			isa = PBXGroup;
+			children = (
+				607FACD41AFB9204008FA782 /* Info.plist */,
+			);
+			name = "Supporting Files";
+			sourceTree = "<group>";
+		};
+		607FACE81AFB9204008FA782 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				B1851CE1292F96C80095E1B2 /* Extensions */,
+				250610FA232F66CB00E6CBD9 /* ViewControllers */,
+				2534233C231F2C2900463C74 /* NetworkMock */,
+				4F7DEE35212DBBAF007DABC4 /* UnitTests.swift */,
+				2536C0C029D29D0A00AABC4F /* ValidLayoutBottomSheetTests.swift */,
+				252120F02A4AB1720087B6F9 /* ValidLayoutOverlayTests.swift */,
+				250CF2472A4BB88B00C6FDE7 /* ValidLayoutEmbedded.swift */,
+				25FEB5862B7C4126008FB3CC /* ValidLayoutGroupedTests.swift */,
+				4F7DEE3B213601C8007DABC4 /* InvalidWidgetTests.swift */,
+				99FB79D12CEC6E4500B7E7EC /* RoktExperienceCacheExecuteTests.swift */,
+				4F7DEE3F2136EF8F007DABC4 /* APIErrorTests.swift */,
+				607FACE91AFB9204008FA782 /* Supporting Files */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		607FACE91AFB9204008FA782 /* Supporting Files */ = {
+			isa = PBXGroup;
+			children = (
+				B17F42DC29F232C40047210B /* Layouts */,
+				607FACEA1AFB9204008FA782 /* Info.plist */,
+				4F7DEE392133395E007DABC4 /* validInit.json */,
+				99FB79D32CEC98B600B7E7EC /* validInitWithCache.json */,
+				25F4A2F72BCCDBE2001D9087 /* validInitWithoutFeatureFlag.json */,
+				58EF6D1F25E364BE0058A2B2 /* initWithFalseRoktTrackingStatus.json */,
+				4F7DEE3D21360308007DABC4 /* invalidWidget.json */,
+				25B518462C5722F2001D41FB /* InvalidInitFont.json */,
+			);
+			name = "Supporting Files";
+			sourceTree = "<group>";
+		};
+		73268FAD318278565E3AE8D6 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				566460F52DDAFE8900C49EBF /* PassKit.framework */,
+				252783A22255CD4000CF5F8E /* Rokt_Widget.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		9908DED92C6ED3C500FBDCF6 /* Expand */ = {
+			isa = PBXGroup;
+			children = (
+				9908DEDA2C6ED64E00FBDCF6 /* layout_expand_to_show.json */,
+			);
+			name = Expand;
+			sourceTree = "<group>";
+		};
+		B17F42DC29F232C40047210B /* Layouts */ = {
+			isa = PBXGroup;
+			children = (
+				9908DED92C6ED3C500FBDCF6 /* Expand */,
+				25BC81742AFDFC9A007E1A0B /* Playground */,
+				25226FEB2A412A3E006AFCF7 /* MultipleLayouts */,
+				25357BB62A3BCDC5001DC3AD /* Embedded */,
+				B17F42E329F233F40047210B /* Overlay */,
+				B17F42E429F233F90047210B /* Bottomsheet */,
+			);
+			name = Layouts;
+			sourceTree = "<group>";
+		};
+		B17F42E329F233F40047210B /* Overlay */ = {
+			isa = PBXGroup;
+			children = (
+				2533E68B29CABD15003E75C5 /* layout_overlay.json */,
+				2551D26F29F8B5EE00369F0B /* layout_overlay_1.json */,
+				B17F42E529F236E10047210B /* partner1_overlay.json */,
+				B17F42DD29F233230047210B /* partner1_overlay_outer.json */,
+				B17F42E029F233E90047210B /* partner1_overlay_inner.json */,
+				B180F45F2A0B491D0075A9D9 /* ios_complex_test.json */,
+				257B63532B4CF0B70026C014 /* layout_grouped_distribution.json */,
+			);
+			name = Overlay;
+			sourceTree = "<group>";
+		};
+		B17F42E429F233F90047210B /* Bottomsheet */ = {
+			isa = PBXGroup;
+			children = (
+				25303FCC29CD640E006A3C90 /* layout_bottomsheet.json */,
+			);
+			name = Bottomsheet;
+			sourceTree = "<group>";
+		};
+		B1851CE1292F96C80095E1B2 /* Extensions */ = {
+			isa = PBXGroup;
+			children = (
+				B1851CE5292FAAF50095E1B2 /* QuickSpec+Extension.swift */,
+			);
+			name = Extensions;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		607FACCF1AFB9204008FA782 /* rokt_Example */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 607FACEF1AFB9204008FA782 /* Build configuration list for PBXNativeTarget "rokt_Example" */;
+			buildPhases = (
+				607FACCC1AFB9204008FA782 /* Sources */,
+				607FACCD1AFB9204008FA782 /* Frameworks */,
+				607FACCE1AFB9204008FA782 /* Resources */,
+				4F7FDD84211A25150015FAAA /* ShellScript */,
+				251BBF4A2C7D9D77006986E0 /* Embed Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = rokt_Example;
+			packageProductDependencies = (
+				898FAB772EC50F6A00EFBA65 /* SVProgressHUD */,
+				B3457BC22F45127800AE9D86 /* Rokt-Widget */,
+			);
+			productName = rokt;
+			productReference = 607FACD01AFB9204008FA782 /* rokt_Example.app */;
+			productType = "com.apple.product-type.application";
+		};
+		607FACE41AFB9204008FA782 /* rokt_Tests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 607FACF21AFB9204008FA782 /* Build configuration list for PBXNativeTarget "rokt_Tests" */;
+			buildPhases = (
+				607FACE11AFB9204008FA782 /* Sources */,
+				607FACE21AFB9204008FA782 /* Frameworks */,
+				607FACE31AFB9204008FA782 /* Resources */,
+				B81E5EA52C784F56004628EF /* Embed Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				607FACE71AFB9204008FA782 /* PBXTargetDependency */,
+			);
+			name = rokt_Tests;
+			packageProductDependencies = (
+				5881EE5C26D8A2AB006DA89C /* Mocker */,
+				898FAB792EC5127100EFBA65 /* SVProgressHUD */,
+				89FA8CA22ECE5C2D00F26E1B /* Nimble-Snapshots */,
+				8922B0A82ECE64BC0083D05B /* Quick */,
+			);
+			productName = Tests;
+			productReference = 607FACE51AFB9204008FA782 /* rokt_Tests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		607FACC81AFB9204008FA782 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastSwiftUpdateCheck = 1240;
+				LastUpgradeCheck = 1300;
+				ORGANIZATIONNAME = CocoaPods;
+				TargetAttributes = {
+					607FACCF1AFB9204008FA782 = {
+						CreatedOnToolsVersion = 6.3.1;
+						LastSwiftMigration = 1020;
+					};
+					607FACE41AFB9204008FA782 = {
+						CreatedOnToolsVersion = 6.3.1;
+						LastSwiftMigration = 1000;
+						TestTargetID = 607FACCF1AFB9204008FA782;
+					};
+					899F34E02ED0EE4C0080D49E = {
+						CreatedOnToolsVersion = 26.0;
+					};
+				};
+			};
+			buildConfigurationList = 607FACCB1AFB9204008FA782 /* Build configuration list for PBXProject "rokt" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+				de,
+				ja,
+				fr,
+				es,
+				nl,
+				ar,
+			);
+			mainGroup = 607FACC71AFB9204008FA782;
+			packageReferences = (
+				5881EE5B26D8A2AB006DA89C /* XCRemoteSwiftPackageReference "Mocker" */,
+				898FAB762EC50F6A00EFBA65 /* XCRemoteSwiftPackageReference "SVProgressHUD" */,
+				89FA8CA12ECE5C2D00F26E1B /* XCRemoteSwiftPackageReference "Nimble-Snapshots" */,
+				8922B0A72ECE64BC0083D05B /* XCRemoteSwiftPackageReference "Quick" */,
+				B3457BC12F45127800AE9D86 /* XCLocalSwiftPackageReference ".." */,
+			);
+			productRefGroup = 607FACD11AFB9204008FA782 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				607FACCF1AFB9204008FA782 /* rokt_Example */,
+				607FACE41AFB9204008FA782 /* rokt_Tests */,
+				899F34E02ED0EE4C0080D49E /* Periphery */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		607FACCE1AFB9204008FA782 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				257479FE2A70A807009C5B69 /* layout_embedded_4.json in Resources */,
+				2533E68C29CABD15003E75C5 /* layout_overlay.json in Resources */,
+				B17F42DE29F233230047210B /* partner1_overlay_outer.json in Resources */,
+				25F4A2F82BCCDBE2001D9087 /* validInitWithoutFeatureFlag.json in Resources */,
+				9908DEDB2C6ED64E00FBDCF6 /* layout_expand_to_show.json in Resources */,
+				58EF6D2025E364BE0058A2B2 /* initWithFalseRoktTrackingStatus.json in Resources */,
+				B17F42E629F236E10047210B /* partner1_overlay.json in Resources */,
+				25357BB82A3BCEBB001DC3AD /* layout_embedded_1.json in Resources */,
+				607FACDB1AFB9204008FA782 /* Main.storyboard in Resources */,
+				25303FCD29CD640E006A3C90 /* layout_bottomsheet.json in Resources */,
+				2551D27029F8B5EE00369F0B /* layout_overlay_1.json in Resources */,
+				257B63542B4CF0B70026C014 /* layout_grouped_distribution.json in Resources */,
+				25BC81762AFDFCD2007E1A0B /* layout_playground_inner.json in Resources */,
+				25226FF02A413C4A006AFCF7 /* layout_multiple_2.json in Resources */,
+				607FACE01AFB9204008FA782 /* LaunchScreen.xib in Resources */,
+				2563ADE92A567B1600E7CB6A /* layout_embedded_2.json in Resources */,
+				994970F12ACE06D4000B5071 /* layout_carousel.json in Resources */,
+				607FACDD1AFB9204008FA782 /* Images.xcassets in Resources */,
+				B180F4602A0B491D0075A9D9 /* ios_complex_test.json in Resources */,
+				25BC817A2AFDFD2F007E1A0B /* layout_playground.json in Resources */,
+				B17F42E129F233E90047210B /* partner1_overlay_inner.json in Resources */,
+				25BC81782AFDFCE8007E1A0B /* layout_playground_outer.json in Resources */,
+				25226FED2A412AA7006AFCF7 /* layout_multiple_1.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		607FACE31AFB9204008FA782 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B17F42E729F236E10047210B /* partner1_overlay.json in Resources */,
+				25226FEE2A412AA7006AFCF7 /* layout_multiple_1.json in Resources */,
+				4F7DEE3E21360308007DABC4 /* invalidWidget.json in Resources */,
+				25F4A2F92BCCDBE2001D9087 /* validInitWithoutFeatureFlag.json in Resources */,
+				25357BB92A3BCEBB001DC3AD /* layout_embedded_1.json in Resources */,
+				2533E68D29CABD15003E75C5 /* layout_overlay.json in Resources */,
+				257479FF2A70A807009C5B69 /* layout_embedded_4.json in Resources */,
+				25B518482C5722F2001D41FB /* InvalidInitFont.json in Resources */,
+				2551D27129F8B5EE00369F0B /* layout_overlay_1.json in Resources */,
+				58EF6D2125E364BE0058A2B2 /* initWithFalseRoktTrackingStatus.json in Resources */,
+				25226FF12A413C4A006AFCF7 /* layout_multiple_2.json in Resources */,
+				994970F22ACE06D4000B5071 /* layout_carousel.json in Resources */,
+				2563ADEA2A567B1600E7CB6A /* layout_embedded_2.json in Resources */,
+				257B63552B4CF0B70026C014 /* layout_grouped_distribution.json in Resources */,
+				4F7DEE3A2133395E007DABC4 /* validInit.json in Resources */,
+				B17F42DF29F233230047210B /* partner1_overlay_outer.json in Resources */,
+				25303FCE29CD640E006A3C90 /* layout_bottomsheet.json in Resources */,
+				4F59A2F0210A7F83004DC4F5 /* Main.storyboard in Resources */,
+				99FB79D42CEC98B600B7E7EC /* validInitWithCache.json in Resources */,
+				B180F4612A0B491D0075A9D9 /* ios_complex_test.json in Resources */,
+				B17F42E229F233E90047210B /* partner1_overlay_inner.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		4F7FDD84211A25150015FAAA /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "#if which swiftlint >/dev/null; then\n#    swiftlint\n#else\n#    echo \"warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint\"\n#fi\n";
+		};
+		899F34EC2ED0EE580080D49E /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Add Homebrew paths to PATH\nif [ -f /opt/homebrew/bin/brew ]; then\n    export PATH=\"/opt/homebrew/bin:$PATH\"\nelif [ -f /usr/local/bin/brew ]; then\n    export PATH=\"/usr/local/bin:$PATH\"\nfi\n\n# Find periphery and run scan\nif PERIPHERY=$(which periphery); then\n    \"$PERIPHERY\" scan --project rokt.xcodeproj --schemes rokt-Example --retain-public --baseline '../periphery-baseline.json' --format xcode -- -destination 'generic/platform=iOS Simulator'\nelse\n    echo \"error: periphery not found. Install with: brew install periphery\"\n    exit 1\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		607FACCC1AFB9204008FA782 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				25226FF62A415C85006AFCF7 /* Toast.swift in Sources */,
+				250B2B07236AF2430020A450 /* RoktCell.swift in Sources */,
+				25FD47352BF4918B0051C704 /* RoktApplication.swift in Sources */,
+				258EDB1924062D59003202F5 /* Environment.swift in Sources */,
+				250B2B09236AF29E0020A450 /* OrderCompleteTableViewController.swift in Sources */,
+				607FACD81AFB9204008FA782 /* CartViewController.swift in Sources */,
+				258EDB1724062BBF003202F5 /* RoktTag.swift in Sources */,
+				58F0D08F260972FA000A5645 /* Constants.swift in Sources */,
+				607FACD61AFB9204008FA782 /* AppDelegate.swift in Sources */,
+				25690F9C260AB87C00744387 /* HashUtils.swift in Sources */,
+				4F31D686213D829100F044CC /* TagIdSelectionTableViewController.swift in Sources */,
+				25FD47372BF4922C0051C704 /* main.swift in Sources */,
+				25226FF32A415861006AFCF7 /* OrderCompleteSwiftUI.swift in Sources */,
+				4FCF94A1210931B7000CE923 /* OrderCompleteViewController.swift in Sources */,
+				2567427C25B7DE5700BD655E /* EncryptionUtils.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		607FACE11AFB9204008FA782 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4F4B29BB210BB44500334961 /* EmptyViewController.swift in Sources */,
+				252120F12A4AB1720087B6F9 /* ValidLayoutOverlayTests.swift in Sources */,
+				2536C0C129D29D0A00AABC4F /* ValidLayoutBottomSheetTests.swift in Sources */,
+				4F7DEE3C213601C8007DABC4 /* InvalidWidgetTests.swift in Sources */,
+				4F7DEE36212DBBAF007DABC4 /* UnitTests.swift in Sources */,
+				4F7DEE402136EF8F007DABC4 /* APIErrorTests.swift in Sources */,
+				99FB79D22CEC6E4500B7E7EC /* RoktExperienceCacheExecuteTests.swift in Sources */,
+				2534233E231F2CCD00463C74 /* MockResponse.swift in Sources */,
+				25A1E31123EB952A00887B71 /* EventModel.swift in Sources */,
+				25690FC0260AE70000744387 /* HashUtils.swift in Sources */,
+				250610FC232F670400E6CBD9 /* TestViewController.swift in Sources */,
+				B1851CE6292FAAF50095E1B2 /* QuickSpec+Extension.swift in Sources */,
+				25226FF42A415861006AFCF7 /* OrderCompleteSwiftUI.swift in Sources */,
+				2567429225B7F28E00BD655E /* EncryptionUtils.swift in Sources */,
+				25FEB5872B7C4126008FB3CC /* ValidLayoutGroupedTests.swift in Sources */,
+				4F4B29B8210B68D600334961 /* OrderCompleteViewController.swift in Sources */,
+				250CF2482A4BB88B00C6FDE7 /* ValidLayoutEmbedded.swift in Sources */,
+				9914913E2C4651DE00D3355B /* MockTimingsRequest.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		607FACE71AFB9204008FA782 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 607FACCF1AFB9204008FA782 /* rokt_Example */;
+			targetProxy = 607FACE61AFB9204008FA782 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXVariantGroup section */
+		607FACD91AFB9204008FA782 /* Main.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				607FACDA1AFB9204008FA782 /* Base */,
+				581A1393251DCCED00C6DFB5 /* de */,
+				581A13B5251DCE9100C6DFB5 /* ja */,
+				581A13B7251DCEC800C6DFB5 /* fr */,
+				581A13B9251DCED700C6DFB5 /* es */,
+				581A13BD251DCF1B00C6DFB5 /* nl */,
+				99D370752C2D4666002EE94F /* ar */,
+			);
+			name = Main.storyboard;
+			sourceTree = "<group>";
+		};
+		607FACDE1AFB9204008FA782 /* LaunchScreen.xib */ = {
+			isa = PBXVariantGroup;
+			children = (
+				607FACDF1AFB9204008FA782 /* Base */,
+				581A1394251DCCEE00C6DFB5 /* de */,
+				581A13B6251DCE9200C6DFB5 /* ja */,
+				581A13B8251DCEC900C6DFB5 /* fr */,
+				581A13BA251DCED700C6DFB5 /* es */,
+				581A13BE251DCF1C00C6DFB5 /* nl */,
+				99D370762C2D4666002EE94F /* ar */,
+			);
+			name = LaunchScreen.xib;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		259BCF4F2382175E008BA63C /* DebugMOCK */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				BUILD_LIBRARY_FOR_DISTRIBUTION = NO;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEFINES_MODULE = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
+				MTL_ENABLE_DEBUG_INFO = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_MODULE_NAME = "$(PRODUCT_NAME)";
+				PRODUCT_NAME = RoktExample;
+				SDKROOT = iphoneos;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = DebugMOCK;
+		};
+		259BCF502382175E008BA63C /* DebugMOCK */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = rokt_Example.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = EX8W57PJ9C;
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
+				INFOPLIST_FILE = rokt/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = "";
+				MARKETING_VERSION = 4.0.0;
+				MODULE_NAME = ExampleApp;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.rokt.ios-example";
+				PRODUCT_MODULE_NAME = "$(PRODUCT_NAME)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = DebugMOCK;
+		};
+		259BCF512382175E008BA63C /* DebugMOCK */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				FRAMEWORK_SEARCH_PATHS = (
+					../,
+					"$(inherited)",
+				);
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				INFOPLIST_FILE = Tests/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+					../,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "org.cocoapods.$(PRODUCT_NAME:rfc1034identifier)";
+				PRODUCT_MODULE_NAME = "$(PRODUCT_NAME)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/rokt_Example.app/rokt_Example";
+			};
+			name = DebugMOCK;
+		};
+		259BCF5223821767008BA63C /* ReleaseMOCK */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				BUILD_LIBRARY_FOR_DISTRIBUTION = NO;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEFINES_MODULE = NO;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				PRODUCT_MODULE_NAME = "$(PRODUCT_NAME)";
+				PRODUCT_NAME = RoktExample;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = ReleaseMOCK;
+		};
+		259BCF5323821767008BA63C /* ReleaseMOCK */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = rokt_Example.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = EX8W57PJ9C;
+				INFOPLIST_FILE = rokt/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = "";
+				MARKETING_VERSION = 4.0.0;
+				MODULE_NAME = ExampleApp;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.rokt.ios-example";
+				PRODUCT_MODULE_NAME = "$(PRODUCT_NAME)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = ReleaseMOCK;
+		};
+		259BCF5423821767008BA63C /* ReleaseMOCK */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
+				INFOPLIST_FILE = Tests/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+					../,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "org.cocoapods.$(PRODUCT_NAME:rfc1034identifier)";
+				PRODUCT_MODULE_NAME = "$(PRODUCT_NAME)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/rokt_Example.app/rokt_Example";
+			};
+			name = ReleaseMOCK;
+		};
+		4FE7F46321836B5D00216290 /* DebugPROD */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				BUILD_LIBRARY_FOR_DISTRIBUTION = NO;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEFINES_MODULE = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
+				MTL_ENABLE_DEBUG_INFO = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_MODULE_NAME = "$(PRODUCT_NAME)";
+				PRODUCT_NAME = RoktExample;
+				SDKROOT = iphoneos;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = DebugPROD;
+		};
+		4FE7F46421836B5D00216290 /* DebugPROD */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = rokt_Example.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = EX8W57PJ9C;
+				INFOPLIST_FILE = rokt/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = "";
+				MARKETING_VERSION = 4.0.0;
+				MODULE_NAME = ExampleApp;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.rokt.ios-example";
+				PRODUCT_MODULE_NAME = "$(PRODUCT_NAME)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = DebugPROD;
+		};
+		4FE7F46521836B5D00216290 /* DebugPROD */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				INFOPLIST_FILE = Tests/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+					../,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "org.cocoapods.$(PRODUCT_NAME:rfc1034identifier)";
+				PRODUCT_MODULE_NAME = "$(PRODUCT_NAME)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/rokt_Example.app/rokt_Example";
+			};
+			name = DebugPROD;
+		};
+		4FF229432185143200EE7428 /* ReleasePROD */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				BUILD_LIBRARY_FOR_DISTRIBUTION = NO;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEFINES_MODULE = NO;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				PRODUCT_MODULE_NAME = "$(PRODUCT_NAME)";
+				PRODUCT_NAME = RoktExample;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = ReleasePROD;
+		};
+		4FF229442185143200EE7428 /* ReleasePROD */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = rokt_Example.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = EX8W57PJ9C;
+				INFOPLIST_FILE = rokt/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = "";
+				MARKETING_VERSION = 4.0.0;
+				MODULE_NAME = ExampleApp;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.rokt.ios-example";
+				PRODUCT_MODULE_NAME = "$(PRODUCT_NAME)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = ReleasePROD;
+		};
+		4FF229452185143200EE7428 /* ReleasePROD */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
+				INFOPLIST_FILE = Tests/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+					../,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "org.cocoapods.$(PRODUCT_NAME:rfc1034identifier)";
+				PRODUCT_MODULE_NAME = "$(PRODUCT_NAME)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/rokt_Example.app/rokt_Example";
+			};
+			name = ReleasePROD;
+		};
+		4FF229462185144000EE7428 /* ReleaseSTAGE */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				BUILD_LIBRARY_FOR_DISTRIBUTION = NO;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEFINES_MODULE = NO;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				PRODUCT_MODULE_NAME = "$(PRODUCT_NAME)";
+				PRODUCT_NAME = RoktExample;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = ReleaseSTAGE;
+		};
+		4FF229472185144000EE7428 /* ReleaseSTAGE */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = rokt_Example.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = EX8W57PJ9C;
+				INFOPLIST_FILE = rokt/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = "";
+				MARKETING_VERSION = 4.0.0;
+				MODULE_NAME = ExampleApp;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.rokt.ios-example";
+				PRODUCT_MODULE_NAME = "$(PRODUCT_NAME)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = ReleaseSTAGE;
+		};
+		4FF229482185144000EE7428 /* ReleaseSTAGE */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
+				INFOPLIST_FILE = Tests/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+					../,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "org.cocoapods.$(PRODUCT_NAME:rfc1034identifier)";
+				PRODUCT_MODULE_NAME = "$(PRODUCT_NAME)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/rokt_Example.app/rokt_Example";
+			};
+			name = ReleaseSTAGE;
+		};
+		4FF229492185144900EE7428 /* ReleaseBUILD */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				BUILD_LIBRARY_FOR_DISTRIBUTION = NO;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEFINES_MODULE = NO;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				PRODUCT_MODULE_NAME = "$(PRODUCT_NAME)";
+				PRODUCT_NAME = RoktExample;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = ReleaseBUILD;
+		};
+		4FF2294A2185144900EE7428 /* ReleaseBUILD */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = rokt_Example.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = EX8W57PJ9C;
+				INFOPLIST_FILE = rokt/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = "";
+				MARKETING_VERSION = 4.0.0;
+				MODULE_NAME = ExampleApp;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.rokt.ios-example";
+				PRODUCT_MODULE_NAME = "$(PRODUCT_NAME)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = ReleaseBUILD;
+		};
+		4FF2294B2185144900EE7428 /* ReleaseBUILD */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
+				INFOPLIST_FILE = Tests/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+					../,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "org.cocoapods.$(PRODUCT_NAME:rfc1034identifier)";
+				PRODUCT_MODULE_NAME = "$(PRODUCT_NAME)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/rokt_Example.app/rokt_Example";
+			};
+			name = ReleaseBUILD;
+		};
+		4FF2294C2185145300EE7428 /* DebugSTAGE */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				BUILD_LIBRARY_FOR_DISTRIBUTION = NO;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEFINES_MODULE = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
+				MTL_ENABLE_DEBUG_INFO = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_MODULE_NAME = "$(PRODUCT_NAME)";
+				PRODUCT_NAME = RoktExample;
+				SDKROOT = iphoneos;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = DebugSTAGE;
+		};
+		4FF2294D2185145300EE7428 /* DebugSTAGE */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = rokt_Example.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = EX8W57PJ9C;
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
+				INFOPLIST_FILE = rokt/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = "";
+				MARKETING_VERSION = 4.0.0;
+				MODULE_NAME = ExampleApp;
+				OTHER_LDFLAGS = "$(inherited)";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.rokt.ios-example";
+				PRODUCT_MODULE_NAME = "$(PRODUCT_NAME)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = DebugSTAGE;
+		};
+		4FF2294E2185145300EE7428 /* DebugSTAGE */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				FRAMEWORK_SEARCH_PATHS = (
+					../,
+					"$(inherited)",
+				);
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				INFOPLIST_FILE = Tests/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+					../,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "org.cocoapods.$(PRODUCT_NAME:rfc1034identifier)";
+				PRODUCT_MODULE_NAME = "$(PRODUCT_NAME)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/rokt_Example.app/rokt_Example";
+			};
+			name = DebugSTAGE;
+		};
+		4FF2294F2185145B00EE7428 /* DebugBUILD */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				BUILD_LIBRARY_FOR_DISTRIBUTION = NO;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEFINES_MODULE = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
+				MTL_ENABLE_DEBUG_INFO = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_MODULE_NAME = "$(PRODUCT_NAME)";
+				PRODUCT_NAME = RoktExample;
+				SDKROOT = iphoneos;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = DebugBUILD;
+		};
+		4FF229502185145B00EE7428 /* DebugBUILD */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = rokt_Example.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = EX8W57PJ9C;
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
+				INFOPLIST_FILE = rokt/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = "";
+				MARKETING_VERSION = 4.0.0;
+				MODULE_NAME = ExampleApp;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.rokt.ios-example";
+				PRODUCT_MODULE_NAME = "$(PRODUCT_NAME)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = DebugBUILD;
+		};
+		4FF229512185145B00EE7428 /* DebugBUILD */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				INFOPLIST_FILE = Tests/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+					../,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "org.cocoapods.$(PRODUCT_NAME:rfc1034identifier)";
+				PRODUCT_MODULE_NAME = "$(PRODUCT_NAME)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/rokt_Example.app/rokt_Example";
+			};
+			name = DebugBUILD;
+		};
+		607FACED1AFB9204008FA782 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				BUILD_LIBRARY_FOR_DISTRIBUTION = NO;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEFINES_MODULE = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
+				MTL_ENABLE_DEBUG_INFO = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_MODULE_NAME = "$(PRODUCT_NAME)";
+				PRODUCT_NAME = RoktExample;
+				SDKROOT = iphoneos;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		607FACEE1AFB9204008FA782 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				BUILD_LIBRARY_FOR_DISTRIBUTION = NO;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEFINES_MODULE = NO;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				PRODUCT_MODULE_NAME = "$(PRODUCT_NAME)";
+				PRODUCT_NAME = RoktExample;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		607FACF01AFB9204008FA782 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = rokt_Example.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = EX8W57PJ9C;
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
+				INFOPLIST_FILE = rokt/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = "";
+				MARKETING_VERSION = 4.0.0;
+				MODULE_NAME = ExampleApp;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.rokt.ios-example";
+				PRODUCT_MODULE_NAME = "$(PRODUCT_NAME)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		607FACF11AFB9204008FA782 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = rokt_Example.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = EX8W57PJ9C;
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
+				INFOPLIST_FILE = rokt/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = "";
+				MARKETING_VERSION = 4.0.0;
+				MODULE_NAME = ExampleApp;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.rokt.ios-example";
+				PRODUCT_MODULE_NAME = "$(PRODUCT_NAME)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		607FACF31AFB9204008FA782 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(../)",
+				);
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				INFOPLIST_FILE = Tests/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+					../,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "org.cocoapods.$(PRODUCT_NAME:rfc1034identifier)";
+				PRODUCT_MODULE_NAME = "$(PRODUCT_NAME)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/rokt_Example.app/rokt_Example";
+			};
+			name = Debug;
+		};
+		607FACF41AFB9204008FA782 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
+				INFOPLIST_FILE = Tests/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+					../,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "org.cocoapods.$(PRODUCT_NAME:rfc1034identifier)";
+				PRODUCT_MODULE_NAME = "$(PRODUCT_NAME)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/rokt_Example.app/rokt_Example";
+			};
+			name = Release;
+		};
+		899F34E12ED0EE4C0080D49E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		899F34E22ED0EE4C0080D49E /* DebugBUILD */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = DebugBUILD;
+		};
+		899F34E32ED0EE4C0080D49E /* DebugSTAGE */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = DebugSTAGE;
+		};
+		899F34E42ED0EE4C0080D49E /* DebugMOCK */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = DebugMOCK;
+		};
+		899F34E52ED0EE4C0080D49E /* DebugPROD */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = DebugPROD;
+		};
+		899F34E62ED0EE4C0080D49E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+		899F34E72ED0EE4C0080D49E /* ReleaseBUILD */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = ReleaseBUILD;
+		};
+		899F34E82ED0EE4C0080D49E /* ReleaseSTAGE */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = ReleaseSTAGE;
+		};
+		899F34E92ED0EE4C0080D49E /* ReleaseMOCK */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = ReleaseMOCK;
+		};
+		899F34EA2ED0EE4C0080D49E /* ReleasePROD */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = ReleasePROD;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		607FACCB1AFB9204008FA782 /* Build configuration list for PBXProject "rokt" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				607FACED1AFB9204008FA782 /* Debug */,
+				4FF2294F2185145B00EE7428 /* DebugBUILD */,
+				4FF2294C2185145300EE7428 /* DebugSTAGE */,
+				259BCF4F2382175E008BA63C /* DebugMOCK */,
+				4FE7F46321836B5D00216290 /* DebugPROD */,
+				607FACEE1AFB9204008FA782 /* Release */,
+				4FF229492185144900EE7428 /* ReleaseBUILD */,
+				4FF229462185144000EE7428 /* ReleaseSTAGE */,
+				259BCF5223821767008BA63C /* ReleaseMOCK */,
+				4FF229432185143200EE7428 /* ReleasePROD */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		607FACEF1AFB9204008FA782 /* Build configuration list for PBXNativeTarget "rokt_Example" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				607FACF01AFB9204008FA782 /* Debug */,
+				4FF229502185145B00EE7428 /* DebugBUILD */,
+				4FF2294D2185145300EE7428 /* DebugSTAGE */,
+				259BCF502382175E008BA63C /* DebugMOCK */,
+				4FE7F46421836B5D00216290 /* DebugPROD */,
+				607FACF11AFB9204008FA782 /* Release */,
+				4FF2294A2185144900EE7428 /* ReleaseBUILD */,
+				4FF229472185144000EE7428 /* ReleaseSTAGE */,
+				259BCF5323821767008BA63C /* ReleaseMOCK */,
+				4FF229442185143200EE7428 /* ReleasePROD */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		607FACF21AFB9204008FA782 /* Build configuration list for PBXNativeTarget "rokt_Tests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				607FACF31AFB9204008FA782 /* Debug */,
+				4FF229512185145B00EE7428 /* DebugBUILD */,
+				4FF2294E2185145300EE7428 /* DebugSTAGE */,
+				259BCF512382175E008BA63C /* DebugMOCK */,
+				4FE7F46521836B5D00216290 /* DebugPROD */,
+				607FACF41AFB9204008FA782 /* Release */,
+				4FF2294B2185144900EE7428 /* ReleaseBUILD */,
+				4FF229482185144000EE7428 /* ReleaseSTAGE */,
+				259BCF5423821767008BA63C /* ReleaseMOCK */,
+				4FF229452185143200EE7428 /* ReleasePROD */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		899F34EB2ED0EE4C0080D49E /* Build configuration list for PBXAggregateTarget "Periphery" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				899F34E12ED0EE4C0080D49E /* Debug */,
+				899F34E22ED0EE4C0080D49E /* DebugBUILD */,
+				899F34E32ED0EE4C0080D49E /* DebugSTAGE */,
+				899F34E42ED0EE4C0080D49E /* DebugMOCK */,
+				899F34E52ED0EE4C0080D49E /* DebugPROD */,
+				899F34E62ED0EE4C0080D49E /* Release */,
+				899F34E72ED0EE4C0080D49E /* ReleaseBUILD */,
+				899F34E82ED0EE4C0080D49E /* ReleaseSTAGE */,
+				899F34E92ED0EE4C0080D49E /* ReleaseMOCK */,
+				899F34EA2ED0EE4C0080D49E /* ReleasePROD */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		B3457BC12F45127800AE9D86 /* XCLocalSwiftPackageReference ".." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ..;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		5881EE5B26D8A2AB006DA89C /* XCRemoteSwiftPackageReference "Mocker" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/WeTransfer/Mocker.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+		8922B0A72ECE64BC0083D05B /* XCRemoteSwiftPackageReference "Quick" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/Quick/Quick";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.0.0;
+			};
+		};
+		898FAB762EC50F6A00EFBA65 /* XCRemoteSwiftPackageReference "SVProgressHUD" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/SVProgressHUD/SVProgressHUD";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.3.1;
+			};
+		};
+		89FA8CA12ECE5C2D00F26E1B /* XCRemoteSwiftPackageReference "Nimble-Snapshots" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ashfurrow/Nimble-Snapshots";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.8.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		5881EE5C26D8A2AB006DA89C /* Mocker */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5881EE5B26D8A2AB006DA89C /* XCRemoteSwiftPackageReference "Mocker" */;
+			productName = Mocker;
+		};
+		8922B0A82ECE64BC0083D05B /* Quick */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8922B0A72ECE64BC0083D05B /* XCRemoteSwiftPackageReference "Quick" */;
+			productName = Quick;
+		};
+		898FAB772EC50F6A00EFBA65 /* SVProgressHUD */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 898FAB762EC50F6A00EFBA65 /* XCRemoteSwiftPackageReference "SVProgressHUD" */;
+			productName = SVProgressHUD;
+		};
+		898FAB792EC5127100EFBA65 /* SVProgressHUD */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 898FAB762EC50F6A00EFBA65 /* XCRemoteSwiftPackageReference "SVProgressHUD" */;
+			productName = SVProgressHUD;
+		};
+		89FA8CA22ECE5C2D00F26E1B /* Nimble-Snapshots */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 89FA8CA12ECE5C2D00F26E1B /* XCRemoteSwiftPackageReference "Nimble-Snapshots" */;
+			productName = "Nimble-Snapshots";
+		};
+		B3457BC22F45127800AE9D86 /* Rokt-Widget */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = "Rokt-Widget";
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 607FACC81AFB9204008FA782 /* Project object */;
+}
