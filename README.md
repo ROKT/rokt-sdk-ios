@@ -23,29 +23,41 @@ For more information on Swift Package Manager, open [Swift official documentatio
 
 ## Project structure
 
-`Package.swift` is the [main package manifest](https://developer.apple.com/documentation/packagedescription) that defines updated configurations to the Rokt iOS SDK package as required by the Swift Package Manager.
+- `Package.swift` — main package manifest for Swift Package Manager
+- `Sources/Rokt_Widget/` — SDK source (source-based distribution via SPM)
+- `Example/` — sample app demonstrating SDK integration
 
 ## How to install
 
-To install for iOS development:
+### Swift Package Manager (recommended)
 
-On Xcode:
+The SDK is distributed as source via SPM for full debuggability.
+
+In Xcode:
 
 - Go to File > Add Packages
 - Enter Package URL `https://github.com/ROKT/rokt-sdk-ios.git`
-- Select _Up to Next Major_ with _4.16.1_
+- Select _Up to Next Major_ with _5.0.0_
 
-Alternatively add below code to the `dependencies` part of `Package.swift`.
+Or add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/ROKT/rokt-sdk-ios.git", .upToNextMajor(from: "4.16.1"))
+    .package(url: "https://github.com/ROKT/rokt-sdk-ios.git", .upToNextMajor(from: "5.0.0"))
 ]
+```
+
+### CocoaPods
+
+Add to your `Podfile`:
+
+```ruby
+pod 'Rokt-Widget'
 ```
 
 ## How to test integration
 
-The following steps test an overlay placement - only 2 explicit calls, `init` and `execute`, are needed.
+The following steps test an overlay placement - only 2 explicit calls, `initWith` and `selectPlacements`, are needed.
 
 ### 1. Initialise module for testing
 
@@ -60,38 +72,51 @@ func application(_ application: UIApplication, didFinishLaunchingWithOptions lau
 
 Contact Rokt for the Rokt Account ID associated with your account and enter your unique Rokt Account ID as the `roktTagId`.
 
-### 2. Execute (overlay placement)
+### 2. Select placements (overlay example)
 
 To test your integration with an overlay placement, firstly define in `ViewController` e.g.
 
 ```swift
 func showWidget() {
-    let attributes = ["email": "[your_email_here@email.com]",
-            "firstname": "Jenny",
-            "lastname": "Smith",
-            "mobile": "(555)867-5309",
-            "postcode": "90210",
-            "country": "US",
-            "sandbox": "true"]
+    let attributes = [
+        "email": "[your_email_here@email.com]",
+        "firstname": "Jenny",
+        "lastname": "Smith",
+        "mobile": "(555)867-5309",
+        "postcode": "90210",
+        "country": "US",
+        "sandbox": "true"
+    ]
 
-    Rokt.execute(viewName: "[your_view_name_here]", attributes: attributes, onLoad: {
-        // Optional callback for when the Rokt placement loads
-    }, onUnLoad: {
-        // Optional callback for when the Rokt placement unloads
-    }, onShouldShowLoadingIndicator: {
-        // Optional callback to show a loading indicator
-    }, onShouldHideLoadingIndicator: {
-        // Optional callback to hide a loading indicator
-    }, onEmbeddedSizeChange: { selectedPlacement, widgetHeight in
-        // Optional callback to get selectedPlacement and height required by the placement every time the height of the placement changes
-    })
+    Rokt.selectPlacements(
+        identifier: "[your_view_name_here]",
+        attributes: attributes
+    ) { event in
+        switch event {
+        case is RoktEvent.ShowLoadingIndicator:
+            // Optional callback to show a loading indicator
+            break
+        case is RoktEvent.HideLoadingIndicator:
+            // Optional callback to hide a loading indicator
+            break
+        case let sizeChanged as RoktEvent.EmbeddedSizeChanged:
+            // For embedded placements, use `identifier` and `updatedHeight`
+            print("Placement \(sizeChanged.identifier) height: \(sizeChanged.updatedHeight)")
+        default:
+            break
+        }
+    }
 }
 ```
 
-Replace `viewName` in the above snippet with your configured view name.
+Replace `identifier` in the above snippet with your configured view name.
 
 **Important:** Before launching in production, remove `"sandbox": "true"`. The [sandbox environment](https://docs.rokt.com/developers/integration-guides/ios/reference/sandbox-integration/) is intended for acceptance testing, meaning that while it follows the production configuration, it does not charge advertisers or generate revenue.
 
 Finally, call this function in **any subsequent view** where the placement needs to be shown. Placement will not appear when called in the first view of the application as initialization requires time.
 
 To test your integration with embedded placement, [view steps here](https://docs.rokt.com/developers/integration-guides/ios/how-to/adding-a-placement#embedded-placements)
+
+## Example app
+
+Open `Example/rokt.xcodeproj` in Xcode to run the sample app. It demonstrates overlay, embedded, and grouped placements with MOCK, STAGE, and PROD configurations.

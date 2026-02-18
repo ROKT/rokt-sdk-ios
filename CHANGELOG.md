@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [5.0.0] - TBD
+
+### Added
+
+- Source-based distribution via Swift Package Manager for full debuggability
+- Example app with MOCK, STAGE, and PROD schemes
+
+### Changed
+
+- **BREAKING:** SPM now distributes source code instead of xcframework binary (CocoaPods still uses xcframework)
+- **BREAKING:** Minimum iOS version raised from 12.0 to 15.0
+- Swift tools version updated to 5.9
+- RoktUXHelper dependency pinned to 0.8.0
+
+### Migration
+
+If upgrading from 4.x via SPM, no code changes are required. Update your dependency version constraint to `5.0.0` or `"5.0.0"..<"6.0.0"`.
+
 ## [4.16.1] - 2026-02-09
 
 ### Added
