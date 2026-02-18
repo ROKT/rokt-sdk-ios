@@ -1,0 +1,99 @@
+name: Prepare release
+
+on:
+  workflow_dispatch: # checkov:skip=CKV_GHA_7
+    inputs:
+      bump-type:
+        description: Specify if the version should be bumped as major, minor, patch
+        required: true
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  prepare-release:
+    runs-on: macos-latest-xlarge
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: main
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@60606e260d2fc5762a71e64e74b2174e8ea3c8bd # v1.6.0
+        with:
+          xcode-version: "16.2"
+
+      - name: Get current version
+        id: version-file
+        run: |
+          version_from_file=$(head -n 1 VERSION)
+          echo "release-version=$version_from_file" >> $GITHUB_OUTPUT
+
+      - name: Bump version
+        id: bump-version
+        uses: actions-ecosystem/action-bump-semver@34e334551143a5301f38c830e44a22273c6ff5c5 # v1.0.0
+        with:
+          current_version: ${{ steps.version-file.outputs.release-version }}
+          level: ${{ github.event.inputs.bump-type || 'patch' }}
+
+      - name: Update VERSION file
+        run: echo "${{ steps.bump-version.outputs.new_version }}" > VERSION
+
+      - name: Update library version in source
+        run: |
+          version="${{ steps.bump-version.outputs.new_version }}"
+          sed -i '' "s/kLibraryVersion = \".*\"/kLibraryVersion = \"${version}\"/" ./Sources/Rokt_Widget/Constants/Constants.swift
+
+      - name: Update podspec version
+        run: |
+          version="${{ steps.bump-version.outputs.new_version }}"
+          sed -i '' "s/s\.version[[:space:]]*=[[:space:]]*'[0-9.]*'/s.version          = '${version}'/" Rokt-Widget.podspec
+
+      - name: Get latest RoktUXHelper release tag
+        id: get-ux-helper-version
+        uses: joutvhu/get-release@9a8271732adc3299a22f8ad09b0a67eb3aa836ac # v1.0.3
+        with:
+          owner: ROKT
+          repo: rokt-ux-helper-ios
+          latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update RoktUXHelper version in Package.swift
+        run: |
+          version="${{ steps.get-ux-helper-version.outputs.tag_name }}"
+          echo "Updating RoktUXHelper version to $version"
+          sed -i '' "/rokt-ux-helper-ios\.git/s/exact: \".*\"/exact: \"${version}\"/" ./Package.swift
+
+      - name: Update changelog
+        id: changelog
+        uses: thomaseizinger/keep-a-changelog-new-release@f62c3c390716df5af712ba5d94f4f4a8efc1306d # v3.1.0
+        with:
+          tag: ${{ steps.bump-version.outputs.new_version }}
+
+      - name: Create release PR
+        uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
+        with:
+          commit-message: "Prepare release ${{ steps.bump-version.outputs.new_version }}"
+          branch: release/${{ steps.bump-version.outputs.new_version }}
+          title: "Release ${{ steps.bump-version.outputs.new_version }}"
+          base: main
+          body: |
+            Preparing for release ${{ steps.bump-version.outputs.new_version }}
+            - Bumped version to ${{ steps.bump-version.outputs.new_version }}
+            - Updated RoktUXHelper to ${{ steps.get-ux-helper-version.outputs.tag_name }}
+            - Built xcframework
+            - Updated changelog
+            ## Changelog
+            ${{ steps.changelog.outputs.release-notes }}

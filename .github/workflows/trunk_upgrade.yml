@@ -1,0 +1,44 @@
+name: Run trunk upgrade
+
+on:
+  schedule:
+    - cron: 0 0 1 * *
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  generate-and-call-upgrade:
+    runs-on: ubuntu-latest
+    outputs:
+      generated-token: ${{ steps.generate-token.outputs.token }}
+    steps:
+      - name: Generate a token
+        id: generate-token
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        with:
+          app-id: ${{ secrets.SDK_RELEASE_GITHUB_APP_ID }}
+          private-key: ${{ secrets.SDK_RELEASE_GITHUB_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: |
+            rokt-sdk-ios
+
+  trunk-upgrade:
+    needs: generate-and-call-upgrade
+    name: Run trunk upgrade
+    uses: ROKT/rokt-workflows/.github/workflows/trunk-upgrade.yml@main
+    with:
+      token: ${{ needs.generate-and-call-upgrade.outputs.generated-token }}
+
+  trunk-check:
+    name: Trunk code check
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Trunk Check
+        uses: trunk-io/trunk-action@75699af9e26881e564e9d832ef7dc3af25ec031b # v1.2.4
+        with:
+          check-mode: all
