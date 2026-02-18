@@ -6,3 +6,4 @@ xcuserdata/
 *.xcuserstate
 Package.resolved
 vendor/
+Tests/Rokt_WidgetTests/**/*.swift.plist
