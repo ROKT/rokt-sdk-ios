@@ -10,6 +10,7 @@ permissions:
   contents: read
   pull-requests: read
   checks: write
+  id-token: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -61,3 +62,41 @@ jobs:
         with:
           name: TestResult.xcresult
           path: TestResult.xcresult
+
+  periphery-scan:
+    name: Periphery Scan
+    runs-on: macos-latest-xlarge
+    needs: trunk-check
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@60606e260d2fc5762a71e64e74b2174e8ea3c8bd # v1.6.0
+        with:
+          xcode-version: "16.2"
+
+      - name: Install Periphery
+        run: brew install periphery
+
+      - name: Build Example App
+        run: |
+          xcodebuild -project "Example/rokt.xcodeproj" -scheme "rokt-Example" -derivedDataPath "DerivedData-periphery" -quiet build CODE_SIGNING_ALLOWED="NO" ENABLE_BITCODE="NO" DEBUG_INFORMATION_FORMAT="dwarf" COMPILER_INDEX_STORE_ENABLE="YES" INDEX_ENABLE_DATA_STORE="YES"
+
+      - name: Run Periphery Scan
+        run: |
+          BASELINE_ARGS=""
+          if [[ -f "periphery-baseline.json" ]]; then
+            BASELINE_ARGS="--baseline periphery-baseline.json"
+          fi
+          periphery scan --project "Example/rokt.xcodeproj" --schemes rokt-Example --skip-build --index-store-path "DerivedData-periphery/Index.noindex/DataStore" --retain-public ${BASELINE_ARGS} --format github-actions --relative-results --strict
+
+  pr-notify:
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.draft == false
+    name: Notify GChat
+    needs: [unit-test, periphery-scan]
+    uses: ROKT/rokt-workflows/.github/workflows/oss_pr_opened_notification.yml@main
+    secrets:
+      gchat_webhook: ${{ secrets.GCHAT_PRS_MOBILE_INTEGRATION_CHANNEL_WEBHOOK }}
