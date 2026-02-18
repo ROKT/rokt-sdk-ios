@@ -84,12 +84,7 @@ jobs:
           xcodebuild -project "Example/rokt.xcodeproj" -scheme "rokt-Example" -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest' -derivedDataPath "DerivedData-periphery" -quiet build CODE_SIGNING_ALLOWED="NO" ENABLE_BITCODE="NO" DEBUG_INFORMATION_FORMAT="dwarf" COMPILER_INDEX_STORE_ENABLE="YES" INDEX_ENABLE_DATA_STORE="YES"
 
       - name: Run Periphery Scan
-        run: |
-          BASELINE_ARGS=""
-          if [[ -f "periphery-baseline.json" ]]; then
-            BASELINE_ARGS="--baseline periphery-baseline.json"
-          fi
-          periphery scan --project "Example/rokt.xcodeproj" --schemes rokt-Example --skip-build --index-store-path "DerivedData-periphery/Index.noindex/DataStore" --retain-public ${BASELINE_ARGS} --format github-actions --relative-results --strict
+        run: periphery scan --format github-actions
 
   size-report:
     name: SDK Size Report

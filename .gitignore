@@ -2,6 +2,7 @@
 .swiftpm/
 .DS_Store
 DerivedData/
+DerivedData-periphery/
 xcuserdata/
 *.xcuserstate
 Package.resolved
