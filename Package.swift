@@ -11,6 +11,7 @@ let package = Package(
     products: [
         .library(
             name: "Rokt-Widget",
+            type: .dynamic,
             targets: ["Rokt_Widget"]
         )
     ],
