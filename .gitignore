@@ -7,3 +7,4 @@ xcuserdata/
 Package.resolved
 vendor/
 Tests/Rokt_WidgetTests/**/*.swift.plist
+Tests/SizeReport/build/
