@@ -23,11 +23,6 @@ info:
       type: SCHEDULE
       id: Mobile Integrations_schedule
 
-  x-cortex-ci-cd:
-    buildkite:
-      pipelines:
-        - slug: ios-spm
-
   x-cortex-link:
     - name: Mobile SDK Detailed Error View
       type: dashboard
