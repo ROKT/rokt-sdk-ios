@@ -563,7 +563,7 @@
 				898FAB762EC50F6A00EFBA65 /* XCRemoteSwiftPackageReference "SVProgressHUD" */,
 				89FA8CA12ECE5C2D00F26E1B /* XCRemoteSwiftPackageReference "Nimble-Snapshots" */,
 				8922B0A72ECE64BC0083D05B /* XCRemoteSwiftPackageReference "Quick" */,
-				B3457BC52F46BCB300AE9D86 /* XCLocalSwiftPackageReference "../../rokt-sdk-ios" */,
+				B3457BC52F46BCB300AE9D86 /* XCLocalSwiftPackageReference ".." */,
 			);
 			productRefGroup = 607FACD11AFB9204008FA782 /* Products */;
 			projectDirPath = "";
@@ -2001,7 +2001,7 @@
 /* Begin XCLocalSwiftPackageReference section */
 		B3457BC52F46BCB300AE9D86 /* XCLocalSwiftPackageReference ".." */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = "..";
+			relativePath = ..;
 		};
 /* End XCLocalSwiftPackageReference section */
 

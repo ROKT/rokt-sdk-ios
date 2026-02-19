@@ -34,9 +34,9 @@ lint:
     - prettier@3.8.1
     - shellcheck@0.11.0
     - shfmt@3.6.0
-    - swiftformat@0.55.5
-    - swiftlint@0.58.2
-    - trufflehog@3.93.3
+    - swiftformat@0.59.1
+    - swiftlint@0.63.2
+    - trufflehog@3.93.4
     - yamllint@1.38.0
 actions:
   disabled:
