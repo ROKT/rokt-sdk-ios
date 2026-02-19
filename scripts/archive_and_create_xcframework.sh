@@ -76,7 +76,7 @@ module * { export * }
 }
 
 mkdir -p "${FRAMEWORK_RELATIVE_DIRECTORY}"
-FRAMEWORK_DIRECTORY=$(readlink -f "${FRAMEWORK_RELATIVE_DIRECTORY}")
+FRAMEWORK_DIRECTORY="$(cd "${FRAMEWORK_RELATIVE_DIRECTORY}" && pwd -P)"
 
 buildframework "${SCHEME}" "${TARGET}" "generic/platform=iOS" "iphoneos"
 buildframework "${SCHEME}" "${TARGET}" "generic/platform=iOS Simulator" "iphonesimulator"
