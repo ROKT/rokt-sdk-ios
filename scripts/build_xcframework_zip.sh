@@ -17,6 +17,7 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 VENDOR_DIR="${ROOT_DIR}/vendor"
 
 mkdir -p "${VENDOR_DIR}"
+rm -rf "${VENDOR_DIR}/Rokt_Widget.xcframework" "${VENDOR_DIR}/Rokt_Widget.xcframework.zip"
 
 cd "${ROOT_DIR}"
 swift package update
@@ -24,9 +25,9 @@ swift package update
 "${SCRIPT_DIR}/archive_and_create_xcframework.sh" "${ROOT_DIR}" Rokt-Widget Rokt_Widget "${VENDOR_DIR}"
 
 plutil -replace CFBundleIdentifier -string 'Rokt-Widget' \
-	"${VENDOR_DIR}/Rokt_Widget.xcframework/ios-arm64/Rokt-Widget.framework/Info.plist"
+	"${VENDOR_DIR}/Rokt_Widget.xcframework/ios-arm64/Rokt_Widget.framework/Info.plist"
 plutil -replace CFBundleIdentifier -string 'Rokt-Widget' \
-	"${VENDOR_DIR}/Rokt_Widget.xcframework/ios-arm64_x86_64-simulator/Rokt-Widget.framework/Info.plist"
+	"${VENDOR_DIR}/Rokt_Widget.xcframework/ios-arm64_x86_64-simulator/Rokt_Widget.framework/Info.plist"
 
 cd "${VENDOR_DIR}"
 zip -r Rokt_Widget.xcframework.zip Rokt_Widget.xcframework

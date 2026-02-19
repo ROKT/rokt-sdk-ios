@@ -39,7 +39,42 @@ function buildframework {
 
 	BUILD_PATH=${FRAMEWORK_DIRECTORY}/${SDK}.xcarchive
 	DERIVED_DATA_PATH=${FRAMEWORK_DIRECTORY}/.build/Build/Intermediates.noindex/ArchiveIntermediates/${SCHEME_NAME}
-	BUILD_FRAMEWORK_PATH=${BUILD_PATH}/Products/usr/local/lib/${SCHEME_NAME}.framework/
+	ORIGINAL_FRAMEWORK_PATH=${BUILD_PATH}/Products/usr/local/lib/${SCHEME_NAME}.framework
+	BUILD_FRAMEWORK_PATH=${BUILD_PATH}/Products/usr/local/lib/${TARGET_NAME}.framework
+
+	# Normalize the packaged framework name to target/module name to keep
+	# CocoaPods binary distribution naming compatible with previous releases.
+	if [[ "${SCHEME_NAME}" != "${TARGET_NAME}" ]]; then
+		rm -rf "${BUILD_FRAMEWORK_PATH}"
+		mv "${ORIGINAL_FRAMEWORK_PATH}" "${BUILD_FRAMEWORK_PATH}"
+	else
+		BUILD_FRAMEWORK_PATH="${ORIGINAL_FRAMEWORK_PATH}"
+	fi
+
+	if [[ -f "${BUILD_FRAMEWORK_PATH}/${SCHEME_NAME}" && "${SCHEME_NAME}" != "${TARGET_NAME}" ]]; then
+		mv "${BUILD_FRAMEWORK_PATH}/${SCHEME_NAME}" "${BUILD_FRAMEWORK_PATH}/${TARGET_NAME}"
+	fi
+
+	if [[ -f "${BUILD_FRAMEWORK_PATH}/Info.plist" ]]; then
+		plutil -replace CFBundleExecutable -string "${TARGET_NAME}" "${BUILD_FRAMEWORK_PATH}/Info.plist"
+		plutil -replace CFBundleName -string "${TARGET_NAME}" "${BUILD_FRAMEWORK_PATH}/Info.plist"
+	fi
+
+	if [[ -f "${BUILD_FRAMEWORK_PATH}/${TARGET_NAME}" ]]; then
+		install_name_tool -id "@rpath/${TARGET_NAME}.framework/${TARGET_NAME}" "${BUILD_FRAMEWORK_PATH}/${TARGET_NAME}"
+	fi
+
+	SOURCE_DSYM_PATH="${BUILD_PATH}/dSYMs/${SCHEME_NAME}.framework.dSYM"
+	TARGET_DSYM_PATH="${BUILD_PATH}/dSYMs/${TARGET_NAME}.framework.dSYM"
+	if [[ -d "${SOURCE_DSYM_PATH}" && "${SCHEME_NAME}" != "${TARGET_NAME}" ]]; then
+		rm -rf "${TARGET_DSYM_PATH}"
+		mv "${SOURCE_DSYM_PATH}" "${TARGET_DSYM_PATH}"
+	fi
+
+	if [[ -f "${TARGET_DSYM_PATH}/Contents/Resources/DWARF/${SCHEME_NAME}" && "${SCHEME_NAME}" != "${TARGET_NAME}" ]]; then
+		mv "${TARGET_DSYM_PATH}/Contents/Resources/DWARF/${SCHEME_NAME}" "${TARGET_DSYM_PATH}/Contents/Resources/DWARF/${TARGET_NAME}"
+	fi
+
 	BUILD_FRAMEWORK_HEADERS=${BUILD_FRAMEWORK_PATH}/Headers
 
 	mkdir -p "${BUILD_FRAMEWORK_HEADERS}"
@@ -77,13 +112,16 @@ module * { export * }
 
 mkdir -p "${FRAMEWORK_RELATIVE_DIRECTORY}"
 FRAMEWORK_DIRECTORY="$(cd "${FRAMEWORK_RELATIVE_DIRECTORY}" && pwd -P)"
+rm -rf "${FRAMEWORK_DIRECTORY}/${TARGET}.xcframework" \
+	"${FRAMEWORK_DIRECTORY}/iphoneos.xcarchive" \
+	"${FRAMEWORK_DIRECTORY}/iphonesimulator.xcarchive"
 
 buildframework "${SCHEME}" "${TARGET}" "generic/platform=iOS" "iphoneos"
 buildframework "${SCHEME}" "${TARGET}" "generic/platform=iOS Simulator" "iphonesimulator"
 
 xcodebuild -create-xcframework \
-	-framework "${FRAMEWORK_DIRECTORY}/iphoneos.xcarchive/Products/usr/local/lib/${SCHEME}.framework" \
-	-debug-symbols "${FRAMEWORK_DIRECTORY}/iphoneos.xcarchive/dSYMs/${SCHEME}.framework.dSYM" \
-	-framework "${FRAMEWORK_DIRECTORY}/iphonesimulator.xcarchive/Products/usr/local/lib/${SCHEME}.framework" \
-	-debug-symbols "${FRAMEWORK_DIRECTORY}/iphonesimulator.xcarchive/dSYMs/${SCHEME}.framework.dSYM" \
+	-framework "${FRAMEWORK_DIRECTORY}/iphoneos.xcarchive/Products/usr/local/lib/${TARGET}.framework" \
+	-debug-symbols "${FRAMEWORK_DIRECTORY}/iphoneos.xcarchive/dSYMs/${TARGET}.framework.dSYM" \
+	-framework "${FRAMEWORK_DIRECTORY}/iphonesimulator.xcarchive/Products/usr/local/lib/${TARGET}.framework" \
+	-debug-symbols "${FRAMEWORK_DIRECTORY}/iphonesimulator.xcarchive/dSYMs/${TARGET}.framework.dSYM" \
 	-output "${FRAMEWORK_DIRECTORY}/${TARGET}.xcframework"
