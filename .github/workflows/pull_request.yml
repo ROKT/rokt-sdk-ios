@@ -53,8 +53,26 @@ jobs:
           xcodebuild test \
             -scheme Rokt-Widget \
             -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest' \
+            -enableCodeCoverage YES \
             -skipPackagePluginValidation \
             -resultBundlePath TestResult.xcresult
+
+      - name: Install xcresultparser
+        if: always()
+        run: brew install xcresultparser
+
+      - name: Process coverage report
+        if: always()
+        run: |
+          xcresultparser --output-format cobertura TestResult.xcresult --project-root "$(pwd)" > "coverage.xml"
+
+      - name: Upload coverage report
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: unittests
 
       - name: Upload test results
         if: always()
@@ -83,9 +101,27 @@ jobs:
             -project Example/rokt.xcodeproj \
             -scheme rokt-Example-MOCK \
             -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest' \
+            -enableCodeCoverage YES \
             -skipPackagePluginValidation \
             -resultBundlePath UiTestResult.xcresult \
             -retry-tests-on-failure
+
+      - name: Install xcresultparser
+        if: always()
+        run: brew install xcresultparser
+
+      - name: Process coverage report
+        if: always()
+        run: |
+          xcresultparser --output-format cobertura UiTestResult.xcresult --project-root "$(pwd)" > "ui-coverage.xml"
+
+      - name: Upload coverage report
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./ui-coverage.xml
+          flags: ui-tests
 
       - name: Upload test results
         if: always()
