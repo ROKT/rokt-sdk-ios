@@ -48,10 +48,6 @@ jobs:
       - name: Resolve dependencies
         run: swift package resolve
 
-      # TODO: Remove after validating xcframework generation stability in PR CI.
-      - name: Verify xcframework generation (temporary)
-        run: ./scripts/build_xcframework_zip.sh
-
       - name: Run tests
         run: |
           xcodebuild test \
