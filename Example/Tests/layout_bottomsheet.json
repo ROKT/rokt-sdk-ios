@@ -1,0 +1,105 @@
+{
+  "page": {
+    "versionId": "1603606476230",
+    "pageId": "edecb4b2-91a5-4fd7-859f-82347b6e79fd",
+    "pageType": "Confirmation",
+    "category": "Transaction",
+    "platformType": "iOS",
+    "targetingRules": [
+      {
+        "inverse": false,
+        "regex": ["viewname:[^;]*ioslightboxe2e[^;]*;"]
+      }
+    ],
+    "hasPlacements": true
+  },
+  "pageDetectionTime": "2023-03-05T23:44:13.7049799+00:00",
+  "sessionId": "afbc0187-2d0f-4ac2-b852-a60a1e02b1a0",
+  "token": "FAKE_Utopmost-tokenE_TESTING_PURPOSES_ONLY",
+  "placementContext": {
+    "roktTagId": "",
+    "pageInstanceGuid": "afbc0187-2d0f-4ad4-be6b-7545f9273565",
+    "token": "FAKE_PLACEMENT_TOKEN_TESTING_PURPOSES_ONLY"
+  },
+  "placements": [],
+  "plugins": [
+    {
+      "plugin": {
+        "id": "2675781658204502278",
+        "token": "FAKE_Uplugin-tokenE_TESTING_PURPOSES_ONLY",
+        "name": "test layout",
+        "targetElementSelector": "Location1",
+        "config": {
+          "instanceGuid": "21b61e93-24bd-4735-995a-2f14d0673ec2",
+          "token": "FAKE_Uplugin-config-tokenE_TESTING_PURPOSES_ONLY",
+          "outerLayoutSchema": "{\"breakpoints\":{\"Landscape\":500,\"Portrait\":560},\"layout\":{\"type\":\"BottomSheet\",\"node\":{\"allowBackdropToClose\":true,\"styles\":{\"elements\":{\"own\":[{\"default\":{\"container\":{\"alignItems\":\"flex-start\"},\"dimension\":{\"width\":{\"type\":\"fit\",\"value\":\"fit-width\"},\"height\":{\"type\":\"percentage\",\"value\":50}},\"border\":{\"borderRadius\":16}}}],\"wrapper\":[{\"default\":{\"background\":{\"backgroundColor\":{\"light\":\"#26000000\"}}}}]}},\"children\":[{\"type\":\"OneByOneDistribution\",\"node\":{\"transition\":{\"type\":\"FadeInOut\",\"settings\":{\"duration\":10}},\"styles\":{\"elements\":{\"own\":[{\"default\":{}}]}}}}]}}}",
+          "slots": [
+            {
+              "instanceGuid": "f0620e60-279e-475f-8e68-1b3816c0691c",
+              "token": "FAKE_SLOT_TOKEN_TESTING_PURPOSES_ONLY",
+              "layoutVariant": {
+                "layoutVariantId": "layout_variant_id",
+                "moduleName": "",
+                "layoutVariantSchema": "{\"type\":\"Column\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"border\":{\"borderRadius\":5,\"borderWidth\":\"2\"},\"spacing\":{\"margin\":\"0 0 0 0\"},\"dimension\":{\"height\":{\"type\":\"fit\",\"value\":\"fit-height\"}}}}]}},\"children\":[{\"type\":\"ScrollableColumn\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"border\":{\"borderRadius\":5,\"borderWidth\":\"2\"},\"background\":{\"backgroundImage\":{\"url\":{\"light\":\"https://avatars.githubusercontent.com/u/6335212\"},\"scale\":\"fit\",\"position\":\"top-right\"}},\"dimension\":{\"height\":{\"type\":\"fit\",\"value\":\"wrap-content\"}},\"container\":{\"overflow\":\"visible\"}}}]}},\"children\":[{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.creative.title^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"24 16 0 16\"},\"text\":{\"fontSize\":20,\"fontWeight\":\"500\",\"lineHeight\":28}}}]}}}},{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.creative.copy^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"12 16 0 16\"},\"text\":{\"fontSize\":14,\"fontWeight\":\"400\",\"lineHeight\":20}}}],\"link\":[{\"default\":{\"text\":{\"textColor\":{\"light\":\"#616161\",\"dark\":\"#FF616161\"},\"textDecoration\":\"underline\"}}}]}}}},{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.creative.terms^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"12 16 0 16\"},\"text\":{\"fontSize\":12,\"fontWeight\":\"400\",\"lineHeight\":20,\"textColor\":{\"light\":\"#6B6B6B\"}}}}]}}}},{\"type\":\"CreativeResponse\",\"node\":{\"responseKey\":\"positive\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"16 16 0 16\"},\"border\":{\"borderRadius\":8},\"text\":{\"textColor\":{\"light\":\"#FFFFFF\"},\"fontSize\":16,\"fontFamily\":\"arial\"},\"background\":{\"backgroundColor\":{\"light\":\"#000000\"}},\"dimension\":{\"width\":{\"type\":\"fit\",\"value\":\"fit-width\"},\"minHeight\":56},\"container\":{\"justifyContent\":\"center\",\"alignItems\":\"center\"}}}]}},\"children\":[{\"type\":\"BasicText\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"0\"},\"text\":{\"textColor\":{\"light\":\"#FFFFFF\"},\"fontSize\":18,\"fontWeight\":\"500\",\"lineHeight\":32},\"flexChild\":{\"alignSelf\":\"center\"}}}]}},\"value\":\"%^DATA.creativeResponse.shortLabel^%\"}}]}},{\"type\":\"CreativeResponse\",\"node\":{\"responseKey\":\"negative\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"0 16 8 16\"},\"border\":{\"borderRadius\":8},\"text\":{\"fontSize\":16,\"fontFamily\":\"arial\"},\"container\":{\"justifyContent\":\"center\",\"alignItems\":\"center\"},\"dimension\":{\"width\":{\"type\":\"fit\",\"value\":\"fit-width\"},\"minHeight\":56}}}]}},\"children\":[{\"type\":\"BasicText\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"0 0 0 0\"},\"text\":{\"fontSize\":18,\"fontWeight\":\"500\",\"lineHeight\":32},\"flexChild\":{\"alignSelf\":\"center\"}}}]}},\"value\":\"%^DATA.creativeResponse.shortLabel^%\"}}]}}]}}]}}"
+              },
+              "offer": {
+                "campaignId": "6805179326379560475",
+                "creativeId": "6474894803711120093",
+                "creative": {
+                  "referralCreativeId": "6474894803711120093",
+                  "token": "FAKE_CREATIVE_TOKEN_TESTING_PURPOSES_ONLY",
+                  "instanceGuid": "f5987bb9-f7ba-4a89-91e7-80a446c5d29c",
+                  "responseOptionsMap": {
+                    "positive": {
+                      "id": "3703803224959945201",
+                      "action": "Url",
+                      "instanceGuid": "549a346b-cd76-4f04-bccd-a1168c870e97",
+                      "signalType": "SignalResponse",
+                      "shortLabel": "Yes please",
+                      "longLabel": "Yes",
+                      "shortSuccessLabel": "Subscribed",
+                      "isPositive": true,
+                      "url": "https://rokt.com",
+                      "token": "FAKE_POSITIVE_TOKEN_TESTING_PURPOSES_ONLY"
+                    },
+                    "negative": {
+                      "id": "6413872231638275638",
+                      "action": "CaptureOnly",
+                      "instanceGuid": "c94a4aab-8e73-47f1-ad5b-a07bf00703ec",
+                      "signalType": "SignalResponse",
+                      "shortLabel": "No thanks",
+                      "longLabel": "No thanks",
+                      "shortSuccessLabel": "",
+                      "isPositive": false,
+                      "url": "",
+                      "token": "FAKE_NEGATIVE_TOKEN_TESTING_PURPOSES_ONLY"
+                    }
+                  },
+                  "copy": {
+                    "creative.copy": "Stream acclaimed Advertiser1 Original series, movies and docuseries. <a href=\"https://rokt.com\">Terms</a>",
+                    "creative.title": "Your purchase has unlocked a free<br>trial with Advertiser1",
+                    "creative.terms": "New subscribers only. Terms apply."
+                  },
+                  "data-elements": {},
+                  "images": {
+                    "creativeImage": {
+                      "alt": "Partner2 Deals of the Day",
+                      "dark": "",
+                      "light": "https://avatars.githubusercontent.com/u/6335212",
+                      "title": "Partner2 Deals of the Day"
+                    }
+                  },
+                  "links": {}
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "success": true,
+  "privacyControl": {
+    "limitedUse": true
+  }
+}

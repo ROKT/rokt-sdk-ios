@@ -1,0 +1,20 @@
+{
+  "clientTimeoutMilliseconds": 8000,
+  "defaultLaunchDelayMilliseconds": 1000,
+  "clientSessionTimeoutMilliseconds": 3000,
+  "fonts": [
+    {
+      "fontName": "testFont",
+      "fontUrl": "https://test..."
+    }
+  ],
+  "roktTrackingStatus": true,
+  "featureFlags": {
+    "mobile-sdk-use-bounding-box": {
+      "match": true
+    },
+    "mobile-sdk-use-partner-events": {
+      "match": true
+    }
+  }
+}

@@ -17,18 +17,3 @@ info:
   x-cortex-groups:
     - lang-swift
     - serviceTier-3
-
-  x-cortex-oncall:
-    opsgenie:
-      type: SCHEDULE
-      id: Mobile Integrations_schedule
-
-  x-cortex-ci-cd:
-    buildkite:
-      pipelines:
-        - slug: ios-spm
-
-  x-cortex-link:
-    - name: Mobile SDK Detailed Error View
-      type: dashboard
-      url: https://rokt.datadoghq.com/dashboard/nsi-c8c-gtd

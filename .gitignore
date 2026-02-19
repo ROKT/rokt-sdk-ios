@@ -1,1 +1,11 @@
 .build
+.swiftpm/
+.DS_Store
+DerivedData/
+DerivedData-periphery/
+xcuserdata/
+*.xcuserstate
+Package.resolved
+vendor/
+Tests/Rokt_WidgetTests/**/*.swift.plist
+Tests/SizeReport/build/
