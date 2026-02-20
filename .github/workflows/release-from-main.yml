@@ -14,6 +14,9 @@ permissions:
 jobs:
   release-rokt-sdk:
     runs-on: ubuntu-latest
+    outputs:
+      release_version: ${{ steps.version-file.outputs.release-version }}
+      release_notes: ${{ steps.get-changelog.outputs.release_notes }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
@@ -68,3 +71,28 @@ jobs:
           pod trunk push Rokt-Widget.podspec --allow-warnings
         env:
           COCOAPODS_TRUNK_TOKEN: ${{ secrets.COCOAPODS_TRUNK_TOKEN }}
+
+  trigger-demo-app-release:
+    needs: [release-rokt-sdk, publish-rokt-sdk]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate token
+        id: generate_token
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        with:
+          app-id: ${{ secrets.SDK_RELEASE_GITHUB_APP_ID }}
+          private-key: ${{ secrets.SDK_RELEASE_GITHUB_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: rokt-demo-ios
+
+      - name: Dispatch Event
+        uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
+        with:
+          token: ${{ steps.generate_token.outputs.token }}
+          repository: ROKT/rokt-demo-ios
+          event-type: release-build
+          client-payload: |
+            {
+              "version_name": "${{ needs.release-rokt-sdk.outputs.release_version }}",
+              "release_notes": ${{ toJSON(needs.release-rokt-sdk.outputs.release_notes) }}
+            }

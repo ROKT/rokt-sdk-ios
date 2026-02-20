@@ -9,6 +9,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [4.16.1] - 2026-02-09
+
+### Added
+
+- Add `PlacementOptions` to support passing joint SDK timing data for placement selection
+
+### Fixed
+
+- Remove false positive font diagnostics requests on the first time init
+
+## [4.16.0] - 2026-02-05
+
+### Added
+
+- Add configurable log levels via `Rokt.setLogLevel(_:)`
+
+### Deprecated
+
+- Deprecate `Rokt.setLoggingEnabled(enable:)` in favor of `setLogLevel(_:)`
+
+## [4.15.0] - 2026-01-30
+
+### Added
+
+- Added support for getting and setting session ID. If you use multiple integrations, such as webview and native within your app you can now set session ID so it is maintained across integration types.
+
+### Changed
+
+- Updated timing data capture logic and added `x-rokt-trace-id` header
+
+## [4.14.6] - 2026-01-12
+
+### Fixed
+
+- Fixed thread safety crash when processing platform events
+
+## [4.14.5] - 2025-12-10
+
+### Changed
+
+- Reverted temporary iOS view controller hierarchy changes introduced in 4.14.4.
+- RoktUXHelper version [0.7.5](https://github.com/ROKT/rokt-ux-helper-ios/releases/tag/0.7.5)
+
+### Fixed
+
+- Fix ScrollableColumn and ScrollableRow ignoring dimension maxHeight/maxWidth constraints when weight is set
+
+## [4.14.4] - 2025-11-20
+
+### Fixed
+
+- Embedded hosting controller cleanup to remove view controller lifecycle management
+
+## [4.14.3] - 2025-11-06
+
+### Fixed
+
+- Fixed cache attributes being used in place of all attributes
+
+## [4.14.2] - 2025-10-24
+
+### Changed
+
+- RoktUXHelper version 0.7.4
+- New animation styles supported in DataImageCarousel
+
+### Fixed
+
+- Fixed ProgressComponent
+
 ## [4.14.1] - 2025-09-22
 
 ### Fixed
@@ -55,6 +125,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 - FirstPositiveEngagement is now emitted for all execute calls
 
 ## [4.10.0] - 2025-05-28
+
+### Added
+
+- Real time events
 
 ### Changed
 
@@ -184,7 +258,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.1...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.1...HEAD
+[4.16.1]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.0...4.16.1
+[4.16.0]: https://github.com/ROKT/rokt-sdk-ios/compare/4.15.0...4.16.0
+[4.15.0]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.6...4.15.0
+[4.14.6]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.5...4.14.6
+[4.14.5]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.4...4.14.5
+[4.14.4]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.3...4.14.4
+[4.14.3]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.2...4.14.3
+[4.14.2]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.1...4.14.2
 [4.14.1]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.0...4.14.1
 [4.14.0]: https://github.com/ROKT/rokt-sdk-ios/compare/4.13.0...4.14.0
 [4.13.0]: https://github.com/ROKT/rokt-sdk-ios/compare/4.12.1...4.13.0
