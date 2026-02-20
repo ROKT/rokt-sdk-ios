@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [4.16.2] - 2026-02-20
+
+### Fixed
+
+- Fixed caching being silently enabled when building RoktConfig without an explicit CacheConfig
+
 ## [4.16.1] - 2026-02-09
 
 ### Added
@@ -258,7 +264,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.1...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.2...HEAD
+[4.16.2]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.1...4.16.2
 [4.16.1]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.0...4.16.1
 [4.16.0]: https://github.com/ROKT/rokt-sdk-ios/compare/4.15.0...4.16.0
 [4.15.0]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.6...4.15.0
