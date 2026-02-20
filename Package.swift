@@ -1,6 +1,10 @@
 // swift-tools-version: 5.9
 
+import Foundation
 import PackageDescription
+
+let libraryType: Product.Library.LibraryType? =
+    ProcessInfo.processInfo.environment["SPM_GENERATE_FRAMEWORK"] != nil ? .dynamic : nil
 
 let package = Package(
     name: "Rokt-Widget",
@@ -11,7 +15,7 @@ let package = Package(
     products: [
         .library(
             name: "Rokt-Widget",
-            type: .dynamic,
+            type: libraryType,
             targets: ["Rokt_Widget"]
         )
     ],
