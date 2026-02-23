@@ -8,7 +8,7 @@
 
 Pod::Spec.new do |s|
   s.name             = 'Rokt-Widget'
-  s.version          = '4.14.1'
+  s.version          = '4.16.1'
   s.summary          = 'Rokt Mobile SDK to integrate ROKT Api into iOS application'
   s.swift_version    = '5.0'
 

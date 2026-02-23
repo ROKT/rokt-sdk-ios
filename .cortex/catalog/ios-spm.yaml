@@ -16,6 +16,7 @@ info:
       provider: CORTEX
   x-cortex-groups:
     - lang-swift
+    - serviceTier-3
 
   x-cortex-oncall:
     opsgenie:
