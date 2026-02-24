@@ -21,7 +21,7 @@ struct ContentView: View {
         // Execute Rokt SDK with test attributes
         // Reference: https://docs.rokt.com/developers/integration-guides/ios/how-to/adding-a-placement
         let attributes = [
-            "email": "j.smith@example.com",
+            "email": "j.smith@rokt.com",
             "firstname": "Jenny",
             "lastname": "Smith",
             "mobile": "(555)867-5309",

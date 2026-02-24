@@ -122,7 +122,7 @@ final class TestRoktConfig: XCTestCase {
     func test_cacheConfig_getCacheAttributesOrFallback_withNilCacheAttributes_returnsFallback() {
         // Arrange
         let cacheConfig = RoktConfig.CacheConfig()
-        let fallback = ["email": "test@example.com"]
+        let fallback = ["email": "test@rokt.com"]
 
         // Act
         let result = cacheConfig.getCacheAttributesOrFallback(fallback)
@@ -135,7 +135,7 @@ final class TestRoktConfig: XCTestCase {
         // Arrange
         let cacheAttributes = ["country": "US"]
         let cacheConfig = RoktConfig.CacheConfig(cacheAttributes: cacheAttributes)
-        let fallback = ["email": "test@example.com"]
+        let fallback = ["email": "test@rokt.com"]
 
         // Act
         let result = cacheConfig.getCacheAttributesOrFallback(fallback)

@@ -4,28 +4,28 @@ import XCTest
 final class TestURLExtension: XCTestCase {
 
     func test_isWebURL_withHttpPrefix_returnsTrue() {
-        let url = "http://example.com"
+        let url = "http://rokt.com"
         let result = URL.isWebURL(url: url)
 
         XCTAssertTrue(result)
     }
 
     func test_isWebURL_withHttpsPrefix_returnsTrue() {
-        let url = "https://example.com"
+        let url = "https://rokt.com"
         let result = URL.isWebURL(url: url)
 
         XCTAssertTrue(result)
     }
 
     func test_isWebURL_withUppercasePrefix_returnsTrue() {
-        let url = "HTTP://EXAMPLE.COM"
+        let url = "HTTP://rokt.com"
         let result = URL.isWebURL(url: url)
 
         XCTAssertTrue(result)
     }
 
     func test_isWebURL_withMixedCasePrefix_returnsTrue() {
-        let url = "Https://Example.Com"
+        let url = "Https://rokt.com"
         let result = URL.isWebURL(url: url)
 
         XCTAssertTrue(result)
@@ -39,7 +39,7 @@ final class TestURLExtension: XCTestCase {
     }
 
     func test_isWebURL_instanceMethod_withHttpURL_returnsTrue() {
-        let url = URL(string: "http://example.com")!
+        let url = URL(string: "http://rokt.com")!
         let result = url.isWebURL()
 
         XCTAssertTrue(result)

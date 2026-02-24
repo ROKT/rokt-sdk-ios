@@ -32,7 +32,7 @@
                                                 <nil key="textColor"/>
                                                 <nil key="highlightedColor"/>
                                             </label>
-                                            <textField opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="center" text="j.smith@example.com" borderStyle="roundedRect" textAlignment="natural" minimumFontSize="17" translatesAutoresizingMaskIntoConstraints="NO" id="xX7-VH-N4e">
+                                            <textField opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="center" text="j.smith@rokt.com" borderStyle="roundedRect" textAlignment="natural" minimumFontSize="17" translatesAutoresizingMaskIntoConstraints="NO" id="xX7-VH-N4e">
                                                 <rect key="frame" x="10" y="37" width="385" height="34"/>
                                                 <accessibility key="accessibilityConfiguration" identifier="CustomerEmailAddress"/>
                                                 <fontDescription key="fontDescription" type="system" pointSize="14"/>

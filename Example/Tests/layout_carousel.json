@@ -57,9 +57,9 @@
                     "creative.privacyPolicy.link": "/LegalTerms/PrivacyPolicy/4601286333876446774",
                     "creative.privacyPolicy.close.copy": "Close",
                     "creative.privacyPolicy.title": "Privacy Policy",
-                    "creative.confirmation.message": "Details will go to j.smith_1691638156956@example.com",
+                    "creative.confirmation.message": "Details will go to j.smith_1691638156956@rokt.com",
                     "creative.success.title": "Success",
-                    "creative.success.copy": "We have sent a confirmation to j.smith_1691638156956@example.com."
+                    "creative.success.copy": "We have sent a confirmation to j.smith_1691638156956@rokt.com."
                   },
                   "responseOptionsMap": {
                     "positive": {
@@ -125,11 +125,11 @@
                     "creative.privacyPolicy.link": "/LegalTerms/PrivacyPolicy/6474894803711120093",
                     "creative.privacyPolicy.close.copy": "Close",
                     "creative.privacyPolicy.title": "Privacy Policy",
-                    "creative.confirmation.message": "Details will go to j.smith_1691638156956@example.com",
+                    "creative.confirmation.message": "Details will go to j.smith_1691638156956@rokt.com",
                     "creative.success.title": "Success",
                     "creative.disclaimer": "Test disclaimer Success",
                     "creative.title": "Second offer title",
-                    "creative.success.copy": "We have sent a confirmation to j.smith_1691638156956@example.com."
+                    "creative.success.copy": "We have sent a confirmation to j.smith_1691638156956@rokt.com."
                   },
                   "responseOptionsMap": {
                     "positive": {
@@ -196,7 +196,7 @@
                     "creative.privacyPolicy.close.copy": "Close",
                     "creative.privacyPolicy.title": "Privacy Policy",
                     "creative.success.title": "Success",
-                    "creative.success.copy": "We have sent a confirmation to j.smith_1691638156956@example.com.",
+                    "creative.success.copy": "We have sent a confirmation to j.smith_1691638156956@rokt.com.",
                     "creative.image.src": "https://avatars.githubusercontent.com/u/6335212"
                   },
                   "responseOptionsMap": {
@@ -272,7 +272,7 @@
                     "creative.privacyPolicy.close.copy": "Close",
                     "creative.privacyPolicy.title": "Privacy Policy",
                     "creative.success.title": "Success",
-                    "creative.success.copy": "We have sent a confirmation to j.smith_1691638156956@example.com.",
+                    "creative.success.copy": "We have sent a confirmation to j.smith_1691638156956@rokt.com.",
                     "creative.image.src": "https://avatars.githubusercontent.com/u/6335212"
                   },
                   "responseOptionsMap": {
@@ -349,7 +349,7 @@
                     "creative.privacyPolicy.close.copy": "Close",
                     "creative.privacyPolicy.title": "Privacy Policy",
                     "creative.success.title": "Success",
-                    "creative.success.copy": "We have sent a confirmation to j.smith_1691638156956@example.com.",
+                    "creative.success.copy": "We have sent a confirmation to j.smith_1691638156956@rokt.com.",
                     "creative.image.src": "https://avatars.githubusercontent.com/u/6335212"
                   },
                   "responseOptionsMap": {

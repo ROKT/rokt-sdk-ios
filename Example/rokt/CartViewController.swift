@@ -28,7 +28,7 @@ class CartViewController: UIViewController, UITextFieldDelegate {
         navigationItem.backBarButtonItem = backItem
         self.view.addGestureRecognizer(UITapGestureRecognizer(target: self.view, action: #selector(UIView.endEditing(_:))))
         pageIdentifierTextField.text = pageIdentifier
-        customerEmailTextField.text = "j.smith\(Int64(Date().timeIntervalSince1970 * 1000))@example.com"
+        customerEmailTextField.text = "j.smith\(Int64(Date().timeIntervalSince1970 * 1000))@rokt.com"
         if environment == .Prod {
             customNameTextField.text = "sandbox"
             customValueTextField.text = "true"

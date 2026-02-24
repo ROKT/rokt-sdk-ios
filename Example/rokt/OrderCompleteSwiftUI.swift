@@ -12,7 +12,7 @@ struct OrderCompleteSwiftUI: View {
         // Mock cache config
         .cacheConfig(RoktConfig.CacheConfig(
             //            cacheDuration: TimeInterval(20),
-//            cacheAttributes: ["email": "cache.attributes@example.com"]
+//            cacheAttributes: ["email": "cache.attributes@rokt.com"]
         ))
         .build()
 

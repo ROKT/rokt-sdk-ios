@@ -86,8 +86,8 @@
 /* Class = "UIButton"; normalTitle = "show widget in table view"; ObjectID = "vcY-03-Rkx"; */
 "vcY-03-Rkx.normalTitle" = "show widget in table view";
 
-/* Class = "UITextField"; text = "j.smith@example.com"; ObjectID = "xX7-VH-N4e"; */
-"xX7-VH-N4e.text" = "j.smith@example.com";
+/* Class = "UITextField"; text = "j.smith@rokt.com"; ObjectID = "xX7-VH-N4e"; */
+"xX7-VH-N4e.text" = "j.smith@rokt.com";
 
 /* Class = "UILabel"; text = "Environment:"; ObjectID = "zLN-WO-o2e"; */
 "zLN-WO-o2e.text" = "Environment:";
