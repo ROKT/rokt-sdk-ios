@@ -18,7 +18,6 @@ class CartViewController: UIViewController, UITextFieldDelegate {
     @IBOutlet weak var customValueTextField2: UITextField!
     @IBOutlet weak var customNameTextField3: UITextField!
     @IBOutlet weak var customValueTextField3: UITextField!
-    @IBOutlet weak var isEncryptedSwitch: UISwitch!
     @IBOutlet weak var isEventSwitch: UISwitch!
 
     override func viewDidLoad() {
@@ -69,21 +68,8 @@ class CartViewController: UIViewController, UITextFieldDelegate {
     private func getAttributes() -> [String: String] {
         var attributes = ["mobile": "1112223333"]
         attributes["email"] = customerEmailTextField.text
-        if #available(iOS 10.0, *) {
-            if isEncryptedSwitch.isOn {
-                attributes["firstnameEnc"] =
-                    "Jenny".encryptRSA(publicKey: environment == .Stage ? kRsaPpublicKeySage : kRsaPublicKeyProd)
-                attributes["lastnameEnc"] =
-                    "Smith".encryptRSA(publicKey: environment == .Stage ? kRsaPpublicKeySage : kRsaPublicKeyProd)
-                attributes["piiencryptionkeyid"] = environment == .Stage ? kEncryptionKeyIdStage : kEncryptionKeyIdProd
-                attributes["mobileEnc"] =
-                    "1112223333".encryptRSA(publicKey: environment == .Stage ? kRsaPpublicKeySage : kRsaPublicKeyProd)
-            } else {
-                attributes = getDefualtAttribute(attributes: attributes)
-            }
-        } else {
-            attributes = getDefualtAttribute(attributes: attributes)
-        }
+        attributes["firstname"] = "Jenny"
+        attributes["lastname"] = "Smith"
 
         if let country = countryTextField.text, !country.isEmpty {
             attributes["country"] = country
@@ -114,13 +100,6 @@ class CartViewController: UIViewController, UITextFieldDelegate {
             attributes[customName3] = customValue3
         }
         return attributes
-    }
-
-    private func getDefualtAttribute(attributes: [String: String]) -> [String: String] {
-        var newAttributes = attributes
-        newAttributes["firstname"] = "Jenny"
-        newAttributes["lastname"] = "Smith"
-        return newAttributes
     }
 
     @IBAction func navigateToLayoutSwiftUI(_ sender: Any) {

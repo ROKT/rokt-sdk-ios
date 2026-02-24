@@ -45,8 +45,6 @@
 		2551D27129F8B5EE00369F0B /* layout_overlay_1.json in Resources */ = {isa = PBXBuildFile; fileRef = 2551D26F29F8B5EE00369F0B /* layout_overlay_1.json */; };
 		2563ADE92A567B1600E7CB6A /* layout_embedded_2.json in Resources */ = {isa = PBXBuildFile; fileRef = 2563ADE82A567B1600E7CB6A /* layout_embedded_2.json */; };
 		2563ADEA2A567B1600E7CB6A /* layout_embedded_2.json in Resources */ = {isa = PBXBuildFile; fileRef = 2563ADE82A567B1600E7CB6A /* layout_embedded_2.json */; };
-		2567427C25B7DE5700BD655E /* EncryptionUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2567427B25B7DE5700BD655E /* EncryptionUtils.swift */; };
-		2567429225B7F28E00BD655E /* EncryptionUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2567427B25B7DE5700BD655E /* EncryptionUtils.swift */; };
 		25690F9C260AB87C00744387 /* HashUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25690F9B260AB87C00744387 /* HashUtils.swift */; };
 		25690FC0260AE70000744387 /* HashUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25690F9B260AB87C00744387 /* HashUtils.swift */; };
 		257479FE2A70A807009C5B69 /* layout_embedded_4.json in Resources */ = {isa = PBXBuildFile; fileRef = 257479FD2A70A807009C5B69 /* layout_embedded_4.json */; };
@@ -78,7 +76,6 @@
 		5881EE5D26D8A2AB006DA89C /* Mocker in Frameworks */ = {isa = PBXBuildFile; productRef = 5881EE5C26D8A2AB006DA89C /* Mocker */; };
 		58EF6D2025E364BE0058A2B2 /* initWithFalseRoktTrackingStatus.json in Resources */ = {isa = PBXBuildFile; fileRef = 58EF6D1F25E364BE0058A2B2 /* initWithFalseRoktTrackingStatus.json */; };
 		58EF6D2125E364BE0058A2B2 /* initWithFalseRoktTrackingStatus.json in Resources */ = {isa = PBXBuildFile; fileRef = 58EF6D1F25E364BE0058A2B2 /* initWithFalseRoktTrackingStatus.json */; };
-		58F0D08F260972FA000A5645 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58F0D08E260972FA000A5645 /* Constants.swift */; };
 		607FACD61AFB9204008FA782 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 607FACD51AFB9204008FA782 /* AppDelegate.swift */; };
 		607FACD81AFB9204008FA782 /* CartViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 607FACD71AFB9204008FA782 /* CartViewController.swift */; };
 		607FACDB1AFB9204008FA782 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 607FACD91AFB9204008FA782 /* Main.storyboard */; };
@@ -159,7 +156,6 @@
 		2536C0C029D29D0A00AABC4F /* ValidLayoutBottomSheetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValidLayoutBottomSheetTests.swift; sourceTree = "<group>"; };
 		2551D26F29F8B5EE00369F0B /* layout_overlay_1.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = layout_overlay_1.json; sourceTree = "<group>"; };
 		2563ADE82A567B1600E7CB6A /* layout_embedded_2.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = layout_embedded_2.json; sourceTree = "<group>"; };
-		2567427B25B7DE5700BD655E /* EncryptionUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EncryptionUtils.swift; sourceTree = "<group>"; };
 		25690F9B260AB87C00744387 /* HashUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HashUtils.swift; sourceTree = "<group>"; };
 		257479FD2A70A807009C5B69 /* layout_embedded_4.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = layout_embedded_4.json; sourceTree = "<group>"; };
 		257B63532B4CF0B70026C014 /* layout_grouped_distribution.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = layout_grouped_distribution.json; sourceTree = "<group>"; };
@@ -195,7 +191,6 @@
 		581A13BD251DCF1B00C6DFB5 /* nl */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = nl; path = nl.lproj/Main.strings; sourceTree = "<group>"; };
 		581A13BE251DCF1C00C6DFB5 /* nl */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = nl; path = nl.lproj/LaunchScreen.strings; sourceTree = "<group>"; };
 		58EF6D1F25E364BE0058A2B2 /* initWithFalseRoktTrackingStatus.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = initWithFalseRoktTrackingStatus.json; sourceTree = "<group>"; };
-		58F0D08E260972FA000A5645 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
 		607FACD01AFB9204008FA782 /* rokt_Example.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = rokt_Example.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		607FACD41AFB9204008FA782 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		607FACD51AFB9204008FA782 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -295,8 +290,6 @@
 		2567427A25B7DE3C00BD655E /* utils */ = {
 			isa = PBXGroup;
 			children = (
-				2567427B25B7DE5700BD655E /* EncryptionUtils.swift */,
-				58F0D08E260972FA000A5645 /* Constants.swift */,
 				25690F9B260AB87C00744387 /* HashUtils.swift */,
 				25226FF52A415C85006AFCF7 /* Toast.swift */,
 			);
@@ -682,14 +675,12 @@
 				250B2B09236AF29E0020A450 /* OrderCompleteTableViewController.swift in Sources */,
 				607FACD81AFB9204008FA782 /* CartViewController.swift in Sources */,
 				258EDB1724062BBF003202F5 /* RoktTag.swift in Sources */,
-				58F0D08F260972FA000A5645 /* Constants.swift in Sources */,
 				607FACD61AFB9204008FA782 /* AppDelegate.swift in Sources */,
 				25690F9C260AB87C00744387 /* HashUtils.swift in Sources */,
 				4F31D686213D829100F044CC /* TagIdSelectionTableViewController.swift in Sources */,
 				25FD47372BF4922C0051C704 /* main.swift in Sources */,
 				25226FF32A415861006AFCF7 /* OrderCompleteSwiftUI.swift in Sources */,
 				4FCF94A1210931B7000CE923 /* OrderCompleteViewController.swift in Sources */,
-				2567427C25B7DE5700BD655E /* EncryptionUtils.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -710,7 +701,6 @@
 				250610FC232F670400E6CBD9 /* TestViewController.swift in Sources */,
 				B1851CE6292FAAF50095E1B2 /* QuickSpec+Extension.swift in Sources */,
 				25226FF42A415861006AFCF7 /* OrderCompleteSwiftUI.swift in Sources */,
-				2567429225B7F28E00BD655E /* EncryptionUtils.swift in Sources */,
 				25FEB5872B7C4126008FB3CC /* ValidLayoutGroupedTests.swift in Sources */,
 				4F4B29B8210B68D600334961 /* OrderCompleteViewController.swift in Sources */,
 				250CF2482A4BB88B00C6FDE7 /* ValidLayoutEmbedded.swift in Sources */,
