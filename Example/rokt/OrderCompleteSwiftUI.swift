@@ -25,7 +25,7 @@ struct OrderCompleteSwiftUI: View {
             if isEvents {
                 RoktLayout(sdkTriggered: $sdkTriggered,
                            identifier: pageIndentifier,
-                           locationName: location,
+                           location: location,
                            attributes: attributes) { roktEvent in
                     onRoktEvent(roktEvent: roktEvent)
                 }
@@ -33,7 +33,7 @@ struct OrderCompleteSwiftUI: View {
                 RoktLayout(
                     sdkTriggered: $sdkTriggered,
                     identifier: pageIndentifier,
-                    locationName: location,
+                    location: location,
                     attributes: attributes,
                     config: config
                 )

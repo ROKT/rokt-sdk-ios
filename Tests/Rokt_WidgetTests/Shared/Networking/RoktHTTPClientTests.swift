@@ -201,8 +201,8 @@ final class RoktHTTPClientTests: XCTestCase {
         let exp = expectation(description: "Wait for request")
 
         let bodyParams = [
-            "email": "some@email.com",
-            "mobile": "+61111222333",
+            "email": "some@rokt.com",
+            "mobile": "+1111111111",
             "french": "français",
             "japanese": "日本語",
             "arabic": "العربية",

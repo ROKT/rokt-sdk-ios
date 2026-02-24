@@ -162,11 +162,10 @@ final class ValidLayoutEmbedded: QuickSpec {
                         eventType: "SignalImpression",
                         parentGuid: "f5987bb9-f7ba-4a89-91e7-80a446c5d29c"
                     ))).toEventually(beTrue(), timeout: .seconds(2))
-// Failing after changes in UX Helper - https://github.com/ROKT/rokt-ux-helper-ios/pull/93
-// Ticket to fix: SQDSDKS-7461
-//                    expect(events.contains(EventModel(
-//                        eventType: "SignalViewed",
-//                        parentGuid: "f5987bb9-f7ba-4a89-91e7-80a446c5d29c"))).toEventually(beTrue(), timeout: .seconds(2))
+                    expect(events.contains(EventModel(
+                        eventType: "SignalViewed",
+                        parentGuid: "f5987bb9-f7ba-4a89-91e7-80a446c5d29c"
+                    ))).toEventually(beTrue(), timeout: .seconds(9))
 
                     // validate partner events
                     expect(partnerEvents.contains("ShowLoadingIndicator")).toEventually(beTrue())
