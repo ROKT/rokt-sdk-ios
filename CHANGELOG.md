@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [4.16.3] - 2026-02-23
+
+### Fixed
+
+- Update to [RoktUXHelper 0.8.1](https://github.com/ROKT/rokt-ux-helper-ios/releases/tag/0.8.1) fixing `SignalViewed` events not being emitted — offers now correctly fire viewed events after 50%+ visibility for 1 second
+- Fixed critical crash when users tap buttons in SDK layouts caused by invalid UTF-8 encoding in event data
+- Fixed thread safety issue in real-time event processing that could cause crashes under high load
+- Improved error handling and logging for event storage operations
+
+## [4.16.2] - 2026-02-20
+
+### Fixed
+
+- Fixed caching being silently enabled when building RoktConfig without an explicit CacheConfig
+
 ## [4.16.1] - 2026-02-09
 
 ### Added
@@ -258,7 +273,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.1...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.3...HEAD
+[4.16.3]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.2...4.16.3
+[4.16.2]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.1...4.16.2
 [4.16.1]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.0...4.16.1
 [4.16.0]: https://github.com/ROKT/rokt-sdk-ios/compare/4.15.0...4.16.0
 [4.15.0]: https://github.com/ROKT/rokt-sdk-ios/compare/4.14.6...4.15.0
