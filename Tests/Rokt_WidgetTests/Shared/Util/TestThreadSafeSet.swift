@@ -42,7 +42,8 @@ class TestThreadSafeSet: XCTestCase {
         let expectation = self.expectation(description: "Concurrent Read Write")
         let dispatchGroup = DispatchGroup()
         let queue = DispatchQueue(
-            label: "com.rokt.test.concurrentReadWrite", attributes: .concurrent)
+            label: "com.rokt.test.concurrentReadWrite", attributes: .concurrent
+        )
         let iterationCount = 1000
 
         // Populate initially

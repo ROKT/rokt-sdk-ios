@@ -8,8 +8,8 @@ class RoktLayoutViewModel: ObservableObject {
         case empty
     }
 
-    private let identifier: String?
-    internal let locationName: String
+    private let identifier: String
+    internal let location: String
     private let attributes: [String: String]
     private let config: RoktConfig?
     private let placementOptions: PlacementOptions?
@@ -17,15 +17,15 @@ class RoktLayoutViewModel: ObservableObject {
     @Published var state: State = .empty
 
     init(
-        identifier: String?,
-        locationName: String,
+        identifier: String,
+        location: String,
         attributes: [String: String],
         config: RoktConfig?,
         placementOptions: PlacementOptions?,
         onRoktEvent: ((RoktEvent) -> Void)?
     ) {
         self.identifier = identifier
-        self.locationName = locationName
+        self.location = location
         self.attributes = attributes
         self.config = config
         self.placementOptions = placementOptions

@@ -9,7 +9,7 @@ var kBaseURL: String {
 
 // MARK: - Library details
 
-let kLibraryVersion = "4.16.1"
+let kLibraryVersion = "4.16.3"
 
 // MARK: - Init resource
 

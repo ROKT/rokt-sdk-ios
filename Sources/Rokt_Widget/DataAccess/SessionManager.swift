@@ -9,6 +9,12 @@ private let userDefaultsKeyCurrentSessionDuration: String = "rokt.currentSession
 private let maxSessionDurationSeconds: TimeInterval = 30 * 60
 private let maxExecuteCallsPerSession: Int = 50
 
+private enum SessionInvalidationReason: String {
+    case tagIdChanged = "tag_id_changed"
+    case invalidLayoutRequest = "invalid_layout_request"
+    case sessionIdUpdated = "session_id_updated"
+}
+
 /// Class that manages the Rokt session and handles expiry
 ///
 /// Sessions should last:
@@ -53,7 +59,7 @@ class SessionManager {
         }
         set {
             if storedTagId != newValue {
-                clearSession()
+                clearSession(reason: .tagIdChanged)
             }
             userDefaults.set(newValue, forKey: userDefaultsKeyTagId)
         }
@@ -76,7 +82,8 @@ class SessionManager {
         sessionUsageCount += 1
 
         if !isValidSession() {
-            clearSession()
+            RoktLogger.shared.debug("No valid session for layout request. Clearing session.")
+            clearSession(reason: .invalidLayoutRequest)
             return nil
         }
         lastExecuteCallDate = dateProvider()
@@ -90,12 +97,14 @@ class SessionManager {
 
     func updateSessionId(newSessionId: String?) {
         if newSessionId == getCurrentSessionIdWithoutExpiring() {
+            RoktLogger.shared.debug("Session update skipped because session id is unchanged: \(newSessionId)")
             return
         }
 
-        clearSession()
+        clearSession(reason: .sessionIdUpdated)
         lastExecuteCallDate = dateProvider()
         userDefaults.set(newSessionId, forKey: userDefaultsKeySessionId)
+        RoktLogger.shared.info("Session updated. sessionId=\(newSessionId)")
     }
 
     private func isValidSession() -> Bool {
@@ -103,21 +112,34 @@ class SessionManager {
     }
 
     private func hasSessionExpired() -> Bool {
-        if lastExecuteCallDate == nil {
+        guard let lastExecuteCallDate else {
             return false
         }
 
         let currentTime = dateProvider()
-        let timeSinceLastExecuteCall = currentTime.timeIntervalSince(lastExecuteCallDate!)
+        let timeSinceLastExecuteCall = currentTime.timeIntervalSince(lastExecuteCallDate)
         let expired = timeSinceLastExecuteCall > currentSessionDurationSeconds
+        if expired {
+            RoktLogger.shared.debug(
+                "Session expired due to inactivity. " +
+                "elapsedSeconds=\(Int(timeSinceLastExecuteCall)), thresholdSeconds=\(Int(currentSessionDurationSeconds))"
+            )
+        }
         return expired
     }
 
     private func isSessionUsageUnderThreshold() -> Bool {
-        return sessionUsageCount <= maxExecuteCallsPerSession
+        let underThreshold = sessionUsageCount <= maxExecuteCallsPerSession
+        if !underThreshold {
+            RoktLogger.shared.debug(
+                "Session usage threshold exceeded. usageCount=\(sessionUsageCount), max=\(maxExecuteCallsPerSession)"
+            )
+        }
+        return underThreshold
     }
 
-    private func clearSession() {
+    private func clearSession(reason: SessionInvalidationReason) {
+        RoktLogger.shared.info("Clearing session. reason=\(reason.rawValue)")
         userDefaults.removeObject(forKey: userDefaultsKeySessionId)
         userDefaults.removeObject(forKey: userDefaultsKeySessionUsageCount)
         userDefaults.removeObject(forKey: userDefaultsKeyLastExecuteCallDate)

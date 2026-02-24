@@ -76,7 +76,7 @@ internal class RoktMockAPI {
         case "2731619347947643042_3331d443712b433587bc4813b8ff8777": // Layout embedded 4
             return "layout_embedded_4"
         default:
-            return "layout_overlay_1"
+            return "placement_light_box" // Placement Lightbox
         }
     }
 

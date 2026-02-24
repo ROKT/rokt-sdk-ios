@@ -24,7 +24,20 @@ class PlatformEventProcessor {
                  cacheProperties: LayoutPageCacheProperties?) {
         do {
             let data = try JSONSerialization.data(withJSONObject: eventPayload, options: [])
-            let eventRequests = (try JSONDecoder().decode(RoktUXEventsPayload.self, from: data)).events
+
+            guard let jsonString = String(data: data, encoding: .utf8), !jsonString.isEmpty else {
+                RoktLogger.shared.error("Invalid UTF-8 or empty data in event payload")
+                RoktAPIHelper.sendEvents(events: (eventPayload["events"] as? [[String: Any]]) ?? [])
+                return
+            }
+
+            guard let validatedData = jsonString.data(using: .utf8) else {
+                RoktLogger.shared.error("Failed to re-encode validated UTF-8 string")
+                RoktAPIHelper.sendEvents(events: (eventPayload["events"] as? [[String: Any]]) ?? [])
+                return
+            }
+
+            let eventRequests = (try JSONDecoder().decode(RoktUXEventsPayload.self, from: validatedData)).events
 
             processTimingRequests(eventRequests: eventRequests, selectionId: executeId)
 
@@ -33,7 +46,8 @@ class PlatformEventProcessor {
             processInstantPurchase(eventRequests: eventRequests, executeId: executeId)
             sendAndCacheEvents(eventRequests: eventRequests, cacheProperties: cacheProperties)
         } catch {
-            RoktLogger.shared.error("Failed to map timing event", error: error)
+            RoktLogger.shared.error("Failed to process platform events", error: error)
+            RoktLogger.shared.debug("Event payload that failed: \(eventPayload)")
             RoktAPIHelper.sendEvents(events: (eventPayload["events"] as? [[String: Any]]) ?? [])
         }
     }

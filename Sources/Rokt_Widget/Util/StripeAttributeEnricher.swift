@@ -31,7 +31,8 @@ class RuntimeStripeCapabilityChecker: StripeCapabilityChecker {
     }
 
     let respondsToInit = applePayContextClass.instancesRespond(
-      to: NSSelectorFromString(stripeInitSelector))
+      to: NSSelectorFromString(stripeInitSelector)
+    )
 
     return respondsToInit
 
