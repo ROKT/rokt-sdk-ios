@@ -7,9 +7,9 @@ public struct RoktLayout: View {
 
     public init(
         sdkTriggered: Binding<Bool>,
-        identifier: String? = nil,
-        locationName: String = "",
-        attributes: [String: String],
+        identifier: String,
+        location: String = "",
+        attributes: [String: String] = [:],
         config: RoktConfig? = nil,
         placementOptions: PlacementOptions? = nil,
     ) {
@@ -17,7 +17,7 @@ public struct RoktLayout: View {
         self._viewModel = .init(
             wrappedValue: .init(
                 identifier: identifier,
-                locationName: locationName,
+                location: location,
                 attributes: attributes,
                 config: config,
                 placementOptions: placementOptions,
@@ -28,9 +28,9 @@ public struct RoktLayout: View {
 
     public init(
         sdkTriggered: Binding<Bool>,
-        identifier: String? = nil,
-        locationName: String = "",
-        attributes: [String: String],
+        identifier: String,
+        location: String = "",
+        attributes: [String: String] = [:],
         config: RoktConfig? = nil,
         placementOptions: PlacementOptions? = nil,
         onEvent: ((RoktEvent) -> Void)? = nil
@@ -39,7 +39,7 @@ public struct RoktLayout: View {
         self._viewModel = .init(
             wrappedValue: .init(
                 identifier: identifier,
-                locationName: locationName,
+                location: location,
                 attributes: attributes,
                 config: config,
                 placementOptions: placementOptions,

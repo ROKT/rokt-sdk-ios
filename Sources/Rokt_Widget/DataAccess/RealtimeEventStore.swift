@@ -41,10 +41,8 @@ class RealtimeEventStoreMemory: RealTimeEventStore {
 }
 
 class RealTimeEventStoreFile: RealTimeEventStore {
-    private let untriggeredEventsFilePath: URL
-    private let triggeredEventsFilePath: URL
-    private let decoder: JSONDecoder = JSONDecoder()
-    private let encoder: JSONEncoder = JSONEncoder()
+    private let untriggeredEventsFilePath: URL?
+    private let triggeredEventsFilePath: URL?
 
     private var debounceTimer: Timer?
     private var accumulatedEventsToMark: [RoktEventRequest] = []
@@ -52,23 +50,30 @@ class RealTimeEventStoreFile: RealTimeEventStore {
     private let eventProcessingQueue = DispatchQueue(label: "com.rokt.RealTimeEventManager.eventProcessingQueue")
 
     init() {
-        let directory = FileManager
+        guard let directory = FileManager
             .default
             .urls(
                 for: .documentDirectory,
                 in: .userDomainMask
-            ).first!
+            ).first else {
+            RoktLogger.shared.error("Document directory unavailable - RealTimeEventStore will not persist events")
+            self.triggeredEventsFilePath = nil
+            self.untriggeredEventsFilePath = nil
+            return
+        }
         self.triggeredEventsFilePath = directory.appendingPathComponent("triggered_events.json")
         self.untriggeredEventsFilePath = directory.appendingPathComponent("untriggered_events.json")
     }
 
     func addUntriggeredEvents(_ events: [UntriggeredRealTimeEvent]) {
+        guard let untriggeredEventsFilePath else { return }
         var all = getUntriggeredEvents()
         all.append(contentsOf: events)
         save(all, to: untriggeredEventsFilePath)
     }
 
     func getTriggeredEvents() -> [TriggeredRealTimeEvent] {
+        guard let triggeredEventsFilePath else { return [] }
         return load(from: triggeredEventsFilePath)
     }
 
@@ -104,6 +109,11 @@ class RealTimeEventStoreFile: RealTimeEventStore {
             return
         }
 
+        guard let triggeredEventsFilePath else {
+            accumulatedEventsToMark.removeAll()
+            return
+        }
+
         let triggeredEvents = accumulatedEventsToMark
         accumulatedEventsToMark.removeAll()
 
@@ -121,25 +131,32 @@ class RealTimeEventStoreFile: RealTimeEventStore {
     }
 
     func clear() {
-        try? FileManager.default.removeItem(at: untriggeredEventsFilePath)
-        try? FileManager.default.removeItem(at: triggeredEventsFilePath)
+        if let untriggeredEventsFilePath {
+            try? FileManager.default.removeItem(at: untriggeredEventsFilePath)
+        }
+        if let triggeredEventsFilePath {
+            try? FileManager.default.removeItem(at: triggeredEventsFilePath)
+        }
     }
 
     private func getUntriggeredEvents() -> [UntriggeredRealTimeEvent] {
+        guard let untriggeredEventsFilePath else { return [] }
         return load(from: untriggeredEventsFilePath)
     }
 
     private func save<T: Codable>(_ value: T, to url: URL) {
         do {
+            let encoder = JSONEncoder()
             let data = try encoder.encode(value)
             try data.write(to: url, options: .atomic)
         } catch {
-            print(error.localizedDescription)
+            RoktLogger.shared.error("Failed to save real-time events", error: error)
         }
     }
 
     private func load<T: Codable>(from url: URL) -> [T] {
         guard let data = try? Data(contentsOf: url) else { return [] }
+        let decoder = JSONDecoder()
         return (try? decoder.decode([T].self, from: data)) ?? []
     }
 }

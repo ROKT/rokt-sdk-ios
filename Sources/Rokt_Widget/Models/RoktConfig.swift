@@ -44,11 +44,8 @@ internal import RoktUXHelper
          Initializes the cache configuration.
 
          - Parameters:
-           - cacheDuration: Optional TimeInterval for which the Rokt SDK should cache the experience.
-             Maximum allowed value is 90 minutes and the default (if value is not provided or invalid)
-             is 90 minutes.
-           - cacheAttributes: Optional attributes to be used as cache key. If null, all the attributes
-             sent in Rokt.execute will be used as the cache key.
+           - cacheDuration: Optional TimeInterval for which the Rokt SDK should cache the experience. Maximum allowed value is 90 minutes and the default (if value is not provided or invalid) is 90 minutes.
+           - cacheAttributes: Optional attributes to be used as cache key. If null, all the attributes sent in Rokt.execute will be used as the cache key.
          */
         @objc public init(cacheDuration: TimeInterval = maxCacheDuration,
                           cacheAttributes: [String: String]? = nil) {
@@ -97,7 +94,7 @@ internal import RoktUXHelper
 
         @objc public func build() -> RoktConfig {
             return RoktConfig(colorMode: colorMode ?? .system,
-                              cacheConfig: cacheConfig ?? CacheConfig())
+                              cacheConfig: cacheConfig ?? CacheConfig(enableCache: false))
         }
 
     }

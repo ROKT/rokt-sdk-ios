@@ -166,22 +166,26 @@ class TimingsRequestProcessor {
         }
         if let experiencesRequestStartValue = timingData.experiencesRequestStart {
             timingsMetrics.append(
-                TimingMetric(name: .experiencesRequestStart, value: experiencesRequestStartValue))
+                TimingMetric(name: .experiencesRequestStart, value: experiencesRequestStartValue)
+            )
         }
         if let experiencesRequestEndValue = timingData.experiencesRequestEnd {
             timingsMetrics.append(
-                TimingMetric(name: .experiencesRequestEnd, value: experiencesRequestEndValue))
+                TimingMetric(name: .experiencesRequestEnd, value: experiencesRequestEndValue)
+            )
         }
         if let selectionEndValue = timingData.selectionEnd {
             timingsMetrics.append(TimingMetric(name: .selectionEnd, value: selectionEndValue))
         }
         if let placementInteractiveValue = timingData.placementInteractive {
             timingsMetrics.append(
-                TimingMetric(name: .placementInteractive, value: placementInteractiveValue))
+                TimingMetric(name: .placementInteractive, value: placementInteractiveValue)
+            )
         }
         if let jointSdkSelectPlacementsValue = timingData.jointSdkSelectPlacements {
             timingsMetrics.append(
-                TimingMetric(name: .jointSdkSelectPlacements, value: jointSdkSelectPlacementsValue))
+                TimingMetric(name: .jointSdkSelectPlacements, value: jointSdkSelectPlacementsValue)
+            )
         }
 
         return timingsMetrics

@@ -447,16 +447,89 @@ class RoktInternalImplementation {
 
             if #available(iOS 15, *) {
                 FontManager.reRegisterFonts {
-                    self.executeAfterFontRegistration(
-                        viewName: viewName,
-                        attributes: attributes,
-                        tagId: tagId,
-                        selectionId: selectionId,
-                        trackingConsent: trackingConsent,
-                        startDate: startDate,
-                        onExperiencesRequestStart: onExperiencesRequestStart,
-                        onExperiencesRequestEnd: onExperiencesRequestEnd
-                    )
+                    // use the available cached experience
+                    let cacheAttributes = self.roktConfig.cacheConfig.getCacheAttributesOrFallback(attributes)
+
+                    if self.isCacheEnabledAndConfigured(),
+                       let cachedExperience = ExperienceCacheManager.getCachedExperienceResponse(
+                           viewName: viewName,
+                           attributes: cacheAttributes,
+                           cacheDuration: self.roktConfig.cacheConfig.cacheDuration
+                       ) {
+                        onExperiencesRequestEnd()
+                        self.isExecuting = false
+
+                        guard let layoutPageExecutePayload = self.processLayoutPageExecutePayload(
+                            cachedExperience, selectionId: selectionId, viewName: viewName, attributes: attributes
+                        ) else {
+                            self.conclude(withFailure: true)
+                            return
+                        }
+
+                        RoktAPIHelper.sendDiagnostics(message: kCacheHitCode,
+                                                      callStack: String(format: kCacheHitMessage, viewName ?? ""),
+                                                      severity: .info,
+                                                      additionalInfo: [
+                                                          kCacheDurationKey: String(self.roktConfig.cacheConfig.cacheDuration),
+                                                          kCacheAttributesKey: Array(cacheAttributes.keys).description
+                                                      ])
+
+                        let payload = ExecutePayload(layoutPage: layoutPageExecutePayload,
+                                                     startDate: startDate,
+                                                     selectionId: selectionId)
+                        self.show(payload)
+                    } else {
+                        RoktAPIHelper.getExperienceData(
+                            viewName: viewName,
+                            attributes: attributes,
+                            roktTagId: tagId,
+                            selectionId: selectionId,
+                            trackingConsent: trackingConsent,
+                            config: self.roktConfig,
+                            onRequestStart: onExperiencesRequestStart,
+                            successLayout: { page in
+                                onExperiencesRequestEnd()
+                                self.isExecuting = false
+
+                                guard let page else {
+                                    self.conclude(withFailure: true)
+                                    return
+                                }
+                                // cache experience if applicable
+                                if self.isCacheEnabledAndConfigured() {
+                                    let cacheAttributes = self.roktConfig.cacheConfig.getCacheAttributesOrFallback(attributes)
+
+                                    DispatchQueue.background.async {
+                                        ExperienceCacheManager.cacheExperienceResponse(
+                                            viewName: viewName,
+                                            attributes: cacheAttributes,
+                                            experienceResponse: page
+                                        )
+                                    }
+                                }
+
+                                // Use cacheAttributes for plugin view states if cache is enabled for consistency
+                                let attributesForPluginStates = self.roktConfig.cacheConfig
+                                    .getCacheAttributesOrFallback(attributes)
+                                guard let layoutPageExecutePayload = self.processLayoutPageExecutePayload(
+                                    page, selectionId: selectionId, viewName: viewName, attributes: attributesForPluginStates
+                                ) else {
+                                    self.conclude(withFailure: true)
+                                    return
+                                }
+
+                                let payload = ExecutePayload(
+                                    layoutPage: layoutPageExecutePayload,
+                                    startDate: startDate,
+                                    selectionId: selectionId
+                                )
+                                self.show(payload)
+                            },
+                            failure: { (error, statusCode, response) in
+                                onExperiencesRequestEnd()
+                                self.executeFailureHandler(error, statusCode, response)
+                            }
+                        )}
                 }
             }
         } else {
@@ -468,128 +541,6 @@ class RoktInternalImplementation {
                                           callStack: isInitFailedForFont ? kFontFailedError : kInitFailedError,
                                           severity: .info)
         }
-    }
-
-    // swiftlint:disable:next function_body_length
-    @available(iOS 15, *)
-    private func executeAfterFontRegistration(
-        viewName: String?,
-        attributes: [String: String],
-        tagId: String,
-        selectionId: String,
-        trackingConsent: UInt?,
-        startDate: Date,
-        onExperiencesRequestStart: @escaping () -> Void,
-        onExperiencesRequestEnd: @escaping () -> Void
-    ) {
-        let cacheAttributes = roktConfig.cacheConfig.getCacheAttributesOrFallback(attributes)
-
-        if isCacheEnabledAndConfigured(),
-           let cachedExperience = ExperienceCacheManager.getCachedExperienceResponse(
-               viewName: viewName,
-               attributes: cacheAttributes,
-               cacheDuration: roktConfig.cacheConfig.cacheDuration
-           ) {
-            onExperiencesRequestEnd()
-            isExecuting = false
-
-            guard let layoutPageExecutePayload = processLayoutPageExecutePayload(
-                cachedExperience, selectionId: selectionId, viewName: viewName, attributes: attributes
-            ) else {
-                conclude(withFailure: true)
-                return
-            }
-
-            RoktAPIHelper.sendDiagnostics(
-                message: kCacheHitCode,
-                callStack: String(format: kCacheHitMessage, viewName ?? ""),
-                severity: .info,
-                additionalInfo: [
-                    kCacheDurationKey: String(roktConfig.cacheConfig.cacheDuration),
-                    kCacheAttributesKey: Array(cacheAttributes.keys).description
-                ]
-            )
-
-            let payload = ExecutePayload(layoutPage: layoutPageExecutePayload,
-                                         startDate: startDate,
-                                         selectionId: selectionId)
-            show(payload)
-        } else {
-            fetchAndProcessExperience(
-                viewName: viewName,
-                attributes: attributes,
-                tagId: tagId,
-                selectionId: selectionId,
-                trackingConsent: trackingConsent,
-                startDate: startDate,
-                onExperiencesRequestStart: onExperiencesRequestStart,
-                onExperiencesRequestEnd: onExperiencesRequestEnd
-            )
-        }
-    }
-
-    @available(iOS 15, *)
-    private func fetchAndProcessExperience(
-        viewName: String?,
-        attributes: [String: String],
-        tagId: String,
-        selectionId: String,
-        trackingConsent: UInt?,
-        startDate: Date,
-        onExperiencesRequestStart: @escaping () -> Void,
-        onExperiencesRequestEnd: @escaping () -> Void
-    ) {
-        RoktAPIHelper.getExperienceData(
-            viewName: viewName,
-            attributes: attributes,
-            roktTagId: tagId,
-            selectionId: selectionId,
-            trackingConsent: trackingConsent,
-            config: roktConfig,
-            onRequestStart: onExperiencesRequestStart,
-            successLayout: { page in
-                onExperiencesRequestEnd()
-                self.isExecuting = false
-
-                guard let page else {
-                    self.conclude(withFailure: true)
-                    return
-                }
-
-                if self.isCacheEnabledAndConfigured() {
-                    let cacheAttributes = self.roktConfig.cacheConfig
-                        .getCacheAttributesOrFallback(attributes)
-                    DispatchQueue.background.async {
-                        ExperienceCacheManager.cacheExperienceResponse(
-                            viewName: viewName,
-                            attributes: cacheAttributes,
-                            experienceResponse: page
-                        )
-                    }
-                }
-
-                let attributesForPluginStates = self.roktConfig.cacheConfig
-                    .getCacheAttributesOrFallback(attributes)
-                guard let layoutPageExecutePayload = self.processLayoutPageExecutePayload(
-                    page, selectionId: selectionId,
-                    viewName: viewName, attributes: attributesForPluginStates
-                ) else {
-                    self.conclude(withFailure: true)
-                    return
-                }
-
-                let payload = ExecutePayload(
-                    layoutPage: layoutPageExecutePayload,
-                    startDate: startDate,
-                    selectionId: selectionId
-                )
-                self.show(payload)
-            },
-            failure: { (error, statusCode, response) in
-                onExperiencesRequestEnd()
-                self.executeFailureHandler(error, statusCode, response)
-            }
-        )
     }
 
     private func isCacheEnabledAndConfigured() -> Bool {
