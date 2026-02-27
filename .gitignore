@@ -5,6 +5,7 @@ DerivedData/
 DerivedData-periphery/
 xcuserdata/
 *.xcuserstate
+*.xcresult
 Package.resolved
 vendor/
 Tests/Rokt_WidgetTests/**/*.swift.plist
