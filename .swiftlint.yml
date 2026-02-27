@@ -1,0 +1,22 @@
+disabled_rules:
+  - trailing_whitespace
+  - identifier_name
+  - force_cast
+  - weak_delegate
+  - function_parameter_count
+  - file_length
+  - type_body_length
+  - cyclomatic_complexity
+  - function_body_length
+
+line_length:
+  warning: 130
+  error: 160
+  ignores_comments: true
+  ignores_urls: true
+
+included:
+  - Sources
+  - Example/rokt
+  - Example/Tests
+  - Tests

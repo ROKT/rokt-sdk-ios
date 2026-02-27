@@ -1,0 +1,173 @@
+name: Pull Request
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - workstation/*
+
+permissions:
+  contents: read
+  pull-requests: read
+  checks: write
+  id-token: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  trunk-check:
+    name: Trunk Check
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+
+      - name: Trunk Check
+        uses: trunk-io/trunk-action@75699af9e26881e564e9d832ef7dc3af25ec031b # v1.2.4
+        with:
+          check-mode: all
+
+  unit-test:
+    name: SPM Unit Tests
+    runs-on: macos-latest-xlarge
+    needs: trunk-check
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@60606e260d2fc5762a71e64e74b2174e8ea3c8bd # v1.6.0
+        with:
+          xcode-version: "16.4"
+
+      - name: Resolve dependencies
+        run: swift package resolve
+
+      - name: Run tests
+        run: |
+          xcodebuild test \
+            -scheme Rokt-Widget \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest' \
+            -enableCodeCoverage YES \
+            -skipPackagePluginValidation \
+            -resultBundlePath TestResult.xcresult
+
+      - name: Install xcresultparser
+        if: always()
+        run: brew install xcresultparser
+
+      - name: Process coverage report
+        if: always()
+        run: |
+          xcresultparser --output-format cobertura TestResult.xcresult --project-root "$(pwd)" > "coverage.xml"
+
+      - name: Upload coverage report
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: unittests
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: TestResult.xcresult
+          path: TestResult.xcresult
+
+  ui-test:
+    name: UI Tests
+    runs-on: macos-latest-xlarge
+    needs: trunk-check
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@60606e260d2fc5762a71e64e74b2174e8ea3c8bd # v1.6.0
+        with:
+          xcode-version: "16.4"
+
+      - name: Run UI tests
+        run: |
+          xcodebuild test \
+            -project Example/rokt.xcodeproj \
+            -scheme rokt-Example-MOCK \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest' \
+            -enableCodeCoverage YES \
+            -skipPackagePluginValidation \
+            -resultBundlePath UiTestResult.xcresult \
+            -retry-tests-on-failure
+
+      - name: Install xcresultparser
+        if: always()
+        run: brew install xcresultparser
+
+      - name: Process coverage report
+        if: always()
+        run: |
+          xcresultparser --output-format cobertura UiTestResult.xcresult --project-root "$(pwd)" > "ui-coverage.xml"
+
+      - name: Upload coverage report
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./ui-coverage.xml
+          flags: ui-tests
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: UiTestResult.xcresult
+          path: UiTestResult.xcresult
+
+  periphery-scan:
+    name: Periphery Scan
+    runs-on: macos-latest-xlarge
+    needs: trunk-check
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@60606e260d2fc5762a71e64e74b2174e8ea3c8bd # v1.6.0
+        with:
+          xcode-version: "16.4"
+
+      - name: Install Periphery
+        run: brew install periphery
+
+      - name: Build Example App
+        run: |
+          xcodebuild -project "Example/rokt.xcodeproj" -scheme "rokt-Example" -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest' -derivedDataPath "DerivedData-periphery" -quiet build CODE_SIGNING_ALLOWED="NO" ENABLE_BITCODE="NO" DEBUG_INFORMATION_FORMAT="dwarf" COMPILER_INDEX_STORE_ENABLE="YES" INDEX_ENABLE_DATA_STORE="YES"
+
+      - name: Run Periphery Scan
+        run: periphery scan --format github-actions
+
+  size-report:
+    name: SDK Size Report
+    needs: trunk-check
+    uses: ./.github/workflows/ci-size-report.yml
+    permissions:
+      contents: read
+      pull-requests: write
+
+  pr-notify:
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.draft == false
+    name: Notify GChat
+    needs: [unit-test, ui-test, periphery-scan]
+    uses: ROKT/rokt-workflows/.github/workflows/oss_pr_opened_notification.yml@main
+    secrets:
+      gchat_webhook: ${{ secrets.GCHAT_PRS_MOBILE_INTEGRATION_CHANNEL_WEBHOOK }}

@@ -1,0 +1,157 @@
+name: Release – Publish
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - VERSION
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build-and-release:
+    runs-on: macos-latest-xlarge
+    outputs:
+      release_version: ${{ steps.version-file.outputs.release-version }}
+      release_notes: ${{ steps.extract-release-notes.outputs.release_notes }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@60606e260d2fc5762a71e64e74b2174e8ea3c8bd # v1.6.0
+        with:
+          xcode-version: "16.4"
+
+      - name: Get current version
+        id: version-file
+        run: |
+          version_from_file=$(head -n 1 VERSION)
+          echo "release-version=$version_from_file" >> $GITHUB_OUTPUT
+
+      - name: Get changelog content
+        id: extract-release-notes
+        uses: ffurrer2/extract-release-notes@202313ec7461b6b9e401996714484690ab1ae105 # v3.0.0
+        with:
+          changelog_file: CHANGELOG.md
+          release_notes_file: ${{ steps.version-file.outputs.release-version }}.md
+
+      - name: Build xcframework
+        run: ./scripts/build_xcframework_zip.sh
+
+      - name: Create Release
+        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
+        with:
+          tag_name: ${{ steps.version-file.outputs.release-version }}
+          name: Release ${{ steps.version-file.outputs.release-version }}
+          make_latest: true
+          body: |
+            Release ${{ steps.version-file.outputs.release-version }}
+            ## Changelog
+            ${{ steps.extract-release-notes.outputs.release_notes }}
+          files: vendor/Rokt_Widget.xcframework.zip
+
+      - name: Upload release notes
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: release-notes
+          path: ${{ steps.version-file.outputs.release-version }}.md
+
+  publish-cocoapods:
+    needs: build-and-release
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install CocoaPods
+        run: sudo gem install cocoapods
+
+      - name: Validate Podspec
+        run: pod spec lint Rokt-Widget.podspec --allow-warnings --verbose
+
+      - name: Publish to CocoaPods
+        run: pod trunk push Rokt-Widget.podspec --allow-warnings
+        env:
+          COCOAPODS_TRUNK_TOKEN: ${{ secrets.COCOAPODS_TRUNK_TOKEN }}
+
+  upload-release-notes:
+    needs: build-and-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate token
+        id: generate_token
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        with:
+          app-id: ${{ secrets.SDK_RELEASE_GITHUB_APP_ID }}
+          private-key: ${{ secrets.SDK_RELEASE_GITHUB_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: |
+            rokt-docs
+
+      - name: Checkout rokt-docs
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: ROKT/rokt-docs
+          token: ${{ steps.generate_token.outputs.token }}
+          ref: main
+          persist-credentials: false
+
+      - name: Download release notes
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: release-notes
+          path: ./
+
+      - name: Move release notes to docs
+        run: |
+          mv ${{ needs.build-and-release.outputs.release_version }}.md changelogs/ios/${{ needs.build-and-release.outputs.release_version }}.md
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
+        with:
+          token: ${{ steps.generate_token.outputs.token }}
+          commit-message: Update iOS SDK Release Notes
+          branch: update-ios-sdk-release-notes-${{ needs.build-and-release.outputs.release_version }}
+          title: NOJIRA - Update iOS SDK Release Notes
+          base: main
+          body: |
+            # Update iOS SDK Release Notes
+
+            iOS SDK version ${{ needs.build-and-release.outputs.release_version }} has been released.
+
+            Please review and merge the PR to update the release notes.
+          labels: |
+            chore
+
+  trigger-demo-app-release:
+    needs: [build-and-release, publish-cocoapods]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate token
+        id: generate_token
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        with:
+          app-id: ${{ secrets.SDK_RELEASE_GITHUB_APP_ID }}
+          private-key: ${{ secrets.SDK_RELEASE_GITHUB_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: rokt-demo-ios
+
+      - name: Dispatch Event
+        uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
+        with:
+          token: ${{ steps.generate_token.outputs.token }}
+          repository: ROKT/rokt-demo-ios
+          event-type: release-build
+          client-payload: |
+            {
+              "version_name": "${{ needs.build-and-release.outputs.release_version }}",
+              "release_notes": ${{ toJSON(needs.build-and-release.outputs.release_notes) }}
+            }
