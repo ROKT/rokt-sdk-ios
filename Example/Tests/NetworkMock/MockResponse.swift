@@ -13,7 +13,7 @@ protocol StubMethodsProvider: AnyObject {
 }
 
 extension StubMethodsProvider {
-    
+
     func stubInit(fileName: String = kValidInitFilename) {
         let configuration = URLSessionConfiguration.default
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])

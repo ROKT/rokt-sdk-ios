@@ -99,23 +99,23 @@ class TagIdSelectionTableViewController: UIViewController, UIPickerViewDelegate,
                 pageIdentifier: "iOSEmailQA"
             ))
         case .Prod, .ProdDemo:
-            roktTags.append(RoktTag(id: "5493421698751728344", name: "Layout Overlay", pageIdentifier: "RoktLayout"))
+            roktTags.append(RoktTag(id: "2754655826098840951", name: "Layout Overlay", pageIdentifier: "RoktLayout"))
             roktTags.append(RoktTag(
-                id: "5493421698751728344",
+                id: "2754655826098840951",
                 name: "Layout BottomSheet",
                 pageIdentifier: "iOSTemplateBottomSheet"
             ))
-            roktTags.append(RoktTag(id: "5493421698751728344", name: "Layout Embedded", pageIdentifier: "iOSTemplateEmbedded"))
-            roktTags.append(RoktTag(id: "5493421698751728344", name: "MobileTeam LightBox", pageIdentifier: "tesLightboxiOS"))
-            roktTags.append(RoktTag(id: "5493421698751728344", name: "MobileTeam Embedded", pageIdentifier: "testiOS"))
-            roktTags.append(RoktTag(id: "5493421698751728344", name: "MobileTeam Overlay", pageIdentifier: "iOSOverlay"))
-            roktTags.append(RoktTag(id: "5493421698751728344", name: "MobileTeam BottomSheet", pageIdentifier: "iOSBottomSheet"))
+            roktTags.append(RoktTag(id: "2754655826098840951", name: "Layout Embedded", pageIdentifier: "iOSTemplateEmbedded"))
+            roktTags.append(RoktTag(id: "2754655826098840951", name: "MobileTeam LightBox", pageIdentifier: "tesLightboxiOS"))
+            roktTags.append(RoktTag(id: "2754655826098840951", name: "MobileTeam Embedded", pageIdentifier: "testiOS"))
+            roktTags.append(RoktTag(id: "2754655826098840951", name: "MobileTeam Overlay", pageIdentifier: "iOSOverlay"))
+            roktTags.append(RoktTag(id: "2754655826098840951", name: "MobileTeam BottomSheet", pageIdentifier: "iOSBottomSheet"))
             roktTags.append(RoktTag(
-                id: "5493421698751728344",
+                id: "2754655826098840951",
                 name: "MobileTeam Multiple1",
                 pageIdentifier: "TwoiOStestLboxAndE"
             ))
-            roktTags.append(RoktTag(id: "5493421698751728344", name: "MobileTeam Multiple2", pageIdentifier: "testTwoEmbedded"))
+            roktTags.append(RoktTag(id: "2754655826098840951", name: "MobileTeam Multiple2", pageIdentifier: "testTwoEmbedded"))
         default: break
         }
         tagIdPicker.reloadAllComponents()

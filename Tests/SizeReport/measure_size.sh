@@ -171,35 +171,16 @@ if [[ -d ${WITHSDK_APP} ]]; then
 	WITHSDK_EXECUTABLE_SIZE=$(get_executable_size "${WITHSDK_APP}")
 fi
 
-# Get the embedded framework size from the app bundle.
-# Depending on how Xcode names the product for the package graph, this can be
-# either Rokt_Widget.framework or Rokt-Widget.framework.
+# Get the embedded framework size from the app bundle
+FRAMEWORK_PATH="${WITHSDK_APP}/Frameworks/Rokt_Widget.framework"
 FRAMEWORK_SIZE_KB=0
 FRAMEWORK_BINARY_SIZE=0
-FRAMEWORK_NAME=""
-
-for candidate in "Rokt_Widget" "Rokt-Widget"; do
-	framework_path="${WITHSDK_APP}/Frameworks/${candidate}.framework"
-	if [[ -d ${framework_path} ]]; then
-		FRAMEWORK_NAME="${candidate}.framework"
-		# shellcheck disable=SC2311
-		FRAMEWORK_SIZE_KB=$(get_dir_size_kb "${framework_path}")
-
-		binary_path="${framework_path}/${candidate}"
-		if [[ ! -f ${binary_path} ]]; then
-			for binary_candidate in "Rokt_Widget" "Rokt-Widget"; do
-				if [[ -f "${framework_path}/${binary_candidate}" ]]; then
-					binary_path="${framework_path}/${binary_candidate}"
-					break
-				fi
-			done
-		fi
-
-		# shellcheck disable=SC2311
-		FRAMEWORK_BINARY_SIZE=$(get_file_size_bytes "${binary_path}")
-		break
-	fi
-done
+if [[ -d ${FRAMEWORK_PATH} ]]; then
+	# shellcheck disable=SC2311
+	FRAMEWORK_SIZE_KB=$(get_dir_size_kb "${FRAMEWORK_PATH}")
+	# shellcheck disable=SC2311
+	FRAMEWORK_BINARY_SIZE=$(get_file_size_bytes "${FRAMEWORK_PATH}/Rokt_Widget")
+fi
 
 # Calculate SDK impact (with-SDK app minus baseline)
 SDK_IMPACT_KB=$((WITHSDK_SIZE_KB - BASELINE_SIZE_KB))
@@ -224,7 +205,7 @@ else
 	echo "  Executable size: ${WITHSDK_EXECUTABLE_SIZE} bytes"
 	echo ""
 	if [[ ${FRAMEWORK_SIZE_KB} -gt 0 ]]; then
-		echo "Embedded Framework (${FRAMEWORK_NAME}):"
+		echo "Embedded Framework (Rokt_Widget.framework):"
 		echo "  Framework size: ${FRAMEWORK_SIZE_KB} KB"
 		echo "  Binary size: ${FRAMEWORK_BINARY_SIZE} bytes"
 		echo ""

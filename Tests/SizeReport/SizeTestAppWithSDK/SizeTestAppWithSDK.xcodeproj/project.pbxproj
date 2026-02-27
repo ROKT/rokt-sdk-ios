@@ -3,12 +3,11 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 60;
+	objectVersion = 70;
 	objects = {
 
 /* Begin PBXBuildFile section */
-		89FF53502F27C2D600DEA060 /* Rokt-Widget in Frameworks */ = {isa = PBXBuildFile; productRef = 89FF534F2F27C2D600DEA060 /* Rokt-Widget */; };
-		89FF53512F27C2D600DEA060 /* Rokt-Widget in Embed Frameworks */ = {isa = PBXBuildFile; productRef = 89FF534F2F27C2D600DEA060 /* Rokt-Widget */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		B33E422B2F4EAA38001F6C80 /* Rokt-Widget in Frameworks */ = {isa = PBXBuildFile; productRef = B33E422A2F4EAA38001F6C80 /* Rokt-Widget */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -18,7 +17,6 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				89FF53512F27C2D600DEA060 /* Rokt-Widget in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -30,11 +28,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		89FF53AC2F27C2D600DEA060 /* SizeTestAppWithSDK */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = SizeTestAppWithSDK;
-			sourceTree = "<group>";
-		};
+		89FF53AC2F27C2D600DEA060 /* SizeTestAppWithSDK */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = SizeTestAppWithSDK; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -42,7 +36,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				89FF53502F27C2D600DEA060 /* Rokt-Widget in Frameworks */,
+				B33E422B2F4EAA38001F6C80 /* Rokt-Widget in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -86,7 +80,7 @@
 			);
 			name = SizeTestAppWithSDK;
 			packageProductDependencies = (
-				89FF534F2F27C2D600DEA060 /* Rokt-Widget */,
+				B33E422A2F4EAA38001F6C80 /* Rokt-Widget */,
 			);
 			productName = SizeTestAppWithSDK;
 			productReference = 89FF53AA2F27C2D600DEA060 /* SizeTestAppWithSDK.app */;
@@ -108,6 +102,7 @@
 				};
 			};
 			buildConfigurationList = 89FF53A52F27C2D600DEA060 /* Build configuration list for PBXProject "SizeTestAppWithSDK" */;
+			compatibilityVersion = "Xcode 15.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -116,11 +111,10 @@
 			);
 			mainGroup = 89FF53A12F27C2D600DEA060;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 60;
-			productRefGroup = 89FF53AB2F27C2D600DEA060 /* Products */;
 			packageReferences = (
-				89FF534E2F27C2D600DEA060 /* XCLocalSwiftPackageReference "../../.." */,
+				B33E42292F4EAA38001F6C80 /* XCLocalSwiftPackageReference "../../.." */,
 			);
+			productRefGroup = 89FF53AB2F27C2D600DEA060 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -353,14 +347,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		89FF534E2F27C2D600DEA060 /* XCLocalSwiftPackageReference "../../.." */ = {
+		B33E42292F4EAA38001F6C80 /* XCLocalSwiftPackageReference "../../.." */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = "../../..";
 		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		89FF534F2F27C2D600DEA060 /* Rokt-Widget */ = {
+		B33E422A2F4EAA38001F6C80 /* Rokt-Widget */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = "Rokt-Widget";
 		};

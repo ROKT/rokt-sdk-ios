@@ -11,8 +11,8 @@ Measures the Rokt SDK's impact on app size by comparing a baseline app (no SDK) 
 ## Usage
 
 ```bash
-./measure_size.sh                  # Human-readable output
-./measure_size.sh --json           # JSON output for CI
+./measure_size.sh              # Human-readable output
+./measure_size.sh --json       # JSON output for CI
 ./measure_size.sh --with-sdk-only  # Only measure with-SDK app
 ```
 
@@ -23,7 +23,7 @@ Measures the Rokt SDK's impact on app size by comparing a baseline app (no SDK) 
 
 ## CI Integration
 
-The `.github/workflows/size_report.yml` workflow runs on PRs to report size changes.
+The `.github/workflows/size-report.yml` workflow runs on PRs to report size changes.
 
 ## Example Measurements
 

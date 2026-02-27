@@ -53,7 +53,7 @@ class OrderCompleteTableViewController: UIViewController, UITableViewDelegate, U
     private func onRoktEvent(roktEvent: RoktEvent) {
 
         print("Received Rokt event \(roktEvent)")
-        
+
         if roktEvent is RoktEvent.EmbeddedSizeChanged {
             onEmbeddedSizeChange()
         }
