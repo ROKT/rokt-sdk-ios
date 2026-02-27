@@ -1,0 +1,327 @@
+{
+  "breakpoints": {
+    "Landscape": 500,
+    "Portrait": 590
+  },
+  "layout": {
+    "type": "BottomSheet",
+    "node": {
+      "allowBackdropToClose": true,
+      "styles": {
+        "elements": {
+          "own": [
+            {
+              "default": {
+                "spacing": {
+                  "margin": "0 10 10 10"
+                },
+                "background": {
+                  "backgroundColor": {
+                    "light": "#FFFFFF",
+                    "dark": "#000000"
+                  }
+                },
+                "dimension": {
+                  "height": {
+                    "type": "fit",
+                    "value": "wrap-content"
+                  }
+                }
+              }
+            }
+          ],
+          "wrapper": [
+            {
+              "default": {
+                "background": {
+                  "backgroundColor": {
+                    "light": "#aa000000",
+                    "dark": "#aaffffff"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "children": [
+        {
+          "type": "Row",
+          "node": {
+            "children": [
+              {
+                "type": "CloseButton",
+                "node": {
+                  "children": [
+                    {
+                      "type": "StaticImage",
+                      "node": {
+                        "url": {
+                          "light": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAACXBIWXMAAAsTAAALEwEAmpwYAAAA1UlEQVR4nO2WWwqDMBBFzxYGDHQX/nT3tTvoRx/QLidFGCG0oSSZUaHkgj8m3ns0GTPQ1fWtETgDA34S4AQcSyZPQASuThCDekX1LqK96AM3I0TqVfVC4gDRHJ4zeAIHyhUU3PwVpQHCLbwFYg6/e4bXQKwWngt4fUCkY7X7xQyxWfiiNPChV9R789gmCglEbkn+GyDsuQQhs+F+Vcfq4YtWhwgFpZb+gl3LMVTUuTuENBzLbv2EGIzMEGJtJiwQ4hBugpj2bkpHneh5ng/qOXt3dZHqDfFzelMExbN1AAAAAElFTkSuQmCC",
+                          "dark": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAeCAYAAAA7MK6iAAAACXBIWXMAABYlAAAWJQFJUiTwAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAEzSURBVHgB5dbLEYJADADQrDPgeMNObMFKtCUrsgTpRA7yW9S4gVn5437Cycx4AHby2AgJAH8dT5mfZJneEO8RMAciRpSbjBFaFinSjxvXqM5PltAXZaEwgIM+FgLiIJRHIfYJeAShlcyuiN3cIu4suEeE67vi2Plwp03O7EbnBwv5cGOUE7dGOXBn1Af3Rl1wNtQGZ0dNcFdUGNo1XpXhddhkmmv95hCEO9V4RMICz+G9ZIaoU0yV3eU/3YB1RDN1UnUA841alnrc8HvJLAaL8Y7npoy687hdA4dKqmeAa6QuvTJrTLWfaLuGGbdpDmy4S0fyxn16rzPO0fCtcc4pY4yvMdqW8Pbztj5hP2VM8Kmp9u1crzdeuNEm1z4JtqqNdjpc16ojzx9nli+HidBlJ4OOP63b8P6qZs9iAAAAAElFTkSuQmCC"
+                        },
+                        "styles": {
+                          "elements": {
+                            "own": [
+                              {
+                                "default": {
+                                  "dimension": {
+                                    "minHeight": 15,
+                                    "maxHeight": 15
+                                  },
+                                  "spacing": {
+                                    "margin": "5 10 5 5",
+                                    "offset": "0"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "RichText",
+                "node": {
+                  "value": "Thanks! Your order # is",
+                  "styles": {
+                    "elements": {
+                      "own": [
+                        {
+                          "default": {
+                            "text": {
+                              "fontSize": 15,
+                              "fontFamily": "GorditaBold",
+                              "textColor": {
+                                "light": "#000000",
+                                "dark": "#ffffff"
+                              }
+                            },
+                            "spacing": {
+                              "margin": "0 8 0 8"
+                            },
+                            "flexChild": {
+                              "weight": 1
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            ],
+            "styles": {
+              "elements": {
+                "own": [
+                  {
+                    "default": {
+                      "spacing": {
+                        "margin": "10 0 0 10"
+                      },
+                      "dimension": {
+                        "width": {
+                          "type": "fit",
+                          "value": "fit-width"
+                        }
+                      },
+                      "background": {
+                        "backgroundColor": {
+                          "light": "#FFFFFF",
+                          "dark": "#000000"
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "type": "OneByOneDistribution",
+          "node": {
+            "transition": {
+              "type": "FadeInOut",
+              "settings": {
+                "duration": 300
+              }
+            },
+            "styles": {
+              "elements": {
+                "own": [
+                  {
+                    "default": {
+                      "flexChild": {
+                        "weight": 1
+                      },
+                      "background": {
+                        "backgroundColor": {
+                          "light": "#ffffff",
+                          "dark": "#000000"
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "type": "ProgressIndicator",
+          "node": {
+            "indicator": " ",
+            "styles": {
+              "elements": {
+                "own": [
+                  {
+                    "default": {
+                      "container": {
+                        "justifyContent": "center"
+                      },
+                      "spacing": {
+                        "padding": "0 10 10 10"
+                      },
+                      "flexChild": {
+                        "alignSelf": "center"
+                      }
+                    }
+                  }
+                ],
+                "indicator": [
+                  {
+                    "default": {
+                      "container": {
+                        "alignItems": "center",
+                        "justifyContent": "center"
+                      },
+                      "border": {
+                        "borderRadius": 5
+                      },
+                      "background": {
+                        "backgroundColor": {
+                          "light": "#D5D5D5",
+                          "dark": "#D5D5D5"
+                        }
+                      },
+                      "dimension": {
+                        "width": {
+                          "type": "fixed",
+                          "value": 8
+                        },
+                        "height": {
+                          "type": "fixed",
+                          "value": 8
+                        }
+                      },
+                      "spacing": {
+                        "margin": "0 5 0 5"
+                      }
+                    }
+                  }
+                ],
+                "activeIndicator": [
+                  {
+                    "default": {
+                      "background": {
+                        "backgroundColor": {
+                          "light": "#000000",
+                          "dark": "#000000"
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "type": "Row",
+          "node": {
+            "styles": {
+              "elements": {
+                "own": [
+                  {
+                    "default": {
+                      "spacing": {
+                        "margin": "0 24 0 24"
+                      },
+                      "dimension": {
+                        "height": {
+                          "type": "fixed",
+                          "value": 1
+                        }
+                      },
+                      "background": {
+                        "backgroundColor": {
+                          "light": "#D5D5D5",
+                          "dark": "#D5D5D5"
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "children": []
+          }
+        },
+        {
+          "type": "RichText",
+          "node": {
+            "value": "<a href='https://rokt.com/privacy-policy/'>Powered by Rokt - Privacy Policy</a>",
+            "styles": {
+              "elements": {
+                "own": [
+                  {
+                    "default": {
+                      "text": {
+                        "fontSize": 12,
+                        "textColor": {
+                          "light": "#000000",
+                          "dark": "#ffffff"
+                        },
+                        "fontFamily": "GorditaRegular"
+                      },
+                      "spacing": {
+                        "margin": "8 24 16 0"
+                      },
+                      "flexChild": {
+                        "alignSelf": "flex-end"
+                      }
+                    }
+                  }
+                ],
+                "link": [
+                  {
+                    "default": {
+                      "text": {
+                        "fontSize": 12,
+                        "textColor": {
+                          "light": "#000000",
+                          "dark": "#ffffff"
+                        },
+                        "fontFamily": "GorditaRegular"
+                      },
+                      "background": {
+                        "backgroundColor": {
+                          "light": "#FFFFFF",
+                          "dark": "#000000"
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "type": "Text",
+  "node": {
+    "value": "Order Number: Uk171359906",
+    "styles": {
+      "elements": {
+        "self": [
+          {
+            "default": {
+              "text": {
+                "fontFamily": "arial",
+                "fontSize": "20",
+                "textTransform": "uppercase"
+              },
+              "spacing": {
+                "padding": "1 0 1 8",
+                "margin": "0 0 16 0"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
