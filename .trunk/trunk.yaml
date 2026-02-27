@@ -17,13 +17,22 @@ runtimes:
     - python@3.10.8
 # This is the section where you manage your linters. (https://docs.trunk.io/check/configuration)
 lint:
+  definitions:
+    - name: objc-prop-check
+      files: [swift]
+      commands:
+        - name: lint
+          run: sh ${workspace}/.trunk/scripts/trunk-objc-check.sh ${target}
+          output: pass_fail
+          success_codes: [0, 1]
   ignore:
     - linters: [ALL]
       paths:
         - Example/rokt.xcodeproj/**
   enabled:
+    - objc-prop-check
     - actionlint@1.7.11
-    - checkov@3.2.504
+    - checkov@3.2.506
     - git-diff-check
     - markdownlint@0.47.0
     - osv-scanner@2.3.3
@@ -35,9 +44,8 @@ lint:
     - trufflehog@3.93.4
     - yamllint@1.38.0
 actions:
-  disabled:
+  enabled:
+    - trunk-upgrade-available
     - trunk-announce
     - trunk-check-pre-push
     - trunk-fmt-pre-commit
-  enabled:
-    - trunk-upgrade-available
