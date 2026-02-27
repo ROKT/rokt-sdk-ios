@@ -87,7 +87,7 @@
       "s:So17OS_dispatch_queueC11Rokt_WidgetE15userInteractiveABvpZ",
       "s:So17OS_dispatch_queueC11Rokt_WidgetE5after_7executeySd_yyctF",
       "s:So17OS_dispatch_queueC11Rokt_WidgetE7utilityABvpZ",
-      "superfluous-ignore-s:11Rokt_Widget23ProcessedTimingsRequestV16pageInstanceGuidSSSgvp"
+      "s:11Rokt_Widget23ProcessedTimingsRequestV16pageInstanceGuidSSSgvp"
     ]
   }
 }
