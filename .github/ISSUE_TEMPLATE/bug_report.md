@@ -32,6 +32,7 @@ If applicable, add screenshots to help explain your problem.
 - If relevant what method are you calling to experience the bug and how are you calling it
 
 **Stacktrace (if applicable)**
+Paste the relevant stacktrace here.
 
 **Additional context**
 Add any other context about the problem here.
