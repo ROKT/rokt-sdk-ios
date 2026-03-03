@@ -4,8 +4,8 @@
   "clientSessionTimeoutMilliseconds": 3000,
   "fonts": [
     {
-        "fontName": "HelveticaNeue",
-        "fontUrl": "https://test/robotomono-thinitalic.ttf"
+      "fontName": "HelveticaNeue",
+      "fontUrl": "https://test/robotomono-thinitalic.ttf"
     }
   ],
   "roktTrackingStatus": true,
