@@ -15,8 +15,10 @@ class TagIdSelectionTableViewController: UIViewController, UIPickerViewDelegate,
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        setEnvironment(.Stage)
         setTagIds(.Stage)
         title = "Rokt Tag Selection"
+        customTagIdTextField.text = "2754655826098840951"
         customTagIdTextField.delegate = self
         self.view.addGestureRecognizer(UITapGestureRecognizer(target: self.view, action: #selector(UIView.endEditing(_:))))
     }
