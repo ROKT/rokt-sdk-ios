@@ -18,11 +18,6 @@ info:
     - lang-swift
     - serviceTier-3
 
-  x-cortex-oncall:
-    opsgenie:
-      type: SCHEDULE
-      id: Mobile Integrations_schedule
-
   x-cortex-ci-cd:
     buildkite:
       pipelines:
