@@ -20,7 +20,7 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(url: "https://github.com/ROKT/rokt-ux-helper-ios.git", exact: "0.8.1"),
+        .package(url: "https://github.com/ROKT/rokt-ux-helper-ios.git", .upToNextMajor(from: "0.8.1")),
         .package(url: "https://github.com/WeTransfer/Mocker.git", .upToNextMajor(from: "2.0.0"))
     ],
     targets: [

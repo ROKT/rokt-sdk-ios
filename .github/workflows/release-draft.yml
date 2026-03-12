@@ -27,7 +27,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: main
           fetch-depth: 0
 
       - name: Select Xcode
@@ -61,22 +60,6 @@ jobs:
           version="${{ steps.bump-version.outputs.new_version }}"
           sed -i '' "s/s\.version[[:space:]]*=[[:space:]]*'[0-9.]*'/s.version          = '${version}'/" Rokt-Widget.podspec
 
-      - name: Get latest RoktUXHelper release tag
-        id: get-ux-helper-version
-        uses: joutvhu/get-release@9a8271732adc3299a22f8ad09b0a67eb3aa836ac # v1.0.3
-        with:
-          owner: ROKT
-          repo: rokt-ux-helper-ios
-          latest: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Update RoktUXHelper version in Package.swift
-        run: |
-          version="${{ steps.get-ux-helper-version.outputs.tag_name }}"
-          echo "Updating RoktUXHelper version to $version"
-          sed -i '' "/rokt-ux-helper-ios\.git/s/exact: \".*\"/exact: \"${version}\"/" ./Package.swift
-
       - name: Generate changelog from git history
         id: changelog
         uses: ROKT/rokt-workflows/actions/generate-changelog@main
@@ -89,11 +72,10 @@ jobs:
           commit-message: "Prepare release ${{ steps.bump-version.outputs.new_version }}"
           branch: release/${{ steps.bump-version.outputs.new_version }}
           title: "Release ${{ steps.bump-version.outputs.new_version }}"
-          base: main
+          base: ${{ github.ref_name }}
           body: |
             Preparing for release ${{ steps.bump-version.outputs.new_version }}
             - Bumped version to ${{ steps.bump-version.outputs.new_version }}
-            - Updated RoktUXHelper to ${{ steps.get-ux-helper-version.outputs.tag_name }}
             - Updated changelog
             ## Changelog
             ${{ steps.changelog.outputs.release-notes }}
