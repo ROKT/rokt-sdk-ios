@@ -1,9 +1,10 @@
-name: Merge to main
+name: Release – Publish
 
 on:
   push:
     branches:
       - main
+      - release/*
     paths:
       - VERSION
 
@@ -38,6 +39,7 @@ jobs:
         with:
           tag_name: ${{ steps.version-file.outputs.release-version }}
           name: Release ${{ steps.version-file.outputs.release-version }}
+          make_latest: ${{ github.ref_name == 'main' }}
           body: |
             Release ${{ steps.version-file.outputs.release-version }}
             ## Changelog
@@ -74,6 +76,7 @@ jobs:
 
   trigger-demo-app-release:
     needs: [release-rokt-sdk, publish-rokt-sdk]
+    if: github.ref_name == 'main'
     runs-on: ubuntu-latest
     steps:
       - name: Generate token
