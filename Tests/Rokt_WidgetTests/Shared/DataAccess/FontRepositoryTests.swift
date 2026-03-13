@@ -93,6 +93,52 @@ class FontRepositoryTests: XCTestCase {
         XCTAssertNil(FontRepository.loadFontDetail(key: "test"))
     }
 
+    // MARK: - Failure path: completion called even when write fails
+
+    func test_saveFontDetail_withUnwritablePath_stillCallsCompletion() {
+        FontRepository.setFontDownloadDetailFileName("nonexistent-subdir/testfile")
+
+        let expectation = expectation(description: "completion called on write failure")
+        FontRepository.saveFontDetail(key: "test", values: ["key": "value"]) {
+            expectation.fulfill()
+        }
+
+        waitForExpectations(timeout: 15)
+    }
+
+    func test_saveFontUrl_withUnwritablePath_stillCallsCompletion() {
+        FontRepository.setFontDownloadURLFileName("nonexistent-subdir/testfile")
+
+        let expectation = expectation(description: "completion called on write failure")
+        FontRepository.saveFontUrl(key: "test") {
+            expectation.fulfill()
+        }
+
+        waitForExpectations(timeout: 15)
+    }
+
+    func test_removeFontDetail_withUnwritablePath_stillCallsCompletion() {
+        FontRepository.setFontDownloadDetailFileName("nonexistent-subdir/testfile")
+
+        let expectation = expectation(description: "completion called on write failure")
+        FontRepository.removeFontDetail(key: "test") {
+            expectation.fulfill()
+        }
+
+        waitForExpectations(timeout: 15)
+    }
+
+    func test_removeFontUrl_withUnwritablePath_stillCallsCompletion() {
+        FontRepository.setFontDownloadURLFileName("nonexistent-subdir/testfile")
+
+        let expectation = expectation(description: "completion called on write failure")
+        FontRepository.removeFontUrl(key: "test") {
+            expectation.fulfill()
+        }
+
+        waitForExpectations(timeout: 15)
+    }
+
     // MARK: - Font URLs
 
     func test_saveFontURL_shouldSaveDataToFile() {

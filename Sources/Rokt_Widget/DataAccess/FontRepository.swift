@@ -49,6 +49,7 @@ class FontRepository {
                 completion?()
             case .failure(let error):
                 sendDiagnosticWith(prefix: fontURLSaveErrorPrefix, error: error)
+                completion?()
             }
         }
     }
@@ -72,6 +73,7 @@ class FontRepository {
                 completion?()
             case .failure(let error):
                 sendDiagnosticWith(prefix: fontURLDeleteErrorPrefix, error: error)
+                completion?()
             }
         }
     }
@@ -118,6 +120,7 @@ class FontRepository {
                 completion?()
             case .failure(let error):
                 sendDiagnosticWith(prefix: fontDetailsSaveErrorPrefix, error: error)
+                completion?()
             }
         }
     }
@@ -139,6 +142,7 @@ class FontRepository {
                 completion?()
             case .failure(let error):
                 sendDiagnosticWith(prefix: fontDetailsDeleteErrorPrefix, error: error)
+                completion?()
             }
         }
     }
