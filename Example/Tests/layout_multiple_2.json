@@ -1,0 +1,275 @@
+{
+  "page": {
+    "versionId": "1603606476230",
+    "pageId": "edecb4b2-91a5-4fd7-859f-82347b6e79fd",
+    "pageType": "Confirmation",
+    "category": "Transaction",
+    "platformType": "iOS",
+    "targetingRules": [
+      {
+        "inverse": false,
+        "regex": ["viewname:[^;]*iOSlightboxe2e[^;]*;"]
+      }
+    ],
+    "hasPlacements": true
+  },
+  "pageDetectionTime": "2023-03-05T23:44:13.7049799+00:00",
+  "sessionId": "afbc0187-2d0f-4ac2-b852-a60a1e02b1a0",
+  "token": "FAKE_Utopmost-tokenE_TESTING_PURPOSES_ONLY",
+  "placementContext": {
+    "roktTagId": "",
+    "pageInstanceGuid": "afbc0187-2d0f-4ad4-be6b-7545f9273565",
+    "token": "FAKE_PLACEMENT_TOKEN_TESTING_PURPOSES_ONLY"
+  },
+  "placements": [],
+  "plugins": [
+    {
+      "plugin": {
+        "id": "8294498563842753589",
+        "name": "test layout",
+        "targetElementSelector": "Location1",
+        "config": {
+          "instanceGuid": "21b61e93-24bd-4735-995a-2f14d0673ec2",
+          "token": "FAKE_Uplugin-config-tokenE_TESTING_PURPOSES_ONLY",
+          "outerLayoutSchema": "{\"breakpoints\":{\"Landscape\":500,\"Portrait\":560},\"layout\":{\"type\":\"BottomSheet\",\"node\":{\"settings\":{\"allowBackdropToClose\":true},\"styles\":{\"elements\":{\"own\":[{\"default\":{\"border\":{\"borderRadius\":10},\"dimension\":{\"height\":{\"type\":\"fixed\",\"value\":300}},\"spacing\":{\"margin\":\"0 0 0 0\"},\"background\":{\"backgroundColor\":{\"light\":\"#FFFFFF\",\"dark\":\"#FFFFFF\"}}}}],\"wrapper\": [{ \"default\": { \"background\": { \"backgroundColor\": { \"light\": \"#520E0A13\", \"dark\": \"#520E0A13\" } } } }]}},\"children\":[{\"type\":\"Column\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"18 24 0 24\"},\"container\":{\"alignItems\":\"flex-end\",\"justifyContent\":\"center\"},\"dimension\":{\"height\":{\"value\":30,\"type\":\"fixed\"}}}}]}},\"children\":[{\"type\":\"RichText\",\"node\":{\"value\":\"Order Confirmed\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontFamily\":\"arial\",\"fontSize\":20,\"textTransform\":\"uppercase\"},\"border\":{\"borderColor\":{\"light\":\"#F5C1C4\"},\"borderWidth\":\"0 0 0 4\"},\"spacing\":{\"padding\":\"1 0 1 8\",\"margin\":\"0 0 16 0\"}}}]}}}}]}},{\"type\":\"OneByOneDistribution\",\"node\":{\"transition\":{\"type\":\"FadeInOut\",\"settings\":{\"duration\":500}}}}]}}}",
+          "slots": [
+            {
+              "instanceGuid": "f0620e60-279e-475f-8e68-1b3816c0691c",
+              "token": "FAKE_SLOT_TOKEN_TESTING_PURPOSES_ONLY",
+              "offer": {
+                "id": "OfferIdOne",
+                "creative": {
+                  "referralCreativeId": "6474894803711120093",
+                  "token": "FAKE_CREATIVE_TOKEN_TESTING_PURPOSES_ONLY",
+                  "instanceGuid": "f5987bb9-f7ba-4a89-91e7-80a446c5d29c",
+                  "responseOptionsMap": {
+                    "positive": {
+                      "id": "3703803224959945201",
+                      "action": "Url",
+                      "instanceGuid": "549a346b-cd76-4f04-bccd-a1168c870e97",
+                      "signalType": "SignalResponse",
+                      "shortLabel": "YES PLEASE",
+                      "longLabel": "Yes",
+                      "shortSuccessLabel": "Subscribed",
+                      "isPositive": true,
+                      "url": "https://rokt.com",
+                      "token": "FAKE_POSITIVE_TOKEN_TESTING_PURPOSES_ONLY"
+                    },
+                    "negative": {
+                      "id": "6413872231638275638",
+                      "action": "CaptureOnly",
+                      "instanceGuid": "c94a4aab-8e73-47f1-ad5b-a07bf00703ec",
+                      "signalType": "SignalResponse",
+                      "shortLabel": "No Thanks",
+                      "longLabel": "No thanks",
+                      "shortSuccessLabel": "",
+                      "isPositive": false,
+                      "url": "",
+                      "token": "FAKE_NEGATIVE_TOKEN_TESTING_PURPOSES_ONLY"
+                    }
+                  },
+                  "copy": {
+                    "title": "MyOfferTitle",
+                    "description": "Offerdescriptiongoeshere",
+                    "creative.termsAndConditions.link": "data from creative > copy",
+                    "creative.hello.world": "different data from creative > copy"
+                  }
+                }
+              },
+              "layoutVariant": {
+                "layoutVariantId": "layout_variant_id",
+                "moduleName": "",
+                "layoutVariantSchema": "{ \"type\": \"Column\", \"node\": { \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"padding\": \"18 24 0 24\" } } } ] } }, \"children\": [ { \"type\": \"BasicText\", \"node\": { \"value\": \"Jenny, thank you for your purchase:\", \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"text\": { \"fontSize\": 12, \"fontWeight\": \"700\", \"fontFamily\": \"Arial\", \"lineHeight\": 14 } } } ] } } } }, { \"type\": \"BasicText\", \"node\": { \"value\": \"Congrats, you\u2019ve earned a special deal from Advertiser1! Sign up for emails & claim your $90 off including 1st box free shipping.\", \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"margin\": \"16 0 0 0\" }, \"text\": { \"fontSize\": 12, \"fontWeight\": \"500\", \"fontFamily\": \"Arial\", \"lineHeight\": 3 } } } ] } } } }, { \"type\": \"CreativeResponse\", \"node\": { \"responseKey\": \"positive\", \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"margin\": \"20 0 0 0\", \"padding\": \"10 10 10 10\" }, \"background\": { \"backgroundColor\": { \"light\": \"#000000\" } }, \"dimension\": { \"width\": { \"type\": \"fit\", \"value\": \"fit-width\" } }, \"container\": { \"justifyContent\": \"center\" } } } ] } }, \"children\": [ { \"type\": \"BasicText\", \"node\": { \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"text\": { \"textColor\": { \"light\": \"#FFFFFF\" }, \"fontSize\": 12, \"fontWeight\": \"500\", \"lineHeight\": 5, \"fontFamily\": \"Arial\" } } } ] } }, \"value\": \"%^DATA.creativeResponse.shortLabel^%\" } } ] } }, { \"type\": \"CreativeResponse\", \"node\": { \"responseKey\": \"negative\", \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"margin\": \"10 0 0 0\", \"padding\": \"10 10 10 10\" }, \"border\": { \"borderRadius\": 0, \"borderWidth\": 2, \"borderColor\": { \"light\": \"#000000\", \"dark\": \"#000000\" } }, \"container\": { \"justifyContent\": \"center\" }, \"dimension\": { \"width\": { \"type\": \"fit\", \"value\": \"fit-width\" } } } } ] } }, \"children\": [ { \"type\": \"BasicText\", \"node\": { \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"text\": { \"fontSize\": 12, \"fontWeight\": \"500\", \"lineHeight\": 14, \"fontFamily\": \"Arial\" } }, \"pressed\": { \"text\": { \"fontSize\": 20, \"fontWeight\": \"500\", \"lineHeight\": 14, \"fontFamily\": \"Arial\" }, \"background\": { \"backgroundColor\": { \"light\": \"#d51a1a\" } } }, \"focussed\": { \"text\": { \"fontSize\": 20, \"fontWeight\": \"500\", \"lineHeight\": 14, \"fontFamily\": \"Arial\" }, \"background\": { \"backgroundColor\": { \"light\": \"#d51a1a\" } } } } ] } }, \"value\": \"%^DATA.creativeResponse.shortLabel^%\" } } ] } } ] } }"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "plugin": {
+        "id": "2675781658204502278",
+        "name": "test layout",
+        "targetElementSelector": "Location1",
+        "config": {
+          "instanceGuid": "21b61e93-24bd-4735-995a-2f14d0673ec2",
+          "token": "FAKE_Uplugin-config-tokenE_TESTING_PURPOSES_ONLY",
+          "outerLayoutSchema": "{ \"breakpoints\": { \"Landscape\": 500, \"Portrait\": 560 }, \"layout\": { \"type\": \"Column\", \"node\": { \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"border\": { \"borderRadius\": 10 }, \"spacing\": { \"padding\": \"20 0 20 0\" }, \"background\": { \"backgroundColor\": { \"light\": \"#CCCCCC\", \"dark\": \"#CCCCCC\" } } } } ]} }, \"children\": [ { \"type\": \"Column\", \"node\": { \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"margin\": \"0 24 0 24\" }, \"container\": { \"alignItems\": \"flex-end\", \"justifyContent\": \"center\" }, \"dimension\": { \"height\": { \"value\": 50, \"type\": \"fixed\" } } } } ] } }, \"children\": [ { \"type\": \"RichText\", \"node\": { \"value\": \"Order Number: UK171359906\", \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"text\": { \"fontFamily\": \"arial\", \"fontSize\": 20, \"textTransform\": \"uppercase\" }, \"border\": { \"borderColor\": { \"light\": \"#F5C1C4\" }, \"borderWidth\": \"0 0 0 4\" }, \"spacing\": { \"padding\": \"1 0 1 8\", \"margin\": \"0 0 16 0\" } } } ] } } } } ] } }, { \"type\": \"OneByOneDistribution\", \"node\": { \"transition\": { \"type\": \"FadeInOut\", \"settings\": { \"duration\": 500 } } } } ] } } }",
+          "slots": [
+            {
+              "instanceGuid": "f0620e60-279e-475f-8e68-1b3816c06ddd",
+              "token": "FAKE_SLOT_TOKEN_TESTING_PURPOSES_ONLY",
+              "offer": {
+                "id": "OfferIdOne",
+                "campaignId": "3064178269293516590",
+                "accountId": "8290463030702877138",
+                "creative": {
+                  "referralCreativeId": "6474894803711120093",
+                  "token": "FAKE_CREATIVE_TOKEN_TESTING_PURPOSES_ONLY",
+                  "instanceGuid": "f5987bb9-f7ba-4a89-91e7-80a446ctfr",
+                  "responseOptionsMap": {
+                    "positive": {
+                      "id": "3703803224959945201",
+                      "action": "Url",
+                      "instanceGuid": "549a346b-cd76-4f04-bccd-a1168c879opj",
+                      "signalType": "SignalResponse",
+                      "shortLabel": "YES PLEASE",
+                      "longLabel": "Yes",
+                      "shortSuccessLabel": "Subscribed",
+                      "isPositive": true,
+                      "url": "https://rokt.com",
+                      "token": "FAKE_POSITIVE_TOKEN_TESTING_PURPOSES_ONLY"
+                    },
+                    "negative": {
+                      "id": "6413872231638275638",
+                      "action": "CaptureOnly",
+                      "instanceGuid": "c94a4aab-8e73-47f1-ad5b-a07bf007045e",
+                      "signalType": "SignalResponse",
+                      "shortLabel": "No Thanks",
+                      "longLabel": "No thanks",
+                      "shortSuccessLabel": "",
+                      "isPositive": false,
+                      "url": "",
+                      "token": "FAKE_NEGATIVE_TOKEN_TESTING_PURPOSES_ONLY"
+                    }
+                  },
+                  "copy": {
+                    "title": "MyOfferTitle",
+                    "description": "Offerdescriptiongoeshere",
+                    "creative.termsAndConditions.link": "data from creative > copy",
+                    "creative.hello.world": "different data from creative > copy"
+                  },
+                  "images": {
+                    "creativeImage": {
+                      "alt": "Partner2 Deals of the Day",
+                      "dark": "",
+                      "light": "https://avatars.githubusercontent.com/u/6335212",
+                      "title": "Partner2 Deals of the Day"
+                    }
+                  }
+                }
+              },
+              "layoutVariant": {
+                "layoutVariantId": "layout_variant_id",
+                "moduleName": "",
+                "layoutVariantSchema": "{ \"type\": \"Column\", \"node\": { \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"padding\": \"18 24 0 24\" } } } ] } }, \"children\": [ { \"type\": \"BasicText\", \"node\": { \"value\": \"Jenny, thank you for your purchase:\", \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"text\": { \"fontSize\": 12, \"fontWeight\": \"700\", \"fontFamily\": \"Arial\", \"lineHeight\": 14 } } } ] } } } }, { \"type\": \"BasicText\", \"node\": { \"value\": \"Congrats, you\u2019ve earned a special deal from Advertiser1! Sign up for emails & claim your $90 off including 1st box free shipping. with a big text to see what happened with bigger size embedded\", \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"margin\": \"16 0 0 0\" }, \"text\": { \"fontSize\": 12, \"fontWeight\": \"500\", \"fontFamily\": \"Arial\", \"lineHeight\": 14 } } } ] } } } }, { \"type\": \"CreativeResponse\", \"node\": { \"responseKey\": \"positive\", \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"margin\": \"20 0 0 0\", \"padding\": \"10 10 10 10\" }, \"background\": { \"backgroundColor\": { \"light\": \"#000000\" } }, \"dimension\": { \"width\": { \"type\": \"fit\", \"value\": \"fit-width\" } }, \"container\": { \"justifyContent\": \"center\" } } } ] } }, \"children\": [ { \"type\": \"BasicText\", \"node\": { \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"margin\": \"0\" }, \"text\": { \"fontSize\": 12, \"fontWeight\": \"500\", \"lineHeight\": 14, \"fontFamily\": \"Arial\", \"textColor\": { \"light\": \"#FFFFFF\" } }, \"flexChild\": { \"alignSelf\": \"center\" } }, \"pressed\": { \"spacing\": { \"margin\": \"0\" }, \"text\": { \"fontSize\": 20, \"fontWeight\": \"500\", \"lineHeight\": 14 }, \"background\": { \"backgroundColor\": { \"light\": \"#d51a1a\" } } }, \"focussed\": { \"spacing\": { \"margin\": \"0\" }, \"text\": { \"fontSize\": 20, \"fontWeight\": \"500\", \"lineHeight\": 14 }, \"background\": { \"backgroundColor\": { \"light\": \"#d51a1a\" } } } } ] } }, \"value\": \"%^DATA.creativeResponse.shortLabel^%\" } } ] } }, { \"type\": \"CreativeResponse\", \"node\": { \"responseKey\": \"negative\", \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"margin\": \"20 0 0 0\", \"padding\": \"10 10 10 10\" }, \"dimension\": { \"width\": { \"type\": \"fit\", \"value\": \"fit-width\" } }, \"container\": { \"justifyContent\": \"center\" }, \"border\": { \"borderRadius\": 0, \"borderWidth\": 2, \"borderColor\": { \"light\": \"#000000\", \"dark\": \"#000000\" } } } } ] } }, \"children\": [ { \"type\": \"BasicText\", \"node\": { \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"margin\": \"0\" }, \"text\": { \"fontSize\": 12, \"fontWeight\": \"500\", \"lineHeight\": 14, \"fontFamily\": \"Arial\" }, \"flexChild\": { \"alignSelf\": \"center\" } }, \"pressed\": { \"spacing\": { \"margin\": \"0\" }, \"text\": { \"fontSize\": 20, \"fontWeight\": \"500\", \"lineHeight\": 14 }, \"background\": { \"backgroundColor\": { \"light\": \"#d51a1a\" } } }, \"focussed\": { \"spacing\": { \"margin\": \"0\" }, \"text\": { \"fontSize\": 20, \"fontWeight\": \"500\", \"lineHeight\": 14 }, \"background\": { \"backgroundColor\": { \"light\": \"#d51a1a\" } } } } ] } }, \"value\": \"%^DATA.creativeResponse.shortLabel^%\" } } ] } } ] } }"
+              }
+            },
+            {
+              "instanceGuid": "f0620e60-279e-475f-8e68-1b3816c0691p",
+              "token": "FAKE_SLOT_TOKEN_TESTING_PURPOSES_ONLY",
+              "offer": {
+                "id": "OfferIdOne",
+                "creative": {
+                  "referralCreativeId": "6474894803711120093",
+                  "token": "FAKE_CREATIVE_TOKEN_TESTING_PURPOSES_ONLY",
+                  "instanceGuid": "f5987bb9-f7ba-4a89-91e7-80a446c5d243",
+                  "responseOptionsMap": {
+                    "positive": {
+                      "id": "3703803224959945201",
+                      "action": "Url",
+                      "instanceGuid": "549a346b-cd76-4f04-bccd-a1168c870e33",
+                      "signalType": "SignalResponse",
+                      "shortLabel": "YES PLEASE",
+                      "longLabel": "Yes",
+                      "shortSuccessLabel": "Subscribed",
+                      "isPositive": true,
+                      "url": "https://rokt.com",
+                      "token": "FAKE_POSITIVE_TOKEN_TESTING_PURPOSES_ONLY"
+                    },
+                    "negative": {
+                      "id": "6413872231638275638",
+                      "action": "CaptureOnly",
+                      "instanceGuid": "c94a4aab-8e73-47f1-ad5b-a07bf00703ec",
+                      "signalType": "SignalResponse",
+                      "shortLabel": "No Thanks",
+                      "longLabel": "No thanks",
+                      "shortSuccessLabel": "",
+                      "isPositive": false,
+                      "url": "",
+                      "token": "FAKE_NEGATIVE_TOKEN_TESTING_PURPOSES_ONLY"
+                    }
+                  },
+                  "copy": {
+                    "title": "MyOfferTitle",
+                    "description": "Offerdescriptiongoeshere",
+                    "creative.termsAndConditions.link": "data from creative > copy",
+                    "creative.hello.world": "different data from creative > copy"
+                  }
+                }
+              },
+              "layoutVariant": {
+                "layoutVariantId": "layout_variant_id",
+                "moduleName": "",
+                "layoutVariantSchema": "{ \"type\": \"Column\", \"node\": { \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"padding\": \"18 24 0 24\" } } } ] } }, \"children\": [ { \"type\": \"BasicText\", \"node\": { \"value\": \"Jenny, thank you for your purchase:\", \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"text\": { \"fontSize\": 12, \"fontWeight\": \"700\", \"fontFamily\": \"Arial\", \"lineHeight\": 14 } } } ] } } } }, { \"type\": \"BasicText\", \"node\": { \"value\": \"Congrats, you\u2019ve earned a special deal from Advertiser1! Sign up for emails & claim your $90 off including 1st box free shipping.\", \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"margin\": \"16 0 0 0\" }, \"text\": { \"fontSize\": 12, \"fontWeight\": \"500\", \"fontFamily\": \"Arial\", \"lineHeight\": 3 } } } ] } } } }, { \"type\": \"CreativeResponse\", \"node\": { \"responseKey\": \"positive\", \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"margin\": \"20 0 0 0\", \"padding\": \"10 10 10 10\" }, \"background\": { \"backgroundColor\": { \"light\": \"#000000\" } }, \"dimension\": { \"width\": { \"type\": \"fit\", \"value\": \"fit-width\" } }, \"container\": { \"justifyContent\": \"center\" } } } ] } }, \"children\": [ { \"type\": \"BasicText\", \"node\": { \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"text\": { \"textColor\": { \"light\": \"#FFFFFF\" }, \"fontSize\": 12, \"fontWeight\": \"500\", \"lineHeight\": 5, \"fontFamily\": \"Arial\" } } } ] } }, \"value\": \"%^DATA.creativeResponse.shortLabel^%\" } } ] } }, { \"type\": \"CreativeResponse\", \"node\": { \"responseKey\": \"negative\", \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"margin\": \"10 0 0 0\", \"padding\": \"10 10 10 10\" }, \"border\": { \"borderRadius\": 0, \"borderWidth\": 2, \"borderColor\": { \"light\": \"#000000\", \"dark\": \"#000000\" } }, \"container\": { \"justifyContent\": \"center\" }, \"dimension\": { \"width\": { \"type\": \"fit\", \"value\": \"fit-width\" } } } } ] } }, \"children\": [ { \"type\": \"BasicText\", \"node\": { \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"text\": { \"fontSize\": 12, \"fontWeight\": \"500\", \"lineHeight\": 14, \"fontFamily\": \"Arial\" } }, \"pressed\": { \"text\": { \"fontSize\": 20, \"fontWeight\": \"500\", \"lineHeight\": 14, \"fontFamily\": \"Arial\" }, \"background\": { \"backgroundColor\": { \"light\": \"#d51a1a\" } } }, \"focussed\": { \"text\": { \"fontSize\": 20, \"fontWeight\": \"500\", \"lineHeight\": 14, \"fontFamily\": \"Arial\" }, \"background\": { \"backgroundColor\": { \"light\": \"#d51a1a\" } } } } ] } }, \"value\": \"%^DATA.creativeResponse.shortLabel^%\" } } ] } } ] } }"
+              }
+            },
+            {
+              "instanceGuid": "f0620e60-279e-475f-8e68-1b3816c06qwe",
+              "token": "FAKE_SLOT_TOKEN_TESTING_PURPOSES_ONLY",
+              "offer": {
+                "id": "OfferIdOne",
+                "campaignId": "26718908743194378r",
+                "accountId": "26718900881656701t",
+                "creative": {
+                  "referralCreativeId": "6474894803711120093",
+                  "token": "FAKE_CREATIVE_TOKEN_TESTING_PURPOSES_ONLY",
+                  "instanceGuid": "f5987bb9-f7ba-4a89-91e7-80a446cxcf",
+                  "responseOptionsMap": {
+                    "positive": {
+                      "id": "9092229230928664911",
+                      "action": "Url",
+                      "instanceGuid": "549a346b-cd76-4f04-bccd-a1168c879fsd",
+                      "signalType": "SignalResponse",
+                      "shortLabel": "YES",
+                      "longLabel": "Yes",
+                      "shortSuccessLabel": "Subscribed",
+                      "isPositive": true,
+                      "url": "https://rokt.com",
+                      "token": "FAKE_POSITIVE_TOKEN_TESTING_PURPOSES_ONLY"
+                    },
+                    "negative": {
+                      "id": "6413872231638275638",
+                      "action": "CaptureOnly",
+                      "instanceGuid": "c94a4aab-8e73-47f1-ad5b-a07bf007045e",
+                      "signalType": "SignalResponse",
+                      "shortLabel": "No",
+                      "longLabel": "No thanks",
+                      "shortSuccessLabel": "",
+                      "isPositive": false,
+                      "url": "",
+                      "token": "FAKE_NEGATIVE_TOKEN_TESTING_PURPOSES_ONLY"
+                    }
+                  },
+                  "copy": {
+                    "title": "MyOfferTitle",
+                    "description": "Offerdescriptiongoeshere",
+                    "creative.termsAndConditions.link": "data from creative > copy",
+                    "creative.hello.world": "different data from creative > copy"
+                  },
+                  "images": {
+                    "creativeImage": {
+                      "alt": "Partner2 Deals of the Day",
+                      "dark": "",
+                      "light": "https://avatars.githubusercontent.com/u/6335212",
+                      "title": "Partner2 Deals of the Day"
+                    }
+                  }
+                }
+              },
+              "layoutVariant": {
+                "layoutVariantId": "layout_variant_id",
+                "moduleName": "",
+                "layoutVariantSchema": "{ \"type\": \"Column\", \"node\": { \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"padding\": \"18 24 0 24\" } } } ] } }, \"children\": [ { \"type\": \"BasicText\", \"node\": { \"value\": \"Jenny, thank you for your purchase:\", \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"text\": { \"fontSize\": 12, \"fontWeight\": \"700\", \"fontFamily\": \"Arial\", \"lineHeight\": 14 } } } ] } } } }, { \"type\": \"DataImage\", \"node\": { \"imageKey\": \"creativeImage\", \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"dimension\": { \"height\": { \"type\": \"fixed\", \"value\": 100 } }, \"background\": { \"backgroundColor\": { \"light\": \"#F5C1C4\", \"dark\": \"#F5C1C4\" } } } } ] } } } }, { \"type\": \"BasicText\", \"node\": { \"value\": \"Congrats, you\u2019ve earned a special deal from Advertiser1! Sign up for emails & claim your $90 off including 1st box free shipping.\", \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"margin\": \"16 0 0 0\" }, \"text\": { \"fontSize\": 12, \"fontWeight\": \"500\", \"fontFamily\": \"Arial\", \"lineHeight\": 14 } } } ] } } } }, { \"type\": \"CreativeResponse\", \"node\": { \"responseKey\": \"positive\", \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"margin\": \"20 0 0 0\", \"padding\": \"10 10 10 10\" }, \"background\": { \"backgroundColor\": { \"light\": \"#000000\" } }, \"dimension\": { \"width\": { \"type\": \"fit\", \"value\": \"fit-width\" } }, \"container\": { \"justifyContent\": \"center\" } } } ] } }, \"children\": [ { \"type\": \"BasicText\", \"node\": { \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"margin\": \"0\" }, \"text\": { \"fontSize\": 12, \"fontWeight\": \"500\", \"lineHeight\": 14, \"fontFamily\": \"Arial\", \"textColor\": { \"light\": \"#FFFFFF\" } }, \"flexChild\": { \"alignSelf\": \"center\" } }, \"pressed\": { \"spacing\": { \"margin\": \"0\" }, \"text\": { \"fontSize\": 20, \"fontWeight\": \"500\", \"lineHeight\": 14 }, \"background\": { \"backgroundColor\": { \"light\": \"#d51a1a\" } } }, \"focussed\": { \"spacing\": { \"margin\": \"0\" }, \"text\": { \"fontSize\": 20, \"fontWeight\": \"500\", \"lineHeight\": 14 }, \"background\": { \"backgroundColor\": { \"light\": \"#d51a1a\" } } } } ] } }, \"value\": \"%^DATA.creativeResponse.shortLabel^%\" } } ] } }, { \"type\": \"CreativeResponse\", \"node\": { \"responseKey\": \"negative\", \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"margin\": \"20 0 0 0\", \"padding\": \"10 10 10 10\" }, \"dimension\": { \"width\": { \"type\": \"fit\", \"value\": \"fit-width\" } }, \"container\": { \"justifyContent\": \"center\" }, \"border\": { \"borderRadius\": 0, \"borderWidth\": 2, \"borderColor\": { \"light\": \"#000000\", \"dark\": \"#000000\" } } } } ] } }, \"children\": [ { \"type\": \"BasicText\", \"node\": { \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"margin\": \"0\" }, \"text\": { \"fontSize\": 12, \"fontWeight\": \"500\", \"lineHeight\": 14, \"fontFamily\": \"Arial\" }, \"flexChild\": { \"alignSelf\": \"center\" } }, \"pressed\": { \"spacing\": { \"margin\": \"0\" }, \"text\": { \"fontSize\": 20, \"fontWeight\": \"500\", \"lineHeight\": 14 }, \"background\": { \"backgroundColor\": { \"light\": \"#d51a1a\" } } }, \"focussed\": { \"spacing\": { \"margin\": \"0\" }, \"text\": { \"fontSize\": 20, \"fontWeight\": \"500\", \"lineHeight\": 14 }, \"background\": { \"backgroundColor\": { \"light\": \"#d51a1a\" } } } } ] } }, \"value\": \"%^DATA.creativeResponse.shortLabel^%\" } } ] } } ] } }"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "success": true,
+  "privacyControl": {
+    "limitedUse": true
+  }
+}

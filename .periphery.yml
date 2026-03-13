@@ -1,0 +1,9 @@
+project: Example/rokt.xcodeproj
+schemes:
+  - rokt-Example
+skip_build: true
+index_store_path: DerivedData-periphery/Index.noindex/DataStore
+retain_public: true
+baseline: periphery-baseline.json
+relative_results: true
+strict: true

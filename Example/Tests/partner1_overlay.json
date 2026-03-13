@@ -1,0 +1,102 @@
+{
+  "page": {
+    "versionId": "1603606476230",
+    "pageId": "edecb4b2-91a5-4fd7-859f-82347b6e79fd",
+    "pageType": "Confirmation",
+    "category": "Transaction",
+    "platformType": "iOS",
+    "targetingRules": [
+      {
+        "inverse": false,
+        "regex": ["viewname:[^;]*ioslightboxe2e[^;]*;"]
+      }
+    ],
+    "hasPlacements": true
+  },
+  "pageDetectionTime": "2023-03-05T23:44:13.7049799+00:00",
+  "sessionId": "afbc0187-2d0f-4ac2-b852-a60a1e02b1a0",
+  "token": "FAKE_Utopmost-tokenE_TESTING_PURPOSES_ONLY",
+  "placementContext": {
+    "roktTagId": "",
+    "pageInstanceGuid": "bfbc0187-2d0f-4ad4-be6b-7545f9273567",
+    "token": "FAKE_PLACEMENT_TOKEN_TESTING_PURPOSES_ONLY"
+  },
+  "placements": [],
+  "plugins": [
+    {
+      "plugin": {
+        "id": "2675781658204502278",
+        "token": "FAKE_Uplugin-tokenE_TESTING_PURPOSES_ONLY",
+        "name": "test layout",
+        "targetElementSelector": "Location1",
+        "config": {
+          "instanceGuid": "31b61e93-24bd-4735-995a-2f14d0673ec3",
+          "token": "FAKE_Uplugin-config-tokenE_TESTING_PURPOSES_ONLY",
+          "outerLayoutSchema": "{ \"breakpoints\": { \"Landscape\": 500, \"Portrait\": 560 }, \"layout\": { \"type\": \"Overlay\", \"node\": { \"allowBackdropToClose\": true , \"styles\": { \"elements\": { \"own\": [{ \"default\": { \"border\": { \"borderRadius\": 0 }, \"spacing\": { \"margin\": \"10 10 10 10\" }, \"background\": { \"backgroundColor\": { \"light\": \"#FFFFFFFF\", \"dark\": \"#FFFFFFFF\" } } } }], \"wrapper\": [{ \"default\": { \"background\": { \"backgroundColor\": { \"light\": \"#520E0A13\", \"dark\": \"#520E0A13\" } } } }] } }, \"children\": [{ \"type\": \"Row\", \"node\": { \"children\": [{ \"type\": \"Column\", \"node\": { \"children\": [], \"styles\": { \"elements\": { \"own\": [{ \"default\": { \"dimension\": { \"height\": { \"type\": \"fixed\", \"value\": 24 }, \"width\": { \"type\": \"fixed\", \"value\": 4 } }, \"background\": { \"backgroundColor\": { \"light\": \"#F5C1C4\", \"dark\": \"#F5C1C4\" } } } }] } } } }, { \"type\": \"RichText\", \"node\": { \"value\": \"ORDER NUMBER: UK171359906\", \"styles\": { \"elements\": { \"own\": [{ \"default\": { \"text\": { \"fontSize\": 16, \"fontWeight\": \"400\", \"lineHeight\": 19 }, \"spacing\": { \"margin\": \"0 8 0 8\" } } }] } } } }], \"styles\": { \"elements\": { \"own\": [{ \"default\": { \"spacing\": { \"margin\": \"26 0 0 24\" } } }] } } } }, { \"type\": \"OneByOneDistribution\", \"node\": { \"transition\": { \"type\": \"FadeInOut\", \"settings\": { \"duration\": 500 } } } }, { \"type\": \"ProgressIndicator\", \"node\": { \"indicator\": \"%^STATE.IndicatorPosition^%\", \"styles\": { \"elements\": { \"own\": [{ \"default\": { \"container\": { \"justifyContent\": \"center\" }, \"spacing\": { \"padding\": \"10 10 10 10\" }, \"flexChild\": { \"alignSelf\": \"center\" } } }], \"indicator\": [{ \"default\": { \"container\": { \"alignItems\": \"center\", \"justifyContent\": \"center\" }, \"border\": { \"borderRadius\": 10 }, \"background\": { \"backgroundColor\": { \"light\": \"#E6E6E6\", \"dark\": \"#E6E6E6\" } }, \"dimension\": { \"width\": { \"type\": \"fixed\", \"value\": 12 }, \"height\": { \"type\": \"fixed\", \"value\": 12 } }, \"text\": { \"textColor\": { \"light\": \"#000000\", \"dark\": \"#000000\" }, \"horizontalTextAlign\": \"center\", \"fontSize\": 8, \"fontFamily\": \"arial\" } } }], \"activeIndicator\": [{ \"default\": { \"background\": { \"backgroundColor\": { \"light\": \"#F5C1C4\", \"dark\": \"#F5C1C4\" } } } }] } } } }, { \"type\": \"Row\", \"node\": { \"children\": [], \"styles\": { \"elements\": { \"own\": [{ \"default\": { \"spacing\": { \"margin\": \"0 24 0 24\" }, \"dimension\": { \"height\": { \"type\": \"fixed\", \"value\": 1 } }, \"background\": { \"backgroundColor\": { \"light\": \"#DBDBDB\", \"dark\": \"#DBDBDB\" } } } }] } } } }, { \"type\": \"RichText\", \"node\": { \"value\": \"Powered by <a href=\\\"https://rokt.com\\\">Rokt</a> - <a href=\\\"https://www.rokt.com/privacy-policy/\\\">Privacy Policy</a>\", \"styles\": { \"elements\": { \"own\": [{ \"default\": { \"text\": { \"fontSize\": 12, \"fontWeight\": \"400\", \"lineHeight\": 14, \"textColor\": { \"light\": \"#7E7E7E\" } }, \"spacing\": { \"margin\": \"8 24 24 0\" }, \"flexChild\": { \"alignSelf\": \"flex-end\" } } }],\"link\":[{\"default\":{\"text\":{\"textColor\":{\"light\":\"#7E7E7E\",\"dark\":\"#7E7E7E\"},\"textDecoration\":\"underline\"}}}] } } } }] } } }",
+          "slots": [
+            {
+              "instanceGuid": "20620e60-279e-475f-8e68-1b3816c0694",
+              "token": "FAKE_SLOT_TOKEN_TESTING_PURPOSES_ONLY",
+              "offer": {
+                "id": "OfferIdOne",
+                "campaignId": "3064178269293516590",
+                "accountId": "8290463030702877138",
+                "creativeId": "6474894803711120093",
+                "creative": {
+                  "referralCreativeId": "6474894803711120093",
+                  "token": "FAKE_CREATIVE_TOKEN_TESTING_PURPOSES_ONLY",
+                  "instanceGuid": "f5987bb9-f7ba-4a89-91e7-80a446c5d29c",
+                  "responseOptionsMap": {
+                    "positive": {
+                      "id": "3703803224959945201",
+                      "action": "Url",
+                      "instanceGuid": "549a346b-cd76-4f04-bccd-a1168c870e97",
+                      "signalType": "SignalResponse",
+                      "shortLabel": "Yes Please",
+                      "longLabel": "Yes",
+                      "shortSuccessLabel": "Subscribed",
+                      "isPositive": true,
+                      "url": "https://rokt.com",
+                      "token": "FAKE_POSITIVE_TOKEN_TESTING_PURPOSES_ONLY"
+                    },
+                    "negative": {
+                      "id": "6413872231638275638",
+                      "action": "CaptureOnly",
+                      "instanceGuid": "c94a4aab-8e73-47f1-ad5b-a07bf00703ec",
+                      "signalType": "SignalResponse",
+                      "shortLabel": "No Thanks",
+                      "longLabel": "No thanks",
+                      "shortSuccessLabel": "",
+                      "isPositive": false,
+                      "url": "",
+                      "token": "FAKE_NEGATIVE_TOKEN_TESTING_PURPOSES_ONLY"
+                    }
+                  },
+                  "copy": {
+                    "title": "MyOfferTitle",
+                    "creative.copy": "Congrats, you\u2019ve earned a special deal from Advertiser1! Sign up for emails & claim your $90 off including 1st box free shipping.",
+                    "creative.disclaimer": "",
+                    "description": "Offerdescriptiongoeshere",
+                    "creative.termsAndConditions.link": "data from creative > copy",
+                    "creative.hello.world": "different data from creative > copy"
+                  },
+                  "images": {},
+                  "links": {}
+                }
+              },
+              "layoutVariant": {
+                "layoutVariantId": "layout_variant_id",
+                "moduleName": "",
+                "layoutVariantSchema": "{ \"type\": \"Column\", \"node\": { \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"padding\": \"18 24 0 24\" } } } ] } }, \"children\": [ { \"type\": \"BasicText\", \"node\": { \"value\": \"Jenny, thank you for your purchase:\", \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"text\": { \"fontSize\": 12, \"fontWeight\": \"700\", \"fontFamily\": \"Arial\", \"lineHeight\": 14 } } } ] } } } }, { \"type\": \"RichText\", \"node\": { \"value\": \"%^DATA.creativeCopy.creative.copy^%\", \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"margin\": \"16 0 0 0\" }, \"text\": { \"fontSize\": 12, \"fontWeight\": \"400\", \"fontFamily\": \"Arial\", \"lineHeight\": 14 } } } ] } } } },{ \"type\": \"CreativeResponse\", \"node\": { \"responseKey\": \"positive\", \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"margin\": \"16 0 0 0\" }, \"background\": { \"backgroundColor\": { \"light\": \"#000000\" } }, \"dimension\": { \"width\": { \"type\": \"fit\", \"value\": \"fit-width\" }, \"minHeight\": 40 }, \"container\": { \"justifyContent\": \"center\", \"alignItems\": \"center\" } } } ] } }, \"children\": [ { \"type\": \"BasicText\", \"node\": { \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"margin\": \"0\" }, \"text\": { \"fontSize\": 14, \"fontFamily\": \"Arial\", \"textTransform\":\"uppercase\", \"textColor\": { \"light\": \"#FFFFFF\" } }, \"flexChild\": { \"alignSelf\": \"center\" } } } ] } }, \"value\": \"%^DATA.creativeResponse.shortLabel^%\" } } ] } }, { \"type\": \"CreativeResponse\", \"node\": { \"responseKey\": \"negative\", \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"margin\": \"8 0 0 0\" }, \"dimension\": { \"width\": { \"type\": \"fit\", \"value\": \"fit-width\" }, \"minHeight\": 40 }, \"container\": { \"justifyContent\": \"center\", \"alignItems\": \"center\" }, \"border\": { \"borderRadius\": 0, \"borderWidth\": \"2\", \"borderColor\": { \"light\": \"#000000\", \"dark\": \"#000000\" } } } } ] } }, \"children\": [ { \"type\": \"BasicText\", \"node\": { \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"margin\": \"0\" }, \"text\": { \"fontSize\": 14, \"fontFamily\": \"Arial\", \"textTransform\":\"uppercase\",  \"textColor\": { \"light\": \"#000000\" }  }, \"flexChild\": { \"alignSelf\": \"center\" } } } ] } }, \"value\": \"%^DATA.creativeResponse.shortLabel^%\" } } ] } } ] } }"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "success": true,
+  "privacyControl": {
+    "limitedUse": true
+  }
+}

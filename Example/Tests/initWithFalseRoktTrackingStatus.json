@@ -1,0 +1,11 @@
+{
+  "clientTimeoutMilliseconds": 8000,
+  "defaultLaunchDelayMilliseconds": 1000,
+  "fonts": [
+    {
+      "fontName": "HelveticaNeue",
+      "fontUrl": "https://test/robotomono-thinitalic.ttf"
+    }
+  ],
+  "roktTrackingStatus": false
+}
