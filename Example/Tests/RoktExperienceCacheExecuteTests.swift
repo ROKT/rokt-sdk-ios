@@ -364,6 +364,13 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     )
                     mockImplementation.executingLayoutPage?.cacheProperties?.onPluginViewStateChange?(pluginViewStateUpdates)
 
+                    // Wait for the async barrier write triggered by onPluginViewStateChange to
+                    // complete before the second execute reads from disk. Without this, the
+                    // ConcurrentQueueFileStorageDecorator.write barrier may not have flushed yet
+                    // when getCachedPluginViewStateFileData does its synchronous Data(contentsOf:) read.
+                    let expWrite = self.expectation(description: "Await plugin view state write")
+                    _ = XCTWaiter.wait(for: [expWrite], timeout: 2)
+
                     // Second execute with same config
                     self.executeRokt(config: config)
 
