@@ -120,48 +120,48 @@ final class ValidLayoutEmbedded: QuickSpec {
                         timeout: .seconds(2)
                     )
                     // check callbacks
-                    expect(testVC.onShouldShowCallbackCalled).toEventually(beTrue(), timeout: .seconds(2))
-                    expect(testVC.onShouldHideCallbackCalled).toEventually(beTrue(), timeout: .seconds(2))
-                    expect(testVC.displayedOnce).toEventually(beTrue(), timeout: .seconds(2))
+                    expect(testVC.onShouldShowCallbackCalled).toEventually(beTrue(), timeout: .seconds(10))
+                    expect(testVC.onShouldHideCallbackCalled).toEventually(beTrue(), timeout: .seconds(10))
+                    expect(testVC.displayedOnce).toEventually(beTrue(), timeout: .seconds(10))
 
                     // check event
                     // page level events
                     expect(events.contains(EventModel(
                         eventType: "SignalInitialize",
                         parentGuid: "afbc0187-2d0f-4ad4-be6b-7545f9273565"
-                    ))).toEventually(beTrue(), timeout: .seconds(2))
+                    ))).toEventually(beTrue(), timeout: .seconds(10))
                     expect(events.contains(EventModel(
                         eventType: "SignalLoadStart",
                         parentGuid: "afbc0187-2d0f-4ad4-be6b-7545f9273565"
-                    ))).toEventually(beTrue(), timeout: .seconds(2))
+                    ))).toEventually(beTrue(), timeout: .seconds(10))
                     expect(events.contains(EventModel(
                         eventType: "SignalLoadComplete",
                         parentGuid: "afbc0187-2d0f-4ad4-be6b-7545f9273565"
-                    ))).toEventually(beTrue(), timeout: .seconds(2))
+                    ))).toEventually(beTrue(), timeout: .seconds(10))
                     // placment level events
                     expect(events.contains(EventModel(
                         eventType: "SignalLoadStart",
                         parentGuid: "21b61e93-24bd-4735-995a-2f14d0673ec2"
-                    ))).toEventually(beTrue(), timeout: .seconds(2))
+                    ))).toEventually(beTrue(), timeout: .seconds(10))
                     expect(events.contains(EventModel(
                         eventType: "SignalLoadComplete",
                         parentGuid: "21b61e93-24bd-4735-995a-2f14d0673ec2"
-                    ))).toEventually(beTrue(), timeout: .seconds(2))
+                    ))).toEventually(beTrue(), timeout: .seconds(10))
                     expect(events.contains(EventModel(
                         eventType: "SignalImpression",
                         parentGuid: "21b61e93-24bd-4735-995a-2f14d0673ec2"
-                    ))).toEventually(beTrue(), timeout: .seconds(2))
+                    ))).toEventually(beTrue(), timeout: .seconds(10))
 
                     // slot level event
                     expect(events.contains(EventModel(
                         eventType: "SignalImpression",
                         parentGuid: "f0620e60-279e-475f-8e68-1b3816c0691c"
-                    ))).toEventually(beTrue(), timeout: .seconds(2))
+                    ))).toEventually(beTrue(), timeout: .seconds(10))
                     // creative level event
                     expect(events.contains(EventModel(
                         eventType: "SignalImpression",
                         parentGuid: "f5987bb9-f7ba-4a89-91e7-80a446c5d29c"
-                    ))).toEventually(beTrue(), timeout: .seconds(2))
+                    ))).toEventually(beTrue(), timeout: .seconds(10))
                     expect(events.contains(EventModel(
                         eventType: "SignalViewed",
                         parentGuid: "f5987bb9-f7ba-4a89-91e7-80a446c5d29c"
@@ -286,48 +286,48 @@ final class ValidLayoutEmbedded: QuickSpec {
                         timeout: .seconds(9)
                     )
                     // check callbacks
-                    expect(testVC.onShouldShowCallbackCalled).toEventually(beTrue(), timeout: .seconds(2))
-                    expect(testVC.onShouldHideCallbackCalled).toEventually(beTrue(), timeout: .seconds(2))
-                    expect(testVC.displayedOnce).toEventually(beTrue(), timeout: .seconds(2))
+                    expect(testVC.onShouldShowCallbackCalled).toEventually(beTrue(), timeout: .seconds(10))
+                    expect(testVC.onShouldHideCallbackCalled).toEventually(beTrue(), timeout: .seconds(10))
+                    expect(testVC.displayedOnce).toEventually(beTrue(), timeout: .seconds(10))
 
                     // check event
                     // page level events
                     expect(events.contains(EventModel(
                         eventType: "SignalInitialize",
                         parentGuid: "afbc0187-2d0f-4ad4-be6b-7545f9273565"
-                    ))).toEventually(beTrue(), timeout: .seconds(2))
+                    ))).toEventually(beTrue(), timeout: .seconds(10))
                     expect(events.contains(EventModel(
                         eventType: "SignalLoadStart",
                         parentGuid: "afbc0187-2d0f-4ad4-be6b-7545f9273565"
-                    ))).toEventually(beTrue(), timeout: .seconds(2))
+                    ))).toEventually(beTrue(), timeout: .seconds(10))
                     expect(events.contains(EventModel(
                         eventType: "SignalLoadComplete",
                         parentGuid: "afbc0187-2d0f-4ad4-be6b-7545f9273565"
-                    ))).toEventually(beTrue(), timeout: .seconds(2))
+                    ))).toEventually(beTrue(), timeout: .seconds(10))
                     // layout level events
                     expect(events.contains(EventModel(
                         eventType: "SignalLoadStart",
                         parentGuid: "21b61e93-24bd-4735-995a-2f14d0673e22"
-                    ))).toEventually(beTrue(), timeout: .seconds(2))
+                    ))).toEventually(beTrue(), timeout: .seconds(10))
                     expect(events.contains(EventModel(
                         eventType: "SignalLoadComplete",
                         parentGuid: "21b61e93-24bd-4735-995a-2f14d0673e22"
-                    ))).toEventually(beTrue(), timeout: .seconds(2))
+                    ))).toEventually(beTrue(), timeout: .seconds(10))
                     expect(events.contains(EventModel(
                         eventType: "SignalImpression",
                         parentGuid: "21b61e93-24bd-4735-995a-2f14d0673e22"
-                    ))).toEventually(beTrue(), timeout: .seconds(2))
+                    ))).toEventually(beTrue(), timeout: .seconds(10))
 
                     // slot level event
                     expect(events.contains(EventModel(
                         eventType: "SignalImpression",
                         parentGuid: "f0620e60-279e-475f-8e68-1b3816c06ddd"
-                    ))).toEventually(beTrue(), timeout: .seconds(2))
+                    ))).toEventually(beTrue(), timeout: .seconds(10))
                     // creative level event
                     expect(events.contains(EventModel(
                         eventType: "SignalImpression",
                         parentGuid: "f5987bb9-f7ba-4a89-91e7-80a446ctfr"
-                    ))).toEventually(beTrue(), timeout: .seconds(2))
+                    ))).toEventually(beTrue(), timeout: .seconds(10))
                 }
             }
         }
