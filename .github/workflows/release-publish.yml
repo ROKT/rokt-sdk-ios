@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - maintenance/*
     paths:
       - VERSION
 
@@ -51,7 +52,7 @@ jobs:
         with:
           tag_name: ${{ steps.version-file.outputs.release-version }}
           name: Release ${{ steps.version-file.outputs.release-version }}
-          make_latest: true
+          make_latest: ${{ github.ref_name == 'main' }}
           body: |
             Release ${{ steps.version-file.outputs.release-version }}
             ## Changelog
@@ -84,6 +85,7 @@ jobs:
 
   upload-release-notes:
     needs: build-and-release
+    if: github.ref_name == 'main'
     runs-on: ubuntu-latest
     steps:
       - name: Generate token
@@ -133,6 +135,7 @@ jobs:
 
   trigger-demo-app-release:
     needs: [build-and-release, publish-cocoapods]
+    if: github.ref_name == 'main'
     runs-on: ubuntu-latest
     steps:
       - name: Generate token
