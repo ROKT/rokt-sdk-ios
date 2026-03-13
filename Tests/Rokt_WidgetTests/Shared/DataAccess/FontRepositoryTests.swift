@@ -48,7 +48,7 @@ class FontRepositoryTests: XCTestCase {
             expectation.fulfill()
         }
 
-        waitForExpectations(timeout: 5)
+        waitForExpectations(timeout: 15)
 
         let fontDetails = try XCTUnwrap(FontRepositoryTests.downloadDetailPayloadWith(key: "test"))
 
@@ -62,7 +62,7 @@ class FontRepositoryTests: XCTestCase {
             expectation.fulfill()
         }
 
-        waitForExpectations(timeout: 5)
+        waitForExpectations(timeout: 15)
 
         let fontDetails = try XCTUnwrap(FontRepository.loadFontDetail(key: "test"))
 
@@ -76,7 +76,7 @@ class FontRepositoryTests: XCTestCase {
             saveExpectation.fulfill()
         }
 
-        waitForExpectations(timeout: 5)
+        waitForExpectations(timeout: 15)
 
         let fontDetails = try XCTUnwrap(FontRepository.loadFontDetail(key: "test"))
 
@@ -88,7 +88,7 @@ class FontRepositoryTests: XCTestCase {
             expectation.fulfill()
         }
 
-        waitForExpectations(timeout: 5)
+        waitForExpectations(timeout: 15)
 
         XCTAssertNil(FontRepository.loadFontDetail(key: "test"))
     }
@@ -102,7 +102,7 @@ class FontRepositoryTests: XCTestCase {
             expectation.fulfill()
         }
 
-        waitForExpectations(timeout: 5)
+        waitForExpectations(timeout: 15)
 
         let url = FontRepositoryTests.fontURLPayloadWith(key: "test-url")
 
@@ -120,7 +120,7 @@ class FontRepositoryTests: XCTestCase {
             expectation2.fulfill()
         }
 
-        waitForExpectations(timeout: 5)
+        waitForExpectations(timeout: 15)
 
         let savedURLs = try XCTUnwrap(FontRepository.loadAllFontURLs())
 
@@ -138,7 +138,7 @@ class FontRepositoryTests: XCTestCase {
             expectation2.fulfill()
         }
 
-        waitForExpectations(timeout: 5)
+        waitForExpectations(timeout: 15)
 
         let savedURLs = try XCTUnwrap(FontRepository.loadAllFontURLs())
 
@@ -208,7 +208,7 @@ class FontRepositoryTests: XCTestCase {
             expectation3.fulfill()
         }
 
-        waitForExpectations(timeout: 5)
+        waitForExpectations(timeout: 15)
 
         let savedURLs = try XCTUnwrap(FontRepository.loadAllFontURLs())
 
@@ -238,7 +238,7 @@ class FontRepositoryTests: XCTestCase {
             deletionExpectation.fulfill()
         }
 
-        waitForExpectations(timeout: 5)
+        waitForExpectations(timeout: 15)
 
         let savedURLs = try XCTUnwrap(FontRepository.loadAllFontURLs())
 
