@@ -44,7 +44,7 @@ jobs:
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@60606e260d2fc5762a71e64e74b2174e8ea3c8bd # v1.6.0
         with:
-          xcode-version: "26.2"
+          xcode-version: "26.3"
 
       - name: Resolve dependencies
         run: swift package resolve
@@ -87,7 +87,7 @@ jobs:
     name: UI Tests
     runs-on: macos-latest-xlarge
     needs: trunk-check
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -95,7 +95,7 @@ jobs:
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@60606e260d2fc5762a71e64e74b2174e8ea3c8bd # v1.6.0
         with:
-          xcode-version: "26.2"
+          xcode-version: "26.3"
 
       - name: Run UI tests
         run: |
@@ -143,7 +143,7 @@ jobs:
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@60606e260d2fc5762a71e64e74b2174e8ea3c8bd # v1.6.0
         with:
-          xcode-version: "26.2"
+          xcode-version: "26.3"
 
       - name: Install Periphery
         run: brew install periphery
