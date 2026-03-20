@@ -12,7 +12,7 @@ class RoktLayoutViewModel: ObservableObject {
     internal let location: String
     private let attributes: [String: String]
     private let config: RoktConfig?
-    private let placementOptions: PlacementOptions?
+    private let placementOptions: RoktPlacementOptions?
     private let onRoktEvent: ((RoktEvent) -> Void)?
     @Published var state: State = .empty
 
@@ -21,7 +21,7 @@ class RoktLayoutViewModel: ObservableObject {
         location: String,
         attributes: [String: String],
         config: RoktConfig?,
-        placementOptions: PlacementOptions?,
+        placementOptions: RoktPlacementOptions?,
         onRoktEvent: ((RoktEvent) -> Void)?
     ) {
         self.identifier = identifier

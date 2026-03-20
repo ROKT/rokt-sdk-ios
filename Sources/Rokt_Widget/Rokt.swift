@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+@_exported import RoktContracts
 internal import RoktUXHelper
 
 /// Rokt class to initialize and siplay Rokt's widget
@@ -60,7 +61,7 @@ internal import RoktUXHelper
         attributes: [String: String],
         placements: [String: RoktEmbeddedView]? = nil,
         config: RoktConfig? = nil,
-        placementOptions: PlacementOptions? = nil,
+        placementOptions: RoktPlacementOptions? = nil,
         onEvent: ((RoktEvent) -> Void)? = nil
     ) {
         shared.roktImplementation.execute(

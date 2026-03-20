@@ -1,3 +1,4 @@
+import Foundation
 internal import RoktUXHelper
 
 internal extension RoktUXEvent {
@@ -5,12 +6,20 @@ internal extension RoktUXEvent {
         if let event = self as? RoktUXEvent.OfferEngagement {
             return RoktEvent.OfferEngagement(identifier: event.layoutId)
         } else if let event = self as? RoktUXEvent.FirstPositiveEngagement {
-            return RoktEvent.FirstPositiveEngagement(
-                sessionId: event.sessionId,
-                pageInstanceGuid: event.pageInstanceGuid,
-                jwtToken: event.jwtToken,
-                identifier: event.layoutId
-            )
+            let fpe = RoktEvent.FirstPositiveEngagement(identifier: event.layoutId)
+            fpe.setFulfillmentAttributes = { attributes in
+                RoktAPIHelper.sendEvent(
+                    eventRequest: EventRequest(
+                        sessionId: event.sessionId,
+                        eventType: .CaptureAttributes,
+                        parentGuid: event.sessionId,
+                        attributes: attributes,
+                        pageInstanceGuid: event.pageInstanceGuid,
+                        jwtToken: event.jwtToken
+                    )
+                )
+            }
+            return fpe
         } else if let event = self as? RoktUXEvent.OpenUrl {
             return RoktEvent.OpenUrl(identifier: event.layoutId, url: event.url)
         } else if let event = self as? RoktUXEvent.PositiveEngagement {
@@ -26,7 +35,19 @@ internal extension RoktUXEvent {
         } else if let event = self as? RoktUXEvent.LayoutFailure {
             return RoktEvent.PlacementFailure(identifier: event.layoutId)
         } else if let event = self as? RoktUXEvent.CartItemInstantPurchase {
-            return RoktEvent.CartItemInstantPurchase(uxEvent: event)
+            return RoktEvent.CartItemInstantPurchase(
+                identifier: event.layoutId,
+                name: event.name,
+                cartItemId: event.cartItemId,
+                catalogItemId: event.catalogItemId,
+                currency: event.currency,
+                description: event.description,
+                linkedProductId: event.linkedProductId,
+                providerData: event.providerData,
+                quantity: NSDecimalNumber(decimal: event.quantity),
+                totalPrice: event.totalPrice.map { NSDecimalNumber(decimal: $0) },
+                unitPrice: event.unitPrice.map { NSDecimalNumber(decimal: $0) }
+            )
         } else {
             return nil
         }
