@@ -11,7 +11,7 @@ public struct RoktLayout: View {
         location: String = "",
         attributes: [String: String] = [:],
         config: RoktConfig? = nil,
-        placementOptions: PlacementOptions? = nil,
+        placementOptions: RoktPlacementOptions? = nil,
     ) {
         _sdkTriggered = sdkTriggered
         self._viewModel = .init(
@@ -32,7 +32,7 @@ public struct RoktLayout: View {
         location: String = "",
         attributes: [String: String] = [:],
         config: RoktConfig? = nil,
-        placementOptions: PlacementOptions? = nil,
+        placementOptions: RoktPlacementOptions? = nil,
         onEvent: ((RoktEvent) -> Void)? = nil
     ) {
         _sdkTriggered = sdkTriggered

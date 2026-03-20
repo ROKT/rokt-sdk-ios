@@ -1,24 +1,55 @@
-import UIKit
+import ObjectiveC
 import SwiftUI
+import UIKit
 internal import RoktUXHelper
 
-@objc public class RoktEmbeddedView: UIView {
-    var roktEmbeddedSwiftUIView: UIView?
+// MARK: - Associated Object Keys
 
-    var topConstaint: NSLayoutConstraint?
-    var leadingConstaint: NSLayoutConstraint?
-    var trailingConstaint: NSLayoutConstraint?
-    var heightConstaint: NSLayoutConstraint?
-    // The default is -1 as 0 is a valid state. -1 means embedded view is not loaded correctly
-    private var latestHeight: CGFloat = -1
-    private var onSizeChange: ((CGFloat) -> Void)?
+private var roktEmbeddedSwiftUIViewKey: UInt8 = 0
+private var topConstraintKey: UInt8 = 0
+private var leadingConstraintKey: UInt8 = 0
+private var trailingConstraintKey: UInt8 = 0
+private var heightConstraintKey: UInt8 = 0
+private var latestHeightKey: UInt8 = 0
+private var onSizeChangeKey: UInt8 = 0
 
-    public override init(frame: CGRect) {
-        super.init(frame: frame)
+// MARK: - RoktEmbeddedView Internal Properties (via associated objects)
+
+extension RoktEmbeddedView {
+    var roktEmbeddedSwiftUIView: UIView? {
+        get { objc_getAssociatedObject(self, &roktEmbeddedSwiftUIViewKey) as? UIView }
+        set { objc_setAssociatedObject(self, &roktEmbeddedSwiftUIViewKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
     }
 
-    public required init?(coder aDecoder: NSCoder) {
-        super.init(coder: aDecoder)
+    var topConstaint: NSLayoutConstraint? {
+        get { objc_getAssociatedObject(self, &topConstraintKey) as? NSLayoutConstraint }
+        set { objc_setAssociatedObject(self, &topConstraintKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
+    }
+
+    var leadingConstaint: NSLayoutConstraint? {
+        get { objc_getAssociatedObject(self, &leadingConstraintKey) as? NSLayoutConstraint }
+        set { objc_setAssociatedObject(self, &leadingConstraintKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
+    }
+
+    var trailingConstaint: NSLayoutConstraint? {
+        get { objc_getAssociatedObject(self, &trailingConstraintKey) as? NSLayoutConstraint }
+        set { objc_setAssociatedObject(self, &trailingConstraintKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
+    }
+
+    var heightConstaint: NSLayoutConstraint? {
+        get { objc_getAssociatedObject(self, &heightConstraintKey) as? NSLayoutConstraint }
+        set { objc_setAssociatedObject(self, &heightConstraintKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
+    }
+
+    // The default is -1 as 0 is a valid state. -1 means embedded view is not loaded correctly
+    var latestHeight: CGFloat {
+        get { (objc_getAssociatedObject(self, &latestHeightKey) as? NSNumber)?.doubleValue ?? -1 }
+        set { objc_setAssociatedObject(self, &latestHeightKey, NSNumber(value: newValue), .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
+    }
+
+    var onSizeChange: ((CGFloat) -> Void)? {
+        get { objc_getAssociatedObject(self, &onSizeChangeKey) as? (CGFloat) -> Void }
+        set { objc_setAssociatedObject(self, &onSizeChangeKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
     }
 
     public func updateEmbeddedSize(_ size: CGFloat) {
@@ -35,7 +66,6 @@ internal import RoktUXHelper
     }
 
     private func decideTranslatesAutoresizingMask() {
-        // translateAutoresizingMaskIntoConstraints only when view doesn't have any constraints.
         if !self.constraints.isEmpty {
             self.translatesAutoresizingMaskIntoConstraints = false
         } else {
@@ -83,10 +113,11 @@ internal import RoktUXHelper
     }
 }
 
+// MARK: - ResizableHostingController
+
 class ResizableHostingController<Content>: UIHostingController<Content> where Content: View {
     override func viewDidLoad() {
         super.viewDidLoad()
-
         view.backgroundColor = .clear
     }
 
@@ -96,11 +127,15 @@ class ResizableHostingController<Content>: UIHostingController<Content> where Co
     }
 }
 
+// MARK: - UIResponder Extension
+
 extension UIResponder {
     @objc public var parentViewControllers: UIViewController? {
         return next as? UIViewController ?? next?.parentViewControllers
     }
 }
+
+// MARK: - InternalLayoutLoader Conformance
 
 extension RoktEmbeddedView: InternalLayoutLoader {
     public func load<Content>(onSizeChanged: @escaping ((CGFloat) -> Void),
@@ -132,10 +167,8 @@ extension RoktEmbeddedView: InternalLayoutLoader {
     }
 
     public func closeEmbedded() {
-        //         change the size to zero
         self.onSizeChange?(0)
         updateEmbeddedSize(0)
-        // remove view from superView
         roktEmbeddedSwiftUIView?.removeFromSuperview()
         roktEmbeddedSwiftUIView = nil
         RoktLogger.shared.info("User journey ended on Embedded view")
