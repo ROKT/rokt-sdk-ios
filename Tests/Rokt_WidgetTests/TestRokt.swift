@@ -1,11 +1,16 @@
 import XCTest
+import Foundation
 
 @testable import Rokt_Widget
 
 class TestRokt: XCTestCase {
 
     override func setUp() {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
+        super.setUp()
+        if let bundleID = Bundle.main.bundleIdentifier {
+            UserDefaults.standard.removePersistentDomain(forName: bundleID)
+            UserDefaults.standard.synchronize()
+        }
     }
 
     override func tearDown() {

@@ -48,17 +48,17 @@ final class TestRoktConfig: XCTestCase {
         XCTAssertTrue(cacheConfig.isCacheEnabled())
     }
 
-    func test_cacheConfig_internalInit_withEnableCacheFalse_disablesCache() {
-        // Arrange
-        let cacheConfig = RoktConfig.CacheConfig(enableCache: false)
+    func test_builder_withoutCacheConfig_disablesCache() {
+        // Arrange — Builder without cacheConfig should disable caching
+        let config = RoktConfig.Builder().build()
 
         // Act & Assert
-        XCTAssertFalse(cacheConfig.isCacheEnabled())
+        XCTAssertFalse(config.cacheConfig.isCacheEnabled())
     }
 
-    func test_cacheConfig_internalInit_withEnableCacheTrue_enablesCache() {
-        // Arrange
-        let cacheConfig = RoktConfig.CacheConfig(enableCache: true)
+    func test_cacheConfig_publicInit_enablesCacheTrue() {
+        // Arrange — Public CacheConfig init always enables cache
+        let cacheConfig = RoktConfig.CacheConfig()
 
         // Act & Assert
         XCTAssertTrue(cacheConfig.isCacheEnabled())
