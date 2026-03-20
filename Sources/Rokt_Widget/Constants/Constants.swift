@@ -42,6 +42,19 @@ var kDiagnosticsResourceUrl: String {
   "\(kBaseURL)/\(kDiagnosticsResourceVersion)/\(kDiagnosticsResource)"
 }
 
+// MARK: - Cart resource
+
+let kCartResource = "cart"
+let kCartResourceVersion = "v1"
+var kCartInitializePurchaseUrl: String {
+    "\(kBaseURL)/\(kCartResourceVersion)/\(kCartResource)/initialize-purchase"
+}
+let kInitializePurchaseAPIFailureMsg = "response: %@, statusCode: %@, error: %@"
+let kDevicePayError = "Payment failed or cancelled"
+let kApplePayPaymentPreparationError = "Payment preparation failed"
+let kInitializePurchaseErrorCode = "[INITIALIZE_PURCHASE]"
+let kDevicePayErrorCode = "[DEVICE_PAY]"
+
 // MARK: - Timings resource
 
 let kTimingsResource = "timings"
@@ -170,7 +183,7 @@ let kLayoutsValue = "layouts"
 
 let kLayoutsSchemaVersionHeader = "rokt-layout-schema-version"
 // to be manually updated whenever we pull in a new schema version
-let kLayoutsSchemaVersion = "2.3"
+let kLayoutsSchemaVersion = "2.4"
 
 // MARK: - Font error messages
 

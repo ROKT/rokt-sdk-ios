@@ -54,6 +54,9 @@ class RoktInternalImplementation {
         return _swiftUiExecuteLayout as? LayoutLoader
     }
 
+    // Payment orchestrator for Shoppable Ads
+    private lazy var paymentOrchestrator = PaymentOrchestrator()
+
     func close() {
         guard let window = UIApplication.shared.windows.filter({$0.isKeyWindow}).first,
               let rootViewController = window.rootViewController
@@ -265,6 +268,15 @@ class RoktInternalImplementation {
                     event.onClose?(event.id)
                 })
             }
+        } else if let event = uxEvent as? RoktUXEvent.CartItemDevicePay {
+            // Emit the event to the partner AND process payment internally
+            callOnRoktEvent(executeId, event: RoktEvent.CartItemDevicePay(
+                identifier: event.layoutId,
+                catalogItemId: event.catalogItemId,
+                cartItemId: event.cartItemId,
+                paymentProvider: event.paymentProvider.rawValue
+            ))
+            processDevicePayment(executeId: executeId, event: event)
         } else if (uxEvent as? RoktUXEvent.LayoutFailure) != nil {
 
             callOnRoktEvent(executeId, event: uxEvent.mapToRoktEvent)
@@ -699,6 +711,116 @@ class RoktInternalImplementation {
         }
 
         fontLoadObservers.append(contentsOf: [startedObserver, finishedObserver])
+    }
+
+    // MARK: - Payment Extension
+
+    /// Register a payment extension for Shoppable Ads.
+    func registerPaymentExtension(_ paymentExtension: PaymentExtension, config: [String: String]) {
+        if !paymentOrchestrator.register(paymentExtension, config: config) {
+            RoktLogger.shared.error("Rokt: Failed to register payment extension: \(paymentExtension.id)")
+            RoktAPIHelper.sendDiagnostics(
+                message: kDevicePayErrorCode,
+                callStack: "Failed to register payment extension: \(paymentExtension.id)",
+                severity: .warning
+            )
+        }
+    }
+
+    // MARK: - Shoppable Ads
+
+    /// Display a Shoppable Ads overlay placement.
+    func shoppableAds(
+        viewName: String?,
+        attributes: [String: String],
+        config: RoktConfig?,
+        onRoktEvent: ((RoktEvent) -> Void)?
+    ) {
+        guard paymentOrchestrator.hasRegisteredExtension else {
+            RoktLogger.shared.error(
+                "Rokt: No PaymentExtension registered. Call registerPaymentExtension() before shoppableAds()."
+            )
+            onRoktEvent?(RoktEvent.PlacementFailure(identifier: nil))
+            return
+        }
+
+        // Show loading indicator immediately for Shoppable Ads
+        onRoktEvent?(RoktEvent.ShowLoadingIndicator())
+
+        // Reuse the existing execute flow — backend routes based on placement config
+        execute(
+            viewName: viewName,
+            attributes: attributes,
+            placements: nil,
+            config: config,
+            placementOptions: nil,
+            onRoktEvent: onRoktEvent
+        )
+    }
+
+    // MARK: - Device Payment Processing
+
+    private func processDevicePayment(executeId: String, event: RoktUXEvent.CartItemDevicePay) {
+        let item = PaymentItem(
+            id: event.catalogItemId,
+            name: event.name,
+            amount: event.totalPrice ?? 0,
+            currency: event.currency
+        )
+
+        paymentOrchestrator.processPayment(
+            method: .applePay,
+            item: item,
+            cartItemId: event.cartItemId,
+            from: UIApplication.topViewController() ?? UIViewController(),
+            completion: { [weak self] paymentResult in
+                guard let self else { return }
+
+                switch paymentResult {
+                case .canceled:
+                    RoktLogger.shared.info("Payment cancelled by user")
+                    return
+
+                case .failed(let error):
+                    RoktLogger.shared.warning("Payment failed: \(error)")
+                    RoktAPIHelper.sendDiagnostics(
+                        message: kDevicePayErrorCode,
+                        callStack: error,
+                        additionalInfo: [
+                            "cartItemId": event.cartItemId,
+                            "catalogItemId": event.catalogItemId
+                        ]
+                    )
+
+                case .succeeded(let transactionId):
+                    RoktLogger.shared.info("Payment succeeded: \(transactionId)")
+                }
+
+                let success: Bool
+                if case .succeeded = paymentResult { success = true } else { success = false }
+
+                guard let state = self.stateManager.getState(id: executeId),
+                      let uxHelper = state.uxHelper as? RoktUX
+                else {
+                    RoktLogger.shared.warning("Payment finalized but state not found for executeId: \(executeId)")
+                    RoktAPIHelper.sendDiagnostics(
+                        message: kDevicePayErrorCode,
+                        callStack: "State not found after payment for executeId: \(executeId)",
+                        additionalInfo: [
+                            "cartItemId": event.cartItemId,
+                            "catalogItemId": event.catalogItemId
+                        ]
+                    )
+                    return
+                }
+
+                uxHelper.devicePayFinalized(
+                    layoutId: event.layoutId,
+                    catalogItemId: event.catalogItemId,
+                    success: success
+                )
+            }
+        )
     }
 }
 

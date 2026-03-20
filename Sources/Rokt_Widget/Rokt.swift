@@ -144,6 +144,46 @@ internal import RoktUXHelper
         config = Configuration(environment: Configuration.getEnvironment(environment))
     }
 
+    /// Register a payment extension for Shoppable Ads.
+    ///
+    /// The partner passes configuration (e.g. Stripe publishable key) at runtime.
+    /// Must be called before `shoppableAds()`.
+    ///
+    /// - Parameters:
+    ///   - paymentExtension: The payment extension to register (e.g. `RoktStripePaymentExtension`)
+    ///   - config: Configuration dictionary (e.g. `["stripeKey": "pk_live_..."]`)
+    public static func registerPaymentExtension(
+        _ paymentExtension: PaymentExtension,
+        config: [String: String] = [:]
+    ) {
+        shared.roktImplementation.registerPaymentExtension(paymentExtension, config: config)
+    }
+
+    /// Display a Shoppable Ads overlay placement.
+    ///
+    /// Always renders as an overlay/lightbox — no embedded views.
+    /// Shows a loading indicator immediately while fetching the experience.
+    /// Requires `registerPaymentExtension()` to be called first.
+    ///
+    /// - Parameters:
+    ///   - viewName: Optional view/page identifier for the placement
+    ///   - attributes: User attributes for targeting
+    ///   - config: Optional configuration (color mode, caching)
+    ///   - onEvent: Callback for placement lifecycle and purchase events
+    public static func shoppableAds(
+        viewName: String? = nil,
+        attributes: [String: String],
+        config: RoktConfig? = nil,
+        onEvent: ((RoktEvent) -> Void)? = nil
+    ) {
+        shared.roktImplementation.shoppableAds(
+            viewName: viewName,
+            attributes: attributes,
+            config: config,
+            onRoktEvent: onEvent
+        )
+    }
+
     /// Currently by design the active Thank You page should always be the most recent Rokt layout.
     /// thus when closing the loop with purchaseFinalized, we can find the first state where instant purchase has been initiated and not closed.
     ///

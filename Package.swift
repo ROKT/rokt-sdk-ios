@@ -21,8 +21,8 @@ let package = Package(
     ],
     dependencies: [
         // TODO: Change this to upToNextMajor with a Tag after the tag is created
-        .package(url: "https://github.com/ROKT/rokt-contracts-apple.git", branch: "main"),
-        .package(url: "https://github.com/ROKT/rokt-ux-helper-ios.git", .upToNextMajor(from: "0.8.1")),
+        .package(url: "https://github.com/ROKT/rokt-contracts-apple.git", branch: "feat/shoppable-ads-events"),
+        .package(url: "https://github.com/ROKT/rokt-ux-helper-ios.git", branch: "feat/UTYP-589-Post-Purchase-Upsells"),
         .package(url: "https://github.com/WeTransfer/Mocker.git", .upToNextMajor(from: "2.0.0"))
     ],
     targets: [

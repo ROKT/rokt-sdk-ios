@@ -211,6 +211,30 @@ internal class RoktAPIHelper {
         }
     }
 
+    /// Initialize a purchase for Shoppable Ads.
+    ///
+    /// - Parameters:
+    ///   - upsellItems: Items being purchased
+    ///   - shippingAttributes: Shipping address
+    ///   - success: Callback with the initialize-purchase response
+    ///   - failure: Callback with error details
+    class func initializePurchase(upsellItems: [UpsellItem],
+                                  shippingAttributes: ShippingAttributes,
+                                  success: ((InitializePurchaseResponse) -> Void)? = nil,
+                                  failure: ((Error, Int?, String) -> Void)? = nil) {
+        if isMock() {
+            RoktMockAPI.initializePurchase(upsellItems: upsellItems,
+                                           shippingAttributes: shippingAttributes,
+                                           success: success,
+                                           failure: failure)
+        } else {
+            RoktNetWorkAPI.initializePurchase(upsellItems: upsellItems,
+                                              shippingAttributes: shippingAttributes,
+                                              success: success,
+                                              failure: failure)
+        }
+    }
+
     private class func isMock() -> Bool {
         return config.environment == .Mock
     }
