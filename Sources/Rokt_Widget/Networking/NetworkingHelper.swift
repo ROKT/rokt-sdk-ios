@@ -236,18 +236,18 @@ class NetworkingHelper {
         case .failure(let error):
             if let statusCode = httpResult.httpURLResponse?.statusCode {
                 if statusCode == NSURLErrorNotConnectedToInternet {
-                    RoktLogger.shared.verbose(StringHelper.localizedStringFor(kNetworkErrorKey, comment: kNetworkErrorComment))
+                    RoktLogger.shared.verbose(kNetworkErrorComment)
                     failure?(error, statusCode, kNetworkErrorComment)
                     return
                 } else if statusCode == HTTPStatusCode.unauthorized.rawValue {
-                    RoktLogger.shared.verbose(StringHelper.localizedStringFor(kUnauthorizedKey, comment: kUnauthorizedComment))
+                    RoktLogger.shared.verbose(kUnauthorizedComment)
                     failure?(error, statusCode, kUnauthorizedComment)
                     return
                 }
             }
 
             RoktLogger.shared.verbose(httpResult.httpURLResponse?.description
-                    ?? StringHelper.localizedStringFor(kApiErrorKey, comment: kApiErrorC))
+                    ?? kApiErrorC)
             RoktLogger.shared.verbose(error.localizedDescription)
 
             var responseString: String?
@@ -259,7 +259,7 @@ class NetworkingHelper {
                 }
 
                 let errorString = error.localizedDescription
-                let apiResponseString = StringHelper.localizedStringFor(kApiResponseKey, comment: kApiResponseComment)
+                let apiResponseString = kApiResponseComment
                 let status = "\(apiResponseString) \(errorString) \(responseString ?? "")"
 
                 RoktLogger.shared.verbose(status)

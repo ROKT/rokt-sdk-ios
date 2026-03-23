@@ -17,19 +17,14 @@ permissions:
   packages: write
 
 jobs:
-  build-and-release:
-    runs-on: macos-latest-xlarge
+  create-release:
+    runs-on: macos-latest
     outputs:
       release_version: ${{ steps.version-file.outputs.release-version }}
       release_notes: ${{ steps.extract-release-notes.outputs.release_notes }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Select Xcode
-        uses: maxim-lobanov/setup-xcode@60606e260d2fc5762a71e64e74b2174e8ea3c8bd # v1.6.0
-        with:
-          xcode-version: "26.2"
 
       - name: Get current version
         id: version-file
@@ -44,9 +39,6 @@ jobs:
           changelog_file: CHANGELOG.md
           release_notes_file: ${{ steps.version-file.outputs.release-version }}.md
 
-      - name: Build xcframework
-        run: ./scripts/build_xcframework_zip.sh
-
       - name: Create Release
         uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
         with:
@@ -57,7 +49,6 @@ jobs:
             Release ${{ steps.version-file.outputs.release-version }}
             ## Changelog
             ${{ steps.extract-release-notes.outputs.release_notes }}
-          files: vendor/Rokt_Widget.xcframework.zip
 
       - name: Upload release notes
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
@@ -66,7 +57,7 @@ jobs:
           path: ${{ steps.version-file.outputs.release-version }}.md
 
   publish-cocoapods:
-    needs: build-and-release
+    needs: create-release
     runs-on: macos-latest
     steps:
       - name: Checkout repository
@@ -84,7 +75,7 @@ jobs:
           COCOAPODS_TRUNK_TOKEN: ${{ secrets.COCOAPODS_TRUNK_TOKEN }}
 
   upload-release-notes:
-    needs: build-and-release
+    needs: create-release
     if: github.ref_name == 'main'
     runs-on: ubuntu-latest
     steps:
@@ -114,27 +105,27 @@ jobs:
 
       - name: Move release notes to docs
         run: |
-          mv ${{ needs.build-and-release.outputs.release_version }}.md changelogs/ios/${{ needs.build-and-release.outputs.release_version }}.md
+          mv ${{ needs.create-release.outputs.release_version }}.md changelogs/ios/${{ needs.create-release.outputs.release_version }}.md
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
         with:
           token: ${{ steps.generate_token.outputs.token }}
           commit-message: Update iOS SDK Release Notes
-          branch: update-ios-sdk-release-notes-${{ needs.build-and-release.outputs.release_version }}
+          branch: update-ios-sdk-release-notes-${{ needs.create-release.outputs.release_version }}
           title: NOJIRA - Update iOS SDK Release Notes
           base: main
           body: |
             # Update iOS SDK Release Notes
 
-            iOS SDK version ${{ needs.build-and-release.outputs.release_version }} has been released.
+            iOS SDK version ${{ needs.create-release.outputs.release_version }} has been released.
 
             Please review and merge the PR to update the release notes.
           labels: |
             chore
 
   trigger-demo-app-release:
-    needs: [build-and-release, publish-cocoapods]
+    needs: [create-release, publish-cocoapods]
     if: github.ref_name == 'main'
     runs-on: ubuntu-latest
     steps:
@@ -155,6 +146,6 @@ jobs:
           event-type: release-build
           client-payload: |
             {
-              "version_name": "${{ needs.build-and-release.outputs.release_version }}",
-              "release_notes": ${{ toJSON(needs.build-and-release.outputs.release_notes) }}
+              "version_name": "${{ needs.create-release.outputs.release_version }}",
+              "release_notes": ${{ toJSON(needs.create-release.outputs.release_notes) }}
             }
