@@ -33,9 +33,8 @@ class RoktInternalImplementation {
     private var isExecuting = false
     private var placements: [String: RoktEmbeddedView]?
 
-    // Caching is disabled by default internally (enableCache: false).
-    // If a consumer specifies a CacheConfig via the builder, it will use their setting (defaults to true).
-    var roktConfig: RoktConfig = RoktConfig.Builder().cacheConfig(RoktConfig.CacheConfig(enableCache: false)).build()
+    // Caching is disabled by default when no CacheConfig is provided to the Builder.
+    var roktConfig: RoktConfig = RoktConfig.Builder().build()
 
     private var linkHandler: LinkHandler = .init()
     var sentEventHashes: ThreadSafeSet<String> = .init()
@@ -385,7 +384,7 @@ class RoktInternalImplementation {
         attributes: [String: String],
         placements: [String: RoktEmbeddedView]? = nil,
         config: RoktConfig?,
-        placementOptions: PlacementOptions? = nil,
+        placementOptions: RoktPlacementOptions? = nil,
         onRoktEvent: ((RoktEvent) -> Void)? = nil
     ) {
         let composedEventHandler: (RoktEvent) -> Void = { event in
@@ -623,7 +622,7 @@ class RoktInternalImplementation {
         attributes: [String: String],
         layout: LayoutLoader? = nil,
         config: RoktConfig? = nil,
-        placementOptions: PlacementOptions? = nil,
+        placementOptions: RoktPlacementOptions? = nil,
         onRoktEvent: ((RoktEvent) -> Void)? = nil
     ) {
         _swiftUiExecuteLayout = layout

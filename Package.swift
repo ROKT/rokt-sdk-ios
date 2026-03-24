@@ -20,6 +20,7 @@ let package = Package(
         )
     ],
     dependencies: [
+        .package(url: "https://github.com/ROKT/rokt-contracts-apple.git", .upToNextMajor(from: "0.1.2")),
         .package(url: "https://github.com/ROKT/rokt-ux-helper-ios.git", .upToNextMajor(from: "0.8.1")),
         .package(url: "https://github.com/WeTransfer/Mocker.git", .upToNextMajor(from: "2.0.0"))
     ],
@@ -27,6 +28,7 @@ let package = Package(
         .target(
             name: "Rokt_Widget",
             dependencies: [
+                .product(name: "RoktContracts", package: "rokt-contracts-apple"),
                 .product(name: "RoktUXHelper", package: "rokt-ux-helper-ios")
             ],
             path: "Sources/Rokt_Widget",
