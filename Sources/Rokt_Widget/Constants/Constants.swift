@@ -110,13 +110,9 @@ let kClientProvided = "ClientProvided"
 
 // MARK: - String keys
 
-let kNetworkErrorKey = "network_error"
 let kNetworkErrorComment = "Network connection error"
-let kUnauthorizedKey = "unauthorized"
 let kUnauthorizedComment = "Unauthorized"
-let kApiErrorKey = "api_error"
 let kApiErrorC = "API error: No response"
-let kApiResponseKey = "api_response"
 let kApiResponseComment = "API response"
 let kTrackError = "tracking consent not authorised"
 let kAPIFontErrorMessage = "Error downloading font: "
