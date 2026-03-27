@@ -8,7 +8,7 @@ extension XCTestCase {
             configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        guard let originalURL = URL(string: kEventResourceUrl) else { return }
+        guard let originalURL = URL(string: eventResourceUrl) else { return }
 
         var mock = Mock(url: originalURL,
                         dataType: .json, statusCode: 200, data: [.post: Data()])
@@ -19,11 +19,11 @@ extension XCTestCase {
                     let jsonArray = try JSONSerialization.jsonObject(with: reqestDatas, options: []) as? [[String: Any]]
                     for json in jsonArray! {
                         onEventReceive?(
-                            EventModel(eventType: json[BE_EVENT_TYPE_KEY] as! String,
-                                       parentGuid: json[BE_PARENT_GUID_KEY] as! String,
-                                       pageInstanceGuid: json[BE_PAGE_INSTANCE_GUID_KEY] as? String,
-                                       metadata: json[BE_METADATA_KEY] as? [[String: String]],
-                                       attributes: json[BE_ATTRIBUTES_KEY] as? [[String: String]],
+                            EventModel(eventType: json[eventTypeKey] as! String,
+                                       parentGuid: json[parentGuidKey] as! String,
+                                       pageInstanceGuid: json[pageInstanceGuidKey] as? String,
+                                       metadata: json[metadataKey] as? [[String: String]],
+                                       attributes: json[attributesKey] as? [[String: String]],
                                        jwtToken: json["token"] as! String)
                         )
                     }
@@ -40,7 +40,7 @@ extension XCTestCase {
             configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        guard let originalURL = URL(string: kDiagnosticsResourceUrl) else { return }
+        guard let originalURL = URL(string: diagnosticsResourceUrl) else { return }
         var mock = Mock(url: originalURL,
                         dataType: .json, statusCode: 200, data: [.post: Data()])
 
@@ -48,7 +48,7 @@ extension XCTestCase {
             if let reqestDatas = request.httpBodyStream?.readfully() {
                 do {
                     let json = try JSONSerialization.jsonObject(with: reqestDatas, options: []) as? [String: Any]
-                    onDiagnosticsReceive?(json![BE_ERROR_CODE_KEY] as! String)
+                    onDiagnosticsReceive?(json![errorCodeDiagnosticKey] as! String)
                 } catch {
                 }
             }
@@ -61,7 +61,7 @@ extension XCTestCase {
             configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        guard let originalURL = URL(string: kDiagnosticsResourceUrl) else { return }
+        guard let originalURL = URL(string: diagnosticsResourceUrl) else { return }
         var mock = Mock(url: originalURL,
                         dataType: .json, statusCode: 200, data: [.post: Data()])
 
@@ -69,9 +69,9 @@ extension XCTestCase {
             if let reqestDatas = request.httpBodyStream?.readfully() {
                 do {
                     let json = try JSONSerialization.jsonObject(with: reqestDatas, options: []) as? [String: Any]
-                    let diagnostics = StubbedDiagnosticsModel(code: json![BE_ERROR_CODE_KEY] as! String,
-                                                              stackTrace: json![BE_ERROR_STACK_TRACE_KEY] as! String,
-                                                              severity: json![BE_ERROR_SEVERITY_KEY] as! String)
+                    let diagnostics = StubbedDiagnosticsModel(code: json![errorCodeDiagnosticKey] as! String,
+                                                              stackTrace: json![errorStackTraceDiagnosticKey] as! String,
+                                                              severity: json![errorSeverityDiagnosticKey] as! String)
                     onDiagnosticsModelReceive?(diagnostics)
                 } catch { }
             }
@@ -84,7 +84,7 @@ extension XCTestCase {
             configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        guard let originalURL = URL(string: kTimingsResourceUrl) else { return }
+        guard let originalURL = URL(string: timingsResourceUrl) else { return }
 
         var mock = Mock(url: originalURL,
                         dataType: .json, statusCode: 200, data: [.post: Data()])
@@ -95,12 +95,12 @@ extension XCTestCase {
                 do {
                     let requestBody = try JSONSerialization.jsonObject(with: requestBodyStream, options: []) as! [String: Any]
                     onTimingsRequestReceive?(
-                        MockTimingsRequest(eventTime: requestBody[BE_TIMINGS_EVENT_TIME_KEY] as! String,
-                                           pageId: requestHeaders[BE_HEADER_PAGE_ID_KEY],
-                                           pageInstanceGuid: requestHeaders[BE_HEADER_PAGE_INSTANCE_GUID_KEY],
-                                           pluginId: requestBody[BE_TIMINGS_PLUGIN_ID_KEY] as? String,
-                                           pluginName: requestBody[BE_TIMINGS_PLUGIN_NAME_KEY] as? String,
-                                           timings: requestBody[BE_TIMINGS_TIMING_METRICS_KEY] as! [[String: String]])
+                        MockTimingsRequest(eventTime: requestBody[timingsEventTimeKey] as! String,
+                                           pageId: requestHeaders[headerPageIdKey],
+                                           pageInstanceGuid: requestHeaders[headerPageInstanceGuidKey],
+                                           pluginId: requestBody[timingsPluginIdKey] as? String,
+                                           pluginName: requestBody[timingsPluginNameKey] as? String,
+                                           timings: requestBody[timingsMetricsKey] as! [[String: String]])
                     )
                 } catch {
                 }

@@ -1,5 +1,9 @@
 import Foundation
 
+private let fontNameKey = "fontName"
+private let fontUrlKey = "fontUrl"
+private let fontPostScriptNameKey = "fontPostScriptName"
+
 /// Font model
 class FontModel: NSObject {
     let name: String
@@ -13,12 +17,12 @@ class FontModel: NSObject {
     }
 
     convenience init?(fontDict: [String: Any]) {
-        if let fName = fontDict[BE_FONT_NAME_KEY] as? String,
-           let fUrl = fontDict[BE_FONT_URL_KEY] as? String {
+        if let fName = fontDict[fontNameKey] as? String,
+           let fUrl = fontDict[fontUrlKey] as? String {
             self.init(
                 name: fName,
                 url: fUrl,
-                postScriptName: fontDict[BE_FONT_POSTSCRIPT_NAME_KEY] as? String
+                postScriptName: fontDict[fontPostScriptNameKey] as? String
             )
         } else {
             return nil

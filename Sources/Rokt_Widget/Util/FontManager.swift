@@ -1,5 +1,20 @@
 import Foundation
 import UIKit
+
+private let registerGraphicsFontErrorMsg = "font: %@, error: registerGraphicsFont on device %@"
+private let registerUrlFontErrorMsg = "font: %@, error: registerURLFont on device %@"
+let logFontPreloadedType = "pre-loaded"
+private let logFontDownloadedType = "downloaded"
+let downloadingFonts = "downloadingFonts"
+private let fullFontLogDiagnosticCode = "[FULLFONTLOGS]"
+private let fullFontLogCode1 = "[FFL001]"
+private let fullFontLogCode2 = "[FFL002]"
+private let fullFontLogCode5 = "[FFL005]"
+private let fullFontLogCode6 = "[FFL006]"
+private let fullFontLogCode7 = "[FFL007]"
+private let fullFontLogCode8 = "[FFL008]"
+private let fullFontLogCode9 = "[FFL009]"
+
 internal class FontManager {
     static let keyTimestamp = "timestamp"
     static let keyName = "name"
@@ -30,7 +45,7 @@ internal class FontManager {
             let registeredFontName = fontModel.postScriptName ?? fontModel.name
 
             guard let fileUrl = getFileUrl(name: registeredFontName) else {
-                RoktAPIHelper.sendDiagnostics(message: kAPIFontErrorCode,
+                RoktAPIHelper.sendDiagnostics(message: fontDiagnosticCode,
                                               callStack: "font: \(fontModel.url), error: FileManager default urls")
                 RoktLogger.shared.error("Error in font fileManager url for: \(fontModel.url)")
                 continue
@@ -47,7 +62,7 @@ internal class FontManager {
         var fontDownloadInProgress = false
 
         if !fonts.isEmpty {
-            NotificationCenter.default.post(Notification(name: Notification.Name(kDownloadingFonts)))
+            NotificationCenter.default.post(Notification(name: Notification.Name(downloadingFonts)))
             var downloadedFonts = 0
 
             for font in fonts {
@@ -55,12 +70,12 @@ internal class FontManager {
 
                 guard !isSystemFont(font: font) else {
                     // Log FFL001
-                    sendFullFontLogs("Font retrieved from system \(registeredFontName)", fontLogId: kFullFontLogCode1)
+                    sendFullFontLogs("Font retrieved from system \(registeredFontName)", fontLogId: fullFontLogCode1)
                     downloadedFonts += 1
 
                     if downloadedFonts == fonts.count {
                         NotificationCenter.default.post(Notification(name:
-                                                                        Notification.Name(kFinishedDownloadingFonts)))
+                                                                        Notification.Name(finishedDownloadingFonts)))
                     }
 
                     continue
@@ -70,21 +85,21 @@ internal class FontManager {
                 guard let fileUrl = getFileUrl(name: registeredFontName) else {
                     Rokt.shared.roktImplementation.isInitialized = false
                     Rokt.shared.roktImplementation.isInitFailedForFont = true
-                    RoktAPIHelper.sendDiagnostics(message: kAPIFontErrorCode,
+                    RoktAPIHelper.sendDiagnostics(message: fontDiagnosticCode,
                                                   callStack: "font: \(font.url), error: FileManager default urls")
                     RoktLogger.shared.error("Error in font fileManager url for: \(font.url)")
                     NotificationCenter.default.post(Notification(name:
-                                                                    Notification.Name(kFinishedDownloadingFonts)))
+                                                                    Notification.Name(finishedDownloadingFonts)))
                     return
                 }
 
                 if isSystemFont(font: font) {
                     // Log FFL002
-                    sendFullFontLogs("Font retrieved from system \(registeredFontName)", fontLogId: kFullFontLogCode2)
+                    sendFullFontLogs("Font retrieved from system \(registeredFontName)", fontLogId: fullFontLogCode2)
                     downloadedFonts += 1
                     if downloadedFonts == fonts.count {
                         NotificationCenter.default.post(Notification(name:
-                                                                        Notification.Name(kFinishedDownloadingFonts)))
+                                                                        Notification.Name(finishedDownloadingFonts)))
                     }
                 } else if FontManager.isDownloadingFontRequired(font: font) {
                     downloadedFonts += 1
@@ -104,7 +119,7 @@ internal class FontManager {
                     downloadedFonts += 1
                     if downloadedFonts == fonts.count {
                         NotificationCenter.default.post(Notification(name:
-                                                                        Notification.Name(kFinishedDownloadingFonts)))
+                                                                        Notification.Name(finishedDownloadingFonts)))
                     }
                 }
             }
@@ -120,7 +135,7 @@ internal class FontManager {
         if let fontData = try? NSData(contentsOf: fileUrl, options: [.mappedIfSafe]),
            let dataProvider = CGDataProvider(data: fontData) {
             if let cgFont = CGFont(dataProvider) {
-                let logLoadType = isDownloaded ? kLogFontDownloadedType : kLogFontPreloadedType
+                let logLoadType = isDownloaded ? logFontDownloadedType : logFontPreloadedType
                 if Rokt.shared.roktImplementation.initFeatureFlags.isEnabled(.shouldUseFontRegisterWithUrl) {
                     registerURLFont(fileUrl: fileUrl, cgFont: cgFont,
                                     fontUrlString: font.url,
@@ -138,14 +153,14 @@ internal class FontManager {
                 Rokt.shared.roktImplementation.isInitialized = false
                 Rokt.shared.roktImplementation.isInitFailedForFont = true
                 RoktLogger.shared.error("Error registering font on device: \(font.url)")
-                RoktAPIHelper.sendDiagnostics(message: kAPIFontErrorCode,
+                RoktAPIHelper.sendDiagnostics(message: fontDiagnosticCode,
                                               callStack: "font: \(font.url), error: registering font on device")
             }
         } else {
             Rokt.shared.roktImplementation.isInitialized = false
             Rokt.shared.roktImplementation.isInitFailedForFont = true
             RoktLogger.shared.error("Error reading font data: \(font.url)")
-            RoktAPIHelper.sendDiagnostics(message: kAPIFontErrorCode,
+            RoktAPIHelper.sendDiagnostics(message: fontDiagnosticCode,
                                           callStack: "font: \(font.url), error: reading font data")
         }
     }
@@ -155,9 +170,9 @@ internal class FontManager {
         if CTFontManagerRegisterGraphicsFont(cgFont, &errorFont) {
             // Log FFL005
             sendFullFontLogs("Font Graphic \(logLoadType) and registered \(cgFont.postScriptName ?? "" as CFString)",
-                             fontLogId: kFullFontLogCode5)
+                             fontLogId: fullFontLogCode5)
         } else {
-            let errorLog = String(format: kRegisterGraphicsFontErrorMsg, fontUrlString,
+            let errorLog = String(format: registerGraphicsFontErrorMsg, fontUrlString,
                                   String(describing: errorFont?.takeUnretainedValue()))
             sendRegisterDiagnostics(error: errorFont, log: errorLog)
             RoktLogger.shared.warning(errorLog)
@@ -169,9 +184,9 @@ internal class FontManager {
         if CTFontManagerRegisterFontsForURL(fileUrl as CFURL, .process, &errorFont) {
             // Log FFL006
             sendFullFontLogs("Font URL \(logLoadType) and registered \(cgFont.postScriptName ?? "" as CFString)",
-                             fontLogId: kFullFontLogCode6)
+                             fontLogId: fullFontLogCode6)
         } else {
-            let errorLog = String(format: kRegisterURLFontErrorMsg, fontUrlString,
+            let errorLog = String(format: registerUrlFontErrorMsg, fontUrlString,
                                   String(describing: errorFont?.takeUnretainedValue()))
             sendRegisterDiagnostics(error: errorFont, log: errorLog)
             RoktLogger.shared.warning(errorLog)
@@ -240,10 +255,10 @@ internal class FontManager {
         do {
             try FileManager.default.removeItem(at: fileUrl)
             // Log FFL007
-            sendFullFontLogs("Font removed \(fontName)", fontLogId: kFullFontLogCode7)
+            sendFullFontLogs("Font removed \(fontName)", fontLogId: fullFontLogCode7)
         } catch {
             RoktAPIHelper.sendDiagnostics(
-                message: kAPIFontErrorCode,
+                message: fontDiagnosticCode,
                 callStack: "Failed to remove file \(fontName)"
             )
         }
@@ -253,11 +268,11 @@ internal class FontManager {
         if let documentsUrl = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
             let fullPath = documentsUrl.appendingPathComponent("\(name)\(fontExtension)")
             // Log FFL008
-            sendFullFontLogs("Full file path URL: \(fullPath)", fontLogId: kFullFontLogCode8)
+            sendFullFontLogs("Full file path URL: \(fullPath)", fontLogId: fullFontLogCode8)
             return fullPath
         }
         // Log FFL009
-        sendFullFontLogs("File Manager failed to read documents directory in user home", fontLogId: kFullFontLogCode9)
+        sendFullFontLogs("File Manager failed to read documents directory in user home", fontLogId: fullFontLogCode9)
         return nil
     }
 
@@ -275,7 +290,7 @@ internal class FontManager {
         let errorObject = error?.takeUnretainedValue()
         if errorObject == nil || !suppressedFontErrorCodes.contains(CFErrorGetCode(errorObject)) {
             // Send diagnostic only if CFError nil or code is not in suppressedFontErrorCodes
-            RoktAPIHelper.sendDiagnostics(message: kAPIFontErrorCode, callStack: log)
+            RoktAPIHelper.sendDiagnostics(message: fontDiagnosticCode, callStack: log)
             return
         }
     }
@@ -283,7 +298,7 @@ internal class FontManager {
     internal static func sendFullFontLogs(_ msg: String, fontLogId: String) {
         guard Rokt.shared.roktImplementation.initFeatureFlags.isEnabled(.shouldLogFontHappyPath) else { return }
         RoktLogger.shared.debug(msg)
-        RoktAPIHelper.sendDiagnostics(message: kAPIFullFontLogCode,
+        RoktAPIHelper.sendDiagnostics(message: fullFontLogDiagnosticCode,
                                       callStack: "\(fontLogId) \(msg)",
                                       severity: .info)
     }

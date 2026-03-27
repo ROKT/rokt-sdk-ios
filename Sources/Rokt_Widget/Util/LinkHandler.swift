@@ -2,6 +2,8 @@ import Foundation
 import SafariServices
 internal import RoktUXHelper
 
+private let urlDiagnosticCode = "[URL]"
+
 class LinkHandler {
 
     private var completionHandler: (() -> Void)?
@@ -22,7 +24,7 @@ class LinkHandler {
         switch type {
         case .internally:
             guard url.isWebURL() else {
-                RoktAPIHelper.sendDiagnostics(message: kUrlErrorCode,
+                RoktAPIHelper.sendDiagnostics(message: urlDiagnosticCode,
                                               callStack: url.absoluteString)
                 return
             }
@@ -50,7 +52,7 @@ class LinkHandler {
                      completionHandler: (() -> Void)?) {
         self.completionHandler = completionHandler
         guard let url = URL(string: urlString) else {
-            RoktAPIHelper.sendDiagnostics(message: kUrlErrorCode, callStack: urlString)
+            RoktAPIHelper.sendDiagnostics(message: urlDiagnosticCode, callStack: urlString)
 
             completionHandler?()
             return

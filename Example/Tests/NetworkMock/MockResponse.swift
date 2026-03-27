@@ -20,7 +20,7 @@ extension StubMethodsProvider {
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
         if fileName == kInvalidInitFilename {
-            let mock = Mock(url: URL(string: kInitResourceUrl)!, dataType: .json, statusCode: 500, data: [
+            let mock = Mock(url: URL(string: initResourceUrl)!, dataType: .json, statusCode: 500, data: [
                 .get: Data()
             ])
             mock.register()
@@ -28,7 +28,7 @@ extension StubMethodsProvider {
             let initPath = testBundle.path(forResource: fileName, ofType: "json")!
             let initData = NSData(contentsOfFile: initPath)!
 
-            let mock = Mock(url: URL(string: kInitResourceUrl)!, dataType: .json, statusCode: 200, data: [
+            let mock = Mock(url: URL(string: initResourceUrl)!, dataType: .json, statusCode: 200, data: [
                 .get: initData as Data // Data containing the JSON response
             ])
             mock.register()
@@ -43,7 +43,7 @@ extension StubMethodsProvider {
         let initPath = testBundle.path(forResource: widgetFileName, ofType: "json")!
         let initData = NSData(contentsOfFile: initPath)!
 
-        let mock = Mock(url: URL(string: kInitResourceUrl)!, dataType: .json, statusCode: 200, data: [
+        let mock = Mock(url: URL(string: initResourceUrl)!, dataType: .json, statusCode: 200, data: [
             .get: initData as Data // Data containing the JSON response
         ])
         mock.register()
@@ -67,11 +67,11 @@ extension StubMethodsProvider {
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        var mock = Mock(url: URL(string: kExperiencesResourceURL)!,
+        var mock = Mock(url: URL(string: experiencesResourceURL)!,
                         dataType: .json,
                         statusCode: 200,
                         data: [.post: data],
-                        additionalHeaders: [kExperienceType: isLayout ? kLayoutsValue : kPlacementsValue])
+                        additionalHeaders: [experienceTypeHeader: isLayout ? layoutsValue : placementsValue])
 
         mock.onRequest = { request, _ in
             let header = request.allHTTPHeaderFields
@@ -88,7 +88,7 @@ extension StubMethodsProvider {
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        let mock = Mock(url: URL(string: kExperiencesResourceURL)!, dataType: .json, statusCode: 500,
+        let mock = Mock(url: URL(string: experiencesResourceURL)!, dataType: .json, statusCode: 500,
                         data: [.get: Data()])
 
         mock.register()
@@ -99,7 +99,7 @@ extension StubMethodsProvider {
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        guard let originalURL = URL(string: kDiagnosticsResourceUrl) else { return }
+        guard let originalURL = URL(string: diagnosticsResourceUrl) else { return }
         var mock = Mock(url: originalURL,
                         dataType: .json, statusCode: 200, data: [.post: Data()])
 
@@ -120,7 +120,7 @@ extension StubMethodsProvider {
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        var mock = Mock(url: URL(string: kEventResourceUrl)!,
+        var mock = Mock(url: URL(string: eventResourceUrl)!,
                         dataType: .json, statusCode: 200, data: [.post: Data()])
 
         mock.onRequest = { request, _ in
@@ -148,7 +148,7 @@ extension StubMethodsProvider {
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        guard let originalURL = URL(string: kTimingsResourceUrl) else { return }
+        guard let originalURL = URL(string: timingsResourceUrl) else { return }
 
         var mock = Mock(url: originalURL,
                         dataType: .json, statusCode: 200, data: [.post: Data()])
@@ -159,12 +159,12 @@ extension StubMethodsProvider {
                 do {
                     let requestBody = try JSONSerialization.jsonObject(with: requestBodyStream, options: []) as! [String: Any]
                     onTimingsRequestReceive?(
-                        MockTimingsRequest(eventTime: requestBody[BE_TIMINGS_EVENT_TIME_KEY] as! String,
-                                           pageId: requestHeaders[BE_HEADER_PAGE_ID_KEY],
-                                           pageInstanceGuid: requestHeaders[BE_HEADER_PAGE_INSTANCE_GUID_KEY],
-                                           pluginId: requestBody[BE_TIMINGS_PLUGIN_ID_KEY] as? String,
-                                           pluginName: requestBody[BE_TIMINGS_PLUGIN_NAME_KEY] as? String,
-                                           timings: requestBody[BE_TIMINGS_TIMING_METRICS_KEY] as! [[String: String]])
+                        MockTimingsRequest(eventTime: requestBody[timingsEventTimeKey] as! String,
+                                           pageId: requestHeaders[headerPageIdKey],
+                                           pageInstanceGuid: requestHeaders[headerPageInstanceGuidKey],
+                                           pluginId: requestBody[timingsPluginIdKey] as? String,
+                                           pluginName: requestBody[timingsPluginNameKey] as? String,
+                                           timings: requestBody[timingsMetricsKey] as! [[String: String]])
                     )
                 } catch {
                 }
@@ -202,7 +202,7 @@ extension XCTestCase: StubMethodsProvider {
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
         if fileName == kInvalidInitFilename {
-            let mock = Mock(url: URL(string: kInitResourceUrl)!, dataType: .json, statusCode: 500, data: [
+            let mock = Mock(url: URL(string: initResourceUrl)!, dataType: .json, statusCode: 500, data: [
                 .get: Data()
             ])
             mock.register()
@@ -211,7 +211,7 @@ extension XCTestCase: StubMethodsProvider {
                 .path(forResource: fileName, ofType: "json")!
             let initData = NSData(contentsOfFile: initPath)!
 
-            let mock = Mock(url: URL(string: kInitResourceUrl)!, dataType: .json, statusCode: 200, data: [
+            let mock = Mock(url: URL(string: initResourceUrl)!, dataType: .json, statusCode: 200, data: [
                 .get: initData as Data // Data containing the JSON response
             ])
             mock.register()
@@ -227,7 +227,7 @@ extension XCTestCase: StubMethodsProvider {
             .path(forResource: widgetFileName, ofType: "json")!
         let initData = NSData(contentsOfFile: initPath)!
 
-        let mock = Mock(url: URL(string: kInitResourceUrl)!, dataType: .json, statusCode: 200, data: [
+        let mock = Mock(url: URL(string: initResourceUrl)!, dataType: .json, statusCode: 200, data: [
             .get: initData as Data // Data containing the JSON response
         ])
         mock.register()
@@ -251,11 +251,11 @@ extension XCTestCase: StubMethodsProvider {
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        var mock = Mock(url: URL(string: kExperiencesResourceURL)!,
+        var mock = Mock(url: URL(string: experiencesResourceURL)!,
                         dataType: .json,
                         statusCode: 200,
                         data: [.post: data],
-                        additionalHeaders: [kExperienceType: isLayout ? kLayoutsValue : kPlacementsValue])
+                        additionalHeaders: [experienceTypeHeader: isLayout ? layoutsValue : placementsValue])
 
         mock.onRequest = { request, _ in
             let header = request.allHTTPHeaderFields
@@ -272,7 +272,7 @@ extension XCTestCase: StubMethodsProvider {
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        let mock = Mock(url: URL(string: kExperiencesResourceURL)!, dataType: .json, statusCode: 500,
+        let mock = Mock(url: URL(string: experiencesResourceURL)!, dataType: .json, statusCode: 500,
                         data: [.get: Data()])
 
         mock.register()
@@ -283,7 +283,7 @@ extension XCTestCase: StubMethodsProvider {
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        guard let originalURL = URL(string: kDiagnosticsResourceUrl) else { return }
+        guard let originalURL = URL(string: diagnosticsResourceUrl) else { return }
         var mock = Mock(url: originalURL,
                         dataType: .json, statusCode: 200, data: [.post: Data()])
 
@@ -304,7 +304,7 @@ extension XCTestCase: StubMethodsProvider {
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        var mock = Mock(url: URL(string: kEventResourceUrl)!,
+        var mock = Mock(url: URL(string: eventResourceUrl)!,
                         dataType: .json, statusCode: 200, data: [.post: Data()])
 
         mock.onRequest = { request, _ in
@@ -332,7 +332,7 @@ extension XCTestCase: StubMethodsProvider {
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        guard let originalURL = URL(string: kTimingsResourceUrl) else { return }
+        guard let originalURL = URL(string: timingsResourceUrl) else { return }
 
         var mock = Mock(url: originalURL,
                         dataType: .json, statusCode: 200, data: [.post: Data()])
@@ -343,12 +343,12 @@ extension XCTestCase: StubMethodsProvider {
                 do {
                     let requestBody = try JSONSerialization.jsonObject(with: requestBodyStream, options: []) as! [String: Any]
                     onTimingsRequestReceive?(
-                        MockTimingsRequest(eventTime: requestBody[BE_TIMINGS_EVENT_TIME_KEY] as! String,
-                                           pageId: requestHeaders[BE_HEADER_PAGE_ID_KEY],
-                                           pageInstanceGuid: requestHeaders[BE_HEADER_PAGE_INSTANCE_GUID_KEY],
-                                           pluginId: requestBody[BE_TIMINGS_PLUGIN_ID_KEY] as? String,
-                                           pluginName: requestBody[BE_TIMINGS_PLUGIN_NAME_KEY] as? String,
-                                           timings: requestBody[BE_TIMINGS_TIMING_METRICS_KEY] as! [[String: String]])
+                        MockTimingsRequest(eventTime: requestBody[timingsEventTimeKey] as! String,
+                                           pageId: requestHeaders[headerPageIdKey],
+                                           pageInstanceGuid: requestHeaders[headerPageInstanceGuidKey],
+                                           pluginId: requestBody[timingsPluginIdKey] as? String,
+                                           pluginName: requestBody[timingsPluginNameKey] as? String,
+                                           timings: requestBody[timingsMetricsKey] as! [[String: String]])
                     )
                 } catch {
                 }

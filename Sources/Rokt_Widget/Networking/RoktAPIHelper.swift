@@ -2,6 +2,16 @@ import Foundation
 import UIKit
 internal import RoktUXHelper
 
+private let viewNameKey = "pageIdentifier"
+private let errorAdditionalKey = "additionalInformation"
+private let errorSessionIdKey = "sessionId"
+private let errorCampaignIdKey = "campaignId"
+let errorCodeDiagnosticKey = "code"
+let errorStackTraceDiagnosticKey = "stackTrace"
+let errorSeverityDiagnosticKey = "severity"
+private let privacyControlKey = "privacyControl"
+private let eventsLoggingEnabled = false
+
 /// Helper class to request and process Rokt api response details
 internal class RoktAPIHelper {
     /// Rokt initialize API call
@@ -68,15 +78,15 @@ internal class RoktAPIHelper {
         let enrichedAttributes = AttributeEnrichment.shared.enrich(attributes: sanitisedAttributes, config: config)
 
         var params: [String: Any] = [
-            BE_ATTRIBUTES_KEY: enrichedAttributes
+            attributesKey: enrichedAttributes
         ]
 
         if let vName = viewName {
-            params[BE_VIEW_NAME_KEY] = vName
+            params[viewNameKey] = vName
         }
 
         if !privacyControlPayload.isEmpty {
-            params[BE_PRIVACY_CONTROL_KEY] = privacyControlPayload
+            params[privacyControlKey] = privacyControlPayload
         }
 
         if isMock() {
@@ -113,16 +123,16 @@ internal class RoktAPIHelper {
                           failure: ((Error, Int?, String) -> Void)? = nil) {
         guard Rokt.shared.roktImplementation.roktTagId != nil else { return }
         let sessionId = events.first.flatMap { eventRequests in
-            eventRequests.first { $0.key == BE_SESSION_ID_KEY }?.value as? String
+            eventRequests.first { $0.key == sessionIdKey }?.value as? String
         }
-        if kEventsLoggingEnabled {
+        if eventsLoggingEnabled {
             events.map {
                 $0.filter { element in
-                    [BE_SESSION_ID_KEY,
-                     BE_PARENT_GUID_KEY,
-                     BE_PAGE_INSTANCE_GUID_KEY,
-                     BE_EVENT_TYPE_KEY,
-                     BE_METADATA_KEY].contains(element.key)
+                    [sessionIdKey,
+                     parentGuidKey,
+                     pageInstanceGuidKey,
+                     eventTypeKey,
+                     metadataKey].contains(element.key)
                 }
             }.compactMap {
                 try? JSONSerialization.data(withJSONObject: $0, options: [])
@@ -158,7 +168,7 @@ internal class RoktAPIHelper {
             var eventsBody = [[String: Any]]()
             for event in events {
                 eventsBody.append(event.getParams)
-                if kEventsLoggingEnabled {
+                if eventsLoggingEnabled {
                     NSLog(event.getLog())
                 }
             }
@@ -191,18 +201,18 @@ internal class RoktAPIHelper {
                                failure: ((Error, Int?, String) -> Void)? = nil) {
         guard Rokt.shared.roktImplementation.roktTagId != nil else { return }
 
-        var params: [String: Any] = [BE_ERROR_CODE_KEY: message,
-                                     BE_ERROR_STACK_TRACE_KEY: callStack,
-                                     BE_ERROR_SEVERITY_KEY: severity.rawValue]
+        var params: [String: Any] = [errorCodeDiagnosticKey: message,
+                                     errorStackTraceDiagnosticKey: callStack,
+                                     errorSeverityDiagnosticKey: severity.rawValue]
         var additional: [String: Any] = additionalInfo
         if let sessionId = sessionId {
-            additional[BE_ERROR_SESSIONID_KEY] = sessionId
+            additional[errorSessionIdKey] = sessionId
         }
         if let campaignId = campaignId {
-            additional[BE_ERROR_CAMPAIGNID_KEY] = campaignId
+            additional[errorCampaignIdKey] = campaignId
         }
         if !additional.isEmpty {
-            params[BE_ERROR_ADDITIONAL_KEY] = additional
+            params[errorAdditionalKey] = additional
         }
         if isMock() {
             RoktMockAPI.sendDiagnostics(params: params, success: success, failure: failure)

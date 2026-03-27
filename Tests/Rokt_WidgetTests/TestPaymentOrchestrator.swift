@@ -287,12 +287,12 @@ class TestPaymentOrchestrator: XCTestCase {
                 _ = try await preparePayment(ContactAddress(name: "Jane Doe", email: "jane@example.com"))
                 XCTFail("Expected preparePayment to throw when required response fields are missing")
             } catch {
-                XCTAssertEqual(error.localizedDescription, kPaymentPreparationResponseValidationError)
+                XCTAssertEqual(error.localizedDescription, paymentPreparationResponseValidationError)
                 XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.sendDiagnosticsCallCount, 1)
-                XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastDiagnosticsMessage, kDevicePayErrorCode)
+                XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastDiagnosticsMessage, devicePayErrorCode)
                 XCTAssertEqual(
                     PaymentOrchestratorAPIHelperSpy.lastDiagnosticsCallStack,
-                    kPaymentPreparationResponseValidationError
+                    paymentPreparationResponseValidationError
                 )
             }
             expectation.fulfill()

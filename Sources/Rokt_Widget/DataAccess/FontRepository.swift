@@ -182,7 +182,7 @@ class FontRepository {
 
     private static func sendDiagnosticWith(prefix: String, error: Error) {
         RoktAPIHelper.sendDiagnostics(
-            message: kAPIFontErrorCode,
+            message: fontDiagnosticCode,
             callStack: "\(prefix) \(error.localizedDescription)"
         )
     }

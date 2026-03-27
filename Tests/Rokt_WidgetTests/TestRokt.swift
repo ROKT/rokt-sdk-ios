@@ -20,13 +20,13 @@ class TestRokt: XCTestCase {
     func test_setEnvironment_valid_Stage() {
         Rokt.setEnvironment(environment: .Stage)
         XCTAssertEqual(config.environment, Environment.Stage)
-        XCTAssertEqual(kBaseURL, Environment.Stage.baseURL)
+        XCTAssertEqual(baseURL, Environment.Stage.baseURL)
     }
 
     func test_setEnvironment_valid_Prod() {
         Rokt.setEnvironment(environment: .Prod)
         XCTAssertEqual(config.environment, Environment.Prod)
-        XCTAssertEqual(kBaseURL, Environment.Prod.baseURL)
+        XCTAssertEqual(baseURL, Environment.Prod.baseURL)
     }
 
     func testPerformanceExample() {

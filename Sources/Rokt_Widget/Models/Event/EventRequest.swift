@@ -1,6 +1,10 @@
 import Foundation
 internal import RoktUXHelper
 
+private let captureMethodKey = "captureMethod"
+private let clientTimeStampKey = "clientTimeStamp"
+private let clientProvided = "ClientProvided"
+
 struct EventRequest: Codable, Hashable {
     let uuid: String
     let sessionId: String
@@ -54,10 +58,10 @@ struct EventRequest: Codable, Hashable {
         self.eventTime = EventDateFormatter.getDateString(eventTime)
         self.attributes = EventRequest.convertDictionaryToNameValue(attributes)
         self.pageInstanceGuid = pageInstanceGuid
-        self.metadata = [RoktEventNameValue(name: BE_CLIENT_TIME_STAMP,
+        self.metadata = [RoktEventNameValue(name: clientTimeStampKey,
                                             value: EventDateFormatter.getDateString(eventTime)),
-                         RoktEventNameValue(name: BE_CAPTURE_METHOD,
-                                            value: kClientProvided)] + extraMetadata
+                         RoktEventNameValue(name: captureMethodKey,
+                                            value: clientProvided)] + extraMetadata
         self.jwtToken = jwtToken
     }
 
@@ -67,12 +71,12 @@ struct EventRequest: Codable, Hashable {
 
     public func getLog() -> String {
         let params: [String: Any] = [
-            BE_SESSION_ID_KEY: sessionId,
-            BE_PARENT_GUID_KEY: parentGuid,
-            BE_PAGE_INSTANCE_GUID_KEY: pageInstanceGuid,
-            BE_EVENT_TYPE_KEY: eventType.rawValue,
-            BE_METADATA_KEY: getNameValueDictionary(metadata),
-            BE_ATTRIBUTES_KEY: getNameValueDictionary(attributes)
+            sessionIdKey: sessionId,
+            parentGuidKey: parentGuid,
+            pageInstanceGuidKey: pageInstanceGuid,
+            eventTypeKey: eventType.rawValue,
+            metadataKey: getNameValueDictionary(metadata),
+            attributesKey: getNameValueDictionary(attributes)
         ]
 
         guard let theJSONData = try? JSONSerialization.data(withJSONObject: params,
