@@ -735,9 +735,6 @@ class RoktInternalImplementation {
             return
         }
 
-        // Show loading indicator immediately for Shoppable Ads
-        onRoktEvent?(RoktEvent.ShowLoadingIndicator())
-
         // Reuse the existing execute flow — backend routes based on placement config
         execute(
             viewName: viewName,

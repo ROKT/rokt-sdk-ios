@@ -162,4 +162,46 @@ class TestNetworkingHelper: XCTestCase {
         XCTAssertEqual(capturedRequest?.allHTTPHeaderFields?[Self.BE_HEADER_PAGE_IDENTIFIER_KEY], "my-view")
     }
 
+    func test_initializePurchase_invokesFailure_whenTagIdMissing() {
+        let expectation = expectation(description: "initializePurchase fails without tag id")
+        let originalTagId = Rokt.shared.roktImplementation.roktTagId
+        Rokt.shared.roktImplementation.roktTagId = nil
+
+        defer {
+            Rokt.shared.roktImplementation.roktTagId = originalTagId
+        }
+
+        let item = UpsellItem(
+            cartItemId: "cart-id",
+            catalogItemId: "catalog-id",
+            quantity: 1,
+            unitPrice: 9.99,
+            totalPrice: 9.99,
+            currency: "USD"
+        )
+        let shippingAttributes = ShippingAttributes(
+            address1: "1 Main St",
+            city: "New York",
+            state: "NY",
+            postalCode: "10001",
+            country: "US"
+        )
+
+        RoktNetWorkAPI.initializePurchase(
+            upsellItems: [item],
+            shippingAttributes: shippingAttributes,
+            success: { _ in
+                XCTFail("Expected initializePurchase to fail when tag id is missing")
+            },
+            failure: { error, statusCode, response in
+                XCTAssertEqual(error.localizedDescription, kInitializePurchaseMissingTagIdError)
+                XCTAssertNil(statusCode)
+                XCTAssertEqual(response, kInitializePurchaseMissingTagIdError)
+                expectation.fulfill()
+            }
+        )
+
+        waitForExpectations(timeout: 2.0)
+    }
+
 }

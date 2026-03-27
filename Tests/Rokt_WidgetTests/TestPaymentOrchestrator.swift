@@ -109,6 +109,7 @@ class TestPaymentOrchestrator: XCTestCase {
 
         let found = sut.paymentExtension(id: "stripe")
         XCTAssertTrue(found === second, "Should reference the second (replacement) extension")
+        XCTAssertEqual(first.onUnregisterCallCount, 1)
         XCTAssertEqual(sut.availablePaymentMethods(), [.card])
     }
 
@@ -120,6 +121,7 @@ class TestPaymentOrchestrator: XCTestCase {
         second.shouldRegisterSuccessfully = false
         sut.register(second, config: [:])
 
+        XCTAssertEqual(first.onUnregisterCallCount, 1)
         XCTAssertNil(sut.paymentExtension(id: "stripe"),
                      "Old extension should be removed even when new one fails registration")
     }

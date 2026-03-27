@@ -339,7 +339,14 @@ internal class RoktNetWorkAPI {
                                   shippingAttributes: ShippingAttributes,
                                   success: ((InitializePurchaseResponse) -> Void)? = nil,
                                   failure: ((Error, Int?, String) -> Void)? = nil) {
-        guard let tagId = Rokt.shared.roktImplementation.roktTagId else { return }
+        guard let tagId = Rokt.shared.roktImplementation.roktTagId else {
+            let error = NSError(
+                domain: "RoktSDK",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: kInitializePurchaseMissingTagIdError])
+            failure?(error, nil, kInitializePurchaseMissingTagIdError)
+            return
+        }
 
         let totalUpsellPrice = upsellItems.reduce(Decimal.zero) { $0 + $1.totalPrice }
         let currency = upsellItems.first?.currency ?? "USD"

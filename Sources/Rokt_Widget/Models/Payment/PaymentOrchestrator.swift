@@ -21,7 +21,8 @@ final class PaymentOrchestrator {
     /// - Returns: `true` if registration succeeded.
     @discardableResult
     func register(_ paymentExtension: PaymentExtension, config: [String: String]) -> Bool {
-        // Remove any previously registered extension with the same id
+        let replacedExtensions = registeredExtensions.filter { $0.id == paymentExtension.id }
+        replacedExtensions.forEach { $0.onUnregister() }
         registeredExtensions.removeAll { $0.id == paymentExtension.id }
 
         guard paymentExtension.onRegister(parameters: config) else {
@@ -108,7 +109,7 @@ final class PaymentOrchestrator {
         let shippingAttributes = ShippingAttributes(from: contactAddress)
 
         return try await withCheckedThrowingContinuation { continuation in
-            apiHelper.initializePurchase(
+            self.apiHelper.initializePurchase(
                 upsellItems: [upsellItem],
                 shippingAttributes: shippingAttributes,
                 success: { response in
@@ -122,7 +123,7 @@ final class PaymentOrchestrator {
                             code: -1,
                             userInfo: [NSLocalizedDescriptionKey: kPaymentPreparationResponseValidationError]
                         )
-                        apiHelper.sendDiagnostics(
+                        self.apiHelper.sendDiagnostics(
                             message: kDevicePayErrorCode,
                             callStack: kPaymentPreparationResponseValidationError,
                             severity: .warning,
@@ -142,7 +143,7 @@ final class PaymentOrchestrator {
                     continuation.resume(returning: preparation)
                 },
                 failure: { error, _, message in
-                    apiHelper.sendDiagnostics(
+                    self.apiHelper.sendDiagnostics(
                         message: kDevicePayErrorCode,
                         callStack: kApplePayPaymentPreparationError,
                         severity: .warning,

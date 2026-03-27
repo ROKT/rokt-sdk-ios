@@ -53,6 +53,7 @@ let kInitializePurchaseAPIFailureMsg = "response: %@, statusCode: %@, error: %@"
 let kDevicePayError = "Payment failed or cancelled"
 let kApplePayPaymentPreparationError = "Payment preparation failed"
 let kPaymentPreparationResponseValidationError = "Payment preparation response missing required fields"
+let kInitializePurchaseMissingTagIdError = "Missing Rokt tag ID for initialize-purchase request"
 let kInitializePurchaseErrorCode = "[INITIALIZE_PURCHASE]"
 let kDevicePayErrorCode = "[DEVICE_PAY]"
 
