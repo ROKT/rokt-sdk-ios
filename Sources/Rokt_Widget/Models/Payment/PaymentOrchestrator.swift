@@ -4,7 +4,6 @@ import UIKit
 // MARK: - Payment Constants
 
 let devicePayErrorCode = "[DEVICE_PAY]"
-private let devicePayError = "Payment failed or cancelled"
 let applePayPaymentPreparationError = "Payment preparation failed"
 let paymentPreparationResponseValidationError = "Payment preparation response missing required fields"
 
