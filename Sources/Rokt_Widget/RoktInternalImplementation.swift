@@ -54,6 +54,9 @@ class RoktInternalImplementation {
         return _swiftUiExecuteLayout as? LayoutLoader
     }
 
+    // Payment orchestrator for Shoppable Ads
+    private lazy var paymentOrchestrator = PaymentOrchestrator()
+
     func close() {
         guard let window = UIApplication.shared.windows.filter({$0.isKeyWindow}).first,
               let rootViewController = window.rootViewController
@@ -699,6 +702,51 @@ class RoktInternalImplementation {
         }
 
         fontLoadObservers.append(contentsOf: [startedObserver, finishedObserver])
+    }
+
+    // MARK: - Payment Extension
+
+    /// Register a payment extension for Shoppable Ads.
+    func registerPaymentExtension(_ paymentExtension: PaymentExtension, config: [String: String]) {
+        if !paymentOrchestrator.register(paymentExtension, config: config) {
+            RoktLogger.shared.error("Rokt: Failed to register payment extension: \(paymentExtension.id)")
+            RoktAPIHelper.sendDiagnostics(
+                message: kDevicePayErrorCode,
+                callStack: "Failed to register payment extension: \(paymentExtension.id)",
+                severity: .warning
+            )
+        }
+    }
+
+    // MARK: - Shoppable Ads
+
+    /// Display a Shoppable Ads overlay placement.
+    func shoppableAds(
+        viewName: String?,
+        attributes: [String: String],
+        config: RoktConfig?,
+        onRoktEvent: ((RoktEvent) -> Void)?
+    ) {
+        guard paymentOrchestrator.hasRegisteredExtension else {
+            RoktLogger.shared.error(
+                "Rokt: No PaymentExtension registered. Call registerPaymentExtension() before shoppableAds()."
+            )
+            onRoktEvent?(RoktEvent.PlacementFailure(identifier: nil))
+            return
+        }
+
+        // Show loading indicator immediately for Shoppable Ads
+        onRoktEvent?(RoktEvent.ShowLoadingIndicator())
+
+        // Reuse the existing execute flow — backend routes based on placement config
+        execute(
+            viewName: viewName,
+            attributes: attributes,
+            placements: nil,
+            config: config,
+            placementOptions: nil,
+            onRoktEvent: onRoktEvent
+        )
     }
 }
 
