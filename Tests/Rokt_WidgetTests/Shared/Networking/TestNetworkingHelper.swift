@@ -194,9 +194,10 @@ class TestNetworkingHelper: XCTestCase {
                 XCTFail("Expected initializePurchase to fail when tag id is missing")
             },
             failure: { error, statusCode, response in
-                XCTAssertEqual(error.localizedDescription, kInitializePurchaseMissingTagIdError)
+                let expectedError = "Missing Rokt tag ID for initialize-purchase request"
+                XCTAssertEqual(error.localizedDescription, expectedError)
                 XCTAssertNil(statusCode)
-                XCTAssertEqual(response, kInitializePurchaseMissingTagIdError)
+                XCTAssertEqual(response, expectedError)
                 expectation.fulfill()
             }
         )

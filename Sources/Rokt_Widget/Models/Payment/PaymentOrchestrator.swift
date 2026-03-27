@@ -1,6 +1,13 @@
 import Foundation
 import UIKit
 
+// MARK: - Payment Constants
+
+let kDevicePayErrorCode = "[DEVICE_PAY]"
+let kDevicePayError = "Payment failed or cancelled"
+let kApplePayPaymentPreparationError = "Payment preparation failed"
+let kPaymentPreparationResponseValidationError = "Payment preparation response missing required fields"
+
 /// Orchestrates payment processing by managing registered `PaymentExtension` instances
 /// and routing payments to the appropriate extension.
 final class PaymentOrchestrator {

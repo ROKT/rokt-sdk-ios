@@ -340,11 +340,12 @@ internal class RoktNetWorkAPI {
                                   success: ((InitializePurchaseResponse) -> Void)? = nil,
                                   failure: ((Error, Int?, String) -> Void)? = nil) {
         guard let tagId = Rokt.shared.roktImplementation.roktTagId else {
+            let message = "Missing Rokt tag ID for initialize-purchase request"
             let error = NSError(
                 domain: "RoktSDK",
                 code: -1,
-                userInfo: [NSLocalizedDescriptionKey: kInitializePurchaseMissingTagIdError])
-            failure?(error, nil, kInitializePurchaseMissingTagIdError)
+                userInfo: [NSLocalizedDescriptionKey: message])
+            failure?(error, nil, message)
             return
         }
 
@@ -361,7 +362,7 @@ internal class RoktNetWorkAPI {
         let headers = getDefaultHeaders(tagId: tagId)
 
         NetworkingHelper.performPost(
-            url: kCartInitializePurchaseUrl,
+            url: "\(kBaseURL)/v1/cart/initialize-purchase",
             body: request.toDictionary(),
             headers: headers,
             success: { _, data, _ in
@@ -381,12 +382,12 @@ internal class RoktNetWorkAPI {
             },
             failure: { error, statusCode, response in
                 let callStack = String(
-                    format: kInitializePurchaseAPIFailureMsg,
+                    format: "response: %@, statusCode: %@, error: %@",
                     response,
                     String(describing: statusCode),
                     error.localizedDescription)
                 RoktAPIHelper.sendDiagnostics(
-                    message: kInitializePurchaseErrorCode,
+                    message: "[INITIALIZE_PURCHASE]",
                     callStack: callStack)
                 RoktLogger.shared.verbose(callStack)
                 failure?(error, statusCode, response)
