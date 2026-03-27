@@ -326,5 +326,71 @@ internal class RoktNetWorkAPI {
                                             callStack: callStack,
                                             sessionId: sessionId)
                                         RoktLogger.shared.verbose(callStack) })
-}
+    }
+
+    /// Initialize a purchase for Shoppable Ads via the cart API.
+    ///
+    /// - Parameters:
+    ///   - upsellItems: The items being purchased
+    ///   - shippingAttributes: Shipping address for the order
+    ///   - success: Callback with the parsed response
+    ///   - failure: Callback with error details
+    class func initializePurchase(upsellItems: [UpsellItem],
+                                  shippingAttributes: ShippingAttributes,
+                                  success: ((InitializePurchaseResponse) -> Void)? = nil,
+                                  failure: ((Error, Int?, String) -> Void)? = nil) {
+        guard let tagId = Rokt.shared.roktImplementation.roktTagId else {
+            let message = "Missing Rokt tag ID for initialize-purchase request"
+            let error = NSError(
+                domain: "RoktSDK",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: message])
+            failure?(error, nil, message)
+            return
+        }
+
+        let totalUpsellPrice = upsellItems.reduce(Decimal.zero) { $0 + $1.totalPrice }
+        let currency = upsellItems.first?.currency ?? "USD"
+        let fulfillmentDetails = FulfillmentDetails(shippingAttributes: shippingAttributes)
+
+        let request = InitializePurchaseRequest(
+            totalUpsellPrice: totalUpsellPrice,
+            currency: currency,
+            upsellItems: upsellItems,
+            fulfillmentDetails: fulfillmentDetails)
+
+        let headers = getDefaultHeaders(tagId: tagId)
+
+        NetworkingHelper.performPost(
+            url: "\(kBaseURL)/v1/cart/initialize-purchase",
+            body: request.toDictionary(),
+            headers: headers,
+            success: { _, data, _ in
+                guard let data, let successCallback = success else { return }
+                do {
+                    let response = try JSONDecoder().decode(
+                        InitializePurchaseResponse.self,
+                        from: data)
+                    successCallback(response)
+                } catch {
+                    let parseError = NSError(
+                        domain: "RoktSDK",
+                        code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "Failed to parse initialize-purchase response"])
+                    failure?(parseError, 200, "Failed to parse response")
+                }
+            },
+            failure: { error, statusCode, response in
+                let callStack = String(
+                    format: "response: %@, statusCode: %@, error: %@",
+                    response,
+                    String(describing: statusCode),
+                    error.localizedDescription)
+                RoktAPIHelper.sendDiagnostics(
+                    message: "[INITIALIZE_PURCHASE]",
+                    callStack: callStack)
+                RoktLogger.shared.verbose(callStack)
+                failure?(error, statusCode, response)
+            })
+    }
 }

@@ -101,6 +101,32 @@ internal class RoktMockAPI {
         success?()
     }
 
+    class func initializePurchase(upsellItems: [UpsellItem],
+                                  shippingAttributes: ShippingAttributes? = nil,
+                                  success: ((InitializePurchaseResponse) -> Void)? = nil,
+                                  failure: ((Error, Int?, String) -> Void)? = nil) {
+        let mockResponse = InitializePurchaseResponse(
+            success: true,
+            totalUpsellPrice: upsellItems.reduce(Decimal.zero) { $0 + $1.totalPrice },
+            currency: upsellItems.first?.currency ?? "USD",
+            upsellItems: upsellItems,
+            paymentDetails: PaymentDetails(
+                gateway: "stripe",
+                merchantName: "Mock Merchant",
+                merchantAccountId: "acct_mock_123",
+                paymentIntentId: "pi_mock_1234567890",
+                clientSecret: "pi_mock_1234567890_secret_mock",
+                shippingCost: 0,
+                tax: 0,
+                totalAmount: upsellItems.reduce(Decimal.zero) { $0 + $1.totalPrice }
+            )
+        )
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            success?(mockResponse)
+        }
+    }
+
     class func sendTimings(timingsRequest: TimingsRequest, selectionId: String) {
         do {
             var requestData = timingsRequest.toDictionary()
