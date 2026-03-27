@@ -300,7 +300,7 @@ class TestPaymentOrchestrator: XCTestCase {
     }
 }
 
-final class PaymentOrchestratorAPIHelperSpy: RoktAPIHelper {
+class PaymentOrchestratorAPIHelperSpy: RoktAPIHelper {
     static var initializePurchaseResponse: InitializePurchaseResponse?
     static var sendDiagnosticsCallCount = 0
     static var lastDiagnosticsMessage: String?
