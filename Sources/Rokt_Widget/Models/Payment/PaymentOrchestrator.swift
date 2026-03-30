@@ -5,7 +5,6 @@ import UIKit
 /// and routing payments to the appropriate extension.
 final class PaymentOrchestrator {
     static let devicePayErrorCode = "[DEVICE_PAY]"
-    static let applePayPaymentPreparationError = "Payment preparation failed"
     static let paymentPreparationResponseValidationError = "Payment preparation response missing required fields"
 
     private var registeredExtensions: [PaymentExtension] = []
@@ -149,7 +148,7 @@ final class PaymentOrchestrator {
                 failure: { error, _, message in
                     self.apiHelper.sendDiagnostics(
                         message: Self.devicePayErrorCode,
-                        callStack: Self.applePayPaymentPreparationError,
+                        callStack: "Payment preparation failed",
                         severity: .warning,
                         additionalInfo: [
                             "error": error.localizedDescription,
