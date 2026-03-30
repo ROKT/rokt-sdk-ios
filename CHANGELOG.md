@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [4.16.4] - 2026-03-30
 
+### Changed
+
+- XCFramework generated from [RoktUXHelper 0.8.3](https://github.com/ROKT/rokt-ux-helper-ios/releases/tag/0.8.3) snapshot
+- Bump iOS deployment target from 12.0 to 15.0 to align with RoktUXHelper requirements
+
 ## [4.16.3] - 2026-02-23
 
 ### Fixed
