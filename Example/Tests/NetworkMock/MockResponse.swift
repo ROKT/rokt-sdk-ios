@@ -164,7 +164,7 @@ extension StubMethodsProvider {
                                            pageInstanceGuid: requestHeaders[headerPageInstanceGuidKey],
                                            pluginId: requestBody[timingsPluginIdKey] as? String,
                                            pluginName: requestBody[timingsPluginNameKey] as? String,
-                                           timings: requestBody[timingsMetricsKey] as! [[String: String]])
+                                           timings: requestBody[TimingsRequest.timingsMetricsKey] as! [[String: String]])
                     )
                 } catch {
                 }
@@ -348,7 +348,7 @@ extension XCTestCase: StubMethodsProvider {
                                            pageInstanceGuid: requestHeaders[headerPageInstanceGuidKey],
                                            pluginId: requestBody[timingsPluginIdKey] as? String,
                                            pluginName: requestBody[timingsPluginNameKey] as? String,
-                                           timings: requestBody[timingsMetricsKey] as! [[String: String]])
+                                           timings: requestBody[TimingsRequest.timingsMetricsKey] as! [[String: String]])
                     )
                 } catch {
                 }
