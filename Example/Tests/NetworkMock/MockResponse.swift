@@ -4,8 +4,8 @@ import XCTest
 import Mocker
 @testable import Rokt_Widget
 
-let kValidInitFilename = "validInit"
-let kInvalidInitFilename = "InvalidInit"
+let validInitFilename = "validInit"
+let invalidInitFilename = "InvalidInit"
 
 // Protocol to share stub methods between QuickSpec and XCTestCase
 protocol StubMethodsProvider: AnyObject {
@@ -14,13 +14,13 @@ protocol StubMethodsProvider: AnyObject {
 
 extension StubMethodsProvider {
 
-    func stubInit(fileName: String = kValidInitFilename) {
+    func stubInit(fileName: String = validInitFilename) {
         let configuration = URLSessionConfiguration.default
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        if fileName == kInvalidInitFilename {
-            let mock = Mock(url: URL(string: initResourceUrl)!, dataType: .json, statusCode: 500, data: [
+        if fileName == invalidInitFilename {
+            let mock = Mock(url: URL(string: initResourceURL)!, dataType: .json, statusCode: 500, data: [
                 .get: Data()
             ])
             mock.register()
@@ -28,7 +28,7 @@ extension StubMethodsProvider {
             let initPath = testBundle.path(forResource: fileName, ofType: "json")!
             let initData = NSData(contentsOfFile: initPath)!
 
-            let mock = Mock(url: URL(string: initResourceUrl)!, dataType: .json, statusCode: 200, data: [
+            let mock = Mock(url: URL(string: initResourceURL)!, dataType: .json, statusCode: 200, data: [
                 .get: initData as Data // Data containing the JSON response
             ])
             mock.register()
@@ -43,7 +43,7 @@ extension StubMethodsProvider {
         let initPath = testBundle.path(forResource: widgetFileName, ofType: "json")!
         let initData = NSData(contentsOfFile: initPath)!
 
-        let mock = Mock(url: URL(string: initResourceUrl)!, dataType: .json, statusCode: 200, data: [
+        let mock = Mock(url: URL(string: initResourceURL)!, dataType: .json, statusCode: 200, data: [
             .get: initData as Data // Data containing the JSON response
         ])
         mock.register()
@@ -99,7 +99,7 @@ extension StubMethodsProvider {
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        guard let originalURL = URL(string: diagnosticsResourceUrl) else { return }
+        guard let originalURL = URL(string: diagnosticsResourceURL) else { return }
         var mock = Mock(url: originalURL,
                         dataType: .json, statusCode: 200, data: [.post: Data()])
 
@@ -120,7 +120,7 @@ extension StubMethodsProvider {
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        var mock = Mock(url: URL(string: eventResourceUrl)!,
+        var mock = Mock(url: URL(string: eventResourceURL)!,
                         dataType: .json, statusCode: 200, data: [.post: Data()])
 
         mock.onRequest = { request, _ in
@@ -148,7 +148,7 @@ extension StubMethodsProvider {
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        guard let originalURL = URL(string: timingsResourceUrl) else { return }
+        guard let originalURL = URL(string: timingsResourceURL) else { return }
 
         var mock = Mock(url: originalURL,
                         dataType: .json, statusCode: 200, data: [.post: Data()])
@@ -196,13 +196,13 @@ extension XCTestCase: StubMethodsProvider {
         return Bundle(for: type(of: self))
     }
 
-    func stubInit(fileName: String = kValidInitFilename) {
+    func stubInit(fileName: String = validInitFilename) {
         let configuration = URLSessionConfiguration.default
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        if fileName == kInvalidInitFilename {
-            let mock = Mock(url: URL(string: initResourceUrl)!, dataType: .json, statusCode: 500, data: [
+        if fileName == invalidInitFilename {
+            let mock = Mock(url: URL(string: initResourceURL)!, dataType: .json, statusCode: 500, data: [
                 .get: Data()
             ])
             mock.register()
@@ -211,7 +211,7 @@ extension XCTestCase: StubMethodsProvider {
                 .path(forResource: fileName, ofType: "json")!
             let initData = NSData(contentsOfFile: initPath)!
 
-            let mock = Mock(url: URL(string: initResourceUrl)!, dataType: .json, statusCode: 200, data: [
+            let mock = Mock(url: URL(string: initResourceURL)!, dataType: .json, statusCode: 200, data: [
                 .get: initData as Data // Data containing the JSON response
             ])
             mock.register()
@@ -227,7 +227,7 @@ extension XCTestCase: StubMethodsProvider {
             .path(forResource: widgetFileName, ofType: "json")!
         let initData = NSData(contentsOfFile: initPath)!
 
-        let mock = Mock(url: URL(string: initResourceUrl)!, dataType: .json, statusCode: 200, data: [
+        let mock = Mock(url: URL(string: initResourceURL)!, dataType: .json, statusCode: 200, data: [
             .get: initData as Data // Data containing the JSON response
         ])
         mock.register()
@@ -283,7 +283,7 @@ extension XCTestCase: StubMethodsProvider {
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        guard let originalURL = URL(string: diagnosticsResourceUrl) else { return }
+        guard let originalURL = URL(string: diagnosticsResourceURL) else { return }
         var mock = Mock(url: originalURL,
                         dataType: .json, statusCode: 200, data: [.post: Data()])
 
@@ -304,7 +304,7 @@ extension XCTestCase: StubMethodsProvider {
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        var mock = Mock(url: URL(string: eventResourceUrl)!,
+        var mock = Mock(url: URL(string: eventResourceURL)!,
                         dataType: .json, statusCode: 200, data: [.post: Data()])
 
         mock.onRequest = { request, _ in
@@ -332,7 +332,7 @@ extension XCTestCase: StubMethodsProvider {
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        guard let originalURL = URL(string: timingsResourceUrl) else { return }
+        guard let originalURL = URL(string: timingsResourceURL) else { return }
 
         var mock = Mock(url: originalURL,
                         dataType: .json, statusCode: 200, data: [.post: Data()])

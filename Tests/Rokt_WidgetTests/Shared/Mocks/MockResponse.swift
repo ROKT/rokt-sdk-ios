@@ -8,7 +8,7 @@ extension XCTestCase {
             configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        guard let originalURL = URL(string: eventResourceUrl) else { return }
+        guard let originalURL = URL(string: eventResourceURL) else { return }
 
         var mock = Mock(url: originalURL,
                         dataType: .json, statusCode: 200, data: [.post: Data()])
@@ -40,7 +40,7 @@ extension XCTestCase {
             configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        guard let originalURL = URL(string: diagnosticsResourceUrl) else { return }
+        guard let originalURL = URL(string: diagnosticsResourceURL) else { return }
         var mock = Mock(url: originalURL,
                         dataType: .json, statusCode: 200, data: [.post: Data()])
 
@@ -61,7 +61,7 @@ extension XCTestCase {
             configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        guard let originalURL = URL(string: diagnosticsResourceUrl) else { return }
+        guard let originalURL = URL(string: diagnosticsResourceURL) else { return }
         var mock = Mock(url: originalURL,
                         dataType: .json, statusCode: 200, data: [.post: Data()])
 
@@ -86,7 +86,7 @@ extension XCTestCase {
             configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        guard let originalURL = URL(string: timingsResourceUrl) else { return }
+        guard let originalURL = URL(string: timingsResourceURL) else { return }
 
         var mock = Mock(url: originalURL,
                         dataType: .json, statusCode: 200, data: [.post: Data()])

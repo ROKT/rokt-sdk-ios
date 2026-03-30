@@ -2,11 +2,11 @@ import Foundation
 
 // MARK: - URL constants (internal — also used by test mocks)
 
-var initResourceUrl: String { "\(baseURL)/v1/init" }
+var initResourceURL: String { "\(baseURL)/v1/init" }
 var experiencesResourceURL: String { "\(baseURL)/v1/experiences" }
-var eventResourceUrl: String { "\(baseURL)/v2/events" }
-var diagnosticsResourceUrl: String { "\(baseURL)/v1/diagnostics" }
-var timingsResourceUrl: String { "\(baseURL)/v1/timings" }
+var eventResourceURL: String { "\(baseURL)/v2/events" }
+var diagnosticsResourceURL: String { "\(baseURL)/v1/diagnostics" }
+var timingsResourceURL: String { "\(baseURL)/v1/timings" }
 
 // MARK: - Header keys (internal — used by test mocks)
 
@@ -59,7 +59,7 @@ internal class RoktNetWorkAPI {
     class func initialize(roktTagId: String,
                           success: ((InitRespose) -> Void)? = nil,
                           failure: ((Error, Int?, String) -> Void)? = nil) {
-        NetworkingHelper.performGet(url: initResourceUrl,
+        NetworkingHelper.performGet(url: initResourceURL,
                                     params: nil,
                                     headers: [
                                         Self.headerTagIdKey: roktTagId,
@@ -195,7 +195,7 @@ internal class RoktNetWorkAPI {
                          failure: ((Error, Int?, String) -> Void)? = nil) {
 
         guard let tagId = Rokt.shared.roktImplementation.roktTagId else { return }
-        NetworkingHelper.performPost(urlString: eventResourceUrl,
+        NetworkingHelper.performPost(urlString: eventResourceURL,
                                      bodyArray: paramsArray,
                                      headers: getDefaultHeaders(tagId: tagId),
                                      success: { (_, _, _) in
@@ -231,7 +231,7 @@ internal class RoktNetWorkAPI {
                                failure: ((Error, Int?, String) -> Void)? = nil) {
 
         guard let tagId = Rokt.shared.roktImplementation.roktTagId else { return }
-        NetworkingHelper.performPost(url: diagnosticsResourceUrl,
+        NetworkingHelper.performPost(url: diagnosticsResourceURL,
                                      body: params,
                                      headers: getDefaultHeaders(tagId: tagId),
                                      success: { (_, _, _) in
@@ -361,7 +361,7 @@ internal class RoktNetWorkAPI {
 
         let timingsHeaders = getTimingsRequestHeaders(tagId: tagId, timingsRequest: timingsRequest, selectionId: selectionId)
 
-        NetworkingHelper.performPost(url: timingsResourceUrl,
+        NetworkingHelper.performPost(url: timingsResourceURL,
                                      body: timingsRequest.toDictionary(),
                                      headers: timingsHeaders,
                                      failure: { (error, statusCode, response) in
