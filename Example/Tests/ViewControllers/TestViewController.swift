@@ -44,7 +44,7 @@ class TestViewController: UIViewController {
                                   "postcode": "2000"]
 
                 if let pageInitAttr = self.pageInitAttr {
-                    attributes[attributesPageInitKey] = pageInitAttr
+                    attributes[RoktAPIHelper.attributesPageInitKey] = pageInitAttr
                 }
 
                 Rokt.selectPlacements(
