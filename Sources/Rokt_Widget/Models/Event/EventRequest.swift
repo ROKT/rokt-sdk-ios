@@ -1,11 +1,11 @@
 import Foundation
 internal import RoktUXHelper
 
-private let captureMethodKey = "captureMethod"
-private let clientTimeStampKey = "clientTimeStamp"
-private let clientProvided = "ClientProvided"
-
 struct EventRequest: Codable, Hashable {
+    private static let captureMethodKey = "captureMethod"
+    private static let clientTimeStampKey = "clientTimeStamp"
+    private static let clientProvided = "ClientProvided"
+
     let uuid: String
     let sessionId: String
     let eventType: RoktUXEventType
@@ -58,10 +58,10 @@ struct EventRequest: Codable, Hashable {
         self.eventTime = EventDateFormatter.getDateString(eventTime)
         self.attributes = EventRequest.convertDictionaryToNameValue(attributes)
         self.pageInstanceGuid = pageInstanceGuid
-        self.metadata = [RoktEventNameValue(name: clientTimeStampKey,
+        self.metadata = [RoktEventNameValue(name: Self.clientTimeStampKey,
                                             value: EventDateFormatter.getDateString(eventTime)),
-                         RoktEventNameValue(name: captureMethodKey,
-                                            value: clientProvided)] + extraMetadata
+                         RoktEventNameValue(name: Self.captureMethodKey,
+                                            value: Self.clientProvided)] + extraMetadata
         self.jwtToken = jwtToken
     }
 

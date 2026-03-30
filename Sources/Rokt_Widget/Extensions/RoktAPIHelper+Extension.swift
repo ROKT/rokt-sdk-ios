@@ -1,13 +1,13 @@
 import Foundation
 import UIKit
 
-let noFunctionalKey = "noFunctional"
-let noTargetingKey = "noTargeting"
-let doNotShareOrSellKey = "doNotShareOrSell"
-let gpcEnabledKey = "gpcEnabled"
-let attributesPageInitKey = "pageinit"
-
 extension RoktAPIHelper {
+    static let noFunctionalKey = "noFunctional"
+    static let noTargetingKey = "noTargeting"
+    static let doNotShareOrSellKey = "doNotShareOrSell"
+    static let gpcEnabledKey = "gpcEnabled"
+    static let attributesPageInitKey = "pageinit"
+
     /// Extracts all privacy control KVPs from the partner's attributes
     /// - Parameter attributes: a hashmap of additional information sent by the partner
     /// - Returns: a hashmap of all privacy KVP sent by the partner
@@ -15,10 +15,10 @@ extension RoktAPIHelper {
         guard let castedAttrs = attributes as? [String: String] else { return [:] }
 
         return [
-            noFunctionalKey: castedAttrs[noFunctionalKey],
-            noTargetingKey: castedAttrs[noTargetingKey],
-            doNotShareOrSellKey: castedAttrs[doNotShareOrSellKey],
-            gpcEnabledKey: castedAttrs[gpcEnabledKey]
+            Self.noFunctionalKey: castedAttrs[Self.noFunctionalKey],
+            Self.noTargetingKey: castedAttrs[Self.noTargetingKey],
+            Self.doNotShareOrSellKey: castedAttrs[Self.doNotShareOrSellKey],
+            Self.gpcEnabledKey: castedAttrs[Self.gpcEnabledKey]
         ]
         .compactMapValues { $0 }
         .mapValues { Bool($0.lowercased()) }
@@ -28,7 +28,7 @@ extension RoktAPIHelper {
     class func getPageInitData(attributes: [String: Any]) -> String? {
         guard var castedAttrs = attributes as? [String: String] else { return nil }
 
-        return castedAttrs.removeValue(forKey: attributesPageInitKey)
+        return castedAttrs.removeValue(forKey: Self.attributesPageInitKey)
     }
 
     /// Removes all privacy control KVPs from partner attributes
@@ -38,14 +38,14 @@ extension RoktAPIHelper {
         var mutablePayload = attributes
 
         let privacyControlFields = [
-            noFunctionalKey,
-            noTargetingKey,
-            doNotShareOrSellKey,
-            gpcEnabledKey
+            Self.noFunctionalKey,
+            Self.noTargetingKey,
+            Self.doNotShareOrSellKey,
+            Self.gpcEnabledKey
         ]
 
         privacyControlFields.forEach { mutablePayload.removeValue(forKey: $0) }
-        mutablePayload.removeValue(forKey: attributesPageInitKey)
+        mutablePayload.removeValue(forKey: Self.attributesPageInitKey)
 
         return mutablePayload
     }

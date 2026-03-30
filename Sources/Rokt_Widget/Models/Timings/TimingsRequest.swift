@@ -1,8 +1,8 @@
 import Foundation
 
-let timingsMetricsKey = "timingMetrics"
-
 class TimingsRequest: Codable {
+    static let timingsMetricsKey = "timingMetrics"
+
     let eventTime: Date
     let pageId: String?
     let pageInstanceGuid: String?
@@ -41,7 +41,7 @@ class TimingsRequest: Codable {
     internal func toDictionary() -> [String: Any] {
         var dict: [String: Any] = [
             timingsEventTimeKey: EventDateFormatter.getDateString(self.eventTime),
-            timingsMetricsKey: timings.map { $0.toDictionary() }
+            Self.timingsMetricsKey: timings.map { $0.toDictionary() }
         ]
 
         if let pluginId = self.pluginId {

@@ -48,7 +48,7 @@ extension XCTestCase {
             if let reqestDatas = request.httpBodyStream?.readfully() {
                 do {
                     let json = try JSONSerialization.jsonObject(with: reqestDatas, options: []) as? [String: Any]
-                    onDiagnosticsReceive?(json![errorCodeDiagnosticKey] as! String)
+                    onDiagnosticsReceive?(json![RoktAPIHelper.errorCodeDiagnosticKey] as! String)
                 } catch {
                 }
             }
@@ -69,9 +69,11 @@ extension XCTestCase {
             if let reqestDatas = request.httpBodyStream?.readfully() {
                 do {
                     let json = try JSONSerialization.jsonObject(with: reqestDatas, options: []) as? [String: Any]
-                    let diagnostics = StubbedDiagnosticsModel(code: json![errorCodeDiagnosticKey] as! String,
-                                                              stackTrace: json![errorStackTraceDiagnosticKey] as! String,
-                                                              severity: json![errorSeverityDiagnosticKey] as! String)
+                    let diagnostics = StubbedDiagnosticsModel(code: json![RoktAPIHelper.errorCodeDiagnosticKey] as! String,
+                                                              stackTrace: json![RoktAPIHelper
+                                                              .errorStackTraceDiagnosticKey] as! String,
+                                                              severity: json![RoktAPIHelper
+                                                              .errorSeverityDiagnosticKey] as! String)
                     onDiagnosticsModelReceive?(diagnostics)
                 } catch { }
             }
@@ -100,7 +102,7 @@ extension XCTestCase {
                                            pageInstanceGuid: requestHeaders[headerPageInstanceGuidKey],
                                            pluginId: requestBody[timingsPluginIdKey] as? String,
                                            pluginName: requestBody[timingsPluginNameKey] as? String,
-                                           timings: requestBody[timingsMetricsKey] as! [[String: String]])
+                                           timings: requestBody[TimingsRequest.timingsMetricsKey] as! [[String: String]])
                     )
                 } catch {
                 }

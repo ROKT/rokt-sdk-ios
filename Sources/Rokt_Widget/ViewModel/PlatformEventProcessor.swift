@@ -1,12 +1,11 @@
 import Foundation
 internal import RoktUXHelper
 
-let pageSignalLoad = "pageSignalLoadStart"
-private let eventDataKey = "eventData"
-private let errorCodeKey = "code"
-private let errorStackTraceKey = "stackTrace"
-
 class PlatformEventProcessor {
+    static let pageSignalLoad = "pageSignalLoadStart"
+    private static let eventDataKey = "eventData"
+    private static let errorCodeKey = "code"
+    private static let errorStackTraceKey = "stackTrace"
 
     var processedEvents = ThreadSafeSet<ProcessedEvent>()
     private let stateBagManager: StateBagManaging?
@@ -60,10 +59,10 @@ class PlatformEventProcessor {
     func getEventParams(_ event: RoktEventRequest) -> [String: Any] {
         var params: [String: Any] = event.getParams
         // If eventData is present, move it to attributes
-        if let eventData = params[eventDataKey] {
+        if let eventData = params[Self.eventDataKey] {
             params[attributesKey] = eventData
         }
-        params.removeValue(forKey: eventDataKey)
+        params.removeValue(forKey: Self.eventDataKey)
         return params
     }
 
@@ -84,7 +83,7 @@ class PlatformEventProcessor {
         // Filter for SignalImpression events with pageSignalLoad metadata (placementInteractive)
         // These events come from RoktUXHelper and contain pluginId and pluginName in metadata
         eventRequests.filter {
-            $0.eventType == .SignalImpression && $0.metadata.first { $0.name == pageSignalLoad } != nil
+            $0.eventType == .SignalImpression && $0.metadata.first { $0.name == Self.pageSignalLoad } != nil
         }.forEach { event in
             guard let pluginId = event.metadata.first(where: { $0.name == timingsPluginIdKey })?.value else {
                 return
@@ -118,8 +117,8 @@ class PlatformEventProcessor {
         eventRequests.filter {
             $0.eventType == .SignalSdkDiagnostic
         }.forEach {
-            RoktAPIHelper.sendDiagnostics(message: $0.eventData.first { $0.name == errorCodeKey}?.value ?? "",
-                                          callStack: $0.eventData.first { $0.name == errorStackTraceKey}?.value ?? "",
+            RoktAPIHelper.sendDiagnostics(message: $0.eventData.first { $0.name == Self.errorCodeKey}?.value ?? "",
+                                          callStack: $0.eventData.first { $0.name == Self.errorStackTraceKey}?.value ?? "",
                                           sessionId: $0.sessionId)
         }
     }

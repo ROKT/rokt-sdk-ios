@@ -8,47 +8,47 @@ var eventResourceUrl: String { "\(baseURL)/v2/events" }
 var diagnosticsResourceUrl: String { "\(baseURL)/v1/diagnostics" }
 var timingsResourceUrl: String { "\(baseURL)/v1/timings" }
 
-// MARK: - API failure messages
+// MARK: - Header keys (internal — used by test mocks)
 
-private let eventAPIFailureMsg = "response: %@ ,statusCode: %@ ,error: %@"
-private let timingsAPIFailureMsg = "response: %@, statusCode: %@, error: %@"
-
-// MARK: - Header keys
-
-private let headerSessionIdKey = "rokt-session-id"
-private let headerTrackingConsent = "rokt-apple-tracking-consent"
-private let headerIntegrationTypeKey = "rokt-integration-type"
 let headerPageInstanceGuidKey = "rokt-page-instance-guid"
 let headerPageIdKey = "rokt-page-id"
 
-// MARK: - Init response keys
-
-private let clientTimeoutKey = "clientTimeoutMilliseconds"
-private let defaultLaunchDelayKey = "defaultLaunchDelayMilliseconds"
-private let clientSessionTimeoutKey = "clientSessionTimeoutMilliseconds"
-private let logFontKey = "shouldLogFontHappyPath"
-private let useFontRegistryUrlKey = "shouldUseFontRegisterWithUrl"
-private let roktFlagKey = "roktTrackingStatus"
-private let featureFlagKey = "featureFlags"
-private let fontsKey = "fonts"
-
-// MARK: - Other single-use constants
-
-private let headerTagIdKey = "rokt-tag-id"
-private let headerSdkFrameworkType = "rokt-sdk-framework-type"
-private let eventDiagnosticCode = "[EVENT]"
-private let fontErrorMessage = "Error downloading font: "
-private let timingsDiagnosticCode = "[TIMINGS]"
-private let timingsSdkType = "msdk"
-private let layoutsSchemaVersionHeader = "rokt-layout-schema-version"
-private let layoutsSchemaVersion = "2.3"
-
-// MARK: - Full font log codes
-
-private let fullFontLogCode3 = "[FFL003]"
-private let fullFontLogCode4 = "[FFL004]"
-
 internal class RoktNetWorkAPI {
+    // MARK: - API failure messages
+
+    private static let eventAPIFailureMsg = "response: %@ ,statusCode: %@ ,error: %@"
+    private static let timingsAPIFailureMsg = "response: %@, statusCode: %@, error: %@"
+
+    // MARK: - Header keys
+
+    private static let headerSessionIdKey = "rokt-session-id"
+    private static let headerTrackingConsent = "rokt-apple-tracking-consent"
+    private static let headerIntegrationTypeKey = "rokt-integration-type"
+
+    // MARK: - Init response keys
+
+    private static let clientTimeoutKey = "clientTimeoutMilliseconds"
+    private static let defaultLaunchDelayKey = "defaultLaunchDelayMilliseconds"
+    private static let clientSessionTimeoutKey = "clientSessionTimeoutMilliseconds"
+    private static let logFontKey = "shouldLogFontHappyPath"
+    private static let useFontRegistryUrlKey = "shouldUseFontRegisterWithUrl"
+    private static let roktFlagKey = "roktTrackingStatus"
+    private static let featureFlagKey = "featureFlags"
+    private static let fontsKey = "fonts"
+
+    // MARK: - Other constants
+
+    private static let headerTagIdKey = "rokt-tag-id"
+    private static let headerSdkFrameworkType = "rokt-sdk-framework-type"
+    private static let eventDiagnosticCode = "[EVENT]"
+    private static let fontErrorMessage = "Error downloading font: "
+    private static let timingsDiagnosticCode = "[TIMINGS]"
+    private static let timingsSdkType = "msdk"
+    private static let layoutsSchemaVersionHeader = "rokt-layout-schema-version"
+    private static let layoutsSchemaVersion = "2.3"
+    private static let fullFontLogCode3 = "[FFL003]"
+    private static let fullFontLogCode4 = "[FFL004]"
+
     private static let headerPageIdentifierKey = "rokt-page-identifier"
     /// Rokt initialize API call
     ///
@@ -62,8 +62,8 @@ internal class RoktNetWorkAPI {
         NetworkingHelper.performGet(url: initResourceUrl,
                                     params: nil,
                                     headers: [
-                                        headerTagIdKey: roktTagId,
-                                        headerSdkFrameworkType: Rokt.shared.roktImplementation.frameworkType.toString
+                                        Self.headerTagIdKey: roktTagId,
+                                        Self.headerSdkFrameworkType: Rokt.shared.roktImplementation.frameworkType.toString
                                     ],
                                     extraErrorCheck: true,
                                     success: { (dict, _, _) in
@@ -75,28 +75,28 @@ internal class RoktNetWorkAPI {
 
     private class func initializeData(_ initData: [String: Any],
                                       success: ((InitRespose) -> Void)? = nil) {
-        if let clientTimeout = initData[clientTimeoutKey] as? Double,
-           let defaultLaunchDelay = initData[defaultLaunchDelayKey] as? Double,
+        if let clientTimeout = initData[Self.clientTimeoutKey] as? Double,
+           let defaultLaunchDelay = initData[Self.defaultLaunchDelayKey] as? Double,
            let successCallback = success {
-            let roktTrackingStatus = initData[roktFlagKey] as? Bool ?? true
+            let roktTrackingStatus = initData[Self.roktFlagKey] as? Bool ?? true
             var fonts = [FontModel]()
 
-            if let fontDicts = initData[fontsKey] as? [[String: String]] {
+            if let fontDicts = initData[Self.fontsKey] as? [[String: String]] {
                 fonts = fontDicts.compactMap({ (fontDict) -> FontModel? in
                     FontModel(fontDict: fontDict)
                 })
             }
 
             let clientSessionTimeout =
-                initData[clientSessionTimeoutKey] as? Double
+                initData[Self.clientSessionTimeoutKey] as? Double
             let shouldLogFontHappyPath =
-                initData[logFontKey] as? Bool ?? false
+                initData[Self.logFontKey] as? Bool ?? false
             let shouldUseFontRegisterWithUrl =
-                initData[useFontRegistryUrlKey] as? Bool ?? false
+                initData[Self.useFontRegistryUrlKey] as? Bool ?? false
             var featureFlags = [String: FeatureFlagItem]()
             do {
                 if let featureFlagItemsData =
-                    initData[featureFlagKey],
+                    initData[Self.featureFlagKey],
                    let featureFlagData =
                     try? JSONSerialization.data(withJSONObject: featureFlagItemsData) {
                     featureFlags = try JSONDecoder().decode(
@@ -138,12 +138,12 @@ internal class RoktNetWorkAPI {
         NetworkingHelper.shared.downloadFile(
             source: font.url,
             destinationURL: destinationURL,
-            requestTimeout: TimeInterval(exactly: defaultFontTimeout)!) { downloadResponse in
+            requestTimeout: TimeInterval(exactly: RoktInternalImplementation.defaultFontTimeout)!) { downloadResponse in
             if downloadResponse.downloadError == nil,
                let downloadedFileLocalURL = downloadResponse.downloadedFileLocalURL {
                 FontManager.sendFullFontLogs(
                     "Font downloaded to \(downloadedFileLocalURL)",
-                    fontLogId: fullFontLogCode3)
+                    fontLogId: Self.fullFontLogCode3)
 
                 FontManager.registerFont(font: font, fileUrl: downloadedFileLocalURL, isDownloaded: true)
                 onDownloadComplete(isLastFont)
@@ -155,7 +155,7 @@ internal class RoktNetWorkAPI {
                     // Log FFL4
                     FontManager.sendFullFontLogs(
                         "Retry for font file \(destinationURL) error on download \(downloadError)",
-                        fontLogId: fullFontLogCode4)
+                        fontLogId: Self.fullFontLogCode4)
 
                     downloadFont(
                         font: font,
@@ -168,7 +168,7 @@ internal class RoktNetWorkAPI {
                 } else {
                     Rokt.shared.roktImplementation.isInitialized = false
                     Rokt.shared.roktImplementation.isInitFailedForFont = true
-                    let callstack = "\(fontErrorMessage) \(font.url), " +
+                    let callstack = "\(Self.fontErrorMessage) \(font.url), " +
                         "error: \(String(describing: downloadResponse.downloadError.debugDescription))"
 
                     RoktAPIHelper.sendDiagnostics(message: fontDiagnosticCode, callStack: callstack)
@@ -204,13 +204,13 @@ internal class RoktNetWorkAPI {
                                      failure: { (error, statusCode, response) in
                                         // Don't report diagnostics for 429 (Too Many Requests) status code
                                         if let code = statusCode, code != 429 {
-                                            let callStack = String(format: eventAPIFailureMsg,
+                                            let callStack = String(format: Self.eventAPIFailureMsg,
                                                                    response,
                                                                    String(describing: statusCode),
                                                                    error.localizedDescription)
 
                                             RoktAPIHelper.sendDiagnostics(
-                                                message: eventDiagnosticCode,
+                                                message: Self.eventDiagnosticCode,
                                                 callStack: callStack,
                                                 sessionId: sessionId)
 
@@ -251,13 +251,13 @@ internal class RoktNetWorkAPI {
     ///                           and `false` for other calls like event tracking.
     /// - Returns: A dictionary containing the default HTTP headers.
     private class func getDefaultHeaders(tagId: String, requestingLayouts: Bool = false) -> [String: String] {
-        var headers: [String: String] = [headerTagIdKey: tagId]
+        var headers: [String: String] = [Self.headerTagIdKey: tagId]
 
         if let sessionId = getSessionId(requestingLayouts: requestingLayouts), !sessionId.isEmpty {
-            headers[headerSessionIdKey] = sessionId
+            headers[Self.headerSessionIdKey] = sessionId
         }
 
-        headers[headerSdkFrameworkType] = Rokt.shared.roktImplementation.frameworkType.toString
+        headers[Self.headerSdkFrameworkType] = Rokt.shared.roktImplementation.frameworkType.toString
 
         return headers
     }
@@ -277,7 +277,7 @@ internal class RoktNetWorkAPI {
         var headers: [String: String] = getDefaultHeaders(tagId: tagId)
 
         // Enrich default headers with integrationType, pageInstanceGuid, pageId, and selectionId
-        headers[headerIntegrationTypeKey] = timingsSdkType
+        headers[Self.headerIntegrationTypeKey] = Self.timingsSdkType
         headers["x-rokt-trace-id"] = selectionId
 
         if let pageInstanceGuid = timingsRequest.pageInstanceGuid {
@@ -315,7 +315,7 @@ internal class RoktNetWorkAPI {
     ) {
         var headers = getDefaultHeaders(tagId: roktTagId, requestingLayouts: true)
         if let trackingConsent = trackingConsent {
-            headers[headerTrackingConsent] = "\(trackingConsent)"
+            headers[Self.headerTrackingConsent] = "\(trackingConsent)"
         }
 
         if let pageIdentifier = pageIdentifier {
@@ -324,7 +324,7 @@ internal class RoktNetWorkAPI {
 
         let updatedParams = RoktAPIHelper.addRealtimeEventsIfPresent(to: params)
 
-        headers[layoutsSchemaVersionHeader] = layoutsSchemaVersion
+        headers[Self.layoutsSchemaVersionHeader] = Self.layoutsSchemaVersion
 
         NetworkingHelper.performPost(
             url: experiencesResourceURL,
@@ -365,12 +365,12 @@ internal class RoktNetWorkAPI {
                                      body: timingsRequest.toDictionary(),
                                      headers: timingsHeaders,
                                      failure: { (error, statusCode, response) in
-                                        let callStack = String(format: timingsAPIFailureMsg,
+                                        let callStack = String(format: Self.timingsAPIFailureMsg,
                                                                response,
                                                                String(describing: statusCode),
                                                                error.localizedDescription)
                                         RoktAPIHelper.sendDiagnostics(
-                                            message: timingsDiagnosticCode,
+                                            message: Self.timingsDiagnosticCode,
                                             callStack: callStack,
                                             sessionId: sessionId)
                                         RoktLogger.shared.verbose(callStack) })

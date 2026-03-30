@@ -94,7 +94,7 @@ class TestFontManager: XCTestCase {
         let fontName = font.fontName as NSString
         let cgFont = CGFont(fontName)!
 
-        FontManager.registerGraphicFont(cgFont: cgFont, fontUrlString: "Test", logLoadType: logFontPreloadedType)
+        FontManager.registerGraphicFont(cgFont: cgFont, fontUrlString: "Test", logLoadType: FontManager.logFontPreloadedType)
 
         let exp = expectation(description: "Test after 0.1 seconds")
         let result = XCTWaiter.wait(for: [exp], timeout: 0.1)
@@ -113,7 +113,7 @@ class TestFontManager: XCTestCase {
 
         FontManager.registerURLFont(fileUrl: URL.currentDirectory(), cgFont: cgFont,
                                     fontUrlString: "Test",
-                                    logLoadType: logFontPreloadedType)
+                                    logLoadType: FontManager.logFontPreloadedType)
 
         let exp = expectation(description: "Test after 0.1 seconds")
         let result = XCTWaiter.wait(for: [exp], timeout: 0.1)

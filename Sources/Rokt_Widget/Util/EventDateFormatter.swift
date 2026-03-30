@@ -1,10 +1,9 @@
 import Foundation
 
-private let eventTimeStampFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
-private let utcTimeZone = "UTC"
-private let baseLocale = "en"
-
 class EventDateFormatter {
+    private static let eventTimeStampFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
+    private static let utcTimeZone = "UTC"
+    private static let baseLocale = "en"
 
     static let dateFormatter: DateFormatter = {
         let dateFormatter = DateFormatter()

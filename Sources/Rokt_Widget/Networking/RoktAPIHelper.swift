@@ -2,18 +2,18 @@ import Foundation
 import UIKit
 internal import RoktUXHelper
 
-private let viewNameKey = "pageIdentifier"
-private let errorAdditionalKey = "additionalInformation"
-private let errorSessionIdKey = "sessionId"
-private let errorCampaignIdKey = "campaignId"
-let errorCodeDiagnosticKey = "code"
-let errorStackTraceDiagnosticKey = "stackTrace"
-let errorSeverityDiagnosticKey = "severity"
-private let privacyControlKey = "privacyControl"
-private let eventsLoggingEnabled = false
-
 /// Helper class to request and process Rokt api response details
 internal class RoktAPIHelper {
+    private static let viewNameKey = "pageIdentifier"
+    private static let errorAdditionalKey = "additionalInformation"
+    private static let errorSessionIdKey = "sessionId"
+    private static let errorCampaignIdKey = "campaignId"
+    static let errorCodeDiagnosticKey = "code"
+    static let errorStackTraceDiagnosticKey = "stackTrace"
+    static let errorSeverityDiagnosticKey = "severity"
+    private static let privacyControlKey = "privacyControl"
+    private static let eventsLoggingEnabled = false
+
     /// Rokt initialize API call
     ///
     /// - Parameters:
@@ -82,11 +82,11 @@ internal class RoktAPIHelper {
         ]
 
         if let vName = viewName {
-            params[viewNameKey] = vName
+            params[Self.viewNameKey] = vName
         }
 
         if !privacyControlPayload.isEmpty {
-            params[privacyControlKey] = privacyControlPayload
+            params[Self.privacyControlKey] = privacyControlPayload
         }
 
         if isMock() {
@@ -125,7 +125,7 @@ internal class RoktAPIHelper {
         let sessionId = events.first.flatMap { eventRequests in
             eventRequests.first { $0.key == sessionIdKey }?.value as? String
         }
-        if eventsLoggingEnabled {
+        if Self.eventsLoggingEnabled {
             events.map {
                 $0.filter { element in
                     [sessionIdKey,
@@ -168,7 +168,7 @@ internal class RoktAPIHelper {
             var eventsBody = [[String: Any]]()
             for event in events {
                 eventsBody.append(event.getParams)
-                if eventsLoggingEnabled {
+                if Self.eventsLoggingEnabled {
                     NSLog(event.getLog())
                 }
             }
@@ -201,18 +201,18 @@ internal class RoktAPIHelper {
                                failure: ((Error, Int?, String) -> Void)? = nil) {
         guard Rokt.shared.roktImplementation.roktTagId != nil else { return }
 
-        var params: [String: Any] = [errorCodeDiagnosticKey: message,
-                                     errorStackTraceDiagnosticKey: callStack,
-                                     errorSeverityDiagnosticKey: severity.rawValue]
+        var params: [String: Any] = [Self.errorCodeDiagnosticKey: message,
+                                     Self.errorStackTraceDiagnosticKey: callStack,
+                                     Self.errorSeverityDiagnosticKey: severity.rawValue]
         var additional: [String: Any] = additionalInfo
         if let sessionId = sessionId {
-            additional[errorSessionIdKey] = sessionId
+            additional[Self.errorSessionIdKey] = sessionId
         }
         if let campaignId = campaignId {
-            additional[errorCampaignIdKey] = campaignId
+            additional[Self.errorCampaignIdKey] = campaignId
         }
         if !additional.isEmpty {
-            params[errorAdditionalKey] = additional
+            params[Self.errorAdditionalKey] = additional
         }
         if isMock() {
             RoktMockAPI.sendDiagnostics(params: params, success: success, failure: failure)

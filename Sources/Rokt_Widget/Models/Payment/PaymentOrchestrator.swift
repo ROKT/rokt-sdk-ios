@@ -1,15 +1,13 @@
 import Foundation
 import UIKit
 
-// MARK: - Payment Constants
-
-let devicePayErrorCode = "[DEVICE_PAY]"
-let applePayPaymentPreparationError = "Payment preparation failed"
-let paymentPreparationResponseValidationError = "Payment preparation response missing required fields"
-
 /// Orchestrates payment processing by managing registered `PaymentExtension` instances
 /// and routing payments to the appropriate extension.
 final class PaymentOrchestrator {
+    static let devicePayErrorCode = "[DEVICE_PAY]"
+    static let applePayPaymentPreparationError = "Payment preparation failed"
+    static let paymentPreparationResponseValidationError = "Payment preparation response missing required fields"
+
     private var registeredExtensions: [PaymentExtension] = []
     private let apiHelper: RoktAPIHelper.Type
 
@@ -127,11 +125,11 @@ final class PaymentOrchestrator {
                         let validationError = NSError(
                             domain: "RoktSDK",
                             code: -1,
-                            userInfo: [NSLocalizedDescriptionKey: paymentPreparationResponseValidationError]
+                            userInfo: [NSLocalizedDescriptionKey: Self.paymentPreparationResponseValidationError]
                         )
                         self.apiHelper.sendDiagnostics(
-                            message: devicePayErrorCode,
-                            callStack: paymentPreparationResponseValidationError,
+                            message: Self.devicePayErrorCode,
+                            callStack: Self.paymentPreparationResponseValidationError,
                             severity: .warning,
                             additionalInfo: [
                                 "clientSecretPresent": response.paymentDetails.clientSecret != nil,
@@ -150,8 +148,8 @@ final class PaymentOrchestrator {
                 },
                 failure: { error, _, message in
                     self.apiHelper.sendDiagnostics(
-                        message: devicePayErrorCode,
-                        callStack: applePayPaymentPreparationError,
+                        message: Self.devicePayErrorCode,
+                        callStack: Self.applePayPaymentPreparationError,
                         severity: .warning,
                         additionalInfo: [
                             "error": error.localizedDescription,
