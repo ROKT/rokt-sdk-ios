@@ -6,6 +6,7 @@ import UIKit
 final class PaymentOrchestrator {
     static let devicePayErrorCode = "[DEVICE_PAY]"
     static let paymentPreparationResponseValidationError = "Payment preparation response missing required fields"
+    static let paymentPreparationFailedError = "Payment preparation failed"
 
     private var registeredExtensions: [PaymentExtension] = []
     private let apiHelper: RoktAPIHelper.Type
@@ -124,11 +125,11 @@ final class PaymentOrchestrator {
                         let validationError = NSError(
                             domain: "RoktSDK",
                             code: -1,
-                            userInfo: [NSLocalizedDescriptionKey: Self.paymentPreparationResponseValidationError]
+                            userInfo: [NSLocalizedDescriptionKey: PaymentOrchestrator.paymentPreparationResponseValidationError]
                         )
                         self.apiHelper.sendDiagnostics(
-                            message: Self.devicePayErrorCode,
-                            callStack: Self.paymentPreparationResponseValidationError,
+                            message: PaymentOrchestrator.devicePayErrorCode,
+                            callStack: PaymentOrchestrator.paymentPreparationResponseValidationError,
                             severity: .warning,
                             additionalInfo: [
                                 "clientSecretPresent": response.paymentDetails.clientSecret != nil,
@@ -147,8 +148,8 @@ final class PaymentOrchestrator {
                 },
                 failure: { error, _, message in
                     self.apiHelper.sendDiagnostics(
-                        message: Self.devicePayErrorCode,
-                        callStack: "Payment preparation failed",
+                        message: PaymentOrchestrator.devicePayErrorCode,
+                        callStack: PaymentOrchestrator.paymentPreparationFailedError,
                         severity: .warning,
                         additionalInfo: [
                             "error": error.localizedDescription,

@@ -110,6 +110,7 @@
       "s:11Rokt_Widget19PaymentOrchestratorC09availableC7MethodsSay0A9Contracts0C10MethodTypeOGyF",
       "s:11Rokt_Widget19PaymentOrchestratorC16paymentExtension2id0A9Contracts0cF0_pSgSS_tF",
       "s:11Rokt_Widget19PaymentOrchestratorC17paymentExtensions10supportingSay0A9Contracts0C9Extension_pGAF0C10MethodTypeO_tF",
+      "s:11Rokt_Widget19PaymentOrchestratorC29paymentPreparationFailedErrorSSvpZ",
       "s:11Rokt_Widget19PaymentOrchestratorC41paymentPreparationResponseValidationErrorSSvpZ",
       "s:11Rokt_Widget20EndOfJourneyBehaviorO",
       "s:11Rokt_Widget20ExperienceCacheUtilsV18cacheExpiryJsonKey33_2953DCD8BCDAE5096686C4199B195F7DLLSSvpZ",
