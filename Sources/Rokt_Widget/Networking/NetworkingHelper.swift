@@ -218,7 +218,7 @@ class NetworkingHelper {
         headersDict.updateValue(Bundle.main.bundleIdentifier!, forKey: RoktHeaderKeys.packageName)
         headersDict.updateValue(Locale.current.identifier, forKey: RoktHeaderKeys.uiLocale)
 
-        if let version = Bundle.main.infoDictionary?[Self.bundleShortVersionKey] as? String {
+        if let version = Bundle.main.infoDictionary?[bundleShortVersionKey] as? String {
             headersDict.updateValue(version, forKey: RoktHeaderKeys.packageVersion)
         }
 
@@ -238,25 +238,25 @@ class NetworkingHelper {
             if let responseDict = resultAny as? NSDictionary {
                 dict = responseDict
             } else if let array = resultAny as? NSArray {
-                dict = [Self.arrayResponseKey: array]
+                dict = [arrayResponseKey: array]
             }
 
             success?(dict, httpResult.responseData, httpResult.httpURLResponse?.allHeaderFields)
         case .failure(let error):
             if let statusCode = httpResult.httpURLResponse?.statusCode {
                 if statusCode == NSURLErrorNotConnectedToInternet {
-                    RoktLogger.shared.verbose(Self.networkErrorComment)
-                    failure?(error, statusCode, Self.networkErrorComment)
+                    RoktLogger.shared.verbose(networkErrorComment)
+                    failure?(error, statusCode, networkErrorComment)
                     return
                 } else if statusCode == HTTPStatusCode.unauthorized.rawValue {
-                    RoktLogger.shared.verbose(Self.unauthorizedComment)
-                    failure?(error, statusCode, Self.unauthorizedComment)
+                    RoktLogger.shared.verbose(unauthorizedComment)
+                    failure?(error, statusCode, unauthorizedComment)
                     return
                 }
             }
 
             RoktLogger.shared.verbose(httpResult.httpURLResponse?.description
-                    ?? Self.apiErrorComment)
+                    ?? apiErrorComment)
             RoktLogger.shared.verbose(error.localizedDescription)
 
             var responseString: String?
@@ -264,16 +264,16 @@ class NetworkingHelper {
             if let responseData = httpResult.responseData {
                 responseString = String(data: responseData, encoding: String.Encoding.utf8)
                 if responseString == "" {
-                    responseString = Self.emptyResponseMessage
+                    responseString = emptyResponseMessage
                 }
 
                 let errorString = error.localizedDescription
-                let apiResponseString = Self.apiResponseComment
+                let apiResponseString = apiResponseComment
                 let status = "\(apiResponseString) \(errorString) \(responseString ?? "")"
 
                 RoktLogger.shared.verbose(status)
             }
-            failure?(error, httpResult.httpURLResponse?.statusCode, responseString ?? Self.noResponseMessage)
+            failure?(error, httpResult.httpURLResponse?.statusCode, responseString ?? noResponseMessage)
         }
     }
 }

@@ -89,7 +89,7 @@ class TestNetworkingHelper: XCTestCase {
         waitForExpectations(timeout: 2.0, handler: nil)
 
         XCTAssertNotNil(capturedRequest)
-        XCTAssertEqual(capturedRequest?.allHTTPHeaderFields?[Self.headerPageIdentifierKey], "test-page")
+        XCTAssertEqual(capturedRequest?.allHTTPHeaderFields?[headerPageIdentifierKey], "test-page")
     }
 
     func test_pageIdentifier_not_included_when_nil() {
@@ -123,7 +123,7 @@ class TestNetworkingHelper: XCTestCase {
         waitForExpectations(timeout: 2.0, handler: nil)
 
         XCTAssertNotNil(capturedRequest)
-        XCTAssertNil(capturedRequest?.allHTTPHeaderFields?[Self.headerPageIdentifierKey])
+        XCTAssertNil(capturedRequest?.allHTTPHeaderFields?[headerPageIdentifierKey])
     }
 
     func test_RoktAPIHelper_passes_viewName_as_pageIdentifier() {
@@ -159,7 +159,7 @@ class TestNetworkingHelper: XCTestCase {
         waitForExpectations(timeout: 2.0, handler: nil)
 
         XCTAssertNotNil(capturedRequest)
-        XCTAssertEqual(capturedRequest?.allHTTPHeaderFields?[Self.headerPageIdentifierKey], "my-view")
+        XCTAssertEqual(capturedRequest?.allHTTPHeaderFields?[headerPageIdentifierKey], "my-view")
     }
 
     func test_initializePurchase_invokesFailure_whenTagIdMissing() {

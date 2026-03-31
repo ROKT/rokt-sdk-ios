@@ -15,10 +15,10 @@ extension RoktAPIHelper {
         guard let castedAttrs = attributes as? [String: String] else { return [:] }
 
         return [
-            Self.noFunctionalKey: castedAttrs[Self.noFunctionalKey],
-            Self.noTargetingKey: castedAttrs[Self.noTargetingKey],
-            Self.doNotShareOrSellKey: castedAttrs[Self.doNotShareOrSellKey],
-            Self.gpcEnabledKey: castedAttrs[Self.gpcEnabledKey]
+            noFunctionalKey: castedAttrs[noFunctionalKey],
+            noTargetingKey: castedAttrs[noTargetingKey],
+            doNotShareOrSellKey: castedAttrs[doNotShareOrSellKey],
+            gpcEnabledKey: castedAttrs[gpcEnabledKey]
         ]
         .compactMapValues { $0 }
         .mapValues { Bool($0.lowercased()) }
@@ -28,7 +28,7 @@ extension RoktAPIHelper {
     class func getPageInitData(attributes: [String: Any]) -> String? {
         guard var castedAttrs = attributes as? [String: String] else { return nil }
 
-        return castedAttrs.removeValue(forKey: Self.attributesPageInitKey)
+        return castedAttrs.removeValue(forKey: attributesPageInitKey)
     }
 
     /// Removes all privacy control KVPs from partner attributes
@@ -38,14 +38,14 @@ extension RoktAPIHelper {
         var mutablePayload = attributes
 
         let privacyControlFields = [
-            Self.noFunctionalKey,
-            Self.noTargetingKey,
-            Self.doNotShareOrSellKey,
-            Self.gpcEnabledKey
+            noFunctionalKey,
+            noTargetingKey,
+            doNotShareOrSellKey,
+            gpcEnabledKey
         ]
 
         privacyControlFields.forEach { mutablePayload.removeValue(forKey: $0) }
-        mutablePayload.removeValue(forKey: Self.attributesPageInitKey)
+        mutablePayload.removeValue(forKey: attributesPageInitKey)
 
         return mutablePayload
     }

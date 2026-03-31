@@ -488,8 +488,7 @@ class RoktInternalImplementation {
                                                       callStack: String(format: Self.cacheHitMessage, viewName ?? ""),
                                                       severity: .info,
                                                       additionalInfo: [
-                                                          Self
-                                                              .cacheDurationKey: String(self.roktConfig.cacheConfig
+                                                          Self.cacheDurationKey: String(self.roktConfig.cacheConfig
                                                               .cacheDuration),
                                                           Self.cacheAttributesKey: Array(cacheAttributes.keys).description
                                                       ])
