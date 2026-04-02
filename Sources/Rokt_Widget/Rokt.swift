@@ -148,7 +148,7 @@ internal import RoktUXHelper
     /// Register a payment extension for Shoppable Ads.
     ///
     /// The partner passes configuration (e.g. Stripe publishable key) at runtime.
-    /// Must be called before `shoppableAds()`.
+    /// Must be called before `selectShoppableAds()`.
     ///
     /// - Parameters:
     ///   - paymentExtension: The payment extension to register (e.g. `RoktStripePaymentExtension`)
@@ -167,18 +167,18 @@ internal import RoktUXHelper
     /// Requires `registerPaymentExtension()` to be called first.
     ///
     /// - Parameters:
-    ///   - viewName: Optional view/page identifier for the placement
+    ///   - identifier: The identifier for the view / page where you're displaying the placement
     ///   - attributes: User attributes for targeting
     ///   - config: Optional configuration (color mode, caching)
     ///   - onEvent: Callback for placement lifecycle and purchase events
-    public static func shoppableAds(
-        viewName: String? = nil,
+    public static func selectShoppableAds(
+        identifier: String,
         attributes: [String: String],
         config: RoktConfig? = nil,
         onEvent: ((RoktEvent) -> Void)? = nil
     ) {
-        shared.roktImplementation.shoppableAds(
-            viewName: viewName,
+        shared.roktImplementation.selectShoppableAds(
+            identifier: identifier,
             attributes: attributes,
             config: config,
             onRoktEvent: onEvent
