@@ -202,4 +202,37 @@ final class TestRoktUxEventExtension: XCTestCase {
             XCTFail("returnedEvent is not of type RoktEvent.CartItemInstantPurchase")
         }
     }
+
+    func test_mapToRoktEvent_CartItemDevicePay() {
+        let expectedLayoutId = "layout-123"
+        let expectedCartItemId = "v1:cart-789:canal"
+        let expectedCatalogItemId = "catalog-456"
+
+        let providedEvent = RoktUXEvent.CartItemDevicePay(
+            layoutId: expectedLayoutId,
+            name: "Test Product",
+            cartItemId: expectedCartItemId,
+            catalogItemId: expectedCatalogItemId,
+            currency: "USD",
+            description: "A test product",
+            linkedProductId: nil,
+            providerData: "{}",
+            quantity: 1,
+            totalPrice: 9.99,
+            unitPrice: 9.99,
+            paymentProvider: .applePay
+        )
+
+        let returnedEvent = providedEvent.mapToRoktEvent
+
+        XCTAssertNotNil(returnedEvent)
+        if let devicePayEvent = returnedEvent as? RoktEvent.CartItemDevicePay {
+            XCTAssertEqual(devicePayEvent.identifier, expectedLayoutId)
+            XCTAssertEqual(devicePayEvent.catalogItemId, expectedCatalogItemId)
+            XCTAssertEqual(devicePayEvent.cartItemId, expectedCartItemId)
+            XCTAssertEqual(devicePayEvent.paymentProvider, "ApplePay")
+        } else {
+            XCTFail("returnedEvent is not of type RoktEvent.CartItemDevicePay")
+        }
+    }
 }

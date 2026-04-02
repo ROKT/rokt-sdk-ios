@@ -45,7 +45,7 @@ internal class RoktNetWorkAPI {
     private static let timingsDiagnosticCode = "[TIMINGS]"
     private static let timingsSdkType = "msdk"
     private static let layoutsSchemaVersionHeader = "rokt-layout-schema-version"
-    private static let layoutsSchemaVersion = "2.3"
+    private static let layoutsSchemaVersion = "2.4"
     private static let fullFontLogCode3 = "[FFL003]"
     private static let fullFontLogCode4 = "[FFL004]"
 
