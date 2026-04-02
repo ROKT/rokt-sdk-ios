@@ -102,6 +102,10 @@ final class ValidLayoutGroupedTests: QuickSpec {
                         eventType: "SignalImpression",
                         parentGuid: "8bd6d8a3-0eb0-40cc-b1ce-9abacd666873"
                     ))).toEventually(beTrue(), timeout: .seconds(10))
+                    expect(events.contains(EventModel(
+                        eventType: "SignalViewed",
+                        parentGuid: "8bd6d8a3-0eb0-40cc-b1ce-9abacd666873"
+                    ))).toEventually(beTrue(), timeout: .seconds(10))
                     // slot level event for second slot
                     expect(events.contains(EventModel(
                         eventType: "SignalImpression",
@@ -110,6 +114,10 @@ final class ValidLayoutGroupedTests: QuickSpec {
                     // creative level event for second creative
                     expect(events.contains(EventModel(
                         eventType: "SignalImpression",
+                        parentGuid: "408881f7-2744-44e0-a94d-f908860ba00f"
+                    ))).toEventually(beTrue(), timeout: .seconds(10))
+                    expect(events.contains(EventModel(
+                        eventType: "SignalViewed",
                         parentGuid: "408881f7-2744-44e0-a94d-f908860ba00f"
                     ))).toEventually(beTrue(), timeout: .seconds(10))
                 }

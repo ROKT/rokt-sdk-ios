@@ -138,6 +138,10 @@ final class ValidLayoutBottomSheetTests: QuickSpec {
                         eventType: "SignalImpression",
                         parentGuid: "f5987bb9-f7ba-4a89-91e7-80a446c5d29c"
                     ))).toEventually(beTrue(), timeout: .seconds(10))
+                    expect(events.contains(EventModel(
+                        eventType: "SignalViewed",
+                        parentGuid: "f5987bb9-f7ba-4a89-91e7-80a446c5d29c"
+                    ))).toEventually(beTrue(), timeout: .seconds(10))
 
                     // validate timings requests
                     expect(timingsRequests.count).to(equal(1))
