@@ -3,14 +3,15 @@ import UIKit
 @_exported import RoktContracts
 internal import RoktUXHelper
 
-/// Rokt class to initialize and siplay Rokt's widget
+/// Rokt class to initialize and display Rokt's widget
+@objcMembers
 @objc public class Rokt: NSObject {
     static let shared = Rokt()
     var roktImplementation = RoktInternalImplementation()
 
     // MARK: - Rokt internal usage functions
 
-    @objc public static func setFrameworkType(frameworkType: RoktFrameworkType) {
+    public static func setFrameworkType(frameworkType: RoktFrameworkType) {
         shared.roktImplementation.setFrameworkType(frameworkType)
     }
 
@@ -20,7 +21,7 @@ internal import RoktUXHelper
     ///   - roktTagId: The tag id provided by Rokt, associated with your account.
     ///   - mParticleSdkVersion: The version of the mParticle SDK used to load Rokt mParticle kit
     ///   - mParticleKitVersion: The version of the mParticle kit used to load Rokt
-    @objc public static func initWith(
+    public static func initWith(
         roktTagId: String,
         mParticleSdkVersion: String,
         mParticleKitVersion: String
@@ -42,7 +43,7 @@ internal import RoktUXHelper
     ///
     /// - Parameters:
     ///   - roktTagId: The tag ID provided by your dedicated Rokt team
-    @objc public static func initWith(roktTagId: String) {
+    public static func initWith(roktTagId: String) {
         RoktLogger.shared.info("Initializing Rokt SDK")
         shared.roktImplementation.initWith(roktTagId: roktTagId, mParticleKitDetails: nil)
     }
@@ -56,7 +57,7 @@ internal import RoktUXHelper
     ///   - config: An object which defines RoktConfig
     ///   - placementOptions: (Internal use only) Placement options containing timing data from joint SDKs
     ///   - onEvent: Function to execute when some events triggered, the first item is RoktEvent
-    @objc public static func selectPlacements(
+    public static func selectPlacements(
         identifier: String,
         attributes: [String: String],
         placements: [String: RoktEmbeddedView]? = nil,
@@ -83,7 +84,7 @@ internal import RoktUXHelper
     ///   - attributes: A string dictionary containing the attributes to select the best placements
     ///   - placements: A dictionary of RoktEmbeddedViews with their names
     ///   - onEvent: Function to execute when some events triggered, the first item is RoktEvent
-    @objc public static func selectPlacements(
+    public static func selectPlacements(
         identifier: String,
         attributes: [String: String],
         placements: [String: RoktEmbeddedView]? = nil,
@@ -100,7 +101,7 @@ internal import RoktUXHelper
     }
 
     /// Close any active placements of the following styles: overlay, lightbox, bottomsheet
-    @objc public static func close() {
+    public static func close() {
         shared.roktImplementation.close()
     }
 
@@ -115,7 +116,7 @@ internal import RoktUXHelper
     /// ```swift
     /// Rokt.setLogLevel(.debug)
     /// ```
-    @objc public static func setLogLevel(_ logLevel: RoktLogLevel) {
+    public static func setLogLevel(_ logLevel: RoktLogLevel) {
         RoktLogger.shared.logLevel = logLevel
         if #available(iOS 15.0, *) {
             RoktUX.setLogLevel(logLevel.toUXLogLevel())
@@ -127,7 +128,7 @@ internal import RoktUXHelper
     /// - Parameters:
     ///   - identifier: The identifier for the view / page where you're displaying the placement
     ///   - onEvent: Function to execute when some events triggered, the first item is RoktEvent
-    @objc public static func events(identifier: String, onEvent: ((RoktEvent) -> Void)?) {
+    public static func events(identifier: String, onEvent: ((RoktEvent) -> Void)?) {
         shared.roktImplementation.mapEvents(viewName: identifier, onEvent: onEvent)
     }
 
@@ -136,11 +137,11 @@ internal import RoktUXHelper
     ///
     /// - Parameters:
     ///   - onEvent: Function to execute when some events triggered, the first item is RoktEvent
-    @objc public static func globalEvents(onEvent: @escaping ((RoktEvent) -> Void)) {
+    public static func globalEvents(onEvent: @escaping ((RoktEvent) -> Void)) {
         shared.roktImplementation.mapEvents(isGlobal: true, onEvent: onEvent)
     }
 
-    @objc public static func setEnvironment(environment: RoktEnvironment) {
+    public static func setEnvironment(environment: RoktEnvironment) {
         config = Configuration(environment: Configuration.getEnvironment(environment))
     }
 
@@ -191,7 +192,7 @@ internal import RoktUXHelper
     ///   - identifier: The identifier for the view / page where you're displaying the placement
     ///   - catalogItemId: It ID of the item being purchased
     ///   - success: Whether the purchase suceeded
-    @objc public static func purchaseFinalized(identifier: String, catalogItemId: String, success: Bool) {
+    public static func purchaseFinalized(identifier: String, catalogItemId: String, success: Bool) {
         shared.roktImplementation.purchaseFinalized(identifier: identifier, catalogItemId: catalogItemId, success: success)
     }
 
@@ -203,14 +204,14 @@ internal import RoktUXHelper
     ///
     /// - Parameters:
     ///   - sessionId: The session id to be set. Must be a non-empty string.
-    @objc public static func setSessionId(sessionId: String) {
+    public static func setSessionId(sessionId: String) {
         shared.roktImplementation.setSessionId(sessionId: sessionId)
     }
 
     /// Get the session id to use within a non-native integration e.g. WebView
     ///
     /// - Returns: The session id or nil if no session is present.
-    @objc public static func getSessionId() -> String? {
+    public static func getSessionId() -> String? {
         shared.roktImplementation.getSessionId()
     }
 }
