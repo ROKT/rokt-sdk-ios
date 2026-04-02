@@ -105,7 +105,6 @@ final class PaymentOrchestrator {
 
     // MARK: - Private
 
-    // periphery:ignore - private; only referenced from processPayment (see periphery note there)
     private func preparePaymentForItem(
         item: PaymentItem,
         cartItemId: String,

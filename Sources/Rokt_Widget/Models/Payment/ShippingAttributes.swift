@@ -36,7 +36,6 @@ struct ShippingAttributes {
         self.countryCode = countryCode
     }
 
-    // periphery:ignore - only used from payment preparation path (see PaymentOrchestrator periphery notes)
     /// Creates ShippingAttributes from a RoktContracts ContactAddress.
     init(from contactAddress: ContactAddress) {
         let nameParts = contactAddress.name.split(separator: " ", maxSplits: 1)
