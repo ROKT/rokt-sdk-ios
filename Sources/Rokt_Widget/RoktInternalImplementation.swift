@@ -3,11 +3,23 @@ import UIKit
 import AppTrackingTransparency
 internal import RoktUXHelper
 
-let defaultTimeout: Double = 9000
-let defaultFontTimeout: Double = 30 // second
-let defaultDelay: Double = 1000
-
 class RoktInternalImplementation {
+    private static let initDiagnosticCode = "[INIT]"
+    private static let executeDiagnosticCode = "[EXECUTE]"
+    private static let trackingConsentDiagnosticCode = "[TRACKINGCONSENT]"
+    private static let notInitializedDiagnosticCode = "[NOT_INITIALIZED]"
+    private static let cacheHitDiagnosticCode = "[CACHE_HIT]"
+    private static let cacheHitMessage = "Cache hit for view - %@"
+    private static let initFailedError = "INIT_FAILED"
+    private static let fontFailedError = "FONT_FAILED"
+    private static let defaultRoktInitEvent = "DEFAULT_ROKT_INIT_EVENT"
+    private static let trackingConsentError = "tracking consent not authorised"
+    private static let cacheDurationKey = "cacheDuration"
+    private static let cacheAttributesKey = "cacheAttributeKeys"
+    static let defaultTimeout: Double = 9000
+    static let defaultFontTimeout: Double = 30 // second
+    static let defaultDelay: Double = 1000
+
     private var fontLoadObservers: [NSObjectProtocol] = []
 
     var roktTagId: String?
@@ -26,8 +38,8 @@ class RoktInternalImplementation {
     var processedTimingsRequests: TimingsRequestProcessor?
 
     private var stateManager: StateBagManaging = StateBagManager()
-    private var clientTimeoutMilliseconds: Double = defaultTimeout
-    private var defaultLaunchDelayMilliseconds: Double = defaultDelay
+    private var clientTimeoutMilliseconds: Double = RoktInternalImplementation.defaultTimeout
+    private var defaultLaunchDelayMilliseconds: Double = RoktInternalImplementation.defaultDelay
     private var loadingFonts = false
     private var pendingPayload: ExecutePayload?
     private var isExecuting = false
@@ -354,7 +366,7 @@ class RoktInternalImplementation {
             RoktAPIHelper.downloadFonts(initFonts) {
                 let success = self.isInitialized && !self.isInitFailedForFont
                 RoktLogger.shared.info("Initialization complete - success: \(success)")
-                if let eventListener = self.roktEventMap[kDefaultRoktInitEvent] {
+                if let eventListener = self.roktEventMap[Self.defaultRoktInitEvent] {
                     eventListener?(RoktEvent.InitComplete(success: success))
                 }
             }
@@ -365,9 +377,9 @@ class RoktInternalImplementation {
             self.processedTimingsRequests?.setInitEndTime()
             // Don't report diagnostics for 429 (Too Many Requests) status code
             if let code = statusCode, code != 429 {
-                self.sendDiagnostics(kAPIInitErrorCode, error: error, statusCode: statusCode, response: response)
+                self.sendDiagnostics(Self.initDiagnosticCode, error: error, statusCode: statusCode, response: response)
             }
-            if let eventListener = self.roktEventMap[kDefaultRoktInitEvent] {
+            if let eventListener = self.roktEventMap[Self.defaultRoktInitEvent] {
                 eventListener?(RoktEvent.InitComplete(success: false))
             }
         })
@@ -401,8 +413,8 @@ class RoktInternalImplementation {
         func preExecuteFailureHandler() {
             composedEventHandler(RoktEvent.HideLoadingIndicator())
             composedEventHandler(RoktEvent.PlacementFailure(identifier: nil))
-            RoktAPIHelper.sendDiagnostics(message: kNotInitializedCode,
-                                          callStack: isInitFailedForFont ? kFontFailedError : kInitFailedError,
+            RoktAPIHelper.sendDiagnostics(message: Self.notInitializedDiagnosticCode,
+                                          callStack: isInitFailedForFont ? Self.fontFailedError : Self.initFailedError,
                                           severity: .info)
         }
 
@@ -432,7 +444,11 @@ class RoktInternalImplementation {
         if #available(iOS 14.5, *) {
             if !initFeatureFlags.isEnabled(.roktTrackingStatus) &&
                 isPrivacyDenied(ATTrackingManager.trackingAuthorizationStatus) {
-                RoktAPIHelper.sendDiagnostics(message: kTrackErrorCode, callStack: kTrackError, severity: .warning)
+                RoktAPIHelper.sendDiagnostics(
+                    message: Self.trackingConsentDiagnosticCode,
+                    callStack: Self.trackingConsentError,
+                    severity: .warning
+                )
                 preExecuteFailureHandler()
                 return
             }
@@ -468,12 +484,13 @@ class RoktInternalImplementation {
                             return
                         }
 
-                        RoktAPIHelper.sendDiagnostics(message: kCacheHitCode,
-                                                      callStack: String(format: kCacheHitMessage, viewName ?? ""),
+                        RoktAPIHelper.sendDiagnostics(message: Self.cacheHitDiagnosticCode,
+                                                      callStack: String(format: Self.cacheHitMessage, viewName ?? ""),
                                                       severity: .info,
                                                       additionalInfo: [
-                                                          kCacheDurationKey: String(self.roktConfig.cacheConfig.cacheDuration),
-                                                          kCacheAttributesKey: Array(cacheAttributes.keys).description
+                                                          Self.cacheDurationKey: String(self.roktConfig.cacheConfig
+                                                              .cacheDuration),
+                                                          Self.cacheAttributesKey: Array(cacheAttributes.keys).description
                                                       ])
 
                         let payload = ExecutePayload(layoutPage: layoutPageExecutePayload,
@@ -539,8 +556,8 @@ class RoktInternalImplementation {
             RoktLogger.shared.error("SDK is not initialized - cannot execute")
             composedEventHandler(RoktEvent.PlacementFailure(identifier: nil))
             clearCallBacks()
-            RoktAPIHelper.sendDiagnostics(message: kNotInitializedCode,
-                                          callStack: isInitFailedForFont ? kFontFailedError : kInitFailedError,
+            RoktAPIHelper.sendDiagnostics(message: Self.notInitializedDiagnosticCode,
+                                          callStack: isInitFailedForFont ? Self.fontFailedError : Self.initFailedError,
                                           severity: .info)
         }
     }
@@ -644,7 +661,7 @@ class RoktInternalImplementation {
         isExecuting = false
         // Don't report diagnostics for 429 (Too Many Requests) status code
         if let code = statusCode, code != 429 {
-            sendDiagnostics(kAPIExecuteErrorCode, error: error, statusCode: statusCode, response: response)
+            sendDiagnostics(Self.executeDiagnosticCode, error: error, statusCode: statusCode, response: response)
         }
         conclude(withFailure: true)
     }
@@ -655,7 +672,7 @@ class RoktInternalImplementation {
         onEvent: ((RoktEvent) -> Void)?
     ) {
         if isGlobal, viewName.isEmpty {
-            roktEventMap[kDefaultRoktInitEvent] = onEvent
+            roktEventMap[Self.defaultRoktInitEvent] = onEvent
         } else {
             roktEventMap[viewName] = onEvent
         }
@@ -679,7 +696,7 @@ class RoktInternalImplementation {
 
         // Observer for started loading fonts
         let startedObserver = NotificationCenter.default.addObserver(
-            forName: NSNotification.Name(kDownloadingFonts),
+            forName: NSNotification.Name(FontManager.downloadingFonts),
             object: nil,
             queue: .main
         ) { [weak self] _ in
@@ -688,7 +705,7 @@ class RoktInternalImplementation {
 
         // Observer for finished loading fonts
         let finishedObserver = NotificationCenter.default.addObserver(
-            forName: NSNotification.Name(kFinishedDownloadingFonts),
+            forName: NSNotification.Name(finishedDownloadingFonts),
             object: nil,
             queue: .main
         ) { [weak self] _ in
@@ -711,7 +728,7 @@ class RoktInternalImplementation {
         if !paymentOrchestrator.register(paymentExtension, config: config) {
             RoktLogger.shared.error("Rokt: Failed to register payment extension: \(paymentExtension.id)")
             RoktAPIHelper.sendDiagnostics(
-                message: kDevicePayErrorCode,
+                message: PaymentOrchestrator.devicePayErrorCode,
                 callStack: "Failed to register payment extension: \(paymentExtension.id)",
                 severity: .warning
             )

@@ -4,7 +4,7 @@ import Mocker
 
 class TestNetworkingHelper: XCTestCase {
 
-    private static let BE_HEADER_PAGE_IDENTIFIER_KEY = "rokt-page-identifier"
+    private static let headerPageIdentifierKey = "rokt-page-identifier"
 
     func test_updateMParticleKitDetails() {
         let mParticleKitDetails = MParticleKitDetails(sdkVersion: "1.2.3", kitVersion: "4.5.6")
@@ -89,7 +89,7 @@ class TestNetworkingHelper: XCTestCase {
         waitForExpectations(timeout: 2.0, handler: nil)
 
         XCTAssertNotNil(capturedRequest)
-        XCTAssertEqual(capturedRequest?.allHTTPHeaderFields?[Self.BE_HEADER_PAGE_IDENTIFIER_KEY], "test-page")
+        XCTAssertEqual(capturedRequest?.allHTTPHeaderFields?[Self.headerPageIdentifierKey], "test-page")
     }
 
     func test_pageIdentifier_not_included_when_nil() {
@@ -123,7 +123,7 @@ class TestNetworkingHelper: XCTestCase {
         waitForExpectations(timeout: 2.0, handler: nil)
 
         XCTAssertNotNil(capturedRequest)
-        XCTAssertNil(capturedRequest?.allHTTPHeaderFields?[Self.BE_HEADER_PAGE_IDENTIFIER_KEY])
+        XCTAssertNil(capturedRequest?.allHTTPHeaderFields?[Self.headerPageIdentifierKey])
     }
 
     func test_RoktAPIHelper_passes_viewName_as_pageIdentifier() {
@@ -159,7 +159,7 @@ class TestNetworkingHelper: XCTestCase {
         waitForExpectations(timeout: 2.0, handler: nil)
 
         XCTAssertNotNil(capturedRequest)
-        XCTAssertEqual(capturedRequest?.allHTTPHeaderFields?[Self.BE_HEADER_PAGE_IDENTIFIER_KEY], "my-view")
+        XCTAssertEqual(capturedRequest?.allHTTPHeaderFields?[Self.headerPageIdentifierKey], "my-view")
     }
 
     func test_initializePurchase_invokesFailure_whenTagIdMissing() {

@@ -2,6 +2,12 @@ import Foundation
 import UIKit
 
 extension RoktAPIHelper {
+    static let noFunctionalKey = "noFunctional"
+    static let noTargetingKey = "noTargeting"
+    static let doNotShareOrSellKey = "doNotShareOrSell"
+    static let gpcEnabledKey = "gpcEnabled"
+    static let attributesPageInitKey = "pageinit"
+
     /// Extracts all privacy control KVPs from the partner's attributes
     /// - Parameter attributes: a hashmap of additional information sent by the partner
     /// - Returns: a hashmap of all privacy KVP sent by the partner
@@ -9,10 +15,10 @@ extension RoktAPIHelper {
         guard let castedAttrs = attributes as? [String: String] else { return [:] }
 
         return [
-            kNoFunctional: castedAttrs[kNoFunctional],
-            kNoTargeting: castedAttrs[kNoTargeting],
-            kDoNotShareOrSell: castedAttrs[kDoNotShareOrSell],
-            kGpcEnabled: castedAttrs[kGpcEnabled]
+            noFunctionalKey: castedAttrs[noFunctionalKey],
+            noTargetingKey: castedAttrs[noTargetingKey],
+            doNotShareOrSellKey: castedAttrs[doNotShareOrSellKey],
+            gpcEnabledKey: castedAttrs[gpcEnabledKey]
         ]
         .compactMapValues { $0 }
         .mapValues { Bool($0.lowercased()) }
@@ -22,7 +28,7 @@ extension RoktAPIHelper {
     class func getPageInitData(attributes: [String: Any]) -> String? {
         guard var castedAttrs = attributes as? [String: String] else { return nil }
 
-        return castedAttrs.removeValue(forKey: BE_ATTRIBUTES_PAGE_INIT_KEY)
+        return castedAttrs.removeValue(forKey: attributesPageInitKey)
     }
 
     /// Removes all privacy control KVPs from partner attributes
@@ -32,21 +38,21 @@ extension RoktAPIHelper {
         var mutablePayload = attributes
 
         let privacyControlFields = [
-            kNoFunctional,
-            kNoTargeting,
-            kDoNotShareOrSell,
-            kGpcEnabled
+            noFunctionalKey,
+            noTargetingKey,
+            doNotShareOrSellKey,
+            gpcEnabledKey
         ]
 
         privacyControlFields.forEach { mutablePayload.removeValue(forKey: $0) }
-        mutablePayload.removeValue(forKey: BE_ATTRIBUTES_PAGE_INIT_KEY)
+        mutablePayload.removeValue(forKey: attributesPageInitKey)
 
         return mutablePayload
     }
 
     class func addRealtimeEventsIfPresent(to params: [String: Any]) -> [String: Any] {
         var updatedParams = params
-        let BE_REALTIME_EVENTS_REQUEST_KEY = "realTimeEvents"
+        let realtimeEventsRequestKey = "realTimeEvents"
 
         let realtimeEventSource = RealTimeEventManager.shared.getTriggeredEvents()
         if !realtimeEventSource.isEmpty {
@@ -56,7 +62,7 @@ extension RoktAPIHelper {
                 let encoder = JSONEncoder()
                 let data = try encoder.encode(requestContainer)
                 if let eventsDict = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
-                    updatedParams[BE_REALTIME_EVENTS_REQUEST_KEY] = eventsDict
+                    updatedParams[realtimeEventsRequestKey] = eventsDict
                 }
             } catch {
 

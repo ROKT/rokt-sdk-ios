@@ -40,9 +40,9 @@ internal class RoktMockAPI {
                     )
                 )
             } catch let error {
-                RoktLogger.shared.debug("\(kParsingLayoutError) \(error)")
-                RoktAPIHelper.sendDiagnostics(message: kValidationErrorCode,
-                                              callStack: kParsingLayoutError + error.localizedDescription)
+                RoktLogger.shared.debug("\(parsingLayoutError) \(error)")
+                RoktAPIHelper.sendDiagnostics(message: validationDiagnosticCode,
+                                              callStack: parsingLayoutError + error.localizedDescription)
                 successLayout?(nil)
             }
         } else {

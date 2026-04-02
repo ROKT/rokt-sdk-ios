@@ -23,10 +23,10 @@ final class TestROKTAPIHelperExtension: XCTestCase {
 
     func test_getPrivacyControlPayload_allKVPsExist_returnsFullPayload() {
         let attributes = [
-            kNoFunctional: "true",
-            kNoTargeting: "false",
-            kDoNotShareOrSell: "tRue",
-            kGpcEnabled: "fALse"
+            RoktAPIHelper.noFunctionalKey: "true",
+            RoktAPIHelper.noTargetingKey: "false",
+            RoktAPIHelper.doNotShareOrSellKey: "tRue",
+            RoktAPIHelper.gpcEnabledKey: "fALse"
         ]
 
         let privacyControls = RoktAPIHelper.getPrivacyControlPayload(attributes: attributes)
@@ -41,7 +41,7 @@ final class TestROKTAPIHelperExtension: XCTestCase {
     }
 
     func test_getPrivacyControlPayload_incompleteKVPsExist_returnsPartialPayload() {
-        let attributes = [kNoTargeting: "true"]
+        let attributes = [RoktAPIHelper.noTargetingKey: "true"]
 
         let privacyControls = RoktAPIHelper.getPrivacyControlPayload(attributes: attributes)
 
@@ -56,10 +56,10 @@ final class TestROKTAPIHelperExtension: XCTestCase {
 
     func test_getPrivacyControlPayload_withIncorrectValues_returnsEmptyPayload() {
         let attributes = [
-            kNoFunctional: "hello",
-            kNoTargeting: "world",
-            kDoNotShareOrSell: "foo",
-            kGpcEnabled: "bar"
+            RoktAPIHelper.noFunctionalKey: "hello",
+            RoktAPIHelper.noTargetingKey: "world",
+            RoktAPIHelper.doNotShareOrSellKey: "foo",
+            RoktAPIHelper.gpcEnabledKey: "bar"
         ]
 
         let privacyControls = RoktAPIHelper.getPrivacyControlPayload(attributes: attributes)
@@ -74,10 +74,10 @@ final class TestROKTAPIHelperExtension: XCTestCase {
         isDoNotShareOrSell: Bool?,
         isGPCEnabled: Bool?
     ) {
-        XCTAssertEqual(privacyControls[kNoFunctional], isNoFunctional)
-        XCTAssertEqual(privacyControls[kNoTargeting], isNoTargeting)
-        XCTAssertEqual(privacyControls[kDoNotShareOrSell], isDoNotShareOrSell)
-        XCTAssertEqual(privacyControls[kGpcEnabled], isGPCEnabled)
+        XCTAssertEqual(privacyControls[RoktAPIHelper.noFunctionalKey], isNoFunctional)
+        XCTAssertEqual(privacyControls[RoktAPIHelper.noTargetingKey], isNoTargeting)
+        XCTAssertEqual(privacyControls[RoktAPIHelper.doNotShareOrSellKey], isDoNotShareOrSell)
+        XCTAssertEqual(privacyControls[RoktAPIHelper.gpcEnabledKey], isGPCEnabled)
     }
 }
 
@@ -86,10 +86,10 @@ final class TestROKTAPIHelperExtension: XCTestCase {
 extension TestROKTAPIHelperExtension {
     func test_removeAllPrivacyControlData_removesRelevantData() {
         let attributes = [
-            kNoFunctional: "true",
-            kNoTargeting: "true",
-            kDoNotShareOrSell: "true",
-            kGpcEnabled: "false",
+            RoktAPIHelper.noFunctionalKey: "true",
+            RoktAPIHelper.noTargetingKey: "true",
+            RoktAPIHelper.doNotShareOrSellKey: "true",
+            RoktAPIHelper.gpcEnabledKey: "false",
             "extraData": "true"
         ]
 

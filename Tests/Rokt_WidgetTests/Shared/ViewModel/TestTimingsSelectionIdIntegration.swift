@@ -29,7 +29,7 @@ class TestTimingsSelectionIdIntegration: XCTestCase {
 
     func testFullExecuteFlow_WithPlacementInteractive_SendsTimings() {
         // Arrange - Simulate full execute flow
-        // Note: In production, this is triggered by SignalImpression event with BE_PAGE_SIGNAL_LOAD
+        // Note: In production, this is triggered by SignalImpression event with pageSignalLoad
         // from RoktUXHelper which contains pluginId and pluginName in metadata
         let selectionId = UUID().uuidString
         let sessionId = "test_session_id"

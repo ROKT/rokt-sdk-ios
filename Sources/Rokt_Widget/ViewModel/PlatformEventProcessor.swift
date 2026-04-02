@@ -2,6 +2,10 @@ import Foundation
 internal import RoktUXHelper
 
 class PlatformEventProcessor {
+    static let pageSignalLoad = "pageSignalLoadStart"
+    private static let eventDataKey = "eventData"
+    private static let errorCodeKey = "code"
+    private static let errorStackTraceKey = "stackTrace"
 
     var processedEvents = ThreadSafeSet<ProcessedEvent>()
     private let stateBagManager: StateBagManaging?
@@ -55,10 +59,10 @@ class PlatformEventProcessor {
     func getEventParams(_ event: RoktEventRequest) -> [String: Any] {
         var params: [String: Any] = event.getParams
         // If eventData is present, move it to attributes
-        if let eventData = params[BE_EVENT_DATA_KEY] {
-            params[BE_ATTRIBUTES_KEY] = eventData
+        if let eventData = params[Self.eventDataKey] {
+            params[attributesKey] = eventData
         }
-        params.removeValue(forKey: BE_EVENT_DATA_KEY)
+        params.removeValue(forKey: Self.eventDataKey)
         return params
     }
 
@@ -79,15 +83,15 @@ class PlatformEventProcessor {
         // Filter for SignalImpression events with pageSignalLoad metadata (placementInteractive)
         // These events come from RoktUXHelper and contain pluginId and pluginName in metadata
         eventRequests.filter {
-            $0.eventType == .SignalImpression && $0.metadata.first { $0.name == BE_PAGE_SIGNAL_LOAD } != nil
+            $0.eventType == .SignalImpression && $0.metadata.first { $0.name == Self.pageSignalLoad } != nil
         }.forEach { event in
-            guard let pluginId = event.metadata.first(where: { $0.name == BE_TIMINGS_PLUGIN_ID_KEY })?.value else {
+            guard let pluginId = event.metadata.first(where: { $0.name == timingsPluginIdKey })?.value else {
                 return
             }
 
-            let pluginName = event.metadata.first(where: { $0.name == BE_TIMINGS_PLUGIN_NAME_KEY })?.value
+            let pluginName = event.metadata.first(where: { $0.name == timingsPluginNameKey })?.value
             let eventTime = event.metadata
-                .first { $0.name == BE_TIMINGS_EVENT_TIME_KEY }
+                .first { $0.name == timingsEventTimeKey }
                 .map(\.value)
                 .flatMap(EventDateFormatter.dateFormatter.date(from:))
 
@@ -113,8 +117,8 @@ class PlatformEventProcessor {
         eventRequests.filter {
             $0.eventType == .SignalSdkDiagnostic
         }.forEach {
-            RoktAPIHelper.sendDiagnostics(message: $0.eventData.first { $0.name == kErrorCode}?.value ?? "",
-                                          callStack: $0.eventData.first { $0.name == kErrorStackTrace}?.value ?? "",
+            RoktAPIHelper.sendDiagnostics(message: $0.eventData.first { $0.name == Self.errorCodeKey}?.value ?? "",
+                                          callStack: $0.eventData.first { $0.name == Self.errorStackTraceKey}?.value ?? "",
                                           sessionId: $0.sessionId)
         }
     }

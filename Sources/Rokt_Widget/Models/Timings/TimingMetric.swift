@@ -1,13 +1,16 @@
 import Foundation
 
 struct TimingMetric: Codable, Equatable {
+    private static let nameKey = "name"
+    private static let valueKey = "value"
+
     let name: TimingType
     let value: Date
 
     internal func toDictionary() -> [String: String] {
         var dictionary = [String: String]()
-        dictionary[BE_NAME] = self.name.rawValue
-        dictionary[BE_VALUE] = String(Int(self.value.timeIntervalSince1970 * 1000))
+        dictionary[Self.nameKey] = self.name.rawValue
+        dictionary[Self.valueKey] = String(Int(self.value.timeIntervalSince1970 * 1000))
         return dictionary
     }
 }

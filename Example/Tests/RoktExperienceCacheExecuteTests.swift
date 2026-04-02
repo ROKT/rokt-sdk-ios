@@ -480,7 +480,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
 
                 beforeEach {
                     // Stub response for init call (cache feature flag NOT enabled)
-                    self.stubInit(kValidInitFilename)
+                    self.stubInit(validInitFilename)
 
                     // Stub response for execute call
                     self.stubExecute(kValidLayoutOverlayFilename, isLayout: true)

@@ -4,6 +4,15 @@ typealias ResponseHeaders = [AnyHashable: Any]
 
 /// Networking helper class that makes HTTP requests
 class NetworkingHelper {
+    private static let apiErrorComment = "API error: No response"
+    private static let noResponseMessage = "No response from API"
+    private static let emptyResponseMessage = "Empty response from API"
+    private static let networkErrorComment = "Network connection error"
+    private static let unauthorizedComment = "Unauthorized"
+    private static let apiResponseComment = "API response"
+    private static let bundleShortVersionKey = "CFBundleShortVersionString"
+    private static let arrayResponseKey = "array"
+
     static let shared = NetworkingHelper()
 
     internal var httpClient: HTTPClientAdapter!
@@ -55,7 +64,7 @@ class NetworkingHelper {
                         error: error,
                         code: errorCode,
                         extraErrorCheck: extraErrorCheck
-                    ) && retryCount < kMaxRetries {
+                    ) && retryCount < maxRetries {
                         performPost(url: url,
                                     body: body,
                                     headers: headers,
@@ -95,7 +104,7 @@ class NetworkingHelper {
                     error: error,
                     code: errorCode,
                     extraErrorCheck: extraErrorCheck
-                ) && retryCount < kMaxRetries {
+                ) && retryCount < maxRetries {
                     performPost(urlString: urlString,
                                 bodyArray: bodyArray,
                                 headers: headers,
@@ -135,7 +144,7 @@ class NetworkingHelper {
                         error: error,
                         code: errorCode,
                         extraErrorCheck: extraErrorCheck
-                    ) && retryCount < kMaxRetries {
+                    ) && retryCount < maxRetries {
                         performGet(url: url,
                                    params: params,
                                    headers: headers,
@@ -186,7 +195,7 @@ class NetworkingHelper {
     }
 
     class internal func getCommonHeaders(_ headers: [String: String]?) -> [String: String] {
-        let kOSType = "iOS"
+        let osType = "iOS"
 
         var headersDict = [String: String]()
         if let existingHeaders = headers {
@@ -202,14 +211,14 @@ class NetworkingHelper {
 
         headersDict.updateValue(HTTPHeader.Value.applicationJSON, forKey: HTTPHeader.accept)
         headersDict.updateValue(HTTPHeader.Value.applicationJSON, forKey: HTTPHeader.contentType)
-        headersDict.updateValue(kLibraryVersion, forKey: RoktHeaderKeys.sdkVersion)
-        headersDict.updateValue(kOSType, forKey: RoktHeaderKeys.osType)
+        headersDict.updateValue(libraryVersion, forKey: RoktHeaderKeys.sdkVersion)
+        headersDict.updateValue(osType, forKey: RoktHeaderKeys.osType)
         headersDict.updateValue(UIDevice.current.systemVersion, forKey: RoktHeaderKeys.osVersion)
         headersDict.updateValue(UIDevice.modelName, forKey: RoktHeaderKeys.deviceModel)
         headersDict.updateValue(Bundle.main.bundleIdentifier!, forKey: RoktHeaderKeys.packageName)
         headersDict.updateValue(Locale.current.identifier, forKey: RoktHeaderKeys.uiLocale)
 
-        if let version = Bundle.main.infoDictionary?[kBundleShort] as? String {
+        if let version = Bundle.main.infoDictionary?[bundleShortVersionKey] as? String {
             headersDict.updateValue(version, forKey: RoktHeaderKeys.packageVersion)
         }
 
@@ -229,25 +238,25 @@ class NetworkingHelper {
             if let responseDict = resultAny as? NSDictionary {
                 dict = responseDict
             } else if let array = resultAny as? NSArray {
-                dict = [kArrayResponseKey: array]
+                dict = [arrayResponseKey: array]
             }
 
             success?(dict, httpResult.responseData, httpResult.httpURLResponse?.allHeaderFields)
         case .failure(let error):
             if let statusCode = httpResult.httpURLResponse?.statusCode {
                 if statusCode == NSURLErrorNotConnectedToInternet {
-                    RoktLogger.shared.verbose(kNetworkErrorComment)
-                    failure?(error, statusCode, kNetworkErrorComment)
+                    RoktLogger.shared.verbose(networkErrorComment)
+                    failure?(error, statusCode, networkErrorComment)
                     return
                 } else if statusCode == HTTPStatusCode.unauthorized.rawValue {
-                    RoktLogger.shared.verbose(kUnauthorizedComment)
-                    failure?(error, statusCode, kUnauthorizedComment)
+                    RoktLogger.shared.verbose(unauthorizedComment)
+                    failure?(error, statusCode, unauthorizedComment)
                     return
                 }
             }
 
             RoktLogger.shared.verbose(httpResult.httpURLResponse?.description
-                    ?? kApiErrorC)
+                    ?? apiErrorComment)
             RoktLogger.shared.verbose(error.localizedDescription)
 
             var responseString: String?
@@ -255,16 +264,16 @@ class NetworkingHelper {
             if let responseData = httpResult.responseData {
                 responseString = String(data: responseData, encoding: String.Encoding.utf8)
                 if responseString == "" {
-                    responseString = kEmptyResponse
+                    responseString = emptyResponseMessage
                 }
 
                 let errorString = error.localizedDescription
-                let apiResponseString = kApiResponseComment
+                let apiResponseString = apiResponseComment
                 let status = "\(apiResponseString) \(errorString) \(responseString ?? "")"
 
                 RoktLogger.shared.verbose(status)
             }
-            failure?(error, httpResult.httpURLResponse?.statusCode, responseString ?? kNoResponse)
+            failure?(error, httpResult.httpURLResponse?.statusCode, responseString ?? noResponseMessage)
         }
     }
 }

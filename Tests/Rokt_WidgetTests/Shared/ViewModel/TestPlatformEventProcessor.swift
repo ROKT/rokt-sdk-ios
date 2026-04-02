@@ -115,11 +115,11 @@ class TestPlatformEventProcessor: XCTestCase {
         // Configure Rokt.shared with mock
         Rokt.shared.roktImplementation.processedTimingsRequests = mockTimingsRequestProcessor
 
-        // Create test data - SignalImpression with BE_PAGE_SIGNAL_LOAD metadata, pluginId, and pluginName
+        // Create test data - SignalImpression with pageSignalLoad metadata, pluginId, and pluginName
         let metadata = [
-            RoktEventNameValue(name: Rokt_Widget.BE_PAGE_SIGNAL_LOAD, value: "2023-01-01T12:00:00.000Z"),
-            RoktEventNameValue(name: Rokt_Widget.BE_TIMINGS_PLUGIN_ID_KEY, value: "test-plugin-id"),
-            RoktEventNameValue(name: Rokt_Widget.BE_TIMINGS_PLUGIN_NAME_KEY, value: "test-plugin-name")
+            RoktEventNameValue(name: PlatformEventProcessor.pageSignalLoad, value: "2023-01-01T12:00:00.000Z"),
+            RoktEventNameValue(name: Rokt_Widget.timingsPluginIdKey, value: "test-plugin-id"),
+            RoktEventNameValue(name: Rokt_Widget.timingsPluginNameKey, value: "test-plugin-name")
         ]
 
         let eventRequest = RoktEventRequest(
@@ -156,10 +156,10 @@ class TestPlatformEventProcessor: XCTestCase {
         Rokt.shared.roktImplementation.processedTimingsRequests = mockTimingsRequestProcessor
         mockStateManager.mockSelectionId = testSelectionId
 
-        // Create test data - SignalDismissal (wrong type) with BE_PAGE_SIGNAL_LOAD metadata and pluginId
+        // Create test data - SignalDismissal (wrong type) with pageSignalLoad metadata and pluginId
         let metadata = [
-            RoktEventNameValue(name: Rokt_Widget.BE_PAGE_SIGNAL_LOAD, value: "2023-01-01T12:00:00.000Z"),
-            RoktEventNameValue(name: Rokt_Widget.BE_TIMINGS_PLUGIN_ID_KEY, value: "test-plugin-id")
+            RoktEventNameValue(name: PlatformEventProcessor.pageSignalLoad, value: "2023-01-01T12:00:00.000Z"),
+            RoktEventNameValue(name: Rokt_Widget.timingsPluginIdKey, value: "test-plugin-id")
         ]
 
         let eventRequest = RoktEventRequest(
@@ -191,9 +191,9 @@ class TestPlatformEventProcessor: XCTestCase {
         Rokt.shared.roktImplementation.processedTimingsRequests = mockTimingsRequestProcessor
         mockStateManager.mockSelectionId = testSelectionId
 
-        // Create test data - SignalImpression but missing BE_PAGE_SIGNAL_LOAD metadata
+        // Create test data - SignalImpression but missing pageSignalLoad metadata
         let metadata = [
-            RoktEventNameValue(name: Rokt_Widget.BE_TIMINGS_PLUGIN_ID_KEY, value: "test-plugin-id")
+            RoktEventNameValue(name: Rokt_Widget.timingsPluginIdKey, value: "test-plugin-id")
         ]
 
         let eventRequest = RoktEventRequest(
@@ -225,10 +225,10 @@ class TestPlatformEventProcessor: XCTestCase {
         Rokt.shared.roktImplementation.processedTimingsRequests = mockTimingsRequestProcessor
         mockStateManager.mockSelectionId = testSelectionId
 
-        // Create test data - SignalImpression with BE_PAGE_SIGNAL_LOAD but missing pluginId
+        // Create test data - SignalImpression with pageSignalLoad but missing pluginId
         let metadata = [
-            RoktEventNameValue(name: Rokt_Widget.BE_PAGE_SIGNAL_LOAD, value: "2023-01-01T12:00:00.000Z")
-            // Missing BE_TIMINGS_PLUGIN_ID_KEY
+            RoktEventNameValue(name: PlatformEventProcessor.pageSignalLoad, value: "2023-01-01T12:00:00.000Z")
+            // Missing timingsPluginIdKey
         ]
 
         let eventRequest = RoktEventRequest(
@@ -262,9 +262,9 @@ class TestPlatformEventProcessor: XCTestCase {
 
         // Create valid event
         let validMetadata = [
-            RoktEventNameValue(name: Rokt_Widget.BE_PAGE_SIGNAL_LOAD, value: "2023-01-01T12:00:00.000Z"),
-            RoktEventNameValue(name: Rokt_Widget.BE_TIMINGS_PLUGIN_ID_KEY, value: "test-plugin-id"),
-            RoktEventNameValue(name: Rokt_Widget.BE_TIMINGS_PLUGIN_NAME_KEY, value: "test-plugin-name")
+            RoktEventNameValue(name: PlatformEventProcessor.pageSignalLoad, value: "2023-01-01T12:00:00.000Z"),
+            RoktEventNameValue(name: Rokt_Widget.timingsPluginIdKey, value: "test-plugin-id"),
+            RoktEventNameValue(name: Rokt_Widget.timingsPluginNameKey, value: "test-plugin-name")
         ]
 
         let validEvent = RoktEventRequest(
@@ -312,9 +312,9 @@ class TestPlatformEventProcessor: XCTestCase {
 
         // Create test data with plugin name
         let metadata = [
-            RoktEventNameValue(name: Rokt_Widget.BE_PAGE_SIGNAL_LOAD, value: "2023-01-01T12:00:00.000Z"),
-            RoktEventNameValue(name: Rokt_Widget.BE_TIMINGS_PLUGIN_ID_KEY, value: "test-plugin-id"),
-            RoktEventNameValue(name: Rokt_Widget.BE_TIMINGS_PLUGIN_NAME_KEY, value: "TestPluginName")
+            RoktEventNameValue(name: PlatformEventProcessor.pageSignalLoad, value: "2023-01-01T12:00:00.000Z"),
+            RoktEventNameValue(name: Rokt_Widget.timingsPluginIdKey, value: "test-plugin-id"),
+            RoktEventNameValue(name: Rokt_Widget.timingsPluginNameKey, value: "TestPluginName")
         ]
 
         let eventRequest = RoktEventRequest(
@@ -350,9 +350,9 @@ class TestPlatformEventProcessor: XCTestCase {
 
         // Create test data without plugin name
         let metadata = [
-            RoktEventNameValue(name: Rokt_Widget.BE_PAGE_SIGNAL_LOAD, value: "2023-01-01T12:00:00.000Z"),
-            RoktEventNameValue(name: Rokt_Widget.BE_TIMINGS_PLUGIN_ID_KEY, value: "test-plugin-id")
-            // No BE_TIMINGS_PLUGIN_NAME_KEY
+            RoktEventNameValue(name: PlatformEventProcessor.pageSignalLoad, value: "2023-01-01T12:00:00.000Z"),
+            RoktEventNameValue(name: Rokt_Widget.timingsPluginIdKey, value: "test-plugin-id")
+            // No timingsPluginNameKey
         ]
 
         let eventRequest = RoktEventRequest(

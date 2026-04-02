@@ -53,7 +53,7 @@ jobs:
       - name: Update library version in source
         run: |
           version="${{ steps.bump-version.outputs.new_version }}"
-          sed -i '' "s/kLibraryVersion = \".*\"/kLibraryVersion = \"${version}\"/" ./Sources/Rokt_Widget/Constants/Constants.swift
+          sed -i '' "s/libraryVersion = \".*\"/libraryVersion = \"${version}\"/" ./Sources/Rokt_Widget/Constants/Constants.swift
 
       - name: Update podspec version
         run: |
