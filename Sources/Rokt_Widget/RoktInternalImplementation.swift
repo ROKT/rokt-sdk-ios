@@ -794,15 +794,15 @@ class RoktInternalImplementation {
     // MARK: - Shoppable Ads
 
     /// Display a Shoppable Ads overlay placement.
-    func shoppableAds(
-        viewName: String?,
+    func selectShoppableAds(
+        identifier: String,
         attributes: [String: String],
         config: RoktConfig?,
         onRoktEvent: ((RoktEvent) -> Void)?
     ) {
         guard paymentOrchestrator.hasRegisteredExtension else {
             RoktLogger.shared.error(
-                "Rokt: No PaymentExtension registered. Call registerPaymentExtension() before shoppableAds()."
+                "Rokt: No PaymentExtension registered. Call registerPaymentExtension() before selectShoppableAds()."
             )
             onRoktEvent?(RoktEvent.PlacementFailure(identifier: nil))
             return
@@ -810,7 +810,7 @@ class RoktInternalImplementation {
 
         // Reuse the existing execute flow — backend routes based on placement config
         execute(
-            viewName: viewName,
+            viewName: identifier,
             attributes: attributes,
             placements: nil,
             config: config,
