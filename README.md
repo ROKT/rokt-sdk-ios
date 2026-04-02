@@ -117,6 +117,15 @@ Finally, call this function in **any subsequent view** where the placement needs
 
 To test your integration with embedded placement, [view steps here](https://docs.rokt.com/developers/integration-guides/ios/how-to/adding-a-placement#embedded-placements)
 
+## Shoppable Ads and payment extensions
+
+For Shoppable Ads, implement the payment contract from **RoktContracts** and register it before showing the placement:
+
+- **Swift:** conform to `PaymentExtension` and call `Rokt.registerPaymentExtension(_:config:)`, then `Rokt.shoppableAds(...)`.
+- **Objective-C:** conform to `RoktPaymentExtension` and use `+[Rokt registerPaymentExtension:config:]` (pass an empty dictionary if you have no config keys). Then `shoppableAdsWithViewName:attributes:config:onEvent:`.
+
+Wire strings for supported methods (for example `apple_pay`, `card`) and full API details are documented in the [RoktContracts](https://github.com/ROKT/rokt-contracts-apple) package. For broader integration guidance, use the [official iOS docs](https://docs.rokt.com/docs/developers/integration-guides/ios/overview).
+
 ## Example app
 
 Open `Example/rokt.xcodeproj` in Xcode to run the sample app. It demonstrates overlay, embedded, and grouped placements with MOCK, STAGE, and PROD configurations.
