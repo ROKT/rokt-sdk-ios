@@ -12,7 +12,6 @@ internal class RoktAPIHelper {
     static let errorStackTraceDiagnosticKey = "stackTrace"
     static let errorSeverityDiagnosticKey = "severity"
     private static let privacyControlKey = "privacyControl"
-    private static let eventsLoggingEnabled = false
 
     /// Rokt initialize API call
     ///
@@ -125,21 +124,14 @@ internal class RoktAPIHelper {
         let sessionId = events.first.flatMap { eventRequests in
             eventRequests.first { $0.key == sessionIdKey }?.value as? String
         }
-        if eventsLoggingEnabled {
-            events.map {
-                $0.filter { element in
-                    [sessionIdKey,
-                     parentGuidKey,
-                     pageInstanceGuidKey,
-                     eventTypeKey,
-                     metadataKey].contains(element.key)
-                }
-            }.compactMap {
-                try? JSONSerialization.data(withJSONObject: $0, options: [])
-            }.map {
-                String(data: $0, encoding: .utf8)
-            }.forEach {
-                NSLog("RoktEventLog: \($0 ?? "")")
+        for event in events {
+            if let eventType = event[eventTypeKey] as? String {
+                RoktLogger.shared.debug("Sending event: \(eventType)")
+            }
+            if RoktLogger.shared.logLevel <= .verbose,
+               let eventData = try? JSONSerialization.data(withJSONObject: event),
+               let eventLog = String(data: eventData, encoding: .utf8) {
+                RoktLogger.shared.verbose("RoktEventLog: \(eventLog)")
             }
         }
         if isMock() {
@@ -168,8 +160,9 @@ internal class RoktAPIHelper {
             var eventsBody = [[String: Any]]()
             for event in events {
                 eventsBody.append(event.getParams)
-                if eventsLoggingEnabled {
-                    NSLog(event.getLog())
+                RoktLogger.shared.debug("Sending event: \(event.eventType.rawValue)")
+                if RoktLogger.shared.logLevel <= .verbose {
+                    RoktLogger.shared.verbose(event.getLog())
                 }
             }
 
