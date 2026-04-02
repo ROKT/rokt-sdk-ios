@@ -60,6 +60,7 @@ final class PaymentOrchestrator {
 
     // MARK: - Payment Processing
 
+    // periphery:ignore - used by Rokt_WidgetTests; Example scheme has no caller until checkout is wired
     /// Process a payment using the first registered extension that supports the given method.
     ///
     /// - Parameters:
@@ -105,6 +106,7 @@ final class PaymentOrchestrator {
 
     // MARK: - Private
 
+    // periphery:ignore - private; only referenced from processPayment (see periphery note there)
     private func preparePaymentForItem(
         item: PaymentItem,
         cartItemId: String,
