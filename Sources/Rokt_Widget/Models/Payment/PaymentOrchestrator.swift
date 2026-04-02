@@ -60,7 +60,6 @@ final class PaymentOrchestrator {
 
     // MARK: - Payment Processing
 
-    // periphery:ignore - used by Rokt_WidgetTests; Example scheme has no caller until checkout is wired
     /// Process a payment using the first registered extension that supports the given method.
     ///
     /// - Parameters:
