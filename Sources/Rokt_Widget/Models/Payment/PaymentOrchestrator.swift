@@ -44,7 +44,7 @@ final class PaymentOrchestrator {
 
     /// Find all registered extensions supporting a given payment method.
     func paymentExtensions(supporting method: PaymentMethodType) -> [PaymentExtension] {
-        registeredExtensions.filter { $0.supportedMethods.contains(method) }
+        registeredExtensions.filter { $0.supportedMethods.contains(method.wireValue) }
     }
 
     /// Whether any payment extension is registered.
@@ -54,7 +54,8 @@ final class PaymentOrchestrator {
 
     /// All available payment methods across all registered extensions.
     func availablePaymentMethods() -> [PaymentMethodType] {
-        Array(Set(registeredExtensions.flatMap { $0.supportedMethods }))
+        let allWireValues = Set(registeredExtensions.flatMap { $0.supportedMethods })
+        return allWireValues.compactMap { PaymentMethodType(wireValue: $0) }
     }
 
     // MARK: - Payment Processing
@@ -72,17 +73,25 @@ final class PaymentOrchestrator {
         item: PaymentItem,
         cartItemId: String,
         from viewController: UIViewController,
-        completion: @escaping (PaymentResult) -> Void
+        completion: @escaping (PaymentSheetResult) -> Void
     ) {
-        guard let ext = registeredExtensions.first(where: { $0.supportedMethods.contains(method) }) else {
-            completion(.failed(error: "No payment extension found for method: \(method.rawValue)"))
+        guard let ext = registeredExtensions.first(where: { $0.supportedMethods.contains(method.wireValue) }) else {
+            completion(.failed(error: "No payment extension found for method: \(method.wireValue)"))
             return
         }
 
-        // The preparePayment callback bridges the async/throws contract pattern
+        // The preparePayment callback bridges the completion-handler pattern
         // to the SDK's backend API call (initializePurchase)
-        let preparePayment: @Sendable (ContactAddress) async throws -> PaymentPreparation = { contactAddress in
-            try await self.preparePaymentForItem(item: item, cartItemId: cartItemId, contactAddress: contactAddress)
+        let preparePayment: (ContactAddress, @escaping (PaymentPreparation?, Error?) -> Void)
+            -> Void = { contactAddress, prepareCompletion in
+            self.preparePaymentForItem(item: item, cartItemId: cartItemId, contactAddress: contactAddress) { result in
+                switch result {
+                case .success(let preparation):
+                    prepareCompletion(preparation, nil)
+                case .failure(let error):
+                    prepareCompletion(nil, error)
+                }
+            }
         }
 
         ext.presentPaymentSheet(
@@ -99,66 +108,65 @@ final class PaymentOrchestrator {
     private func preparePaymentForItem(
         item: PaymentItem,
         cartItemId: String,
-        contactAddress: ContactAddress
-    ) async throws -> PaymentPreparation {
+        contactAddress: ContactAddress,
+        completion: @escaping (Result<PaymentPreparation, Error>) -> Void
+    ) {
         let upsellItem = UpsellItem(
             cartItemId: cartItemId,
             catalogItemId: item.id,
             quantity: 1,
-            unitPrice: item.amount,
-            totalPrice: item.amount,
+            unitPrice: item.amount.decimalValue,
+            totalPrice: item.amount.decimalValue,
             currency: item.currency
         )
 
         let shippingAttributes = ShippingAttributes(from: contactAddress)
 
-        return try await withCheckedThrowingContinuation { continuation in
-            self.apiHelper.initializePurchase(
-                upsellItems: [upsellItem],
-                shippingAttributes: shippingAttributes,
-                success: { response in
-                    guard let clientSecret = response.paymentDetails.clientSecret,
-                          let merchantId = response.paymentDetails.merchantAccountId,
-                          !clientSecret.isEmpty,
-                          !merchantId.isEmpty
-                    else {
-                        let validationError = NSError(
-                            domain: "RoktSDK",
-                            code: -1,
-                            userInfo: [NSLocalizedDescriptionKey: PaymentOrchestrator.paymentPreparationResponseValidationError]
-                        )
-                        self.apiHelper.sendDiagnostics(
-                            message: PaymentOrchestrator.devicePayErrorCode,
-                            callStack: PaymentOrchestrator.paymentPreparationResponseValidationError,
-                            severity: .warning,
-                            additionalInfo: [
-                                "clientSecretPresent": response.paymentDetails.clientSecret != nil,
-                                "merchantIdPresent": response.paymentDetails.merchantAccountId != nil
-                            ]
-                        )
-                        continuation.resume(throwing: validationError)
-                        return
-                    }
-
-                    let preparation = PaymentPreparation(
-                        clientSecret: clientSecret,
-                        merchantId: merchantId
+        apiHelper.initializePurchase(
+            upsellItems: [upsellItem],
+            shippingAttributes: shippingAttributes,
+            success: { response in
+                guard let clientSecret = response.paymentDetails.clientSecret,
+                      let merchantId = response.paymentDetails.merchantAccountId,
+                      !clientSecret.isEmpty,
+                      !merchantId.isEmpty
+                else {
+                    let validationError = NSError(
+                        domain: "RoktSDK",
+                        code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: PaymentOrchestrator.paymentPreparationResponseValidationError]
                     )
-                    continuation.resume(returning: preparation)
-                },
-                failure: { error, _, message in
                     self.apiHelper.sendDiagnostics(
                         message: PaymentOrchestrator.devicePayErrorCode,
-                        callStack: PaymentOrchestrator.paymentPreparationFailedError,
+                        callStack: PaymentOrchestrator.paymentPreparationResponseValidationError,
                         severity: .warning,
                         additionalInfo: [
-                            "error": error.localizedDescription,
-                            "message": message
+                            "clientSecretPresent": response.paymentDetails.clientSecret != nil,
+                            "merchantIdPresent": response.paymentDetails.merchantAccountId != nil
                         ]
                     )
-                    continuation.resume(throwing: error)
+                    completion(.failure(validationError))
+                    return
                 }
-            )
-        }
+
+                let preparation = PaymentPreparation(
+                    clientSecret: clientSecret,
+                    merchantId: merchantId
+                )
+                completion(.success(preparation))
+            },
+            failure: { error, _, message in
+                self.apiHelper.sendDiagnostics(
+                    message: PaymentOrchestrator.devicePayErrorCode,
+                    callStack: PaymentOrchestrator.paymentPreparationFailedError,
+                    severity: .warning,
+                    additionalInfo: [
+                        "error": error.localizedDescription,
+                        "message": message
+                    ]
+                )
+                completion(.failure(error))
+            }
+        )
     }
 }

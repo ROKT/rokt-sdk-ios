@@ -9,11 +9,11 @@ import RoktContracts
 final class MockPaymentExtension: PaymentExtension {
     let id: String
     let extensionDescription: String
-    let supportedMethods: [PaymentMethodType]
+    let supportedMethods: [String]
 
     var shouldRegisterSuccessfully: Bool = true
     var shouldAutomaticallyCompletePayment: Bool = true
-    var paymentResultToReturn: PaymentResult = .succeeded(transactionId: "txn_mock")
+    var paymentResultToReturn: PaymentSheetResult = .succeeded(transactionId: "txn_mock")
 
     private(set) var onRegisterCallCount = 0
     private(set) var onRegisterLastParameters: [String: String]?
@@ -21,7 +21,7 @@ final class MockPaymentExtension: PaymentExtension {
     private(set) var presentPaymentSheetCallCount = 0
     private(set) var presentPaymentSheetLastMethod: PaymentMethodType?
     private(set) var presentPaymentSheetLastItem: PaymentItem?
-    private(set) var capturedPreparePayment: (@Sendable (ContactAddress) async throws -> PaymentPreparation)?
+    private(set) var capturedPreparePayment: ((ContactAddress, @escaping (PaymentPreparation?, Error?) -> Void) -> Void)?
 
     init(
         id: String = "mock_extension",
@@ -30,7 +30,7 @@ final class MockPaymentExtension: PaymentExtension {
     ) {
         self.id = id
         self.extensionDescription = extensionDescription
-        self.supportedMethods = supportedMethods
+        self.supportedMethods = supportedMethods.map { $0.wireValue }
     }
 
     func onRegister(parameters: [String: String]) -> Bool {
@@ -47,8 +47,8 @@ final class MockPaymentExtension: PaymentExtension {
         item: PaymentItem,
         method: PaymentMethodType,
         from viewController: UIViewController,
-        preparePayment: @escaping (@Sendable (ContactAddress) async throws -> PaymentPreparation),
-        completion: @escaping (PaymentResult) -> Void
+        preparePayment: @escaping (ContactAddress, @escaping (PaymentPreparation?, Error?) -> Void) -> Void,
+        completion: @escaping (PaymentSheetResult) -> Void
     ) {
         presentPaymentSheetCallCount += 1
         presentPaymentSheetLastMethod = method
@@ -208,11 +208,8 @@ class TestPaymentOrchestrator: XCTestCase {
         let vc = UIViewController()
 
         sut.processPayment(method: .card, item: item, cartItemId: "v1:cart-123:canal", from: vc) { result in
-            if case .succeeded(let txnId) = result {
-                XCTAssertEqual(txnId, "txn_card")
-            } else {
-                XCTFail("Expected succeeded result")
-            }
+            XCTAssertEqual(result.outcome, .succeeded)
+            XCTAssertEqual(result.transactionId, "txn_card")
             expectation.fulfill()
         }
 
@@ -230,12 +227,9 @@ class TestPaymentOrchestrator: XCTestCase {
         let vc = UIViewController()
 
         sut.processPayment(method: .applePay, item: item, cartItemId: "v1:cart-456:canal", from: vc) { result in
-            if case .failed(let error) = result {
-                XCTAssertTrue(error.contains("No payment extension found"),
-                              "Error should indicate no extension found, got: \(error)")
-            } else {
-                XCTFail("Expected failed result, got: \(result)")
-            }
+            XCTAssertEqual(result.outcome, .failed)
+            XCTAssertTrue(result.errorMessage?.contains("No payment extension found") == true,
+                          "Error should indicate no extension found, got: \(result.errorMessage ?? "nil")")
             expectation.fulfill()
         }
 
@@ -281,20 +275,18 @@ class TestPaymentOrchestrator: XCTestCase {
             return
         }
 
-        let expectation = expectation(description: "preparePayment throws validation error")
-        Task {
-            do {
-                _ = try await preparePayment(ContactAddress(name: "Jane Doe", email: "jane@example.com"))
-                XCTFail("Expected preparePayment to throw when required response fields are missing")
-            } catch {
-                XCTAssertEqual(error.localizedDescription, PaymentOrchestrator.paymentPreparationResponseValidationError)
-                XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.sendDiagnosticsCallCount, 1)
-                XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastDiagnosticsMessage, PaymentOrchestrator.devicePayErrorCode)
-                XCTAssertEqual(
-                    PaymentOrchestratorAPIHelperSpy.lastDiagnosticsCallStack,
-                    PaymentOrchestrator.paymentPreparationResponseValidationError
-                )
-            }
+        let expectation = expectation(description: "preparePayment returns validation error")
+        let address = ContactAddress(name: "Jane Doe", email: "jane@example.com")
+        preparePayment(address) { preparation, error in
+            XCTAssertNil(preparation)
+            XCTAssertNotNil(error)
+            XCTAssertEqual(error?.localizedDescription, PaymentOrchestrator.paymentPreparationResponseValidationError)
+            XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.sendDiagnosticsCallCount, 1)
+            XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastDiagnosticsMessage, PaymentOrchestrator.devicePayErrorCode)
+            XCTAssertEqual(
+                PaymentOrchestratorAPIHelperSpy.lastDiagnosticsCallStack,
+                PaymentOrchestrator.paymentPreparationResponseValidationError
+            )
             expectation.fulfill()
         }
 

@@ -115,6 +115,12 @@ class RoktInternalImplementation {
         )
     }
 
+    private func devicePayFinalized(executeId: String, layoutId: String, catalogItemId: String, success: Bool) {
+        guard let state = stateManager.getState(id: executeId),
+              let uxHelper = state.uxHelper as? RoktUX else { return }
+        uxHelper.devicePayFinalized(layoutId: layoutId, catalogItemId: catalogItemId, success: success)
+    }
+
     func setFrameworkType(_ frameworkType: RoktFrameworkType) {
         self.frameworkType = frameworkType
     }
@@ -286,6 +292,56 @@ class RoktInternalImplementation {
             callOnUnLoad(executeId)
             placements = nil
             _swiftUiExecuteLayout = nil
+        } else if let event = uxEvent as? RoktUXEvent.CartItemDevicePay {
+            // Forward the public event to the partner
+            callOnRoktEvent(executeId, event: uxEvent.mapToRoktEvent)
+
+            // Map PaymentProvider -> PaymentMethodType
+            let paymentMethod: PaymentMethodType
+            switch event.paymentProvider.rawValue {
+            case "ApplePay":
+                paymentMethod = .applePay
+            case "Stripe":
+                paymentMethod = .card
+            default:
+                RoktLogger.shared.error("Unsupported payment provider: \(event.paymentProvider.rawValue)")
+                devicePayFinalized(executeId: executeId, layoutId: event.layoutId,
+                                   catalogItemId: event.catalogItemId, success: false)
+                return
+            }
+
+            // Build PaymentItem from event data
+            let amount = event.totalPrice ?? event.unitPrice ?? 0
+            let item = PaymentItem(
+                id: event.catalogItemId,
+                name: event.name,
+                amount: amount,
+                currency: event.currency
+            )
+
+            // Find the topmost view controller for presenting the payment sheet
+            guard let viewController = UIApplication.topViewController() else {
+                RoktLogger.shared.error("No view controller available to present payment sheet")
+                devicePayFinalized(executeId: executeId, layoutId: event.layoutId,
+                                   catalogItemId: event.catalogItemId, success: false)
+                return
+            }
+
+            // Process the payment via the registered extension
+            paymentOrchestrator.processPayment(
+                method: paymentMethod,
+                item: item,
+                cartItemId: event.cartItemId,
+                from: viewController
+            ) { [weak self] result in
+                let success = result.outcome == .succeeded
+                self?.devicePayFinalized(
+                    executeId: executeId,
+                    layoutId: event.layoutId,
+                    catalogItemId: event.catalogItemId,
+                    success: success
+                )
+            }
         } else {
             callOnRoktEvent(executeId, event: uxEvent.mapToRoktEvent)
         }

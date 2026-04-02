@@ -48,6 +48,13 @@ internal extension RoktUXEvent {
                 totalPrice: event.totalPrice.map { NSDecimalNumber(decimal: $0) },
                 unitPrice: event.unitPrice.map { NSDecimalNumber(decimal: $0) }
             )
+        } else if let event = self as? RoktUXEvent.CartItemDevicePay {
+            return RoktEvent.CartItemDevicePay(
+                identifier: event.layoutId,
+                catalogItemId: event.catalogItemId,
+                cartItemId: event.cartItemId,
+                paymentProvider: event.paymentProvider.rawValue
+            )
         } else {
             return nil
         }
