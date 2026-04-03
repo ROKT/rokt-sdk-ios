@@ -1,20 +1,48 @@
-// swift-tools-version:5.3
-// The swift-tools-version declares the minimum version of Swift required to build this package.
+// swift-tools-version: 5.9
 
+import Foundation
 import PackageDescription
+
+let libraryType: Product.Library.LibraryType? =
+    ProcessInfo.processInfo.environment["SPM_GENERATE_FRAMEWORK"] != nil ? .dynamic : nil
 
 let package = Package(
     name: "Rokt-Widget",
-    platforms: [.iOS(.v12)],
+    defaultLocalization: "en",
+    platforms: [
+        .iOS(.v15)
+    ],
     products: [
         .library(
             name: "Rokt-Widget",
-            targets: ["Rokt_Widget"]),
+            type: libraryType,
+            targets: ["Rokt_Widget"]
+        )
     ],
-    dependencies: [],
+    dependencies: [
+        .package(url: "https://github.com/ROKT/rokt-contracts-apple.git", .upToNextMajor(from: "0.1.3")),
+        .package(url: "https://github.com/ROKT/rokt-ux-helper-ios.git", .upToNextMajor(from: "0.9.0")),
+        .package(url: "https://github.com/WeTransfer/Mocker.git", .upToNextMajor(from: "2.0.0"))
+    ],
     targets: [
-        .binaryTarget(name: "Rokt_Widget",
-            url: "https://github.com/ROKT/rokt-sdk-ios/releases/download/4.16.4/Rokt_Widget.xcframework.zip",
-            checksum: "77b9dd0ca5878f246960c3a93e7b39f69cbb607b96d151be0407011b8100b1e2")
+        .target(
+            name: "Rokt_Widget",
+            dependencies: [
+                .product(name: "RoktContracts", package: "rokt-contracts-apple"),
+                .product(name: "RoktUXHelper", package: "rokt-ux-helper-ios")
+            ],
+            path: "Sources/Rokt_Widget",
+            resources: [
+                .process("PrivacyInfo.xcprivacy")
+            ]
+        ),
+        .testTarget(
+            name: "Rokt_WidgetTests",
+            dependencies: ["Rokt_Widget", "Mocker"],
+            path: "Tests/Rokt_WidgetTests",
+            resources: [
+                .process("Resource")
+            ]
+        )
     ]
 )

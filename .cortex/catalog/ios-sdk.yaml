@@ -1,0 +1,19 @@
+#checkov:skip=CKV_OPENAPI_4:Not required to have auth schema defs
+openapi: 3.0.0
+info:
+  title: Rokt iOS native SDK
+  x-cortex-tag: iOS-native-sdk
+  x-cortex-type: service
+  description: |
+    Rokt iOS Native SDK.
+  x-cortex-git:
+    github:
+      repository: ROKT/rokt-sdk-ios
+
+  x-cortex-owners:
+    - type: group
+      name: sdk-engineering
+      provider: CORTEX
+  x-cortex-groups:
+    - lang-swift
+    - serviceTier-3

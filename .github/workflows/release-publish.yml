@@ -8,19 +8,23 @@ on:
     paths:
       - VERSION
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
   packages: write
 
 jobs:
-  release-rokt-sdk:
-    runs-on: ubuntu-latest
+  create-release:
+    runs-on: macos-latest
     outputs:
       release_version: ${{ steps.version-file.outputs.release-version }}
-      release_notes: ${{ steps.get-changelog.outputs.release_notes }}
+      release_notes: ${{ steps.extract-release-notes.outputs.release_notes }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Get current version
         id: version-file
@@ -29,10 +33,11 @@ jobs:
           echo "release-version=$version_from_file" >> $GITHUB_OUTPUT
 
       - name: Get changelog content
-        id: get-changelog
-        uses: ffurrer2/extract-release-notes@cae32133495112d23e3569ad04fef240ba4e7bc8 # v2.3.0
+        id: extract-release-notes
+        uses: ffurrer2/extract-release-notes@202313ec7461b6b9e401996714484690ab1ae105 # v3.0.0
         with:
           changelog_file: CHANGELOG.md
+          release_notes_file: ${{ steps.version-file.outputs.release-version }}.md
 
       - name: Create Release
         uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
@@ -43,39 +48,100 @@ jobs:
           body: |
             Release ${{ steps.version-file.outputs.release-version }}
             ## Changelog
-            ${{ steps.get-changelog.outputs.release_notes }}
-          files: Rokt_Widget.xcframework.zip
+            ${{ steps.extract-release-notes.outputs.release_notes }}
 
-  publish-rokt-sdk:
-    needs: release-rokt-sdk
-    runs-on: macos-latest
+      - name: Upload release notes
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: release-notes
+          path: ${{ steps.version-file.outputs.release-version }}.md
 
+  upload-xcframework:
+    needs: create-release
+    runs-on: macos-latest-xlarge
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@84684c07c1965536eb4802c8daf1a77968df0cb1 #v1.239.0
+      - name: Build XCFramework
+        run: ./scripts/build_xcframework_zip.sh
+
+      - name: Upload XCFramework to release
+        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
         with:
-          ruby-version: 3.2.2
-          bundler-cache: true
+          tag_name: ${{ needs.create-release.outputs.release_version }}
+          files: vendor/Rokt_Widget.xcframework.zip
+
+  publish-cocoapods:
+    needs: create-release
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install CocoaPods
-        run: |
-          sudo gem install cocoapods
+        run: sudo gem install cocoapods
 
       - name: Validate Podspec
-        run: |
-          pod spec lint Rokt-Widget.podspec --allow-warnings --verbose
+        run: pod spec lint Rokt-Widget.podspec --allow-warnings --verbose
 
       - name: Publish to CocoaPods
-        run: |
-          pod trunk push Rokt-Widget.podspec --allow-warnings
+        run: pod trunk push Rokt-Widget.podspec --allow-warnings
         env:
           COCOAPODS_TRUNK_TOKEN: ${{ secrets.COCOAPODS_TRUNK_TOKEN }}
 
+  upload-release-notes:
+    needs: create-release
+    if: github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate token
+        id: generate_token
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        with:
+          app-id: ${{ secrets.SDK_RELEASE_GITHUB_APP_ID }}
+          private-key: ${{ secrets.SDK_RELEASE_GITHUB_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: |
+            rokt-docs
+
+      - name: Checkout rokt-docs
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: ROKT/rokt-docs
+          token: ${{ steps.generate_token.outputs.token }}
+          ref: main
+          persist-credentials: false
+
+      - name: Download release notes
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: release-notes
+          path: ./
+
+      - name: Move release notes to docs
+        run: |
+          mv ${{ needs.create-release.outputs.release_version }}.md changelogs/ios/${{ needs.create-release.outputs.release_version }}.md
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
+        with:
+          token: ${{ steps.generate_token.outputs.token }}
+          commit-message: Update iOS SDK Release Notes
+          branch: update-ios-sdk-release-notes-${{ needs.create-release.outputs.release_version }}
+          title: NOJIRA - Update iOS SDK Release Notes
+          base: main
+          body: |
+            # Update iOS SDK Release Notes
+
+            iOS SDK version ${{ needs.create-release.outputs.release_version }} has been released.
+
+            Please review and merge the PR to update the release notes.
+          labels: |
+            chore
+
   trigger-demo-app-release:
-    needs: [release-rokt-sdk, publish-rokt-sdk]
+    needs: [create-release, publish-cocoapods]
     if: github.ref_name == 'main'
     runs-on: ubuntu-latest
     steps:
@@ -96,6 +162,6 @@ jobs:
           event-type: release-build
           client-payload: |
             {
-              "version_name": "${{ needs.release-rokt-sdk.outputs.release_version }}",
-              "release_notes": ${{ toJSON(needs.release-rokt-sdk.outputs.release_notes) }}
+              "version_name": "${{ needs.create-release.outputs.release_version }}",
+              "release_notes": ${{ toJSON(needs.create-release.outputs.release_notes) }}
             }

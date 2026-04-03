@@ -1,0 +1,111 @@
+
+/* Class = "UILabel"; text = ":"; ObjectID = "1a6-u4-8Hf"; */
+"1a6-u4-8Hf.text" = ":";
+
+/* Class = "UILabel"; text = "Encrypt:"; ObjectID = "2ex-FY-OCg"; */
+"2ex-FY-OCg.text" = "Encrypt:";
+
+/* Class = "UITextField"; text = "Location1"; ObjectID = "2xF-sX-bz6"; */
+"2xF-sX-bz6.text" = "Location1";
+
+/* Class = "UILabel"; text = "Location4"; ObjectID = "9L5-c7-qzc"; */
+"9L5-c7-qzc.text" = "Location4";
+
+/* Class = "UIButton"; normalTitle = "Pay 40 USD with VISA XX34"; ObjectID = "9PQ-29-fIJ"; */
+"9PQ-29-fIJ.normalTitle" = "Pay 40 USD with VISA XX34";
+
+/* Class = "UITextField"; placeholder = "Custom"; ObjectID = "A84-z5-LI3"; */
+"A84-z5-LI3.placeholder" = "Custom";
+
+/* Class = "UILabel"; text = "Location3"; ObjectID = "Did-ry-3RF"; */
+"Did-ry-3RF.text" = "Location3";
+
+/* Class = "UILabel"; text = "events:"; ObjectID = "F8X-YI-ise"; */
+"F8X-YI-ise.text" = "events:";
+
+/* Class = "UILabel"; text = "Location:"; ObjectID = "GCy-1M-k6D"; */
+"GCy-1M-k6D.text" = "Location:";
+
+/* Class = "UITextField"; placeholder = "Custom"; ObjectID = "IbI-XZ-3WQ"; */
+"IbI-XZ-3WQ.placeholder" = "Custom";
+
+/* Class = "UITextField"; text = "AU"; ObjectID = "JlX-am-BPb"; */
+"JlX-am-BPb.text" = "AU";
+
+/* Class = "UIButton"; normalTitle = "Initialize"; ObjectID = "MUH-2U-v5c"; */
+"MUH-2U-v5c.normalTitle" = "Initialize";
+
+/* Class = "UITextField"; text = "age"; ObjectID = "P3E-kb-ju6"; */
+"P3E-kb-ju6.text" = "age";
+
+/* Class = "UILabel"; text = "Customer Email address:"; ObjectID = "TxE-t4-ldD"; */
+"TxE-t4-ldD.text" = "Customer Email address:";
+
+/* Class = "UILabel"; text = ":"; ObjectID = "Vp0-YT-UJF"; */
+"Vp0-YT-UJF.text" = ":";
+
+/* Class = "UIViewController"; title = "Order complete"; ObjectID = "WHz-6f-jQK"; */
+"WHz-6f-jQK.title" = "Order complete";
+
+/* Class = "UILabel"; text = "Tag ID:"; ObjectID = "ZQe-C6-6qI"; */
+"ZQe-C6-6qI.text" = "Tag ID:";
+
+/* Class = "UILabel"; text = "Page Identifier:"; ObjectID = "a59-py-Spg"; */
+"a59-py-Spg.text" = "Page Identifier:";
+
+/* Class = "UILabel"; text = ":"; ObjectID = "aTt-YK-CgD"; */
+"aTt-YK-CgD.text" = ":";
+
+/* Class = "UILabel"; text = ":"; ObjectID = "gxh-Ji-vWe"; */
+"gxh-Ji-vWe.text" = ":";
+
+/* Class = "UITextField"; text = "30"; ObjectID = "h7E-aj-Qdb"; */
+"h7E-aj-Qdb.text" = "30";
+
+/* Class = "UITextField"; placeholder = "Custom"; ObjectID = "iua-jl-Exu"; */
+"iua-jl-Exu.placeholder" = "Custom";
+
+/* Class = "UILabel"; text = "Location1"; ObjectID = "k1Z-kj-thb"; */
+"k1Z-kj-thb.text" = "Location1";
+
+/* Class = "UIButton"; normalTitle = "Request Tracking Consent"; ObjectID = "k5L-ca-z0V"; */
+"k5L-ca-z0V.normalTitle" = "Request Tracking Consent";
+
+/* Class = "UILabel"; text = "Custom TagID:"; ObjectID = "lp4-EJ-pk4"; */
+"lp4-EJ-pk4.text" = "Custom TagID:";
+
+/* Class = "UILabel"; text = ":"; ObjectID = "lxm-em-nif"; */
+"lxm-em-nif.text" = ":";
+
+/* Class = "UIButton"; configuration.title = "Layout in SwiftUI"; ObjectID = "mAz-kv-m4T"; */
+"mAz-kv-m4T.configuration.title" = "Layout in SwiftUI";
+
+/* Class = "UIButton"; normalTitle = "Button"; ObjectID = "mAz-kv-m4T"; */
+"mAz-kv-m4T.normalTitle" = "Button";
+
+/* Class = "UITextField"; text = "female"; ObjectID = "mNI-UW-NQt"; */
+"mNI-UW-NQt.text" = "female";
+
+/* Class = "UITextField"; text = "gender"; ObjectID = "nTQ-HL-aq1"; */
+"nTQ-HL-aq1.text" = "gender";
+
+/* Class = "UILabel"; text = "2step:"; ObjectID = "pOQ-QU-iFP"; */
+"pOQ-QU-iFP.text" = "2step:";
+
+/* Class = "UILabel"; text = "Country:"; ObjectID = "pf9-qI-DAB"; */
+"pf9-qI-DAB.text" = "Country:";
+
+/* Class = "UILabel"; text = "Location2"; ObjectID = "sbv-ih-Dkc"; */
+"sbv-ih-Dkc.text" = "Location2";
+
+/* Class = "UINavigationItem"; title = "Your Rokt Cart"; ObjectID = "v1R-Mi-YO4"; */
+"v1R-Mi-YO4.title" = "Your Rokt Cart";
+
+/* Class = "UIButton"; normalTitle = "Placement in table"; ObjectID = "vcY-03-Rkx"; */
+"vcY-03-Rkx.normalTitle" = "Placement in table";
+
+/* Class = "UITextField"; text = "j.smith@rokt.com"; ObjectID = "xX7-VH-N4e"; */
+"xX7-VH-N4e.text" = "j.smith@rokt.com";
+
+/* Class = "UILabel"; text = "Environment:"; ObjectID = "zLN-WO-o2e"; */
+"zLN-WO-o2e.text" = "Environment:";
