@@ -17,7 +17,10 @@ Update your SPM dependency to `5.0.0` or later:
 .package(url: "https://github.com/ROKT/rokt-sdk-ios", from: "5.0.0")
 ```
 
-Or in Xcode: **File → Add Package Dependencies**, enter the URL, and select version `5.0.0` or later.
+Or in Xcode: **File → Add Package Dependencies**, enter the URL, select version `5.0.0` or later, and when prompted choose **Add to Target: your app target** to link `Rokt-Widget`. If you skipped that step, you can link it manually under **Target → General → Frameworks, Libraries, and Embedded Content**.
+
+> [!NOTE]
+> If the module is still not found after linking, try restarting Xcode.
 
 #### CocoaPods
 
