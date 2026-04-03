@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [5.0.0] - 2026-04-03
+
+### Changed
+
+- Add migration guide for v4 to v5 upgrade ([#115](https://github.com/ROKT/rokt-sdk-ios/pull/115))
+- Add trunk security scanning and remove stale Cortex catalog ([#114](https://github.com/ROKT/rokt-sdk-ios/pull/114))
+- Bump actions/download-artifact from 7.0.0 to 8.0.1 ([#113](https://github.com/ROKT/rokt-sdk-ios/pull/113))
+- Bump actions/create-github-app-token from 2.2.1 to 3.0.0 ([#112](https://github.com/ROKT/rokt-sdk-ios/pull/112))
+
 ## [4.16.4] - 2026-03-30
 
 ### Changed
@@ -280,7 +289,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.4...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.0.0...HEAD
+[5.0.0]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.4...5.0.0
 [4.16.4]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.3...4.16.4
 [4.16.3]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.2...4.16.3
 [4.16.2]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.1...4.16.2

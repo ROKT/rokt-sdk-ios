@@ -9,7 +9,7 @@ var baseURL: String {
 
 // MARK: - Library details
 
-let libraryVersion = "4.16.3"
+let libraryVersion = "5.0.0"
 
 // MARK: - Timings API keys
 
