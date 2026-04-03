@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 - **`initWith(onInitComplete:)` callback removed**: Use `globalEvents()` to listen for `RoktEvent.InitComplete` instead
 - **`setLoggingEnabled(enable:)` removed**: Use `setLogLevel(_:)` for granular log control
 
-For a complete migration walkthrough with before/after code examples, see the [v4 → v5 Migration Guide](migrating.md).
+For a complete migration walkthrough with before/after code examples, see the [v4 → v5 Migration Guide](MIGRATING.md).
 
 ### Changed
 
