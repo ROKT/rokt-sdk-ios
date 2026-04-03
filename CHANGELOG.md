@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [5.0.0] - 2026-04-03
+
+### Breaking Changes
+
+- **Source distribution**: SDK now ships as Swift source instead of a pre-built XCFramework for both SPM and CocoaPods
+- **iOS 15 minimum**: Deployment target raised from iOS 12 to iOS 15; all `@available(iOS 15, *)` guards removed
+- **`execute()` / `execute2step()` / `executeWithEvents()` removed**: Use `selectPlacements()` with a unified `onEvent` callback instead of separate `onLoad`, `onUnLoad`, `onShouldShowLoadingIndicator`, `onShouldHideLoadingIndicator`, and `onEmbeddedSizeChange` callbacks
+- **`viewName` → `identifier`**: Renamed across `selectPlacements()`, `events()`, `purchaseFinalized()`, and `RoktLayout`
+- **`RoktLayout` parameter changes**: `locationName` → `location`; `identifier` is now required
+- **`PlacementOptions` → `RoktPlacementOptions`**: Type renamed
+- **`initWith(onInitComplete:)` callback removed**: Use `globalEvents()` to listen for `RoktEvent.InitComplete` instead
+- **`setLoggingEnabled(enable:)` removed**: Use `setLogLevel(_:)` for granular log control
+
+For a complete migration walkthrough with before/after code examples, see the [v4 → v5 Migration Guide](migrating.md).
+
+### Changed
+
+- Add trunk security scanning and remove stale Cortex catalog ([#114](https://github.com/ROKT/rokt-sdk-ios/pull/114))
+- Bump actions/download-artifact from 7.0.0 to 8.0.1 ([#113](https://github.com/ROKT/rokt-sdk-ios/pull/113))
+- Bump actions/create-github-app-token from 2.2.1 to 3.0.0 ([#112](https://github.com/ROKT/rokt-sdk-ios/pull/112))
+
+### Added
+
+- Migration guide for v4 to v5 upgrade ([#115](https://github.com/ROKT/rokt-sdk-ios/pull/115))
+
 ## [4.16.4] - 2026-03-30
 
 ### Changed
@@ -280,7 +305,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.4...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.0.0...HEAD
+[5.0.0]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.4...5.0.0
 [4.16.4]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.3...4.16.4
 [4.16.3]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.2...4.16.3
 [4.16.2]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.1...4.16.2
