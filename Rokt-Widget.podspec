@@ -26,7 +26,7 @@ Pod::Spec.new do |s|
   s.author           = { 'ROKT DEV' => 'nativeappsdev@rokt.com' }
   s.source           = { :http => 'https://github.com/ROKT/rokt-sdk-ios/releases/download/' + s.version.to_s + '/Rokt_Widget.xcframework.zip' }
 
-  s.ios.deployment_target = '12.0'
+  s.ios.deployment_target = '15.0'
   s.ios.vendored_frameworks = 'Rokt_Widget.xcframework'
 
 end
