@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [4.16.5] - 2026-04-16
 
+### Fixed
+
+- Fixed thread safety crash in FontManager when concurrent SDK initializations trigger overlapping font enumeration, caused by unsynchronized access to static mutable state
+
 ## [4.16.4] - 2026-03-30
 
 ### Changed
