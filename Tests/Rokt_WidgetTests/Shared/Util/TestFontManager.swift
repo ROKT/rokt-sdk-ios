@@ -194,4 +194,104 @@ class TestFontManager: XCTestCase {
         wait(for: [expectation], timeout: 5)
         XCTAssertEqual(1, callbackCount)
     }
+
+    // MARK: - Thread Safety Tests
+
+    func test_concurrentGetExistingFonts_doesNotCrash() {
+        let expectation = self.expectation(description: "Concurrent font enumeration")
+        let group = DispatchGroup()
+        let queue = DispatchQueue(label: "com.rokt.test.concurrent.enumerate", attributes: .concurrent)
+        let iterations = 100
+
+        for _ in 0..<iterations {
+            group.enter()
+            queue.async {
+                FontManager.getExistingFontsByPostScriptName()
+                group.leave()
+            }
+        }
+
+        group.notify(queue: .main) {
+            expectation.fulfill()
+        }
+
+        waitForExpectations(timeout: 10.0)
+    }
+
+    func test_concurrentIsSystemFont_whileEnumerating_doesNotCrash() {
+        let expectation = self.expectation(description: "Concurrent read/write")
+        let group = DispatchGroup()
+        let queue = DispatchQueue(label: "com.rokt.test.concurrent.readwrite", attributes: .concurrent)
+        let iterations = 100
+
+        for i in 0..<iterations {
+            group.enter()
+            queue.async {
+                if i % 2 == 0 {
+                    FontManager.getExistingFontsByPostScriptName()
+                } else {
+                    _ = FontManager.isSystemFont(font: FontModel(name: "ArialMT", url: ""))
+                }
+                group.leave()
+            }
+        }
+
+        group.notify(queue: .main) {
+            expectation.fulfill()
+        }
+
+        waitForExpectations(timeout: 10.0)
+    }
+
+    func test_concurrentReRegisterFonts_whileEnumerating_doesNotCrash() {
+        let expectation = self.expectation(description: "Concurrent reregister + enumerate")
+        let group = DispatchGroup()
+        let queue = DispatchQueue(label: "com.rokt.test.concurrent.reregister", attributes: .concurrent)
+        let iterations = 100
+
+        for i in 0..<iterations {
+            group.enter()
+            queue.async {
+                if i % 2 == 0 {
+                    FontManager.getExistingFontsByPostScriptName()
+                } else {
+                    FontManager.reRegisterFonts()
+                }
+                group.leave()
+            }
+        }
+
+        group.notify(queue: .main) {
+            expectation.fulfill()
+        }
+
+        waitForExpectations(timeout: 10.0)
+    }
+
+    func test_isSystemFont_returnsConsistentResults_underConcurrency() {
+        FontManager.getExistingFontsByPostScriptName()
+
+        let expectation = self.expectation(description: "Consistent reads under concurrency")
+        let group = DispatchGroup()
+        let queue = DispatchQueue(label: "com.rokt.test.concurrent.consistent", attributes: .concurrent)
+        let iterations = 200
+        var results = [Bool](repeating: false, count: iterations)
+        let resultsQueue = DispatchQueue(label: "com.rokt.test.results")
+
+        for i in 0..<iterations {
+            group.enter()
+            queue.async {
+                let result = FontManager.isSystemFont(font: FontModel(name: "ArialMT", url: ""))
+                resultsQueue.sync { results[i] = result }
+                group.leave()
+            }
+        }
+
+        group.notify(queue: .main) {
+            expectation.fulfill()
+        }
+
+        waitForExpectations(timeout: 10.0)
+        XCTAssertTrue(results.allSatisfy { $0 }, "All concurrent reads of a known system font should return true")
+    }
 }
