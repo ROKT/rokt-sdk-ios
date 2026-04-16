@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [4.16.5] - 2026-04-16
+
+### Fixed
+
+- Fixed thread safety crash in FontManager when concurrent SDK initializations trigger overlapping font enumeration, caused by unsynchronized access to static mutable state
+
+## [4.16.4] - 2026-03-30
+
+### Changed
+
+- XCFramework generated from [RoktUXHelper 0.8.3](https://github.com/ROKT/rokt-ux-helper-ios/releases/tag/0.8.3) snapshot
+- Bump iOS deployment target from 12.0 to 15.0 to align with RoktUXHelper requirements
+
 ## [4.16.3] - 2026-02-23
 
 ### Fixed
@@ -273,7 +286,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.3...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.5...HEAD
+[4.16.5]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.4...4.16.5
+[4.16.4]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.3...4.16.4
 [4.16.3]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.2...4.16.3
 [4.16.2]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.1...4.16.2
 [4.16.1]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.0...4.16.1
