@@ -26,19 +26,26 @@ class TagIdSelectionTableViewController: UIViewController, UIPickerViewDelegate,
 
     private func installShoppableAdsDemoButton() {
         let button = UIButton(type: .system)
-        var config = UIButton.Configuration.filled()
-        config.title = "Shoppable Ads Demo"
-        config.cornerStyle = .medium
-        config.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16)
-        button.configuration = config
+        button.setTitle("Shoppable Ads Demo", for: .normal)
+        button.setTitleColor(.white, for: .normal)
+        button.titleLabel?.font = .boldSystemFont(ofSize: 16)
+        button.backgroundColor = .systemBlue
         button.translatesAutoresizingMaskIntoConstraints = false
         button.addTarget(self, action: #selector(openShoppableAdsDemo), for: .touchUpInside)
         view.addSubview(button)
-        NSLayoutConstraint.activate([
-            button.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 16),
-            button.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
-            button.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16)
-        ])
+
+        var constraints: [NSLayoutConstraint] = [
+            button.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            button.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            button.heightAnchor.constraint(equalToConstant: 50)
+        ]
+        // Stack flush above the Initialize button; fall back to the safe-area bottom.
+        if let initializeButton = view.findSubview(withAccessibilityIdentifier: "InitializeButton") {
+            constraints.append(button.bottomAnchor.constraint(equalTo: initializeButton.topAnchor))
+        } else {
+            constraints.append(button.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor))
+        }
+        NSLayoutConstraint.activate(constraints)
     }
 
     @objc private func openShoppableAdsDemo() {
@@ -235,4 +242,16 @@ class TagIdSelectionTableViewController: UIViewController, UIPickerViewDelegate,
         return true
     }
 
+}
+
+private extension UIView {
+    func findSubview(withAccessibilityIdentifier identifier: String) -> UIView? {
+        if accessibilityIdentifier == identifier { return self }
+        for subview in subviews {
+            if let match = subview.findSubview(withAccessibilityIdentifier: identifier) {
+                return match
+            }
+        }
+        return nil
+    }
 }
