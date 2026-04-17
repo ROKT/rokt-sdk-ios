@@ -21,6 +21,35 @@ class TagIdSelectionTableViewController: UIViewController, UIPickerViewDelegate,
         customTagIdTextField.text = "2754655826098840951"
         customTagIdTextField.delegate = self
         self.view.addGestureRecognizer(UITapGestureRecognizer(target: self.view, action: #selector(UIView.endEditing(_:))))
+        installShoppableAdsDemoButton()
+    }
+
+    private func installShoppableAdsDemoButton() {
+        let button = UIButton(type: .system)
+        button.setTitle("Shoppable Ads Demo", for: .normal)
+        button.setTitleColor(.white, for: .normal)
+        button.titleLabel?.font = .boldSystemFont(ofSize: 16)
+        button.backgroundColor = .systemBlue
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.addTarget(self, action: #selector(openShoppableAdsDemo), for: .touchUpInside)
+        view.addSubview(button)
+
+        var constraints: [NSLayoutConstraint] = [
+            button.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            button.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            button.heightAnchor.constraint(equalToConstant: 50)
+        ]
+        // Stack flush above the Initialize button; fall back to the safe-area bottom.
+        if let initializeButton = view.findSubview(withAccessibilityIdentifier: "InitializeButton") {
+            constraints.append(button.bottomAnchor.constraint(equalTo: initializeButton.topAnchor))
+        } else {
+            constraints.append(button.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor))
+        }
+        NSLayoutConstraint.activate(constraints)
+    }
+
+    @objc private func openShoppableAdsDemo() {
+        navigationController?.pushViewController(ShoppableAdsDemoViewController(), animated: true)
     }
 
     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
@@ -213,4 +242,16 @@ class TagIdSelectionTableViewController: UIViewController, UIPickerViewDelegate,
         return true
     }
 
+}
+
+private extension UIView {
+    func findSubview(withAccessibilityIdentifier identifier: String) -> UIView? {
+        if accessibilityIdentifier == identifier { return self }
+        for subview in subviews {
+            if let match = subview.findSubview(withAccessibilityIdentifier: identifier) {
+                return match
+            }
+        }
+        return nil
+    }
 }
