@@ -9,6 +9,8 @@ struct InitFeatureFlags {
         case cacheEnabled = "mobile-sdk-use-sdk-cache"
         case temporaryFontCache = "mobile-sdk-use-temporary-font-cache"
         case realTimeEvents = "mobile-sdk-real-time-events"
+        case postPurchaseEnabled = "is-post-purchase-enabled"
+        case minimumPostPurchaseSchema = "minimum-post-purchase-schema"
     }
 
     private let roktTrackingStatus: Bool
@@ -40,5 +42,9 @@ struct InitFeatureFlags {
         default:
             return featureFlags[featureFlag.rawValue]?.match ?? false
         }
+    }
+
+    func isShoppableAdsEnabled() -> Bool {
+        return isEnabled(.postPurchaseEnabled) && isEnabled(.minimumPostPurchaseSchema)
     }
 }
