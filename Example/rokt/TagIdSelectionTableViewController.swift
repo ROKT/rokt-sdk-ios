@@ -21,6 +21,17 @@ class TagIdSelectionTableViewController: UIViewController, UIPickerViewDelegate,
         customTagIdTextField.text = "2754655826098840951"
         customTagIdTextField.delegate = self
         self.view.addGestureRecognizer(UITapGestureRecognizer(target: self.view, action: #selector(UIView.endEditing(_:))))
+
+        navigationItem.rightBarButtonItem = UIBarButtonItem(
+            title: "Shoppable Ads",
+            style: .plain,
+            target: self,
+            action: #selector(openShoppableAdsDemo)
+        )
+    }
+
+    @objc private func openShoppableAdsDemo() {
+        navigationController?.pushViewController(ShoppableAdsDemoViewController(), animated: true)
     }
 
     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
