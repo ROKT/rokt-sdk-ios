@@ -79,6 +79,7 @@
 		607FACD61AFB9204008FA782 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 607FACD51AFB9204008FA782 /* AppDelegate.swift */; };
 		C1C0D10000000000000001E1 /* ShoppableAdsDemoViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1C0D10000000000000002E1 /* ShoppableAdsDemoViewController.swift */; };
 		C1C0D10000000000000005E1 /* RoktStripePaymentExtension in Frameworks */ = {isa = PBXBuildFile; productRef = C1C0D10000000000000004E1 /* RoktStripePaymentExtension */; };
+		C1C0D10000000000000006E1 /* ShoppableAdsDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1C0D10000000000000007E1 /* ShoppableAdsDefaults.swift */; };
 		607FACD81AFB9204008FA782 /* CartViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 607FACD71AFB9204008FA782 /* CartViewController.swift */; };
 		607FACDB1AFB9204008FA782 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 607FACD91AFB9204008FA782 /* Main.storyboard */; };
 		607FACDD1AFB9204008FA782 /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 607FACDC1AFB9204008FA782 /* Images.xcassets */; };
@@ -197,6 +198,7 @@
 		607FACD41AFB9204008FA782 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		607FACD51AFB9204008FA782 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		C1C0D10000000000000002E1 /* ShoppableAdsDemoViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppableAdsDemoViewController.swift; sourceTree = "<group>"; };
+		C1C0D10000000000000007E1 /* ShoppableAdsDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ShoppableAdsDefaults.swift; path = model/ShoppableAdsDefaults.swift; sourceTree = "<group>"; };
 		607FACD71AFB9204008FA782 /* CartViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CartViewController.swift; sourceTree = "<group>"; };
 		607FACDA1AFB9204008FA782 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		607FACDC1AFB9204008FA782 /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Images.xcassets; sourceTree = "<group>"; };
@@ -305,6 +307,7 @@
 			children = (
 				258EDB1624062BBF003202F5 /* RoktTag.swift */,
 				258EDB1824062D59003202F5 /* Environment.swift */,
+				C1C0D10000000000000007E1 /* ShoppableAdsDefaults.swift */,
 			);
 			name = model;
 			sourceTree = "<group>";
@@ -686,6 +689,7 @@
 				25690F9C260AB87C00744387 /* HashUtils.swift in Sources */,
 				4F31D686213D829100F044CC /* TagIdSelectionTableViewController.swift in Sources */,
 				C1C0D10000000000000001E1 /* ShoppableAdsDemoViewController.swift in Sources */,
+				C1C0D10000000000000006E1 /* ShoppableAdsDefaults.swift in Sources */,
 				25FD47372BF4922C0051C704 /* main.swift in Sources */,
 				25226FF32A415861006AFCF7 /* OrderCompleteSwiftUI.swift in Sources */,
 				4FCF94A1210931B7000CE923 /* OrderCompleteViewController.swift in Sources */,

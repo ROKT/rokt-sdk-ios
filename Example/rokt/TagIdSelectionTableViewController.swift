@@ -21,13 +21,24 @@ class TagIdSelectionTableViewController: UIViewController, UIPickerViewDelegate,
         customTagIdTextField.text = "2754655826098840951"
         customTagIdTextField.delegate = self
         self.view.addGestureRecognizer(UITapGestureRecognizer(target: self.view, action: #selector(UIView.endEditing(_:))))
+        installShoppableAdsDemoButton()
+    }
 
-        navigationItem.rightBarButtonItem = UIBarButtonItem(
-            title: "Shoppable Ads",
-            style: .plain,
-            target: self,
-            action: #selector(openShoppableAdsDemo)
-        )
+    private func installShoppableAdsDemoButton() {
+        let button = UIButton(type: .system)
+        var config = UIButton.Configuration.filled()
+        config.title = "Shoppable Ads Demo"
+        config.cornerStyle = .medium
+        config.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16)
+        button.configuration = config
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.addTarget(self, action: #selector(openShoppableAdsDemo), for: .touchUpInside)
+        view.addSubview(button)
+        NSLayoutConstraint.activate([
+            button.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 16),
+            button.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
+            button.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16)
+        ])
     }
 
     @objc private func openShoppableAdsDemo() {
