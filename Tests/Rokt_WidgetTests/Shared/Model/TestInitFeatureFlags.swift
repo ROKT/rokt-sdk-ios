@@ -36,6 +36,59 @@ final class TestInitFeatureFlags: XCTestCase {
         XCTAssertTrue(isEnabled)
     }
 
+    // MARK: - isShoppableAdsEnabled
+
+    func test_isShoppableAdsEnabled_is_false_when_both_flags_missing() {
+        // Arrange
+        let flags = getFeatureFlag([:])
+
+        // Act / Assert
+        XCTAssertFalse(flags.isShoppableAdsEnabled())
+    }
+
+    func test_isShoppableAdsEnabled_is_false_when_post_purchase_disabled() {
+        // Arrange
+        let flags = getFeatureFlag([
+            "is-post-purchase-enabled": FeatureFlagItem(match: false),
+            "minimum-post-purchase-schema": FeatureFlagItem(match: true)
+        ])
+
+        // Act / Assert
+        XCTAssertFalse(flags.isShoppableAdsEnabled())
+    }
+
+    func test_isShoppableAdsEnabled_is_false_when_schema_disabled() {
+        // Arrange
+        let flags = getFeatureFlag([
+            "is-post-purchase-enabled": FeatureFlagItem(match: true),
+            "minimum-post-purchase-schema": FeatureFlagItem(match: false)
+        ])
+
+        // Act / Assert
+        XCTAssertFalse(flags.isShoppableAdsEnabled())
+    }
+
+    func test_isShoppableAdsEnabled_is_false_when_schema_missing() {
+        // Arrange
+        let flags = getFeatureFlag([
+            "is-post-purchase-enabled": FeatureFlagItem(match: true)
+        ])
+
+        // Act / Assert
+        XCTAssertFalse(flags.isShoppableAdsEnabled())
+    }
+
+    func test_isShoppableAdsEnabled_is_true_when_both_flags_on() {
+        // Arrange
+        let flags = getFeatureFlag([
+            "is-post-purchase-enabled": FeatureFlagItem(match: true),
+            "minimum-post-purchase-schema": FeatureFlagItem(match: true)
+        ])
+
+        // Act / Assert
+        XCTAssertTrue(flags.isShoppableAdsEnabled())
+    }
+
     private func getFeatureFlag(_ features: [String: FeatureFlagItem]) -> InitFeatureFlags {
         return InitFeatureFlags(roktTrackingStatus: true,
                                 shouldLogFontHappyPath: false,
