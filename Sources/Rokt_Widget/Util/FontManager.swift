@@ -21,27 +21,32 @@ internal class FontManager {
     static let fontExtension = ".ttf"
     static let sevenDays: Double = 7 * 24 * 60 * 60
 
+    private static let queue = DispatchQueue(label: "com.rokt.fontmanager", attributes: .concurrent)
     private static var fontsToDownload: [FontModel] = []
     private static var existingPostScriptNames: [String] = []
 
     static func getExistingFontsByPostScriptName() {
-        existingPostScriptNames.removeAll()
-        let familyNames = UIFont.familyNames.filter({ $0.lowercased() != "system font" })
+        queue.sync(flags: .barrier) {
+            existingPostScriptNames.removeAll()
+            let familyNames = UIFont.familyNames.filter({ $0.lowercased() != "system font" })
 
-        for familyName in familyNames {
-            existingPostScriptNames.append(familyName)
-            let fontNames = UIFont.fontNames(forFamilyName: familyName)
-            existingPostScriptNames.append(contentsOf: fontNames)
+            for familyName in familyNames {
+                existingPostScriptNames.append(familyName)
+                let fontNames = UIFont.fontNames(forFamilyName: familyName)
+                existingPostScriptNames.append(contentsOf: fontNames)
+            }
         }
     }
 
     static func reRegisterFonts(completionHandler: (() -> Void)? = nil) {
-        guard !fontsToDownload.isEmpty else {
+        let fontsSnapshot = queue.sync { fontsToDownload }
+
+        guard !fontsSnapshot.isEmpty else {
             completionHandler?()
             return
         }
 
-        for fontModel in fontsToDownload {
+        for fontModel in fontsSnapshot {
             let registeredFontName = fontModel.postScriptName ?? fontModel.name
 
             guard let fileUrl = getFileUrl(name: registeredFontName) else {
@@ -212,7 +217,9 @@ internal class FontManager {
     static func isSystemFont(font: FontModel) -> Bool {
         let registeredFontName = font.postScriptName ?? font.name
 
-        return existingPostScriptNames.contains { $0 == registeredFontName }
+        return queue.sync {
+            existingPostScriptNames.contains { $0 == registeredFontName }
+        }
     }
 
     static func saveFontDetails(font: FontModel) {
