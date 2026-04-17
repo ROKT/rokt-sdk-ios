@@ -121,6 +121,21 @@ class RoktInternalImplementation {
         uxHelper.devicePayFinalized(layoutId: layoutId, catalogItemId: catalogItemId, success: success)
     }
 
+    private func forwardPaymentFinalized(executeId: String,
+                                         layoutId: String,
+                                         catalogItemId: String,
+                                         success: Bool,
+                                         failureReason: String? = nil) {
+        guard let state = stateManager.getState(id: executeId),
+              let uxHelper = state.uxHelper as? RoktUX else { return }
+        uxHelper.forwardPaymentFinalized(
+            layoutId: layoutId,
+            catalogItemId: catalogItemId,
+            success: success,
+            failureReason: failureReason
+        )
+    }
+
     func setFrameworkType(_ frameworkType: RoktFrameworkType) {
         self.frameworkType = frameworkType
     }
@@ -342,9 +357,66 @@ class RoktInternalImplementation {
                     success: success
                 )
             }
+        } else if let event = uxEvent as? RoktUXEvent.CartItemForwardPayment {
+            handleForwardPayment(executeId: executeId, event: event)
         } else {
             callOnRoktEvent(executeId, event: uxEvent.mapToRoktEvent)
         }
+    }
+
+    private func handleForwardPayment(executeId: String,
+                                      event: RoktUXEvent.CartItemForwardPayment) {
+        let unitPrice = event.unitPrice ?? 0
+        let totalPrice = event.totalPrice ?? unitPrice
+        let item = UpsellItem(
+            cartItemId: event.cartItemId,
+            catalogItemId: event.catalogItemId,
+            quantity: event.quantity,
+            unitPrice: unitPrice,
+            totalPrice: totalPrice,
+            currency: event.currency
+        )
+        let request = PurchaseRequest(
+            totalUpsellPrice: totalPrice,
+            currency: event.currency,
+            upsellItems: [item],
+            paymentDetails: PurchasePaymentDetails(
+                token: nil,
+                partnerPaymentReference: event.partnerPaymentReference ?? ""
+            ),
+            fulfillmentDetails: nil
+        )
+
+        RoktAPIHelper.forwardPayment(
+            request: request,
+            success: { [weak self] response in
+                if response.success {
+                    self?.forwardPaymentFinalized(
+                        executeId: executeId,
+                        layoutId: event.layoutId,
+                        catalogItemId: event.catalogItemId,
+                        success: true
+                    )
+                } else {
+                    self?.forwardPaymentFinalized(
+                        executeId: executeId,
+                        layoutId: event.layoutId,
+                        catalogItemId: event.catalogItemId,
+                        success: false,
+                        failureReason: response.reason ?? "Unknown failure reason"
+                    )
+                }
+            },
+            failure: { [weak self] _, _, message in
+                self?.forwardPaymentFinalized(
+                    executeId: executeId,
+                    layoutId: event.layoutId,
+                    catalogItemId: event.catalogItemId,
+                    success: false,
+                    failureReason: message.isEmpty ? "Unknown failure reason" : message
+                )
+            }
+        )
     }
 
     private func callOnRoktEvent(_ executeId: String,
