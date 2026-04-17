@@ -303,6 +303,8 @@ class RoktInternalImplementation {
                 paymentMethod = .applePay
             case "Stripe":
                 paymentMethod = .card
+            case "Afterpay":
+                paymentMethod = .afterpay
             default:
                 RoktLogger.shared.error("Unsupported payment provider: \(event.paymentProvider.rawValue)")
                 devicePayFinalized(executeId: executeId, layoutId: event.layoutId,
@@ -319,6 +321,26 @@ class RoktInternalImplementation {
                 currency: event.currency
             )
 
+            // Build PaymentContext — for Afterpay, populate from stored attributes
+            let context: PaymentContext
+            if paymentMethod == .afterpay {
+                let name = [attributes["firstname"], attributes["lastname"]]
+                    .compactMap { $0 }
+                    .joined(separator: " ")
+                let address = ContactAddress(
+                    name: name,
+                    email: attributes["email"] ?? "",
+                    addressLine1: attributes["shippingaddress1"],
+                    city: attributes["shippingcity"],
+                    state: attributes["shippingstate"],
+                    postalCode: attributes["shippingzipcode"],
+                    country: attributes["shippingcountry"]
+                )
+                context = PaymentContext(billingAddress: address, shippingAddress: address)
+            } else {
+                context = PaymentContext()
+            }
+
             // Find the topmost view controller for presenting the payment sheet
             guard let viewController = UIApplication.topViewController() else {
                 RoktLogger.shared.error("No view controller available to present payment sheet")
@@ -331,6 +353,7 @@ class RoktInternalImplementation {
             paymentOrchestrator.processPayment(
                 method: paymentMethod,
                 item: item,
+                context: context,
                 cartItemId: event.cartItemId,
                 from: viewController
             ) { [weak self] result in
@@ -789,6 +812,12 @@ class RoktInternalImplementation {
                 severity: .warning
             )
         }
+    }
+
+    /// Forward a URL to registered payment extensions.
+    @discardableResult
+    func handleURLCallback(with url: URL) -> Bool {
+        paymentOrchestrator.handleURLCallback(with: url)
     }
 
     // MARK: - Shoppable Ads

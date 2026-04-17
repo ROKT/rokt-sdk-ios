@@ -58,6 +58,18 @@ final class PaymentOrchestrator {
         return allWireValues.compactMap { PaymentMethodType(wireValue: $0) }
     }
 
+    /// Forward a URL to each registered extension until one claims it.
+    ///
+    /// Used for redirect-based payment methods (e.g. Afterpay) that return to the host app
+    /// via a custom URL scheme. Iteration stops at the first extension that returns `true`.
+    ///
+    /// - Parameter url: The URL received by the host app.
+    /// - Returns: `true` if any registered extension recognized and handled the URL.
+    @discardableResult
+    func handleURLCallback(with url: URL) -> Bool {
+        registeredExtensions.contains { $0.handleURLCallback?(with: url) ?? false }
+    }
+
     // MARK: - Payment Processing
 
     /// Process a payment using the first registered extension that supports the given method.
@@ -71,6 +83,7 @@ final class PaymentOrchestrator {
     func processPayment(
         method: PaymentMethodType,
         item: PaymentItem,
+        context: PaymentContext,
         cartItemId: String,
         from viewController: UIViewController,
         completion: @escaping (PaymentSheetResult) -> Void
@@ -97,6 +110,7 @@ final class PaymentOrchestrator {
         ext.presentPaymentSheet(
             item: item,
             method: method,
+            context: context,
             from: viewController,
             preparePayment: preparePayment,
             completion: completion
