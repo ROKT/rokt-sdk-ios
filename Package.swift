@@ -20,8 +20,8 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(url: "https://github.com/ROKT/rokt-contracts-apple.git", .upToNextMajor(from: "0.1.3")),
-        .package(url: "https://github.com/ROKT/rokt-ux-helper-ios.git", .upToNextMajor(from: "0.9.0")),
+        .package(url: "https://github.com/ROKT/rokt-contracts-apple.git", .upToNextMajor(from: "1.0.0")),
+        .package(url: "https://github.com/ROKT/rokt-ux-helper-ios.git", branch: "feat/afterpay-button-fix"),
         .package(url: "https://github.com/WeTransfer/Mocker.git", .upToNextMajor(from: "2.0.0"))
     ],
     targets: [
