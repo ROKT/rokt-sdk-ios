@@ -238,6 +238,26 @@ internal class RoktAPIHelper {
         }
     }
 
+    /// Rokt forward-payment API call
+    ///
+    /// - Parameters:
+    ///   - request: Purchase request payload built from the CartItemForwardPayment event
+    ///   - success: Callback with the parsed response
+    ///   - failure: Callback with error details
+    class func forwardPayment(request: PurchaseRequest,
+                              success: ((PurchaseResponse) -> Void)? = nil,
+                              failure: ((Error, Int?, String) -> Void)? = nil) {
+        if isMock() {
+            RoktMockAPI.forwardPayment(request: request,
+                                       success: success,
+                                       failure: failure)
+        } else {
+            RoktNetWorkAPI.forwardPayment(request: request,
+                                          success: success,
+                                          failure: failure)
+        }
+    }
+
     private class func isMock() -> Bool {
         return config.environment == .Mock
     }

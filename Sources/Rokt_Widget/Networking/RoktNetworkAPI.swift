@@ -441,4 +441,58 @@ internal class RoktNetWorkAPI {
                 failure?(error, statusCode, response)
             })
     }
+
+    /// Forward a purchase to the Rokt Cart API on behalf of the partner.
+    ///
+    /// - Parameters:
+    ///   - request: Purchase request payload built from the CartItemForwardPayment event
+    ///   - success: Callback with the decoded response (may still report a business failure via `response.success`)
+    ///   - failure: Callback with error details for HTTP / network / decode failures
+    class func forwardPayment(request: PurchaseRequest,
+                              success: ((PurchaseResponse) -> Void)? = nil,
+                              failure: ((Error, Int?, String) -> Void)? = nil) {
+        guard let tagId = Rokt.shared.roktImplementation.roktTagId else {
+            let message = "Missing Rokt tag ID for forward-payment request"
+            let error = NSError(
+                domain: "RoktSDK",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: message])
+            failure?(error, nil, message)
+            return
+        }
+
+        let headers = getDefaultHeaders(tagId: tagId)
+
+        NetworkingHelper.performPost(
+            url: "\(baseURL)/v1/cart/purchase",
+            body: request.toDictionary(),
+            headers: headers,
+            success: { _, data, _ in
+                guard let data, let successCallback = success else { return }
+                do {
+                    let response = try JSONDecoder().decode(
+                        PurchaseResponse.self,
+                        from: data)
+                    successCallback(response)
+                } catch {
+                    let parseError = NSError(
+                        domain: "RoktSDK",
+                        code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "Failed to parse forward-payment response"])
+                    failure?(parseError, 200, "Failed to parse response")
+                }
+            },
+            failure: { error, statusCode, response in
+                let callStack = String(
+                    format: "response: %@, statusCode: %@, error: %@",
+                    response,
+                    String(describing: statusCode),
+                    error.localizedDescription)
+                RoktAPIHelper.sendDiagnostics(
+                    message: "[FORWARD_PAYMENT]",
+                    callStack: callStack)
+                RoktLogger.shared.verbose(callStack)
+                failure?(error, statusCode, response)
+            })
+    }
 }

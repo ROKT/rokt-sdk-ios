@@ -129,6 +129,15 @@ internal class RoktMockAPI {
         }
     }
 
+    class func forwardPayment(request: PurchaseRequest,
+                              success: ((PurchaseResponse) -> Void)? = nil,
+                              failure: ((Error, Int?, String) -> Void)? = nil) {
+        let mockResponse = PurchaseResponse(success: true, reason: nil)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            success?(mockResponse)
+        }
+    }
+
     class func sendTimings(timingsRequest: TimingsRequest, selectionId: String) {
         do {
             var requestData = timingsRequest.toDictionary()
