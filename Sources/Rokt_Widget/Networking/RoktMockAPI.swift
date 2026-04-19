@@ -15,7 +15,9 @@ internal class RoktMockAPI {
                                  featureFlags: ["mobile-sdk-use-partner-events": FeatureFlagItem(match: true),
                                                 "mobile-sdk-use-bounding-box": FeatureFlagItem(match: true),
                                                 "mobile-sdk-use-timings-api": FeatureFlagItem(match: true),
-                                                "mobile-sdk-use-sdk-cache": FeatureFlagItem(match: true)]
+                                                "mobile-sdk-use-sdk-cache": FeatureFlagItem(match: true),
+                                                "is-post-purchase-enabled": FeatureFlagItem(match: true),
+                                                "minimum-post-purchase-schema": FeatureFlagItem(match: true)]
                              )))
     }
 

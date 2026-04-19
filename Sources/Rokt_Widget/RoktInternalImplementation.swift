@@ -872,6 +872,14 @@ class RoktInternalImplementation {
         config: RoktConfig?,
         onRoktEvent: ((RoktEvent) -> Void)?
     ) {
+        if isInitialized && !initFeatureFlags.isShoppableAdsEnabled() {
+            RoktLogger.shared.verbose(
+                "Rokt: selectShoppableAds skipped — Shoppable Ads feature flags are disabled for this account."
+            )
+            onRoktEvent?(RoktEvent.PlacementFailure(identifier: nil))
+            return
+        }
+
         guard paymentOrchestrator.hasRegisteredExtension else {
             RoktLogger.shared.error(
                 "Rokt: No PaymentExtension registered. Call registerPaymentExtension() before selectShoppableAds()."
