@@ -2036,8 +2036,8 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/ashfurrow/Nimble-Snapshots";
 			requirement = {
-				kind = exactVersion;
-				version = 9.8.0;
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.9.1;
 			};
 		};
 		C1C0D10000000000000003E1 /* XCRemoteSwiftPackageReference "rokt-stripe-payment-extension-ios" */ = {
