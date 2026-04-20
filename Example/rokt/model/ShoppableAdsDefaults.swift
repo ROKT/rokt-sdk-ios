@@ -8,7 +8,8 @@ enum ShoppableAdsDefaults {
     static let tagID = "3068704822624787054"
     static let viewName = "StgRoktShoppableAds"
     static let stripePublishableKey = ""
-    static let applePayMerchantId = Bundle.main.object(forInfoDictionaryKey: "ApplePayMerchantID") as? String ?? "merchant.rokt.test"
+    static let applePayMerchantId =
+        Bundle.main.object(forInfoDictionaryKey: "ApplePayMerchantID") as? String ?? "merchant.rokt.test"
 
     static let attributes: [(key: String, value: String)] = [
         ("email", "jenny.smith@example.com"),
