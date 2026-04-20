@@ -9,7 +9,8 @@ struct AttributeEnrichment {
     static let shared: AttributeEnrichment = AttributeEnrichment(enrichers: [
         ApplePayAttributeEnricher(),
         ColorModeAttributeEnricher(),
-        StripeAttributeEnricher()
+        StripeAttributeEnricher(),
+        PaymentExtensionAttributeEnricher { Rokt.shared.roktImplementation.isPaymentExtensionRegistered }
     ])
     let enrichers: [AttributeEnricher]
 
