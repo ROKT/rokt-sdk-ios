@@ -25,14 +25,15 @@ struct PurchaseRequest {
 
 struct PurchasePaymentDetails {
     let token: String?
-    let partnerPaymentReference: String
+    let partnerPaymentReference: String?
 
     func toDictionary() -> [String: Any] {
-        var dict: [String: Any] = [
-            "partnerPaymentReference": partnerPaymentReference
-        ]
+        var dict: [String: Any] = [:]
         if let token {
             dict["token"] = token
+        }
+        if let partnerPaymentReference {
+            dict["partnerPaymentReference"] = partnerPaymentReference
         }
         return dict
     }

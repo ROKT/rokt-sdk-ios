@@ -205,4 +205,46 @@ class TestNetworkingHelper: XCTestCase {
         waitForExpectations(timeout: 2.0)
     }
 
+    func test_forwardPayment_invokesFailure_whenTagIdMissing() {
+        let expectation = expectation(description: "forwardPayment fails without tag id")
+        let originalTagId = Rokt.shared.roktImplementation.roktTagId
+        Rokt.shared.roktImplementation.roktTagId = nil
+
+        defer {
+            Rokt.shared.roktImplementation.roktTagId = originalTagId
+        }
+
+        let item = UpsellItem(
+            cartItemId: "cart-id",
+            catalogItemId: "catalog-id",
+            quantity: 1,
+            unitPrice: 9.99,
+            totalPrice: 9.99,
+            currency: "USD"
+        )
+        let request = PurchaseRequest(
+            totalUpsellPrice: 9.99,
+            currency: "USD",
+            upsellItems: [item],
+            paymentDetails: PurchasePaymentDetails(token: nil, partnerPaymentReference: "ref-1"),
+            fulfillmentDetails: nil
+        )
+
+        RoktNetWorkAPI.forwardPayment(
+            request: request,
+            success: { _ in
+                XCTFail("Expected forwardPayment to fail when tag id is missing")
+            },
+            failure: { error, statusCode, response in
+                let expectedError = "Missing Rokt tag ID for forward-payment request"
+                XCTAssertEqual(error.localizedDescription, expectedError)
+                XCTAssertNil(statusCode)
+                XCTAssertEqual(response, expectedError)
+                expectation.fulfill()
+            }
+        )
+
+        waitForExpectations(timeout: 2.0)
+    }
+
 }

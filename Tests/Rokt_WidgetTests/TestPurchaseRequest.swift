@@ -79,6 +79,42 @@ final class TestPurchaseRequest: XCTestCase {
         XCTAssertEqual(dict["partnerPaymentReference"] as? String, "ref-1")
     }
 
+    func test_toDictionary_omitsPartnerPaymentReferenceWhenNil() {
+        let details = PurchasePaymentDetails(token: "tok-123", partnerPaymentReference: nil)
+        let dict = details.toDictionary()
+        XCTAssertNil(dict["partnerPaymentReference"])
+        XCTAssertEqual(dict["token"] as? String, "tok-123")
+    }
+
+    func test_toDictionary_producesJSONSerializableOutput() throws {
+        let shipping = ShippingAttributes(
+            address1: "1 Main St",
+            city: "NYC",
+            state: "NY",
+            postalCode: "10001",
+            country: "USA",
+            address2: nil,
+            firstName: nil,
+            lastName: nil,
+            companyName: nil,
+            countryCode: nil
+        )
+        let request = PurchaseRequest(
+            totalUpsellPrice: 19.88,
+            currency: "USD",
+            upsellItems: [makeItem()],
+            paymentDetails: PurchasePaymentDetails(
+                token: "tok-123",
+                partnerPaymentReference: "ref-1"
+            ),
+            fulfillmentDetails: FulfillmentDetails(shippingAttributes: shipping)
+        )
+
+        XCTAssertNoThrow(
+            try JSONSerialization.data(withJSONObject: request.toDictionary(), options: [])
+        )
+    }
+
     func test_toDictionary_includesFulfillmentDetailsWhenPresent() {
         let shipping = ShippingAttributes(
             address1: "1 Main St",

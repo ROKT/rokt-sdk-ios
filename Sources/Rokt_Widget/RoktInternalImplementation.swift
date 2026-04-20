@@ -366,7 +366,17 @@ class RoktInternalImplementation {
 
     private func handleForwardPayment(executeId: String,
                                       event: RoktUXEvent.CartItemForwardPayment) {
-        let unitPrice = event.unitPrice ?? 0
+        guard let unitPrice = event.unitPrice ?? event.totalPrice else {
+            RoktLogger.shared.warning("Forward-payment event missing unitPrice and totalPrice")
+            forwardPaymentFinalized(
+                executeId: executeId,
+                layoutId: event.layoutId,
+                catalogItemId: event.catalogItemId,
+                success: false,
+                failureReason: "Missing price on forward-payment event"
+            )
+            return
+        }
         let totalPrice = event.totalPrice ?? unitPrice
         let item = UpsellItem(
             cartItemId: event.cartItemId,
@@ -382,7 +392,7 @@ class RoktInternalImplementation {
             upsellItems: [item],
             paymentDetails: PurchasePaymentDetails(
                 token: nil,
-                partnerPaymentReference: event.partnerPaymentReference ?? ""
+                partnerPaymentReference: event.partnerPaymentReference
             ),
             fulfillmentDetails: nil
         )
