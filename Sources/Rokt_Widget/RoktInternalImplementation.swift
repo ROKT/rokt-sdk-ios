@@ -69,6 +69,8 @@ class RoktInternalImplementation {
     // Payment orchestrator for Shoppable Ads
     private lazy var paymentOrchestrator = PaymentOrchestrator()
 
+    var isPaymentExtensionRegistered: Bool { paymentOrchestrator.hasRegisteredExtension }
+
     func close() {
         guard let window = UIApplication.shared.windows.filter({$0.isKeyWindow}).first,
               let rootViewController = window.rootViewController
