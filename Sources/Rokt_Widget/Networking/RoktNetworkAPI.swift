@@ -63,7 +63,8 @@ internal class RoktNetWorkAPI {
                                     params: nil,
                                     headers: [
                                         headerTagIdKey: roktTagId,
-                                        headerSdkFrameworkType: Rokt.shared.roktImplementation.frameworkType.toString
+                                        headerSdkFrameworkType: Rokt.shared.roktImplementation.frameworkType.toString,
+                                        layoutsSchemaVersionHeader: layoutsSchemaVersion
                                     ],
                                     extraErrorCheck: true,
                                     success: { (dict, _, _) in
