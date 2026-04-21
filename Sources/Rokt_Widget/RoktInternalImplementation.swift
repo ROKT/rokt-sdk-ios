@@ -853,6 +853,9 @@ class RoktInternalImplementation {
 
     // MARK: - Shoppable Ads
 
+    private let keyAdsExperienceType = "adsExperience"
+    private let valueAdsExperienceShoppable = "shoppable"
+
     /// Display a Shoppable Ads overlay placement.
     func selectShoppableAds(
         identifier: String,
@@ -876,10 +879,15 @@ class RoktInternalImplementation {
             return
         }
 
+        var enrichedAttributes = attributes
+        if enrichedAttributes[keyAdsExperienceType] == nil {
+            enrichedAttributes[keyAdsExperienceType] = valueAdsExperienceShoppable
+        }
+
         // Reuse the existing execute flow — backend routes based on placement config
         execute(
             viewName: identifier,
-            attributes: attributes,
+            attributes: enrichedAttributes,
             placements: nil,
             config: config,
             placementOptions: nil,
