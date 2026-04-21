@@ -1,5 +1,6 @@
 import XCTest
 import Foundation
+@testable internal import RoktUXHelper
 
 @testable import Rokt_Widget
 
@@ -158,6 +159,75 @@ class TestRokt: XCTestCase {
         let sessionId = roktInternalImplementation.getSessionId()
 
         XCTAssertEqual(sessionId, expectedSessionId)
+    }
+
+    func test_buildContactAddress_mapsTransactionDataAddress() throws {
+        let roktInternalImplementation = RoktInternalImplementation()
+        roktInternalImplementation.attributes["email"] = "jane@example.com"
+
+        let address = try JSONDecoder().decode(
+            Address.self,
+            from: Data(
+                """
+                {
+                  "name": "Jane Doe",
+                  "address1": "123 Test St",
+                  "address2": null,
+                  "city": "New York",
+                  "state": "New York",
+                  "stateCode": "NY",
+                  "country": "United States",
+                  "countryCode": "US",
+                  "zip": "10001"
+                }
+                """.utf8
+            )
+        )
+
+        let contactAddress = roktInternalImplementation.buildContactAddress(from: address)
+
+        XCTAssertEqual(contactAddress?.name, "Jane Doe")
+        XCTAssertEqual(contactAddress?.email, "jane@example.com")
+        XCTAssertEqual(contactAddress?.addressLine1, "123 Test St")
+        XCTAssertEqual(contactAddress?.city, "New York")
+        XCTAssertEqual(contactAddress?.state, "NY")
+        XCTAssertEqual(contactAddress?.postalCode, "10001")
+        XCTAssertEqual(contactAddress?.country, "US")
+    }
+
+    func test_buildContactAddressFromAttributes_mapsLegacyShippingAttributes() {
+        let roktInternalImplementation = RoktInternalImplementation()
+        roktInternalImplementation.attributes = [
+            "firstname": "Jane",
+            "lastname": "Doe",
+            "email": "jane@example.com",
+            "shippingaddress1": "456 Legacy Rd",
+            "shippingcity": "Boston",
+            "shippingstate": "MA",
+            "shippingzipcode": "02110",
+            "shippingcountry": "US"
+        ]
+
+        let contactAddress = roktInternalImplementation.buildContactAddressFromAttributes()
+
+        XCTAssertEqual(contactAddress?.name, "Jane Doe")
+        XCTAssertEqual(contactAddress?.email, "jane@example.com")
+        XCTAssertEqual(contactAddress?.addressLine1, "456 Legacy Rd")
+        XCTAssertEqual(contactAddress?.city, "Boston")
+        XCTAssertEqual(contactAddress?.state, "MA")
+        XCTAssertEqual(contactAddress?.postalCode, "02110")
+        XCTAssertEqual(contactAddress?.country, "US")
+    }
+
+    func test_buildContactAddressFromAttributes_returnsNilWithoutAddressLine1() {
+        let roktInternalImplementation = RoktInternalImplementation()
+        roktInternalImplementation.attributes = [
+            "firstname": "Jane",
+            "lastname": "Doe",
+            "shippingcity": "Boston"
+        ]
+
+        XCTAssertNil(roktInternalImplementation.buildContactAddressFromAttributes())
     }
 
     // MARK: - Rokt Public API Tests
