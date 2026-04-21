@@ -3,12 +3,16 @@ import XCTest
 
 final class TestPurchaseRequest: XCTestCase {
 
+    // Build decimals from strings to avoid ExpressibleByFloatLiteral going through
+    // Double and producing 19.87999999999999488 for the literal 19.88.
+    private static let samplePrice = Decimal(string: "19.88")!
+
     private func makeItem(
         cartItemId: String = "v1:abc:partner",
         catalogItemId: String = "cat-1",
         quantity: Decimal = 1,
-        unitPrice: Decimal = 19.88,
-        totalPrice: Decimal = 19.88,
+        unitPrice: Decimal = TestPurchaseRequest.samplePrice,
+        totalPrice: Decimal = TestPurchaseRequest.samplePrice,
         currency: String = "USD"
     ) -> UpsellItem {
         UpsellItem(
@@ -23,7 +27,7 @@ final class TestPurchaseRequest: XCTestCase {
 
     func test_toDictionary_includesTopLevelFields() {
         let request = PurchaseRequest(
-            totalUpsellPrice: 19.88,
+            totalUpsellPrice: Self.samplePrice,
             currency: "USD",
             upsellItems: [makeItem()],
             paymentDetails: PurchasePaymentDetails(token: nil, partnerPaymentReference: "ref-1"),
@@ -32,7 +36,7 @@ final class TestPurchaseRequest: XCTestCase {
 
         let dict = request.toDictionary()
 
-        XCTAssertEqual(dict["totalUpsellPrice"] as? Decimal, Decimal(string: "19.88"))
+        XCTAssertEqual(dict["totalUpsellPrice"] as? Decimal, Self.samplePrice)
         XCTAssertEqual(dict["currency"] as? String, "USD")
         XCTAssertNotNil(dict["upsellItems"])
         XCTAssertNotNil(dict["paymentDetails"])
@@ -41,7 +45,7 @@ final class TestPurchaseRequest: XCTestCase {
 
     func test_toDictionary_serializesUpsellItems() {
         let request = PurchaseRequest(
-            totalUpsellPrice: 19.88,
+            totalUpsellPrice: Self.samplePrice,
             currency: "USD",
             upsellItems: [makeItem()],
             paymentDetails: PurchasePaymentDetails(token: nil, partnerPaymentReference: "ref-1"),
@@ -57,7 +61,7 @@ final class TestPurchaseRequest: XCTestCase {
 
     func test_toDictionary_includesPaymentDetails() {
         let request = PurchaseRequest(
-            totalUpsellPrice: 19.88,
+            totalUpsellPrice: Self.samplePrice,
             currency: "USD",
             upsellItems: [makeItem()],
             paymentDetails: PurchasePaymentDetails(
@@ -100,7 +104,7 @@ final class TestPurchaseRequest: XCTestCase {
             countryCode: nil
         )
         let request = PurchaseRequest(
-            totalUpsellPrice: 19.88,
+            totalUpsellPrice: Self.samplePrice,
             currency: "USD",
             upsellItems: [makeItem()],
             paymentDetails: PurchasePaymentDetails(
@@ -129,7 +133,7 @@ final class TestPurchaseRequest: XCTestCase {
             countryCode: nil
         )
         let request = PurchaseRequest(
-            totalUpsellPrice: 19.88,
+            totalUpsellPrice: Self.samplePrice,
             currency: "USD",
             upsellItems: [makeItem()],
             paymentDetails: PurchasePaymentDetails(token: nil, partnerPaymentReference: "ref-1"),
