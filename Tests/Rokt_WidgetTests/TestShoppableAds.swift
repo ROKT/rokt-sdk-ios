@@ -171,6 +171,7 @@ private final class StubPaymentExtension: PaymentExtension {
     func presentPaymentSheet(
         item: PaymentItem,
         method: PaymentMethodType,
+        context: PaymentContext,
         from viewController: UIViewController,
         preparePayment: @escaping (
             _ address: ContactAddress,
