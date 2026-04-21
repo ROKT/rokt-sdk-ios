@@ -151,13 +151,38 @@ internal import RoktUXHelper
     /// Must be called before `selectShoppableAds()`.
     ///
     /// - Parameters:
-    ///   - paymentExtension: The payment extension to register (e.g. `RoktStripePaymentExtension`)
+    ///   - paymentExtension: The payment extension to register (e.g. `RoktPaymentExtension`)
     ///   - config: Configuration dictionary (e.g. `["stripeKey": "pk_live_..."]`)
     public static func registerPaymentExtension(
         _ paymentExtension: PaymentExtension,
         config: [String: String] = [:]
     ) {
         shared.roktImplementation.registerPaymentExtension(paymentExtension, config: config)
+    }
+
+    /// Forward an incoming URL to registered payment extensions.
+    ///
+    /// Redirect-based payment methods (e.g. Afterpay) authenticate the user in a
+    /// web view and return to the host app via a custom URL scheme. The host app
+    /// should forward every incoming URL to this method — the SDK asks each
+    /// registered extension whether it recognizes the URL and stops at the first
+    /// match.
+    ///
+    /// Example (SwiftUI):
+    /// ```swift
+    /// WindowGroup {
+    ///     ContentView()
+    ///         .onOpenURL { url in
+    ///             Rokt.handleURLCallback(with: url)
+    ///         }
+    /// }
+    /// ```
+    ///
+    /// - Parameter url: The URL received by the host app.
+    /// - Returns: `true` if a registered payment extension handled the URL.
+    @discardableResult
+    public static func handleURLCallback(with url: URL) -> Bool {
+        shared.roktImplementation.handleURLCallback(with: url)
     }
 
     /// Display a Shoppable Ads overlay placement.

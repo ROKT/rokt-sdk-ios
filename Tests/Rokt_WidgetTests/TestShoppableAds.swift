@@ -103,7 +103,19 @@ final class TestShoppableAds: XCTestCase {
 
         XCTAssertEqual(mockImplementation.executeCallCount, 1)
         XCTAssertEqual(mockImplementation.lastViewName, "test")
-        XCTAssertEqual(mockImplementation.lastAttributes, ["email": "test@example.com"])
+        XCTAssertEqual(mockImplementation.lastAttributes, ["email": "test@example.com", "adsExperience": "shoppable"])
+    }
+
+    func test_selectShoppableAds_doesNotOverwriteAdsExperience_whenAlreadySet() {
+        mockImplementation.initFeatureFlags = Self.featureFlags(
+            postPurchase: true,
+            minimumSchema: true
+        )
+        mockImplementation.registerPaymentExtension(StubPaymentExtension(), config: [:])
+
+        Rokt.selectShoppableAds(identifier: "test", attributes: ["adsExperience": "custom"])
+
+        XCTAssertEqual(mockImplementation.lastAttributes["adsExperience"], "custom")
     }
 
     func test_selectShoppableAds_emitsPlacementFailure_whenGateOff() {
@@ -171,6 +183,7 @@ private final class StubPaymentExtension: PaymentExtension {
     func presentPaymentSheet(
         item: PaymentItem,
         method: PaymentMethodType,
+        context: PaymentContext,
         from viewController: UIViewController,
         preparePayment: @escaping (
             _ address: ContactAddress,

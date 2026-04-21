@@ -220,7 +220,8 @@ final class TestRoktUxEventExtension: XCTestCase {
             quantity: 1,
             totalPrice: 9.99,
             unitPrice: 9.99,
-            paymentProvider: .applePay
+            paymentProvider: .applePay,
+            transactionData: nil
         )
 
         let returnedEvent = providedEvent.mapToRoktEvent
