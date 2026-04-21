@@ -121,6 +121,43 @@ class RoktInternalImplementation {
         uxHelper.devicePayFinalized(layoutId: layoutId, catalogItemId: catalogItemId, success: success)
     }
 
+    /// Map a UX-helper `Address` (from backend `TransactionData`) to the contracts
+    /// `ContactAddress` shape expected by a `PaymentExtension`. Email is not part of
+    /// `Address`, so it falls back to the partner-supplied `email` attribute.
+    /// Returns `nil` if `address` is `nil`.
+    func buildContactAddress(from address: RoktUXHelper.Address?) -> ContactAddress? {
+        guard let address else { return nil }
+        return ContactAddress(
+            name: address.name,
+            email: attributes["email"] ?? "",
+            addressLine1: address.address1,
+            city: address.city,
+            state: address.stateCode.isEmpty ? address.state : address.stateCode,
+            postalCode: address.zip,
+            country: address.countryCode.isEmpty ? address.country : address.countryCode
+        )
+    }
+
+    /// Legacy fallback: build a `ContactAddress` from partner-supplied attributes
+    /// for backends that do not yet populate `TransactionData`. Returns `nil` if
+    /// no address attributes were provided.
+    func buildContactAddressFromAttributes() -> ContactAddress? {
+        let line1 = attributes["shippingaddress1"] ?? ""
+        guard !line1.isEmpty else { return nil }
+        let name = [attributes["firstname"], attributes["lastname"]]
+            .compactMap { $0 }
+            .joined(separator: " ")
+        return ContactAddress(
+            name: name,
+            email: attributes["email"] ?? "",
+            addressLine1: line1,
+            city: attributes["shippingcity"],
+            state: attributes["shippingstate"],
+            postalCode: attributes["shippingzipcode"],
+            country: attributes["shippingcountry"]
+        )
+    }
+
     func setFrameworkType(_ frameworkType: RoktFrameworkType) {
         self.frameworkType = frameworkType
     }
@@ -303,6 +340,8 @@ class RoktInternalImplementation {
                 paymentMethod = .applePay
             case "Stripe":
                 paymentMethod = .card
+            case "Afterpay":
+                paymentMethod = .afterpay
             default:
                 RoktLogger.shared.error("Unsupported payment provider: \(event.paymentProvider.rawValue)")
                 devicePayFinalized(executeId: executeId, layoutId: event.layoutId,
@@ -319,6 +358,20 @@ class RoktInternalImplementation {
                 currency: event.currency
             )
 
+            // Build PaymentContext from backend-provided TransactionData, falling
+            // back to partner-supplied attributes if the offer did not include
+            // transaction data (e.g. older backend versions).
+            let context: PaymentContext
+            if paymentMethod == .afterpay {
+                let billing = buildContactAddress(from: event.transactionData?.billingAddress)
+                    ?? buildContactAddressFromAttributes()
+                let shipping = buildContactAddress(from: event.transactionData?.shippingAddress)
+                    ?? buildContactAddressFromAttributes()
+                context = PaymentContext(billingAddress: billing, shippingAddress: shipping)
+            } else {
+                context = PaymentContext()
+            }
+
             // Find the topmost view controller for presenting the payment sheet
             guard let viewController = UIApplication.topViewController() else {
                 RoktLogger.shared.error("No view controller available to present payment sheet")
@@ -331,6 +384,7 @@ class RoktInternalImplementation {
             paymentOrchestrator.processPayment(
                 method: paymentMethod,
                 item: item,
+                context: context,
                 cartItemId: event.cartItemId,
                 from: viewController
             ) { [weak self] result in
@@ -791,7 +845,16 @@ class RoktInternalImplementation {
         }
     }
 
+    /// Forward a URL to registered payment extensions.
+    @discardableResult
+    func handleURLCallback(with url: URL) -> Bool {
+        paymentOrchestrator.handleURLCallback(with: url)
+    }
+
     // MARK: - Shoppable Ads
+
+    private let keyAdsExperienceType = "adsExperience"
+    private let valueAdsExperienceShoppable = "shoppable"
 
     /// Display a Shoppable Ads overlay placement.
     func selectShoppableAds(
@@ -816,10 +879,15 @@ class RoktInternalImplementation {
             return
         }
 
+        var enrichedAttributes = attributes
+        if enrichedAttributes[keyAdsExperienceType] == nil {
+            enrichedAttributes[keyAdsExperienceType] = valueAdsExperienceShoppable
+        }
+
         // Reuse the existing execute flow — backend routes based on placement config
         execute(
             viewName: identifier,
-            attributes: attributes,
+            attributes: enrichedAttributes,
             placements: nil,
             config: config,
             placementOptions: nil,
