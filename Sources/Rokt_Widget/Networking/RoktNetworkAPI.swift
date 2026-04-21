@@ -1,4 +1,5 @@
 import Foundation
+internal import RoktUXHelper
 
 // MARK: - URL constants (internal — also used by test mocks)
 
@@ -45,7 +46,17 @@ internal class RoktNetWorkAPI {
     private static let timingsDiagnosticCode = "[TIMINGS]"
     private static let timingsSdkType = "msdk"
     private static let layoutsSchemaVersionHeader = "rokt-layout-schema-version"
-    private static let layoutsSchemaVersion = "2.4"
+    private static var layoutsSchemaVersion: String {
+        // layoutSchemaVersion is internal in RoktUXHelper; decode it through Codable.
+        struct LayoutInfo: Decodable { let layoutSchemaVersion: String }
+        guard
+            let data = try? JSONEncoder().encode(RoktUX.integrationInfo.integration),
+            let info = try? JSONDecoder().decode(LayoutInfo.self, from: data)
+        else { return "2.5" }
+        let parts = info.layoutSchemaVersion.split(separator: ".")
+        guard parts.count >= 2 else { return info.layoutSchemaVersion }
+        return "\(parts[0]).\(parts[1])"
+    }
     private static let fullFontLogCode3 = "[FFL003]"
     private static let fullFontLogCode4 = "[FFL004]"
 
