@@ -47,13 +47,8 @@ internal class RoktNetWorkAPI {
     private static let timingsSdkType = "msdk"
     private static let layoutsSchemaVersionHeader = "rokt-layout-schema-version"
     private static var layoutsSchemaVersion: String {
-        // layoutSchemaVersion is internal in RoktUXHelper; decode it through Codable.
-        struct LayoutInfo: Decodable { let layoutSchemaVersion: String }
-        guard
-            let data = try? JSONEncoder().encode(RoktUX.integrationInfo.integration),
-            let info = try? JSONDecoder().decode(LayoutInfo.self, from: data)
-        else { return "2.5" }
-        return info.layoutSchemaVersion.split(separator: ".").prefix(2).joined(separator: ".")
+        RoktUX.integrationInfo.integration.layoutSchemaVersion
+            .split(separator: ".").prefix(2).joined(separator: ".")
     }
     private static let fullFontLogCode3 = "[FFL003]"
     private static let fullFontLogCode4 = "[FFL004]"
