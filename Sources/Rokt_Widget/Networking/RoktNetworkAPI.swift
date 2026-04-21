@@ -53,9 +53,7 @@ internal class RoktNetWorkAPI {
             let data = try? JSONEncoder().encode(RoktUX.integrationInfo.integration),
             let info = try? JSONDecoder().decode(LayoutInfo.self, from: data)
         else { return "2.5" }
-        let parts = info.layoutSchemaVersion.split(separator: ".")
-        guard parts.count >= 2 else { return info.layoutSchemaVersion }
-        return "\(parts[0]).\(parts[1])"
+        return info.layoutSchemaVersion.split(separator: ".").prefix(2).joined(separator: ".")
     }
     private static let fullFontLogCode3 = "[FFL003]"
     private static let fullFontLogCode4 = "[FFL004]"
