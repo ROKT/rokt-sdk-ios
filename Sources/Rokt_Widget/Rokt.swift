@@ -151,7 +151,7 @@ internal import RoktUXHelper
     /// Must be called before `selectShoppableAds()`.
     ///
     /// - Parameters:
-    ///   - paymentExtension: The payment extension to register (e.g. `RoktStripePaymentExtension`)
+    ///   - paymentExtension: The payment extension to register (e.g. `RoktPaymentExtension`)
     ///   - config: Configuration dictionary (e.g. `["stripeKey": "pk_live_..."]`)
     public static func registerPaymentExtension(
         _ paymentExtension: PaymentExtension,

@@ -20,7 +20,7 @@ final class PaymentOrchestrator {
     /// Register a payment extension with configuration.
     ///
     /// - Parameters:
-    ///   - paymentExtension: The extension to register (e.g. RoktStripePaymentExtension)
+    ///   - paymentExtension: The extension to register (e.g. RoktPaymentExtension)
     ///   - config: Configuration parameters (e.g. ["stripeKey": "pk_live_..."])
     /// - Returns: `true` if registration succeeded.
     @discardableResult
