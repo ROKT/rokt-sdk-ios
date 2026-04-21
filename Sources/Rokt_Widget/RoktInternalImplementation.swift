@@ -418,10 +418,41 @@ class RoktInternalImplementation {
         }
     }
 
+    /// Resolve the unit and total price for a forward-payment event.
+    ///
+    /// - If both are present, use them as-is.
+    /// - If only `unitPrice` is present, derive `totalPrice = unitPrice * quantity`.
+    /// - If only `totalPrice` is present, derive `unitPrice = totalPrice / quantity`
+    ///   (requires `quantity > 0`).
+    /// - Returns `nil` if neither is present, or if only `totalPrice` is present
+    ///   with a non-positive `quantity`.
+    static func resolveForwardPaymentPrices(
+        unitPrice: Decimal?,
+        totalPrice: Decimal?,
+        quantity: Decimal
+    ) -> (unitPrice: Decimal, totalPrice: Decimal)? {
+        switch (unitPrice, totalPrice) {
+        case let (unit?, total?):
+            return (unit, total)
+        case let (unit?, nil):
+            return (unit, unit * quantity)
+        case let (nil, total?) where quantity > 0:
+            return (total/quantity, total)
+        default:
+            return nil
+        }
+    }
+
     private func handleForwardPayment(executeId: String,
                                       event: RoktUXEvent.CartItemForwardPayment) {
-        guard let unitPrice = event.unitPrice ?? event.totalPrice else {
-            RoktLogger.shared.warning("Forward-payment event missing unitPrice and totalPrice")
+        guard let prices = Self.resolveForwardPaymentPrices(
+            unitPrice: event.unitPrice,
+            totalPrice: event.totalPrice,
+            quantity: event.quantity
+        ) else {
+            RoktLogger.shared.warning(
+                "Forward-payment event missing price or has non-positive quantity"
+            )
             forwardPaymentFinalized(
                 executeId: executeId,
                 layoutId: event.layoutId,
@@ -431,17 +462,16 @@ class RoktInternalImplementation {
             )
             return
         }
-        let totalPrice = event.totalPrice ?? unitPrice
         let item = UpsellItem(
             cartItemId: event.cartItemId,
             catalogItemId: event.catalogItemId,
             quantity: event.quantity,
-            unitPrice: unitPrice,
-            totalPrice: totalPrice,
+            unitPrice: prices.unitPrice,
+            totalPrice: prices.totalPrice,
             currency: event.currency
         )
         let request = PurchaseRequest(
-            totalUpsellPrice: totalPrice,
+            totalUpsellPrice: prices.totalPrice,
             currency: event.currency,
             upsellItems: [item],
             paymentDetails: PurchasePaymentDetails(

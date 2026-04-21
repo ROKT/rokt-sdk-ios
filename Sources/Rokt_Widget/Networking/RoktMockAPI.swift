@@ -132,6 +132,16 @@ internal class RoktMockAPI {
     class func forwardPayment(request: PurchaseRequest,
                               success: ((PurchaseResponse) -> Void)? = nil,
                               failure: ((Error, Int?, String) -> Void)? = nil) {
+        do {
+            let params = try JSONSerialization.data(
+                withJSONObject: request.toDictionary(),
+                options: []
+            )
+            RoktLogger.shared.verbose(String(bytes: params, encoding: .utf8) ?? "")
+        } catch let error {
+            failure?(error, nil, error.localizedDescription)
+            return
+        }
         let mockResponse = PurchaseResponse(success: true, reason: nil)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             success?(mockResponse)

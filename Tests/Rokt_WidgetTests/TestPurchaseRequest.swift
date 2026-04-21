@@ -32,7 +32,7 @@ final class TestPurchaseRequest: XCTestCase {
 
         let dict = request.toDictionary()
 
-        XCTAssertEqual(dict["totalUpsellPrice"] as? Decimal, 19.88)
+        XCTAssertEqual(dict["totalUpsellPrice"] as? Decimal, Decimal(string: "19.88"))
         XCTAssertEqual(dict["currency"] as? String, "USD")
         XCTAssertNotNil(dict["upsellItems"])
         XCTAssertNotNil(dict["paymentDetails"])
