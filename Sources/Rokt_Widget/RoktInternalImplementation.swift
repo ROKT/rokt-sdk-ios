@@ -16,6 +16,8 @@ class RoktInternalImplementation {
     private static let trackingConsentError = "tracking consent not authorised"
     private static let cacheDurationKey = "cacheDuration"
     private static let cacheAttributesKey = "cacheAttributeKeys"
+    static let missingForwardPaymentPriceReason = "Missing price on forward-payment event"
+    static let unknownForwardPaymentFailureReason = "Unknown failure reason"
     static let defaultTimeout: Double = 9000
     static let defaultFontTimeout: Double = 30 // second
     static let defaultDelay: Double = 1000
@@ -445,25 +447,17 @@ class RoktInternalImplementation {
         }
     }
 
-    private func handleForwardPayment(executeId: String,
-                                      event: RoktUXEvent.CartItemForwardPayment) {
-        guard let prices = Self.resolveForwardPaymentPrices(
+    static func buildForwardPaymentRequest(
+        from event: RoktUXEvent.CartItemForwardPayment
+    ) -> PurchaseRequest? {
+        guard let prices = resolveForwardPaymentPrices(
             unitPrice: event.unitPrice,
             totalPrice: event.totalPrice,
             quantity: event.quantity
         ) else {
-            RoktLogger.shared.warning(
-                "Forward-payment event missing price or has non-positive quantity"
-            )
-            forwardPaymentFinalized(
-                executeId: executeId,
-                layoutId: event.layoutId,
-                catalogItemId: event.catalogItemId,
-                success: false,
-                failureReason: "Missing price on forward-payment event"
-            )
-            return
+            return nil
         }
+
         let item = UpsellItem(
             cartItemId: event.cartItemId,
             catalogItemId: event.catalogItemId,
@@ -472,7 +466,8 @@ class RoktInternalImplementation {
             totalPrice: prices.totalPrice,
             currency: event.currency
         )
-        let request = PurchaseRequest(
+
+        return PurchaseRequest(
             totalUpsellPrice: prices.totalPrice,
             currency: event.currency,
             upsellItems: [item],
@@ -482,34 +477,63 @@ class RoktInternalImplementation {
             ),
             fulfillmentDetails: nil
         )
+    }
+
+    static func resolveForwardPaymentFinalization(
+        from response: PurchaseResponse
+    ) -> (success: Bool, failureReason: String?) {
+        if response.success {
+            return (true, nil)
+        }
+
+        return (false, response.reason ?? unknownForwardPaymentFailureReason)
+    }
+
+    static func resolveForwardPaymentFinalization(
+        fromFailureMessage message: String
+    ) -> (success: Bool, failureReason: String?) {
+        let failureReason = message.isEmpty ? unknownForwardPaymentFailureReason : message
+        return (false, failureReason)
+    }
+
+    private func handleForwardPayment(executeId: String,
+                                      event: RoktUXEvent.CartItemForwardPayment) {
+        guard let request = Self.buildForwardPaymentRequest(from: event) else {
+            RoktLogger.shared.warning(
+                "Forward-payment event missing price or has non-positive quantity"
+            )
+            forwardPaymentFinalized(
+                executeId: executeId,
+                layoutId: event.layoutId,
+                catalogItemId: event.catalogItemId,
+                success: false,
+                failureReason: Self.missingForwardPaymentPriceReason
+            )
+            return
+        }
 
         RoktAPIHelper.forwardPayment(
             request: request,
             success: { [weak self] response in
-                if response.success {
-                    self?.forwardPaymentFinalized(
-                        executeId: executeId,
-                        layoutId: event.layoutId,
-                        catalogItemId: event.catalogItemId,
-                        success: true
-                    )
-                } else {
-                    self?.forwardPaymentFinalized(
-                        executeId: executeId,
-                        layoutId: event.layoutId,
-                        catalogItemId: event.catalogItemId,
-                        success: false,
-                        failureReason: response.reason ?? "Unknown failure reason"
-                    )
-                }
-            },
-            failure: { [weak self] _, _, message in
+                let finalization = Self.resolveForwardPaymentFinalization(from: response)
                 self?.forwardPaymentFinalized(
                     executeId: executeId,
                     layoutId: event.layoutId,
                     catalogItemId: event.catalogItemId,
-                    success: false,
-                    failureReason: message.isEmpty ? "Unknown failure reason" : message
+                    success: finalization.success,
+                    failureReason: finalization.failureReason
+                )
+            },
+            failure: { [weak self] _, _, message in
+                let finalization = Self.resolveForwardPaymentFinalization(
+                    fromFailureMessage: message
+                )
+                self?.forwardPaymentFinalized(
+                    executeId: executeId,
+                    layoutId: event.layoutId,
+                    catalogItemId: event.catalogItemId,
+                    success: finalization.success,
+                    failureReason: finalization.failureReason
                 )
             }
         )
