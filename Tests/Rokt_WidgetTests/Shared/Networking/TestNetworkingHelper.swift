@@ -321,7 +321,7 @@ class TestNetworkingHelper: XCTestCase {
         )
         XCTAssertEqual(
             capturedRequest?.allHTTPHeaderFields?[HTTPHeader.contentType],
-            HTTPHeader.applicationJSON
+            HTTPHeader.Value.applicationJSON
         )
     }
 
