@@ -14,6 +14,7 @@ final class MockPaymentExtension: PaymentExtension {
     var shouldRegisterSuccessfully: Bool = true
     var shouldAutomaticallyCompletePayment: Bool = true
     var paymentResultToReturn: PaymentSheetResult = .succeeded(transactionId: "txn_mock")
+    var urlCallbackHandler: ((URL) -> Bool)?
 
     private(set) var onRegisterCallCount = 0
     private(set) var onRegisterLastParameters: [String: String]?
@@ -22,6 +23,8 @@ final class MockPaymentExtension: PaymentExtension {
     private(set) var presentPaymentSheetLastMethod: PaymentMethodType?
     private(set) var presentPaymentSheetLastItem: PaymentItem?
     private(set) var capturedPreparePayment: ((ContactAddress, @escaping (PaymentPreparation?, Error?) -> Void) -> Void)?
+    private(set) var handleURLCallbackCallCount = 0
+    private(set) var handleURLCallbackLastURL: URL?
 
     init(
         id: String = "mock_extension",
@@ -46,6 +49,7 @@ final class MockPaymentExtension: PaymentExtension {
     func presentPaymentSheet(
         item: PaymentItem,
         method: PaymentMethodType,
+        context: PaymentContext,
         from viewController: UIViewController,
         preparePayment: @escaping (ContactAddress, @escaping (PaymentPreparation?, Error?) -> Void) -> Void,
         completion: @escaping (PaymentSheetResult) -> Void
@@ -57,6 +61,12 @@ final class MockPaymentExtension: PaymentExtension {
         if shouldAutomaticallyCompletePayment {
             completion(paymentResultToReturn)
         }
+    }
+
+    func handleURLCallback(with url: URL) -> Bool {
+        handleURLCallbackCallCount += 1
+        handleURLCallbackLastURL = url
+        return urlCallbackHandler?(url) ?? false
     }
 }
 
@@ -193,6 +203,56 @@ class TestPaymentOrchestrator: XCTestCase {
         XCTAssertEqual(methods.count, 2, "Should not contain duplicates")
     }
 
+    // MARK: - handleURLCallback
+
+    func test_handleURLCallback_noExtensions_returnsFalse() {
+        let url = URL(string: "myapp://stripe-redirect")!
+        XCTAssertFalse(sut.handleURLCallback(with: url))
+    }
+
+    func test_handleURLCallback_noExtensionClaims_returnsFalse() {
+        let ext1 = MockPaymentExtension(id: "ext1")
+        let ext2 = MockPaymentExtension(id: "ext2")
+        ext1.urlCallbackHandler = { _ in false }
+        ext2.urlCallbackHandler = { _ in false }
+        sut.register(ext1, config: [:])
+        sut.register(ext2, config: [:])
+
+        let url = URL(string: "myapp://foo")!
+        XCTAssertFalse(sut.handleURLCallback(with: url))
+        XCTAssertEqual(ext1.handleURLCallbackCallCount, 1)
+        XCTAssertEqual(ext2.handleURLCallbackCallCount, 1)
+        XCTAssertEqual(ext1.handleURLCallbackLastURL, url)
+    }
+
+    func test_handleURLCallback_firstClaims_shortCircuits() {
+        let ext1 = MockPaymentExtension(id: "ext1")
+        let ext2 = MockPaymentExtension(id: "ext2")
+        ext1.urlCallbackHandler = { _ in true }
+        ext2.urlCallbackHandler = { _ in true }
+        sut.register(ext1, config: [:])
+        sut.register(ext2, config: [:])
+
+        let url = URL(string: "myapp://stripe-redirect")!
+        XCTAssertTrue(sut.handleURLCallback(with: url))
+        XCTAssertEqual(ext1.handleURLCallbackCallCount, 1)
+        XCTAssertEqual(ext2.handleURLCallbackCallCount, 0, "second extension should not be called")
+    }
+
+    func test_handleURLCallback_secondClaims_returnsTrue() {
+        let ext1 = MockPaymentExtension(id: "ext1")
+        let ext2 = MockPaymentExtension(id: "ext2")
+        ext1.urlCallbackHandler = { _ in false }
+        ext2.urlCallbackHandler = { _ in true }
+        sut.register(ext1, config: [:])
+        sut.register(ext2, config: [:])
+
+        let url = URL(string: "myapp://paypal-return")!
+        XCTAssertTrue(sut.handleURLCallback(with: url))
+        XCTAssertEqual(ext1.handleURLCallbackCallCount, 1)
+        XCTAssertEqual(ext2.handleURLCallbackCallCount, 1)
+    }
+
     // MARK: - processPayment
 
     func test_processPayment_routesToCorrectExtension() {
@@ -207,7 +267,9 @@ class TestPaymentOrchestrator: XCTestCase {
         let item = PaymentItem(id: "item1", name: "Widget", amount: 9.99, currency: "USD")
         let vc = UIViewController()
 
-        sut.processPayment(method: .card, item: item, cartItemId: "v1:cart-123:canal", from: vc) { result in
+        sut
+            .processPayment(method: .card, item: item, context: PaymentContext(), cartItemId: "v1:cart-123:canal",
+                            from: vc) { result in
             XCTAssertEqual(result.outcome, .succeeded)
             XCTAssertEqual(result.transactionId, "txn_card")
             expectation.fulfill()
@@ -226,7 +288,9 @@ class TestPaymentOrchestrator: XCTestCase {
         let item = PaymentItem(id: "item1", name: "Widget", amount: 9.99, currency: "USD")
         let vc = UIViewController()
 
-        sut.processPayment(method: .applePay, item: item, cartItemId: "v1:cart-456:canal", from: vc) { result in
+        sut
+            .processPayment(method: .applePay, item: item, context: PaymentContext(), cartItemId: "v1:cart-456:canal",
+                            from: vc) { result in
             XCTAssertEqual(result.outcome, .failed)
             XCTAssertTrue(result.errorMessage?.contains("No payment extension found") == true,
                           "Error should indicate no extension found, got: \(result.errorMessage ?? "nil")")
@@ -264,6 +328,7 @@ class TestPaymentOrchestrator: XCTestCase {
         sut.processPayment(
             method: .applePay,
             item: item,
+            context: PaymentContext(),
             cartItemId: "v1:cart-789:canal",
             from: UIViewController()
         ) { _ in
