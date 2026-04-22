@@ -448,7 +448,8 @@ class RoktInternalImplementation {
     }
 
     static func buildForwardPaymentRequest(
-        from event: RoktUXEvent.CartItemForwardPayment
+        from event: RoktUXEvent.CartItemForwardPayment,
+        fulfillmentDetails: FulfillmentDetails? = nil
     ) -> PurchaseRequest? {
         guard let prices = resolveForwardPaymentPrices(
             unitPrice: event.unitPrice,
@@ -475,7 +476,19 @@ class RoktInternalImplementation {
                 token: nil,
                 partnerPaymentReference: event.partnerPaymentReference
             ),
-            fulfillmentDetails: nil
+            fulfillmentDetails: fulfillmentDetails
+        )
+    }
+
+    /// Build `FulfillmentDetails` from partner-supplied shipping attributes.
+    /// Returns `nil` if no shipping address was provided — caller should fall
+    /// through to a server-side error rather than sending `{}`.
+    func buildFulfillmentDetailsFromAttributes() -> FulfillmentDetails? {
+        guard let contactAddress = buildContactAddressFromAttributes() else {
+            return nil
+        }
+        return FulfillmentDetails(
+            shippingAttributes: ShippingAttributes(from: contactAddress)
         )
     }
 
@@ -498,7 +511,11 @@ class RoktInternalImplementation {
 
     private func handleForwardPayment(executeId: String,
                                       event: RoktUXEvent.CartItemForwardPayment) {
-        guard let request = Self.buildForwardPaymentRequest(from: event) else {
+        let fulfillmentDetails = buildFulfillmentDetailsFromAttributes()
+        guard let request = Self.buildForwardPaymentRequest(
+            from: event,
+            fulfillmentDetails: fulfillmentDetails
+        ) else {
             RoktLogger.shared.warning(
                 "Forward-payment event missing price or has non-positive quantity"
             )

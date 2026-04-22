@@ -153,6 +153,60 @@ final class TestForwardPaymentPriceResolution: XCTestCase {
         XCTAssertNil(request?.fulfillmentDetails)
     }
 
+    func test_buildForwardPaymentRequest_passesThroughFulfillmentDetails() {
+        let shipping = ShippingAttributes(
+            address1: "123 Mock St",
+            city: "Mock City",
+            state: "CA",
+            postalCode: "90210",
+            country: "US"
+        )
+        let fulfillment = FulfillmentDetails(shippingAttributes: shipping)
+
+        let request = try? XCTUnwrap(
+            RoktInternalImplementation.buildForwardPaymentRequest(
+                from: makeEvent(),
+                fulfillmentDetails: fulfillment
+            )
+        )
+
+        XCTAssertEqual(request?.fulfillmentDetails?.shippingAttributes.address1, "123 Mock St")
+        XCTAssertEqual(request?.fulfillmentDetails?.shippingAttributes.city, "Mock City")
+        XCTAssertEqual(request?.fulfillmentDetails?.shippingAttributes.state, "CA")
+        XCTAssertEqual(request?.fulfillmentDetails?.shippingAttributes.postalCode, "90210")
+        XCTAssertEqual(request?.fulfillmentDetails?.shippingAttributes.country, "US")
+    }
+
+    func test_buildFulfillmentDetailsFromAttributes_returnsNil_whenNoShippingAttributes() {
+        let sut = RoktInternalImplementation()
+        sut.attributes = ["email": "buyer@example.com"]
+
+        XCTAssertNil(sut.buildFulfillmentDetailsFromAttributes())
+    }
+
+    func test_buildFulfillmentDetailsFromAttributes_mapsPartnerSuppliedShipping() {
+        let sut = RoktInternalImplementation()
+        sut.attributes = [
+            "firstname": "Jane",
+            "lastname": "Doe",
+            "shippingaddress1": "123 Mock St",
+            "shippingcity": "Mock City",
+            "shippingstate": "CA",
+            "shippingzipcode": "90210",
+            "shippingcountry": "US"
+        ]
+
+        let fulfillment = sut.buildFulfillmentDetailsFromAttributes()
+
+        XCTAssertEqual(fulfillment?.shippingAttributes.address1, "123 Mock St")
+        XCTAssertEqual(fulfillment?.shippingAttributes.city, "Mock City")
+        XCTAssertEqual(fulfillment?.shippingAttributes.state, "CA")
+        XCTAssertEqual(fulfillment?.shippingAttributes.postalCode, "90210")
+        XCTAssertEqual(fulfillment?.shippingAttributes.country, "US")
+        XCTAssertEqual(fulfillment?.shippingAttributes.firstName, "Jane")
+        XCTAssertEqual(fulfillment?.shippingAttributes.lastName, "Doe")
+    }
+
     func test_resolveForwardPaymentFinalization_returnsSuccessWithoutFailureReason() {
         let finalization = RoktInternalImplementation.resolveForwardPaymentFinalization(
             from: PurchaseResponse(success: true, reason: "ignored")
