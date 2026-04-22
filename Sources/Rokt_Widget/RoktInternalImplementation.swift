@@ -818,9 +818,11 @@ class RoktInternalImplementation {
                                          selectionId: String,
                                          viewName: String? = nil,
                                          attributes: [String: String]) -> LayoutPageExecutePayload? {
-        guard let pageData = try? page.data(using: .utf8),
-              let pageDecodedData = try? JSONDecoder().decode(RoktUXExperienceResponse.self, from: pageData)
-        else {
+        guard let pageData = page.data(using: .utf8) else {
+            return nil
+        }
+
+        guard let pageDecodedData = try? decodeOnSeparateThread(RoktUXExperienceResponse.self, pageData) else {
             return nil
         }
         sessionManager.updateSessionId(newSessionId: pageDecodedData.sessionId)
@@ -828,7 +830,7 @@ class RoktInternalImplementation {
         guard let pageModel = pageDecodedData.getPageModel() else {
             return nil
         }
-        let events = try? JSONDecoder().decode(UntriggeredEventsContainer.self, from: pageData)
+        let events = try? decodeOnSeparateThread(UntriggeredEventsContainer.self, pageData)
         if let events = events {
             RealTimeEventManager.shared.addUntriggeredEvents(events.untriggeredEvents)
         }
@@ -1031,6 +1033,36 @@ class RoktInternalImplementation {
             placementOptions: nil,
             onRoktEvent: onRoktEvent
         )
+    }
+
+    private func decodeOnSeparateThread<T: Decodable>(_ type: T.Type, _ data: Data) throws -> T {
+        var result: Result<T, Error>?
+        let semaphore = DispatchSemaphore(value: 0)
+
+        let decodingThread = Thread {
+            defer { semaphore.signal() }
+            do {
+                let decoded = try JSONDecoder().decode(type, from: data)
+                result = .success(decoded)
+            } catch {
+                result = .failure(error)
+            }
+        }
+        decodingThread.name = "com.rokt.decoder"
+        decodingThread.stackSize = max(decodingThread.stackSize, 8 * 1024 * 1024)
+        decodingThread.qualityOfService = Thread.current.qualityOfService
+        decodingThread.start()
+
+        semaphore.wait()
+
+        switch result {
+        case .success(let decoded):
+            return decoded
+        case .failure(let error):
+            throw error
+        case .none:
+            throw RoktError("Decoding failed")
+        }
     }
 }
 
