@@ -77,6 +77,12 @@ class PlatformEventProcessor {
         }.forEach { _ in
             stateBagManager?.finishInstantPurchase(id: executeId)
         }
+        eventRequests.filter {
+            $0.eventType == .SignalInstantPurchaseDismissal
+        }.forEach { _ in
+            stateBagManager?.getState(id: executeId)?
+                .onRoktEvent?(RoktEvent.InstantPurchaseDismissal(identifier: executeId))
+        }
     }
 
     private func processTimingRequests(eventRequests: [RoktEventRequest], selectionId: String) {

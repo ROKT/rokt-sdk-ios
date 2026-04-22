@@ -60,6 +60,21 @@ class TestPlatformEventProcessor: XCTestCase {
         XCTAssertEqual(mockStateManager.stateIdRetrieved, "1")
     }
 
+    func testGivenInstantPurchaseDismissalSignal_ThenEmitsPublicDismissalEvent() {
+        mockStateManager.mockSelectionId = "1"
+        let payload = mockEventsPayload(
+            events: [
+                .mock(eventType: .SignalInstantPurchaseDismissal)
+            ]
+        )!
+        sut.process(payload, executeId: "1", cacheProperties: nil)
+
+        XCTAssertEqual(mockStateManager.capturedEvents.count, 1)
+        let event = mockStateManager.capturedEvents.first as? RoktEvent.InstantPurchaseDismissal
+        XCTAssertNotNil(event)
+        XCTAssertEqual(event?.identifier, "1")
+    }
+
     func test_insert_ProcessedEvent() {
         let eventRequest = EventRequest(
             sessionId: "session1",
@@ -420,6 +435,7 @@ private class MockTimingsRequestProcessor: TimingsRequestProcessor {
 
 private class MockStateManager: StateBagManaging {
     var mockSelectionId: String?
+    var capturedEvents: [RoktEvent] = []
 
     func addState(id: String, state: any Bag) {}
     func removeState(id: String) {}
@@ -427,7 +443,9 @@ private class MockStateManager: StateBagManaging {
         if mockSelectionId != nil {
             return ExecuteStateBag(
                 uxHelper: nil,
-                onRoktEvent: nil
+                onRoktEvent: { [weak self] event in
+                    self?.capturedEvents.append(event)
+                }
             )
         }
         return nil
