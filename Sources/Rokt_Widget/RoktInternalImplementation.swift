@@ -117,6 +117,15 @@ class RoktInternalImplementation {
             catalogItemId: catalogItemId,
             success: success
         )
+
+        if !success {
+            state.onRoktEvent?(RoktEvent.CartItemInstantPurchaseFailure(
+                identifier: identifier,
+                catalogItemId: catalogItemId,
+                cartItemId: "",
+                error: nil
+            ))
+        }
     }
 
     private func devicePayFinalized(executeId: String, layoutId: String, catalogItemId: String, success: Bool) {
@@ -348,8 +357,20 @@ class RoktInternalImplementation {
             callOnUnLoad(executeId)
             placements = nil
             _swiftUiExecuteLayout = nil
+        } else if let event = uxEvent as? RoktUXEvent.CartItemInstantPurchase {
+            callOnRoktEvent(executeId, event: RoktEvent.CartItemInstantPurchaseInitiated(
+                identifier: event.layoutId,
+                catalogItemId: event.catalogItemId,
+                cartItemId: event.cartItemId
+            ))
+            callOnRoktEvent(executeId, event: uxEvent.mapToRoktEvent)
         } else if let event = uxEvent as? RoktUXEvent.CartItemDevicePay {
-            // Forward the public event to the partner
+            // Forward the public initiation and device-pay events to the partner
+            callOnRoktEvent(executeId, event: RoktEvent.CartItemInstantPurchaseInitiated(
+                identifier: event.layoutId,
+                catalogItemId: event.catalogItemId,
+                cartItemId: event.cartItemId
+            ))
             callOnRoktEvent(executeId, event: uxEvent.mapToRoktEvent)
 
             // Map PaymentProvider -> PaymentMethodType
@@ -408,6 +429,28 @@ class RoktInternalImplementation {
                 from: viewController
             ) { [weak self] result in
                 let success = result.outcome == .succeeded
+                if success {
+                    self?.callOnRoktEvent(executeId, event: RoktEvent.CartItemInstantPurchase(
+                        identifier: event.layoutId,
+                        name: event.name,
+                        cartItemId: event.cartItemId,
+                        catalogItemId: event.catalogItemId,
+                        currency: event.currency,
+                        description: event.description,
+                        linkedProductId: event.linkedProductId,
+                        providerData: event.providerData,
+                        quantity: NSDecimalNumber(decimal: event.quantity),
+                        totalPrice: event.totalPrice.map { NSDecimalNumber(decimal: $0) },
+                        unitPrice: event.unitPrice.map { NSDecimalNumber(decimal: $0) }
+                    ))
+                } else {
+                    self?.callOnRoktEvent(executeId, event: RoktEvent.CartItemInstantPurchaseFailure(
+                        identifier: event.layoutId,
+                        catalogItemId: event.catalogItemId,
+                        cartItemId: event.cartItemId,
+                        error: nil
+                    ))
+                }
                 self?.devicePayFinalized(
                     executeId: executeId,
                     layoutId: event.layoutId,
