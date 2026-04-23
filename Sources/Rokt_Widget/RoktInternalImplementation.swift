@@ -562,9 +562,12 @@ class RoktInternalImplementation {
             return
         }
 
+        callOnRoktEvent(executeId, event: RoktEvent.ShowLoadingIndicator())
+
         RoktAPIHelper.forwardPayment(
             request: request,
             success: { [weak self] response in
+                self?.callOnRoktEvent(executeId, event: RoktEvent.HideLoadingIndicator())
                 let finalization = Self.resolveForwardPaymentFinalization(from: response)
                 self?.forwardPaymentFinalized(
                     executeId: executeId,
@@ -575,6 +578,7 @@ class RoktInternalImplementation {
                 )
             },
             failure: { [weak self] _, _, message in
+                self?.callOnRoktEvent(executeId, event: RoktEvent.HideLoadingIndicator())
                 let finalization = Self.resolveForwardPaymentFinalization(
                     fromFailureMessage: message
                 )
