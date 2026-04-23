@@ -26,6 +26,11 @@ class PlatformEventProcessor {
     func process(_ eventPayload: [String: Any],
                  executeId: String,
                  cacheProperties: LayoutPageCacheProperties?) {
+        // Clean up instant-purchase state for forward-payment completion events before the rewrite
+        // drops them — otherwise `initiateInstantPurchase` (set by the Initiated rewrite) stays
+        // flipped on forever and stale state can match future `purchaseFinalized` lookups.
+        finishInstantPurchaseForForwardPaymentCompletion(eventPayload: eventPayload, executeId: executeId)
+
         let payload = Self.rewriteForwardPaymentEvents(eventPayload)
         // Skip the send when the rewrite drops every event — /v2/events rejects empty payloads as 400.
         if let events = payload["events"] as? [[String: Any]], events.isEmpty {
@@ -56,7 +61,7 @@ class PlatformEventProcessor {
             sendAndCacheEvents(eventRequests: eventRequests, cacheProperties: cacheProperties)
         } catch {
             RoktLogger.shared.error("Failed to process platform events", error: error)
-            RoktLogger.shared.debug("Event payload that failed: \(payload)")
+            RoktLogger.shared.debug("Event payload that failed: \(eventPayload)")
             RoktAPIHelper.sendEvents(events: (payload["events"] as? [[String: Any]]) ?? [])
         }
     }
@@ -94,6 +99,26 @@ class PlatformEventProcessor {
         }
         params.removeValue(forKey: Self.eventDataKey)
         return params
+    }
+
+    // UTYP-1422: `rewriteForwardPaymentEvents` drops SignalCartItemForwardPayment{Success,Failure}
+    // before decode, so `processInstantPurchase` never sees them. Inspect the raw payload here and
+    // finish the instant-purchase state explicitly so it doesn't stay stuck after a forward-payment
+    // flow completes.
+    private func finishInstantPurchaseForForwardPaymentCompletion(eventPayload: [String: Any],
+                                                                  executeId: String) {
+        guard let events = eventPayload["events"] as? [[String: Any]] else { return }
+        let completionTypes: Set<String> = [
+            RoktUXEventType.SignalCartItemForwardPaymentSuccess.rawValue,
+            RoktUXEventType.SignalCartItemForwardPaymentFailure.rawValue
+        ]
+        let hasCompletion = events.contains { event in
+            guard let type = event[eventTypeKey] as? String else { return false }
+            return completionTypes.contains(type)
+        }
+        if hasCompletion {
+            stateBagManager?.finishInstantPurchase(id: executeId)
+        }
     }
 
     private func processInstantPurchase(eventRequests: [RoktEventRequest], executeId: String) {

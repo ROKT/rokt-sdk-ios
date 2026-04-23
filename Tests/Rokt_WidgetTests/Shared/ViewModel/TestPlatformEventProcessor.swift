@@ -78,9 +78,17 @@ class TestPlatformEventProcessor: XCTestCase {
     // MARK: - Forward-payment rewrite (UTYP-1422)
 
     func test_forwardPaymentInitiated_rewrittenToInstantPurchaseInitiated() throws {
+        // Include eventData so the assertion below also locks in that the rewrite
+        // only touches eventType — no other fields should be stripped or mutated.
         let payload = mockEventsPayload(
             events: [
-                .mock(eventType: .SignalCartItemForwardPaymentInitiated)
+                RoktEventRequest(
+                    sessionId: "sessionId",
+                    eventType: .SignalCartItemForwardPaymentInitiated,
+                    parentGuid: "parent",
+                    eventData: ["catalogItemId": "cat-123"],
+                    jwtToken: "token"
+                )
             ]
         )!
 
@@ -88,6 +96,44 @@ class TestPlatformEventProcessor: XCTestCase {
         let events = try XCTUnwrap(rewritten["events"] as? [[String: Any]])
         XCTAssertEqual(events.count, 1)
         XCTAssertEqual(events[0]["eventType"] as? String, "SignalCartItemInstantPurchaseInitiated")
+        XCTAssertEqual(events[0]["sessionId"] as? String, "sessionId")
+        XCTAssertEqual(events[0]["parentGuid"] as? String, "parent")
+        let eventData = try XCTUnwrap(events[0]["eventData"] as? [[String: String]])
+        XCTAssertEqual(eventData.first?["name"], "catalogItemId")
+        XCTAssertEqual(eventData.first?["value"], "cat-123")
+    }
+
+    func test_mixedPayload_preservesOrderAndTransforms() throws {
+        // Single payload exercising all three transformations — rewrite, drop, passthrough —
+        // while preserving input order for the survivors.
+        let payload = mockEventsPayload(
+            events: [
+                .mock(eventType: .SignalImpression, parentGuid: "a"),
+                .mock(eventType: .SignalCartItemForwardPaymentInitiated, parentGuid: "b"),
+                .mock(eventType: .SignalCartItemForwardPaymentSuccess, parentGuid: "c"),
+                .mock(eventType: .SignalLoadStart, parentGuid: "d"),
+                .mock(eventType: .SignalCartItemForwardPaymentFailure, parentGuid: "e")
+            ]
+        )!
+
+        let rewritten = PlatformEventProcessor.rewriteForwardPaymentEvents(payload)
+        let events = try XCTUnwrap(rewritten["events"] as? [[String: Any]])
+        XCTAssertEqual(events.map { $0["parentGuid"] as? String }, ["a", "b", "d"])
+        XCTAssertEqual(events.map { $0["eventType"] as? String }, [
+            "SignalImpression",
+            "SignalCartItemInstantPurchaseInitiated",
+            "SignalLoadStart"
+        ])
+    }
+
+    func test_payloadWithoutEventsKey_roundTripsUnchanged() {
+        // Defensive: when upstream hands us a payload without a valid events array,
+        // the rewrite should be a no-op rather than coerce shape.
+        let payload: [String: Any] = ["integration": ["name": "test"], "events": "not-an-array"]
+        let rewritten = PlatformEventProcessor.rewriteForwardPaymentEvents(payload)
+
+        XCTAssertEqual(rewritten["events"] as? String, "not-an-array")
+        XCTAssertEqual((rewritten["integration"] as? [String: String])?["name"], "test")
     }
 
     func test_forwardPaymentInitiated_triggersInitiateInstantPurchaseState() {
@@ -131,6 +177,33 @@ class TestPlatformEventProcessor: XCTestCase {
         let rewritten = PlatformEventProcessor.rewriteForwardPaymentEvents(payload)
         let events = try XCTUnwrap(rewritten["events"] as? [[String: Any]])
         XCTAssertTrue(events.isEmpty)
+    }
+
+    func test_forwardPaymentSuccess_clearsInstantPurchaseState() {
+        // The rewrite drops Success before decode, so processInstantPurchase would never see it.
+        // process() must still clear the state flipped on by the rewritten Initiated signal —
+        // otherwise stateManager.find(where: \.instantPurchaseInitiated) stays true forever and a
+        // later Rokt.purchaseFinalized(...) for an unrelated flow would match this stale state.
+        let payload = mockEventsPayload(
+            events: [
+                .mock(eventType: .SignalCartItemForwardPaymentSuccess)
+            ]
+        )!
+        sut.process(payload, executeId: "1", cacheProperties: nil)
+
+        XCTAssertTrue(mockStateManager.finishInstantPurchaseCalled)
+        XCTAssertEqual(mockStateManager.stateIdRetrieved, "1")
+    }
+
+    func test_forwardPaymentFailure_clearsInstantPurchaseState() {
+        let payload = mockEventsPayload(
+            events: [
+                .mock(eventType: .SignalCartItemForwardPaymentFailure)
+            ]
+        )!
+        sut.process(payload, executeId: "1", cacheProperties: nil)
+
+        XCTAssertTrue(mockStateManager.finishInstantPurchaseCalled)
     }
 
     func test_nonForwardPaymentEvents_passThroughUnchanged() throws {
