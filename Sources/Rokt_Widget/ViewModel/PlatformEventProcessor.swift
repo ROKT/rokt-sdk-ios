@@ -26,18 +26,19 @@ class PlatformEventProcessor {
     func process(_ eventPayload: [String: Any],
                  executeId: String,
                  cacheProperties: LayoutPageCacheProperties?) {
+        let payload = Self.rewriteForwardPaymentEvents(eventPayload)
         do {
-            let data = try JSONSerialization.data(withJSONObject: eventPayload, options: [])
+            let data = try JSONSerialization.data(withJSONObject: payload, options: [])
 
             guard let jsonString = String(data: data, encoding: .utf8), !jsonString.isEmpty else {
                 RoktLogger.shared.error("Invalid UTF-8 or empty data in event payload")
-                RoktAPIHelper.sendEvents(events: (eventPayload["events"] as? [[String: Any]]) ?? [])
+                RoktAPIHelper.sendEvents(events: (payload["events"] as? [[String: Any]]) ?? [])
                 return
             }
 
             guard let validatedData = jsonString.data(using: .utf8) else {
                 RoktLogger.shared.error("Failed to re-encode validated UTF-8 string")
-                RoktAPIHelper.sendEvents(events: (eventPayload["events"] as? [[String: Any]]) ?? [])
+                RoktAPIHelper.sendEvents(events: (payload["events"] as? [[String: Any]]) ?? [])
                 return
             }
 
@@ -51,9 +52,34 @@ class PlatformEventProcessor {
             sendAndCacheEvents(eventRequests: eventRequests, cacheProperties: cacheProperties)
         } catch {
             RoktLogger.shared.error("Failed to process platform events", error: error)
-            RoktLogger.shared.debug("Event payload that failed: \(eventPayload)")
-            RoktAPIHelper.sendEvents(events: (eventPayload["events"] as? [[String: Any]]) ?? [])
+            RoktLogger.shared.debug("Event payload that failed: \(payload)")
+            RoktAPIHelper.sendEvents(events: (payload["events"] as? [[String: Any]]) ?? [])
         }
+    }
+
+    // UTYP-1422: rokt-ux-helper-ios emits SignalCartItemForwardPayment{Initiated,Success,Failure}
+    // which /v2/events rejects as InvalidEventType. Rewrite Initiated to the accepted
+    // SignalCartItemInstantPurchaseInitiated; drop Success/Failure since
+    // upsells/3p-retail-provider already emits the equivalent server-side.
+    static func rewriteForwardPaymentEvents(_ payload: [String: Any]) -> [String: Any] {
+        guard let events = payload["events"] as? [[String: Any]] else { return payload }
+        let rewritten: [[String: Any]] = events.compactMap { event in
+            guard let eventType = event[eventTypeKey] as? String else { return event }
+            switch eventType {
+            case RoktUXEventType.SignalCartItemForwardPaymentInitiated.rawValue:
+                var mutated = event
+                mutated[eventTypeKey] = RoktUXEventType.SignalCartItemInstantPurchaseInitiated.rawValue
+                return mutated
+            case RoktUXEventType.SignalCartItemForwardPaymentSuccess.rawValue,
+                 RoktUXEventType.SignalCartItemForwardPaymentFailure.rawValue:
+                return nil
+            default:
+                return event
+            }
+        }
+        var newPayload = payload
+        newPayload["events"] = rewritten
+        return newPayload
     }
 
     func getEventParams(_ event: RoktEventRequest) -> [String: Any] {

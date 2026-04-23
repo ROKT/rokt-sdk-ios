@@ -75,6 +75,63 @@ class TestPlatformEventProcessor: XCTestCase {
         XCTAssertEqual(event?.identifier, "1")
     }
 
+    // MARK: - Forward-payment rewrite (UTYP-1422)
+
+    func test_forwardPaymentInitiated_rewrittenToInstantPurchaseInitiated() throws {
+        let payload = mockEventsPayload(
+            events: [
+                .mock(eventType: .SignalCartItemForwardPaymentInitiated)
+            ]
+        )!
+
+        let rewritten = PlatformEventProcessor.rewriteForwardPaymentEvents(payload)
+        let events = try XCTUnwrap(rewritten["events"] as? [[String: Any]])
+        XCTAssertEqual(events.count, 1)
+        XCTAssertEqual(events[0]["eventType"] as? String, "SignalCartItemInstantPurchaseInitiated")
+    }
+
+    func test_forwardPaymentInitiated_triggersInitiateInstantPurchaseState() {
+        let payload = mockEventsPayload(
+            events: [
+                .mock(eventType: .SignalCartItemForwardPaymentInitiated)
+            ]
+        )!
+        sut.process(payload, executeId: "1", cacheProperties: nil)
+
+        XCTAssertTrue(mockStateManager.initiateInstantPurchaseCalled,
+                      "Rewritten Initiated signal should participate in instant-purchase state tracking")
+    }
+
+    func test_forwardPaymentSuccessAndFailure_droppedFromPayload() throws {
+        let payload = mockEventsPayload(
+            events: [
+                .mock(eventType: .SignalCartItemForwardPaymentSuccess),
+                .mock(eventType: .SignalCartItemForwardPaymentFailure),
+                .mock(eventType: .SignalImpression)
+            ]
+        )!
+
+        let rewritten = PlatformEventProcessor.rewriteForwardPaymentEvents(payload)
+        let events = try XCTUnwrap(rewritten["events"] as? [[String: Any]])
+        XCTAssertEqual(events.count, 1, "Success and Failure must be dropped; unrelated events preserved")
+        XCTAssertEqual(events[0]["eventType"] as? String, "SignalImpression")
+    }
+
+    func test_nonForwardPaymentEvents_passThroughUnchanged() throws {
+        let payload = mockEventsPayload(
+            events: [
+                .mock(eventType: .SignalImpression),
+                .mock(eventType: .SignalCartItemInstantPurchaseInitiated)
+            ]
+        )!
+
+        let rewritten = PlatformEventProcessor.rewriteForwardPaymentEvents(payload)
+        let events = try XCTUnwrap(rewritten["events"] as? [[String: Any]])
+        XCTAssertEqual(events.count, 2)
+        XCTAssertEqual(events[0]["eventType"] as? String, "SignalImpression")
+        XCTAssertEqual(events[1]["eventType"] as? String, "SignalCartItemInstantPurchaseInitiated")
+    }
+
     func test_insert_ProcessedEvent() {
         let eventRequest = EventRequest(
             sessionId: "session1",
