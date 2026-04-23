@@ -1,4 +1,5 @@
 import Foundation
+internal import RoktUXHelper
 
 struct ShippingAttributes {
     let address1: String
@@ -34,6 +35,21 @@ struct ShippingAttributes {
         self.lastName = lastName
         self.companyName = companyName
         self.countryCode = countryCode
+    }
+
+    /// Creates ShippingAttributes from a backend-supplied `TransactionData.shippingAddress`.
+    /// Prefers `stateCode`/`countryCode` when populated (matches backend expectations),
+    /// falling back to `state`/`country`. Name fields are not emitted — shipping
+    /// attributes are address-only.
+    init(from address: RoktUXHelper.Address) {
+        self.init(
+            address1: address.address1,
+            city: address.city,
+            state: address.stateCode.isEmpty ? address.state : address.stateCode,
+            postalCode: address.zip ?? "",
+            country: address.countryCode.isEmpty ? address.country : address.countryCode,
+            address2: address.address2
+        )
     }
 
     /// Creates ShippingAttributes from a RoktContracts ContactAddress.
