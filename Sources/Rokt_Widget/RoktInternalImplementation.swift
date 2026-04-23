@@ -39,7 +39,7 @@ class RoktInternalImplementation {
                                                               featureFlags: [:])
     var processedTimingsRequests: TimingsRequestProcessor?
 
-    private var stateManager: StateBagManaging = StateBagManager()
+    var stateManager: StateBagManaging = StateBagManager()
     private var clientTimeoutMilliseconds: Double = RoktInternalImplementation.defaultTimeout
     private var defaultLaunchDelayMilliseconds: Double = RoktInternalImplementation.defaultDelay
     private var loadingFonts = false
@@ -517,21 +517,9 @@ class RoktInternalImplementation {
             upsellItems: [item],
             paymentDetails: PurchasePaymentDetails(
                 token: nil,
-                partnerPaymentReference: event.partnerPaymentReference
+                partnerPaymentReference: event.transactionData?.partnerPaymentReference
             ),
             fulfillmentDetails: fulfillmentDetails
-        )
-    }
-
-    /// Build `FulfillmentDetails` from partner-supplied shipping attributes.
-    /// Returns `nil` if no shipping address was provided — caller should fall
-    /// through to a server-side error rather than sending `{}`.
-    func buildFulfillmentDetailsFromAttributes() -> FulfillmentDetails? {
-        guard let contactAddress = buildContactAddressFromAttributes() else {
-            return nil
-        }
-        return FulfillmentDetails(
-            shippingAttributes: ShippingAttributes(from: contactAddress)
         )
     }
 
@@ -552,9 +540,11 @@ class RoktInternalImplementation {
         return (false, failureReason)
     }
 
-    private func handleForwardPayment(executeId: String,
-                                      event: RoktUXEvent.CartItemForwardPayment) {
-        let fulfillmentDetails = buildFulfillmentDetailsFromAttributes()
+    func handleForwardPayment(executeId: String,
+                              event: RoktUXEvent.CartItemForwardPayment) {
+        let fulfillmentDetails = event.transactionData?.shippingAddress.map {
+            FulfillmentDetails(shippingAttributes: ShippingAttributes(from: $0))
+        }
         guard let request = Self.buildForwardPaymentRequest(
             from: event,
             fulfillmentDetails: fulfillmentDetails
