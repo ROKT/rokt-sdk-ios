@@ -27,6 +27,10 @@ class PlatformEventProcessor {
                  executeId: String,
                  cacheProperties: LayoutPageCacheProperties?) {
         let payload = Self.rewriteForwardPaymentEvents(eventPayload)
+        // Skip the send when the rewrite drops every event — /v2/events rejects empty payloads as 400.
+        if let events = payload["events"] as? [[String: Any]], events.isEmpty {
+            return
+        }
         do {
             let data = try JSONSerialization.data(withJSONObject: payload, options: [])
 

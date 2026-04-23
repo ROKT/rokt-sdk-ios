@@ -117,6 +117,22 @@ class TestPlatformEventProcessor: XCTestCase {
         XCTAssertEqual(events[0]["eventType"] as? String, "SignalImpression")
     }
 
+    func test_forwardPaymentSuccessOnly_collapsesToEmptyEvents() throws {
+        // Precondition for the process() early-return: a standalone Success/Failure payload
+        // (what ux-helper fires after /cart/purchase returns) must collapse to zero events,
+        // so PlatformEventProcessor.process must skip the send — otherwise /v2/events returns
+        // 400 InvalidRequestPayload on an empty events array.
+        let payload = mockEventsPayload(
+            events: [
+                .mock(eventType: .SignalCartItemForwardPaymentSuccess)
+            ]
+        )!
+
+        let rewritten = PlatformEventProcessor.rewriteForwardPaymentEvents(payload)
+        let events = try XCTUnwrap(rewritten["events"] as? [[String: Any]])
+        XCTAssertTrue(events.isEmpty)
+    }
+
     func test_nonForwardPaymentEvents_passThroughUnchanged() throws {
         let payload = mockEventsPayload(
             events: [
