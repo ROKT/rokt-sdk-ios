@@ -5,6 +5,32 @@ import Mocker
 class TestNetworkingHelper: XCTestCase {
 
     private static let headerPageIdentifierKey = "rokt-page-identifier"
+    private static let headerSessionIdKey = "rokt-session-id"
+
+    private func makeForwardPaymentRequest() -> PurchaseRequest {
+        let item = UpsellItem(
+            cartItemId: "cart-id",
+            catalogItemId: "catalog-id",
+            quantity: 1,
+            unitPrice: 9.99,
+            totalPrice: 9.99,
+            currency: "USD"
+        )
+
+        return PurchaseRequest(
+            totalUpsellPrice: 9.99,
+            currency: "USD",
+            upsellItems: [item],
+            paymentDetails: PurchasePaymentDetails(token: nil, partnerPaymentReference: "ref-1"),
+            fulfillmentDetails: nil
+        )
+    }
+
+    private func makeMockHTTPClient() -> RoktHTTPClient {
+        let configuration = URLSessionConfiguration.default
+        configuration.protocolClasses = [MockingURLProtocol.self]
+        return RoktHTTPClient(sessionConfiguration: configuration)
+    }
 
     func test_updateMParticleKitDetails() {
         let mParticleKitDetails = MParticleKitDetails(sdkVersion: "1.2.3", kitVersion: "4.5.6")
@@ -199,6 +225,174 @@ class TestNetworkingHelper: XCTestCase {
                 XCTAssertNil(statusCode)
                 XCTAssertEqual(response, expectedError)
                 expectation.fulfill()
+            }
+        )
+
+        waitForExpectations(timeout: 2.0)
+    }
+
+    func test_forwardPayment_invokesFailure_whenTagIdMissing() {
+        let expectation = expectation(description: "forwardPayment fails without tag id")
+        let originalTagId = Rokt.shared.roktImplementation.roktTagId
+        Rokt.shared.roktImplementation.roktTagId = nil
+
+        defer {
+            Rokt.shared.roktImplementation.roktTagId = originalTagId
+        }
+
+        let item = UpsellItem(
+            cartItemId: "cart-id",
+            catalogItemId: "catalog-id",
+            quantity: 1,
+            unitPrice: 9.99,
+            totalPrice: 9.99,
+            currency: "USD"
+        )
+        let request = PurchaseRequest(
+            totalUpsellPrice: 9.99,
+            currency: "USD",
+            upsellItems: [item],
+            paymentDetails: PurchasePaymentDetails(token: nil, partnerPaymentReference: "ref-1"),
+            fulfillmentDetails: nil
+        )
+
+        RoktNetWorkAPI.forwardPayment(
+            request: request,
+            success: { _ in
+                XCTFail("Expected forwardPayment to fail when tag id is missing")
+            },
+            failure: { error, statusCode, response in
+                let expectedError = "Missing Rokt tag ID for forward-payment request"
+                XCTAssertEqual(error.localizedDescription, expectedError)
+                XCTAssertNil(statusCode)
+                XCTAssertEqual(response, expectedError)
+                expectation.fulfill()
+            }
+        )
+
+        waitForExpectations(timeout: 2.0)
+    }
+
+    func test_forwardPayment_decodesSuccess_andIncludesSessionIdHeader() {
+        let expectation = expectation(description: "forwardPayment succeeds")
+        var capturedRequest: URLRequest?
+        let originalEnvironment = config.environment
+        let originalTagId = Rokt.shared.roktImplementation.roktTagId
+        let originalSessionId = Rokt.shared.roktImplementation.sessionManager.getCurrentSessionIdWithoutExpiring()
+
+        defer {
+            config.environment = originalEnvironment
+            Rokt.shared.roktImplementation.roktTagId = originalTagId
+            Rokt.shared.roktImplementation.sessionManager.updateSessionId(newSessionId: originalSessionId)
+        }
+
+        Rokt.setEnvironment(environment: .Stage)
+        Rokt.shared.roktImplementation.roktTagId = "test-tag-id"
+        Rokt.shared.roktImplementation.sessionManager.updateSessionId(newSessionId: "session-123")
+
+        let purchaseURL = URL(string: "https://mobile-api.stage.rokt.com/v1/cart/purchase")!
+        var mock = Mock(url: purchaseURL, dataType: .json, statusCode: 200, data: [
+            .post: Data(#"{"success":true}"#.utf8)
+        ])
+        mock.onRequest = { request, _ in
+            capturedRequest = request
+        }
+        mock.register()
+        NetworkingHelper.shared.httpClient = makeMockHTTPClient()
+
+        RoktNetWorkAPI.forwardPayment(
+            request: makeForwardPaymentRequest(),
+            success: { response in
+                XCTAssertTrue(response.success)
+                XCTAssertNil(response.reason)
+                expectation.fulfill()
+            },
+            failure: { _, _, _ in
+                XCTFail("Expected forwardPayment to decode a successful response")
+            }
+        )
+
+        waitForExpectations(timeout: 2.0)
+
+        XCTAssertEqual(capturedRequest?.httpMethod, "POST")
+        XCTAssertEqual(
+            capturedRequest?.allHTTPHeaderFields?[Self.headerSessionIdKey],
+            "session-123"
+        )
+        XCTAssertEqual(
+            capturedRequest?.allHTTPHeaderFields?[HTTPHeader.contentType],
+            HTTPHeader.Value.applicationJSON
+        )
+    }
+
+    func test_forwardPayment_invokesFailure_whenResponseCannotBeDecoded() {
+        let expectation = expectation(description: "forwardPayment decode failure")
+        let originalEnvironment = config.environment
+        let originalTagId = Rokt.shared.roktImplementation.roktTagId
+
+        defer {
+            config.environment = originalEnvironment
+            Rokt.shared.roktImplementation.roktTagId = originalTagId
+        }
+
+        Rokt.setEnvironment(environment: .Stage)
+        Rokt.shared.roktImplementation.roktTagId = "test-tag-id"
+
+        let purchaseURL = URL(string: "https://mobile-api.stage.rokt.com/v1/cart/purchase")!
+        let mock = Mock(url: purchaseURL, dataType: .json, statusCode: 200, data: [
+            .post: Data(#"{"reason":"missing success"}"#.utf8)
+        ])
+        mock.register()
+        NetworkingHelper.shared.httpClient = makeMockHTTPClient()
+
+        RoktNetWorkAPI.forwardPayment(
+            request: makeForwardPaymentRequest(),
+            success: { _ in
+                XCTFail("Expected forwardPayment to fail when decoding invalid JSON")
+            },
+            failure: { error, statusCode, response in
+                XCTAssertEqual(
+                    error.localizedDescription,
+                    "Failed to parse forward-payment response"
+                )
+                XCTAssertEqual(statusCode, 200)
+                XCTAssertEqual(response, "Failed to parse response")
+                expectation.fulfill()
+            }
+        )
+
+        waitForExpectations(timeout: 2.0)
+    }
+
+    func test_RoktAPIHelper_forwardPayment_usesNetworkPath_outsideMockEnvironment() {
+        let expectation = expectation(description: "RoktAPIHelper forwards to network API")
+        let originalEnvironment = config.environment
+        let originalTagId = Rokt.shared.roktImplementation.roktTagId
+
+        defer {
+            config.environment = originalEnvironment
+            Rokt.shared.roktImplementation.roktTagId = originalTagId
+        }
+
+        Rokt.setEnvironment(environment: .Stage)
+        Rokt.shared.roktImplementation.roktTagId = "test-tag-id"
+
+        let purchaseURL = URL(string: "https://mobile-api.stage.rokt.com/v1/cart/purchase")!
+        let mock = Mock(url: purchaseURL, dataType: .json, statusCode: 200, data: [
+            .post: Data(#"{"success":false,"reason":"Declined"}"#.utf8)
+        ])
+        mock.register()
+        NetworkingHelper.shared.httpClient = makeMockHTTPClient()
+
+        RoktAPIHelper.forwardPayment(
+            request: makeForwardPaymentRequest(),
+            success: { response in
+                XCTAssertFalse(response.success)
+                XCTAssertEqual(response.reason, "Declined")
+                expectation.fulfill()
+            },
+            failure: { _, _, _ in
+                XCTFail("Expected RoktAPIHelper.forwardPayment to use the network path")
             }
         )
 

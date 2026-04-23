@@ -16,6 +16,8 @@ class RoktInternalImplementation {
     private static let trackingConsentError = "tracking consent not authorised"
     private static let cacheDurationKey = "cacheDuration"
     private static let cacheAttributesKey = "cacheAttributeKeys"
+    static let missingForwardPaymentPriceReason = "Missing price on forward-payment event"
+    static let unknownForwardPaymentFailureReason = "Unknown failure reason"
     static let defaultTimeout: Double = 9000
     static let defaultFontTimeout: Double = 30 // second
     static let defaultDelay: Double = 1000
@@ -130,6 +132,21 @@ class RoktInternalImplementation {
         guard let state = stateManager.getState(id: executeId),
               let uxHelper = state.uxHelper as? RoktUX else { return }
         uxHelper.devicePayFinalized(layoutId: layoutId, catalogItemId: catalogItemId, success: success)
+    }
+
+    private func forwardPaymentFinalized(executeId: String,
+                                         layoutId: String,
+                                         catalogItemId: String,
+                                         success: Bool,
+                                         failureReason: String? = nil) {
+        guard let state = stateManager.getState(id: executeId),
+              let uxHelper = state.uxHelper as? RoktUX else { return }
+        uxHelper.forwardPaymentFinalized(
+            layoutId: layoutId,
+            catalogItemId: catalogItemId,
+            success: success,
+            failureReason: failureReason
+        )
     }
 
     /// Map a UX-helper `Address` (from backend `TransactionData`) to the contracts
@@ -441,9 +458,145 @@ class RoktInternalImplementation {
                     success: success
                 )
             }
+        } else if let event = uxEvent as? RoktUXEvent.CartItemForwardPayment {
+            handleForwardPayment(executeId: executeId, event: event)
         } else {
             callOnRoktEvent(executeId, event: uxEvent.mapToRoktEvent)
         }
+    }
+
+    /// Resolve the unit and total price for a forward-payment event.
+    ///
+    /// - If both are present, use them as-is.
+    /// - If only `unitPrice` is present, derive `totalPrice = unitPrice * quantity`.
+    /// - If only `totalPrice` is present, derive `unitPrice = totalPrice / quantity`
+    ///   (requires `quantity > 0`).
+    /// - Returns `nil` if neither is present, or if only `totalPrice` is present
+    ///   with a non-positive `quantity`.
+    static func resolveForwardPaymentPrices(
+        unitPrice: Decimal?,
+        totalPrice: Decimal?,
+        quantity: Decimal
+    ) -> (unitPrice: Decimal, totalPrice: Decimal)? {
+        switch (unitPrice, totalPrice) {
+        case let (unit?, total?):
+            return (unit, total)
+        case let (unit?, nil):
+            return (unit, unit * quantity)
+        case let (nil, total?) where quantity > 0:
+            return (total/quantity, total)
+        default:
+            return nil
+        }
+    }
+
+    static func buildForwardPaymentRequest(
+        from event: RoktUXEvent.CartItemForwardPayment,
+        fulfillmentDetails: FulfillmentDetails? = nil
+    ) -> PurchaseRequest? {
+        guard let prices = resolveForwardPaymentPrices(
+            unitPrice: event.unitPrice,
+            totalPrice: event.totalPrice,
+            quantity: event.quantity
+        ) else {
+            return nil
+        }
+
+        let item = UpsellItem(
+            cartItemId: event.cartItemId,
+            catalogItemId: event.catalogItemId,
+            quantity: event.quantity,
+            unitPrice: prices.unitPrice,
+            totalPrice: prices.totalPrice,
+            currency: event.currency
+        )
+
+        return PurchaseRequest(
+            totalUpsellPrice: prices.totalPrice,
+            currency: event.currency,
+            upsellItems: [item],
+            paymentDetails: PurchasePaymentDetails(
+                token: nil,
+                partnerPaymentReference: event.partnerPaymentReference
+            ),
+            fulfillmentDetails: fulfillmentDetails
+        )
+    }
+
+    /// Build `FulfillmentDetails` from partner-supplied shipping attributes.
+    /// Returns `nil` if no shipping address was provided — caller should fall
+    /// through to a server-side error rather than sending `{}`.
+    func buildFulfillmentDetailsFromAttributes() -> FulfillmentDetails? {
+        guard let contactAddress = buildContactAddressFromAttributes() else {
+            return nil
+        }
+        return FulfillmentDetails(
+            shippingAttributes: ShippingAttributes(from: contactAddress)
+        )
+    }
+
+    static func resolveForwardPaymentFinalization(
+        from response: PurchaseResponse
+    ) -> (success: Bool, failureReason: String?) {
+        if response.success {
+            return (true, nil)
+        }
+
+        return (false, response.reason ?? unknownForwardPaymentFailureReason)
+    }
+
+    static func resolveForwardPaymentFinalization(
+        fromFailureMessage message: String
+    ) -> (success: Bool, failureReason: String?) {
+        let failureReason = message.isEmpty ? unknownForwardPaymentFailureReason : message
+        return (false, failureReason)
+    }
+
+    private func handleForwardPayment(executeId: String,
+                                      event: RoktUXEvent.CartItemForwardPayment) {
+        let fulfillmentDetails = buildFulfillmentDetailsFromAttributes()
+        guard let request = Self.buildForwardPaymentRequest(
+            from: event,
+            fulfillmentDetails: fulfillmentDetails
+        ) else {
+            RoktLogger.shared.warning(
+                "Forward-payment event missing price or has non-positive quantity"
+            )
+            forwardPaymentFinalized(
+                executeId: executeId,
+                layoutId: event.layoutId,
+                catalogItemId: event.catalogItemId,
+                success: false,
+                failureReason: Self.missingForwardPaymentPriceReason
+            )
+            return
+        }
+
+        RoktAPIHelper.forwardPayment(
+            request: request,
+            success: { [weak self] response in
+                let finalization = Self.resolveForwardPaymentFinalization(from: response)
+                self?.forwardPaymentFinalized(
+                    executeId: executeId,
+                    layoutId: event.layoutId,
+                    catalogItemId: event.catalogItemId,
+                    success: finalization.success,
+                    failureReason: finalization.failureReason
+                )
+            },
+            failure: { [weak self] _, _, message in
+                let finalization = Self.resolveForwardPaymentFinalization(
+                    fromFailureMessage: message
+                )
+                self?.forwardPaymentFinalized(
+                    executeId: executeId,
+                    layoutId: event.layoutId,
+                    catalogItemId: event.catalogItemId,
+                    success: finalization.success,
+                    failureReason: finalization.failureReason
+                )
+            }
+        )
     }
 
     private func callOnRoktEvent(_ executeId: String,
