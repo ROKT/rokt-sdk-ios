@@ -165,7 +165,10 @@ final class PaymentOrchestrator {
 
                 let preparation = PaymentPreparation(
                     clientSecret: clientSecret,
-                    merchantId: merchantId
+                    merchantId: merchantId,
+                    totalAmount: response.paymentDetails.totalAmount,
+                    shippingCost: response.paymentDetails.shippingCost,
+                    tax: response.paymentDetails.tax
                 )
                 completion(.success(preparation))
             },
