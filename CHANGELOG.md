@@ -9,6 +9,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [5.1.0] - 2026-04-24
+
+### Added
+
+- Emit Show/HideLoadingIndicator around /cart/purchase ([#133](https://github.com/ROKT/rokt-sdk-ios/pull/133))
+- Source forward-payment fulfillment from transactionData ([#139](https://github.com/ROKT/rokt-sdk-ios/pull/139))
+- Add cartItemForwardPayment event handling ([#128](https://github.com/ROKT/rokt-sdk-ios/pull/128))
+- Add PaymentExtensionAttributeEnricher to detect extension registration ([#132](https://github.com/ROKT/rokt-sdk-ios/pull/132))
+- Add attribute keyAdsExperienceType to signify Shoppable Ads ([#131](https://github.com/ROKT/rokt-sdk-ios/pull/131))
+- Add Afterpay payment support ([#130](https://github.com/ROKT/rokt-sdk-ios/pull/130))
+- Gate selectShoppableAds on post-purchase feature flags ([#127](https://github.com/ROKT/rokt-sdk-ios/pull/127))
+
+### Fixed
+
+- Bump ux-helper to 0.10.4 and clear instant-purchase state ([#142](https://github.com/ROKT/rokt-sdk-ios/pull/142))
+- Pass server totalAmount to payment preparation for Apple Pay ([#141](https://github.com/ROKT/rokt-sdk-ios/pull/141))
+- Emit missing Shoppable Ads payment events to partners ([#138](https://github.com/ROKT/rokt-sdk-ios/pull/138))
+- SDKE-433 move JSON deserialization to a separate thread ([#137](https://github.com/ROKT/rokt-sdk-ios/pull/137))
+- Add layoutsSchemaVersionHeader to initialize request ([#136](https://github.com/ROKT/rokt-sdk-ios/pull/136))
+- Add thread safety to FontManager static mutable state ([#124](https://github.com/ROKT/rokt-sdk-ios/pull/124))
+
+### Changed
+
+- Bump peter-evans/create-pull-request from 8.1.0 to 8.1.1 ([#135](https://github.com/ROKT/rokt-sdk-ios/pull/135))
+- Bump codecov/codecov-action from 5.5.4 to 6.0.0 ([#134](https://github.com/ROKT/rokt-sdk-ios/pull/134))
+- Harden GitHub Actions workflows (artipacked + zizmor CI) ([#123](https://github.com/ROKT/rokt-sdk-ios/pull/123))
+- Bump ffurrer2/extract-release-notes from 3.0.0 to 3.1.0 ([#122](https://github.com/ROKT/rokt-sdk-ios/pull/122))
+- Bump actions/upload-artifact from 6.0.0 to 7.0.1 ([#121](https://github.com/ROKT/rokt-sdk-ios/pull/121))
+- Bump maxim-lobanov/setup-xcode from 1.6.0 to 1.7.0 ([#119](https://github.com/ROKT/rokt-sdk-ios/pull/119))
+- Bump softprops/action-gh-release from 2.2.2 to 2.6.1 ([#120](https://github.com/ROKT/rokt-sdk-ios/pull/120))
+- Migration guide updates ([#118](https://github.com/ROKT/rokt-sdk-ios/pull/118))
+
 ## [5.0.0] - 2026-04-03
 
 ### Breaking Changes
@@ -305,7 +337,8 @@ For a complete migration walkthrough with before/after code examples, see the [v
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.0.0...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.1.0...HEAD
+[5.1.0]: https://github.com/ROKT/rokt-sdk-ios/compare/5.0.0...5.1.0
 [5.0.0]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.4...5.0.0
 [4.16.4]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.3...4.16.4
 [4.16.3]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.2...4.16.3
