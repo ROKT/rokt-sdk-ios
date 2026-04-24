@@ -66,10 +66,10 @@ class PlatformEventProcessor {
         }
     }
 
-    // UTYP-1422: rokt-ux-helper-ios emits SignalCartItemForwardPayment{Initiated,Success,Failure}
-    // which /v2/events rejects as InvalidEventType. Rewrite Initiated to the accepted
-    // SignalCartItemInstantPurchaseInitiated; drop Success/Failure since
-    // upsells/3p-retail-provider already emits the equivalent server-side.
+    // rokt-ux-helper-ios emits SignalCartItemForwardPayment{Initiated,Success,Failure} which
+    // /v2/events rejects as InvalidEventType. Rewrite Initiated to the accepted
+    // SignalCartItemInstantPurchaseInitiated; drop Success/Failure since the backend
+    // (upsells/3p-retail-provider) already emits the equivalent server-side.
     static func rewriteForwardPaymentEvents(_ payload: [String: Any]) -> [String: Any] {
         guard let events = payload["events"] as? [[String: Any]] else { return payload }
         let rewritten: [[String: Any]] = events.compactMap { event in
@@ -101,10 +101,10 @@ class PlatformEventProcessor {
         return params
     }
 
-    // UTYP-1422: `rewriteForwardPaymentEvents` drops SignalCartItemForwardPayment{Success,Failure}
-    // before decode, so `processInstantPurchase` never sees them. Inspect the raw payload here and
-    // finish the instant-purchase state explicitly so it doesn't stay stuck after a forward-payment
-    // flow completes.
+    // `rewriteForwardPaymentEvents` drops SignalCartItemForwardPayment{Success,Failure} before
+    // decode, so `processInstantPurchase` never sees them. Inspect the raw payload here and
+    // finish the instant-purchase state explicitly so it doesn't stay stuck after a
+    // forward-payment flow completes.
     private func finishInstantPurchaseForForwardPaymentCompletion(eventPayload: [String: Any],
                                                                   executeId: String) {
         guard let events = eventPayload["events"] as? [[String: Any]] else { return }

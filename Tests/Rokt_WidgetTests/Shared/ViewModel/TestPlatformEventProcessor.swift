@@ -75,7 +75,7 @@ class TestPlatformEventProcessor: XCTestCase {
         XCTAssertEqual(event?.identifier, "1")
     }
 
-    // MARK: - Forward-payment rewrite (UTYP-1422)
+    // MARK: - Forward-payment rewrite
 
     func test_forwardPaymentInitiated_rewrittenToInstantPurchaseInitiated() throws {
         // Include eventData so the assertion below also locks in that the rewrite
