@@ -300,6 +300,62 @@ class TestPaymentOrchestrator: XCTestCase {
         wait(for: [expectation], timeout: 1.0)
     }
 
+    func test_processPayment_preparePayment_plumbsTotalAmountTaxAndShipping() {
+        sut = PaymentOrchestrator(apiHelper: PaymentOrchestratorAPIHelperSpy.self)
+
+        let ext = MockPaymentExtension(id: "ext1", supportedMethods: [.applePay])
+        ext.shouldAutomaticallyCompletePayment = false
+        sut.register(ext, config: [:])
+
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = InitializePurchaseResponse(
+            success: true,
+            totalUpsellPrice: 80,
+            currency: "USD",
+            upsellItems: [],
+            paymentDetails: PaymentDetails(
+                gateway: "stripe",
+                merchantName: "Test Merchant",
+                merchantAccountId: "acct_test",
+                paymentIntentId: "pi_test",
+                clientSecret: "cs_test",
+                shippingCost: Decimal(string: "0")!,
+                tax: Decimal(string: "3.53")!,
+                totalAmount: Decimal(string: "83.53")!
+            )
+        )
+
+        let item = PaymentItem(id: "item1", name: "Widget", amount: 80, currency: "USD")
+        sut.processPayment(
+            method: .applePay,
+            item: item,
+            context: PaymentContext(),
+            cartItemId: "v1:cart-abc:canal",
+            from: UIViewController()
+        ) { _ in
+            XCTFail("Completion should not be called in this test")
+        }
+
+        guard let preparePayment = ext.capturedPreparePayment else {
+            XCTFail("Expected preparePayment callback to be captured")
+            return
+        }
+
+        let expectation = expectation(description: "preparePayment returns preparation with server amounts")
+        let address = ContactAddress(name: "Jane Doe", email: "jane@example.com")
+        preparePayment(address) { preparation, error in
+            XCTAssertNil(error)
+            XCTAssertNotNil(preparation)
+            XCTAssertEqual(preparation?.clientSecret, "cs_test")
+            XCTAssertEqual(preparation?.merchantId, "acct_test")
+            XCTAssertEqual(preparation?.totalAmount, NSDecimalNumber(string: "83.53"))
+            XCTAssertEqual(preparation?.shippingCost, NSDecimalNumber.zero)
+            XCTAssertEqual(preparation?.tax, NSDecimalNumber(string: "3.53"))
+            expectation.fulfill()
+        }
+
+        wait(for: [expectation], timeout: 1.0)
+    }
+
     func test_processPayment_preparePaymentFailsFast_whenResponseMissingRequiredFields() {
         sut = PaymentOrchestrator(apiHelper: PaymentOrchestratorAPIHelperSpy.self)
 
