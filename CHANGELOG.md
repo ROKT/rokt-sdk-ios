@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- Forward PayPal `paypalData.approvalUrl` from initialize-purchase into `PaymentPreparation` when present (requires a RoktContracts release that includes `PaymentPreparation.approvalUrl`; bump the resolved contracts revision when publishing).
+- Built-in PayPal: load the hosted approval URL from cart prepare in a `WKWebView`, detect redirects to `PaymentContext.returnURL` / `cancelURL`, complete the same flow when those URLs arrive as **deep links** via `Rokt.handleURLCallback`, and expose a swappable `PayPalApprovalPresenting` for testing.
+
 ## [5.1.0] - 2026-04-24
 
 ### Added

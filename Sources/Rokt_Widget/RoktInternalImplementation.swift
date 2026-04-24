@@ -187,6 +187,32 @@ class RoktInternalImplementation {
         )
     }
 
+    private func trimmedNonEmptyURLString(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    /// Resolves PayPal success redirect URL from `TransactionData.metadata`, then execute attributes.
+    private func paypalReturnURL(from transactionData: TransactionData?) -> String? {
+        let metadata = transactionData?.metadata ?? [:]
+        return trimmedNonEmptyURLString(metadata["returnURL"])
+            ?? trimmedNonEmptyURLString(metadata["returnUrl"])
+            ?? trimmedNonEmptyURLString(metadata["paypalReturnURL"])
+            ?? trimmedNonEmptyURLString(attributes["paypalreturnurl"])
+            ?? trimmedNonEmptyURLString(attributes["returnurl"])
+    }
+
+    /// Resolves PayPal cancel redirect URL from `TransactionData.metadata`, then execute attributes.
+    private func paypalCancelURL(from transactionData: TransactionData?) -> String? {
+        let metadata = transactionData?.metadata ?? [:]
+        return trimmedNonEmptyURLString(metadata["cancelURL"])
+            ?? trimmedNonEmptyURLString(metadata["cancelUrl"])
+            ?? trimmedNonEmptyURLString(metadata["paypalCancelURL"])
+            ?? trimmedNonEmptyURLString(attributes["paypalcancelurl"])
+            ?? trimmedNonEmptyURLString(attributes["cancelurl"])
+    }
+
     func setFrameworkType(_ frameworkType: RoktFrameworkType) {
         self.frameworkType = frameworkType
     }
@@ -383,6 +409,8 @@ class RoktInternalImplementation {
                 paymentMethod = .card
             case "Afterpay":
                 paymentMethod = .afterpay
+            case "Paypal", "PayPal":
+                paymentMethod = .paypal
             default:
                 RoktLogger.shared.error("Unsupported payment provider: \(event.paymentProvider.rawValue)")
                 devicePayFinalized(executeId: executeId, layoutId: event.layoutId,
@@ -403,13 +431,21 @@ class RoktInternalImplementation {
             // back to partner-supplied attributes if the offer did not include
             // transaction data (e.g. older backend versions).
             let context: PaymentContext
-            if paymentMethod == .afterpay {
+            switch paymentMethod {
+            case .afterpay, .paypal:
                 let billing = buildContactAddress(from: event.transactionData?.billingAddress)
                     ?? buildContactAddressFromAttributes()
                 let shipping = buildContactAddress(from: event.transactionData?.shippingAddress)
                     ?? buildContactAddressFromAttributes()
-                context = PaymentContext(billingAddress: billing, shippingAddress: shipping)
-            } else {
+                let returnURL = paymentMethod == .paypal ? paypalReturnURL(from: event.transactionData) : nil
+                let cancelURL = paymentMethod == .paypal ? paypalCancelURL(from: event.transactionData) : nil
+                context = PaymentContext(
+                    billingAddress: billing,
+                    shippingAddress: shipping,
+                    returnURL: returnURL,
+                    cancelURL: cancelURL
+                )
+            default:
                 context = PaymentContext()
             }
 

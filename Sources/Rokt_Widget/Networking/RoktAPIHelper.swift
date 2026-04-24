@@ -219,20 +219,28 @@ internal class RoktAPIHelper {
     /// - Parameters:
     ///   - upsellItems: Items being purchased
     ///   - shippingAttributes: Shipping address
+    ///   - returnURL: Optional redirect success URL (e.g. built-in PayPal)
+    ///   - cancelURL: Optional redirect cancel URL (e.g. built-in PayPal)
     ///   - success: Callback with the initialize-purchase response
     ///   - failure: Callback with error details
     class func initializePurchase(upsellItems: [UpsellItem],
                                   shippingAttributes: ShippingAttributes,
+                                  returnURL: String? = nil,
+                                  cancelURL: String? = nil,
                                   success: ((InitializePurchaseResponse) -> Void)? = nil,
                                   failure: ((Error, Int?, String) -> Void)? = nil) {
         if isMock() {
             RoktMockAPI.initializePurchase(upsellItems: upsellItems,
                                            shippingAttributes: shippingAttributes,
+                                           returnURL: returnURL,
+                                           cancelURL: cancelURL,
                                            success: success,
                                            failure: failure)
         } else {
             RoktNetWorkAPI.initializePurchase(upsellItems: upsellItems,
                                               shippingAttributes: shippingAttributes,
+                                              returnURL: returnURL,
+                                              cancelURL: cancelURL,
                                               success: success,
                                               failure: failure)
         }

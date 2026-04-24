@@ -5,6 +5,10 @@ struct InitializePurchaseRequest {
     let currency: String
     let upsellItems: [UpsellItem]
     let fulfillmentDetails: FulfillmentDetails?
+    /// PayPal (or other redirect) success URL for the cart initialize-purchase API.
+    let returnURL: String?
+    /// Optional cancel URL for the cart initialize-purchase API.
+    let cancelURL: String?
 
     func toDictionary() -> [String: Any] {
         var dict: [String: Any] = [
@@ -15,6 +19,12 @@ struct InitializePurchaseRequest {
 
         if let fulfillmentDetails {
             dict["fulfillmentDetails"] = fulfillmentDetails.toDictionary()
+        }
+        if let returnURL {
+            dict["returnURL"] = returnURL
+        }
+        if let cancelURL {
+            dict["cancelURL"] = cancelURL
         }
 
         return dict
