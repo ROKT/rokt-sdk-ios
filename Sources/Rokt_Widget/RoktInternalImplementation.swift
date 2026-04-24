@@ -139,6 +139,7 @@ class RoktInternalImplementation {
                                          catalogItemId: String,
                                          success: Bool,
                                          failureReason: String? = nil) {
+        defer { stateManager.finishInstantPurchase(id: executeId) }
         guard let state = stateManager.getState(id: executeId),
               let uxHelper = state.uxHelper as? RoktUX else { return }
         uxHelper.forwardPaymentFinalized(
