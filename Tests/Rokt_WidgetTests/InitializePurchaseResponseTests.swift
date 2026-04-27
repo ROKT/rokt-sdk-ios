@@ -3,7 +3,7 @@ import XCTest
 
 final class InitializePurchaseResponseTests: XCTestCase {
     func test_decode_mapsPayPalData_whenPresent() throws {
-        let json = """
+        let json = Data("""
         {
           "success": true,
           "totalUpsellPrice": 10,
@@ -29,7 +29,7 @@ final class InitializePurchaseResponseTests: XCTestCase {
             "approvalUrl": "https://www.paypal.com/checkoutnow?token=5O190127TN364715T"
           }
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let decoded = try JSONDecoder().decode(InitializePurchaseResponse.self, from: json)
         XCTAssertEqual(decoded.paypalData?.orderId, "5O190127TN364715T")
@@ -40,7 +40,7 @@ final class InitializePurchaseResponseTests: XCTestCase {
     }
 
     func test_decode_setsPayPalDataNil_whenKeyAbsent() throws {
-        let json = """
+        let json = Data("""
         {
           "success": true,
           "totalUpsellPrice": 10,
@@ -62,7 +62,7 @@ final class InitializePurchaseResponseTests: XCTestCase {
             "totalAmount": 10
           }
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let decoded = try JSONDecoder().decode(InitializePurchaseResponse.self, from: json)
         XCTAssertNil(decoded.paypalData)

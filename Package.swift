@@ -20,8 +20,8 @@ let package = Package(
         )
     ],
     dependencies: [
-        // https://github.com/ROKT/rokt-contracts-apple/pull/22 — PaymentContext.cancelURL, PaymentPreparation.approvalUrl
-        .package(url: "https://github.com/ROKT/rokt-contracts-apple.git", branch: "feat/Add-PayPal-Support-2"),
+        // PayPal fields: PaymentContext.cancelURL, PaymentPreparation.approvalUrl — https://github.com/ROKT/rokt-contracts-apple/releases/tag/2.0.1
+        .package(url: "https://github.com/ROKT/rokt-contracts-apple.git", .upToNextMajor(from: "2.0.1")),
         .package(url: "https://github.com/ROKT/rokt-ux-helper-ios.git", .upToNextMajor(from: "0.10.4")),
         .package(url: "https://github.com/WeTransfer/Mocker.git", .upToNextMajor(from: "2.0.0"))
     ],

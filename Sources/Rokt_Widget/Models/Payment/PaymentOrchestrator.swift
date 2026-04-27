@@ -163,6 +163,7 @@ final class PaymentOrchestrator {
     ///
     /// Runs the same cart ``initializePurchase`` preparation as extension-based flows, passing
     /// ``PaymentContext/returnURL`` and ``PaymentContext/cancelURL`` through to the API body when present.
+    /// For device pay from a placement, ``Rokt/setBuiltInPayPalRedirectURLScheme(_:)`` supplies those URLs on ``PaymentContext``.
     /// After cart prepare, presents PayPal's hosted approval URL (same role as the Orders API `approve` link).
     private func processBuiltInPayPalPayment(
         item: PaymentItem,

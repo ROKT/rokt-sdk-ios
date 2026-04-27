@@ -11,8 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ### Added
 
-- Forward PayPal `paypalData.approvalUrl` from initialize-purchase into `PaymentPreparation` when present (requires a RoktContracts release that includes `PaymentPreparation.approvalUrl`; bump the resolved contracts revision when publishing).
+- Forward PayPal `paypalData.approvalUrl` from initialize-purchase into `PaymentPreparation` when present (depends on **RoktContracts** 2.0.1+).
 - Built-in PayPal: load the hosted approval URL from cart prepare in a `WKWebView`, detect redirects to `PaymentContext.returnURL` / `cancelURL`, complete the same flow when those URLs arrive as **deep links** via `Rokt.handleURLCallback`, and expose a swappable `PayPalApprovalPresenting` for testing.
+- `Rokt.setBuiltInPayPalRedirectURLScheme(_:)` — **required** for built-in PayPal **device pay**: composes return/cancel as `\(scheme)://rokt-paypal-return` and `\(scheme)://rokt-paypal-cancel` (bare scheme must appear under `CFBundleURLSchemes` in `Info.plist`). Pass `nil` only to clear configuration (PayPal device pay will not proceed until set again).
+
+### Changed
+
+- **RoktContracts** SwiftPM dependency: require [2.0.1](https://github.com/ROKT/rokt-contracts-apple/releases/tag/2.0.1)+ (replaces branch pin). CocoaPods spec now requires RoktContracts `>= 2.0.1`, `< 3.0`.
+- Built-in PayPal device pay no longer reads return/cancel URLs from placement **`TransactionData`** metadata or execute **attributes**; the scheme-based URLs above are the only source.
 
 ## [5.1.0] - 2026-04-24
 

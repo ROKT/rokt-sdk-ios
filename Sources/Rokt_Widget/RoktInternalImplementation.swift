@@ -21,6 +21,9 @@ class RoktInternalImplementation {
     static let defaultTimeout: Double = 9000
     static let defaultFontTimeout: Double = 30 // second
     static let defaultDelay: Double = 1000
+    private static let builtInPayPalMissingRedirectSchemeMessage =
+        "Rokt: Built-in PayPal device pay requires Rokt.setBuiltInPayPalRedirectURLScheme(_:) "
+            + "with a bare URL scheme registered in Info.plist (CFBundleURLTypes / CFBundleURLSchemes)."
 
     private var fontLoadObservers: [NSObjectProtocol] = []
 
@@ -70,6 +73,10 @@ class RoktInternalImplementation {
 
     // Payment orchestrator for Shoppable Ads
     private lazy var paymentOrchestrator = PaymentOrchestrator()
+
+    /// Bare URL scheme (no `://`) for built-in PayPal device-pay redirects: `\(scheme)://rokt-paypal-return` / `rokt-paypal-cancel`.
+    /// Set via ``Rokt/setBuiltInPayPalRedirectURLScheme(_:)`` before PayPal device pay; required for that flow.
+    private var builtInPayPalRedirectURLScheme: String?
 
     var isPaymentExtensionRegistered: Bool { paymentOrchestrator.hasRegisteredExtension }
 
@@ -187,30 +194,30 @@ class RoktInternalImplementation {
         )
     }
 
-    private func trimmedNonEmptyURLString(_ value: String?) -> String? {
-        guard let value else { return nil }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
-
-    /// Resolves PayPal success redirect URL from `TransactionData.metadata`, then execute attributes.
-    private func paypalReturnURL(from transactionData: TransactionData?) -> String? {
-        let metadata = transactionData?.metadata ?? [:]
-        return trimmedNonEmptyURLString(metadata["returnURL"])
-            ?? trimmedNonEmptyURLString(metadata["returnUrl"])
-            ?? trimmedNonEmptyURLString(metadata["paypalReturnURL"])
-            ?? trimmedNonEmptyURLString(attributes["paypalreturnurl"])
-            ?? trimmedNonEmptyURLString(attributes["returnurl"])
-    }
-
-    /// Resolves PayPal cancel redirect URL from `TransactionData.metadata`, then execute attributes.
-    private func paypalCancelURL(from transactionData: TransactionData?) -> String? {
-        let metadata = transactionData?.metadata ?? [:]
-        return trimmedNonEmptyURLString(metadata["cancelURL"])
-            ?? trimmedNonEmptyURLString(metadata["cancelUrl"])
-            ?? trimmedNonEmptyURLString(metadata["paypalCancelURL"])
-            ?? trimmedNonEmptyURLString(attributes["paypalcancelurl"])
-            ?? trimmedNonEmptyURLString(attributes["cancelurl"])
+    /// Configures the host app’s custom URL scheme for built-in PayPal return/cancel deep links.
+    /// - Returns: `false` if a non-empty scheme is invalid or not listed under `CFBundleURLSchemes` in `Info.plist` (when not running under XCTest).
+    @discardableResult
+    func setBuiltInPayPalRedirectURLScheme(_ scheme: String?) -> Bool {
+        guard let scheme, !scheme.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            builtInPayPalRedirectURLScheme = nil
+            return true
+        }
+        let trimmed = scheme.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard PayPalRedirectURLSchemeValidator.isValidBareScheme(trimmed) else {
+            RoktLogger.shared.error(
+                "Rokt: built-in PayPal redirect URL scheme must be a bare scheme (no \"://\" or path segments)."
+            )
+            return false
+        }
+        if PayPalRedirectURLSchemeValidator.shouldValidateAgainstInfoPlist,
+           !PayPalRedirectURLSchemeValidator.isSchemeRegistered(trimmed, in: .main) {
+            RoktLogger.shared.error(
+                "Rokt: URL scheme '\(trimmed)' is not registered under CFBundleURLSchemes in Info.plist."
+            )
+            return false
+        }
+        builtInPayPalRedirectURLScheme = trimmed
+        return true
     }
 
     func setFrameworkType(_ frameworkType: RoktFrameworkType) {
@@ -437,8 +444,22 @@ class RoktInternalImplementation {
                     ?? buildContactAddressFromAttributes()
                 let shipping = buildContactAddress(from: event.transactionData?.shippingAddress)
                     ?? buildContactAddressFromAttributes()
-                let returnURL = paymentMethod == .paypal ? paypalReturnURL(from: event.transactionData) : nil
-                let cancelURL = paymentMethod == .paypal ? paypalCancelURL(from: event.transactionData) : nil
+                let returnURL: String?
+                let cancelURL: String?
+                if paymentMethod == .paypal {
+                    guard let scheme = builtInPayPalRedirectURLScheme else {
+                        RoktLogger.shared.error(Self.builtInPayPalMissingRedirectSchemeMessage)
+                        devicePayFinalized(executeId: executeId, layoutId: event.layoutId,
+                                           catalogItemId: event.catalogItemId, success: false)
+                        return
+                    }
+                    let urls = BuiltInPayPalRedirectURLs.returnAndCancelURLs(forBareScheme: scheme)
+                    returnURL = urls.returnURL
+                    cancelURL = urls.cancelURL
+                } else {
+                    returnURL = nil
+                    cancelURL = nil
+                }
                 context = PaymentContext(
                     billingAddress: billing,
                     shippingAddress: shipping,
