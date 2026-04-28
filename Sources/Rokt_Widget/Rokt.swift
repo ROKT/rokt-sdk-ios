@@ -149,7 +149,7 @@ internal import RoktUXHelper
     /// Must be called before `initWith(roktTagId:)`.
     /// Non-HTTPS URLs or URLs with a missing/empty host are rejected with a warning.
     /// Any path, query, or fragment on the URL is ignored — only the scheme, host, and port are used.
-    @objc public static func setCustomBaseURL(_ url: URL) {
+    public static func setCustomBaseURL(_ url: URL) {
         guard url.scheme == "https", let host = url.host, !host.isEmpty else {
             RoktLogger.shared.warning("Rokt: custom base URL must use HTTPS and include a valid host - ignored.")
             return
