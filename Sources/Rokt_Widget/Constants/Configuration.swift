@@ -1,11 +1,13 @@
 import UIKit
 
-internal enum Environment: String {
-    case Mock = "MOCK"
-    case Stage = "STAGE"
-    case Prod = "PROD"
-    case ProdDemo = "PRODDEMO"
+internal enum Environment: Equatable {
+    case Mock
+    case Stage
+    case Prod
+    case ProdDemo
     case Local
+    case custom(baseURL: String)
+
     var baseURL: String {
         switch self {
         case .Mock: return ""
@@ -13,6 +15,7 @@ internal enum Environment: String {
         case .Prod: return "https://mobile-api.rokt.com"
         case .ProdDemo: return "https://mobile-api-demo.rokt.com"
         case .Local: return "http://localhost:9011"
+        case .custom(let url): return url
         }
     }
 }
@@ -21,11 +24,11 @@ internal struct Configuration {
     lazy var environment: Environment = {
 
         if let configuration = Bundle.main.object(forInfoDictionaryKey: "Configuration") as? String {
-            if configuration.contains(Environment.Stage.rawValue) {
+            if configuration.contains("STAGE") {
                 return Environment.Stage
-            } else if configuration.contains(Environment.ProdDemo.rawValue) {
+            } else if configuration.contains("PRODDEMO") {
                 return Environment.ProdDemo
-            } else if configuration.contains(Environment.Mock.rawValue) {
+            } else if configuration.contains("MOCK") {
                 return Environment.Mock
             }
         }

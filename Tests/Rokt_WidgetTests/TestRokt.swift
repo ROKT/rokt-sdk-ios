@@ -18,6 +18,22 @@ class TestRokt: XCTestCase {
         // Put teardown code here. This method is called after the invocation of each test method in the class.
     }
 
+    func test_setCustomBaseURL_setsCustomEnvironment() {
+        Rokt.setCustomBaseURL(URL(string: "https://rkt.example.com")!)
+        XCTAssertEqual(baseURL, "https://rkt.example.com")
+    }
+
+    func test_setCustomBaseURL_stripsTrailingSlash() {
+        Rokt.setCustomBaseURL(URL(string: "https://rkt.example.com/")!)
+        XCTAssertEqual(baseURL, "https://rkt.example.com")
+    }
+
+    func test_setCustomBaseURL_rejectsNonHTTPS() {
+        let originalBaseURL = baseURL
+        Rokt.setCustomBaseURL(URL(string: "http://rkt.example.com")!)
+        XCTAssertEqual(baseURL, originalBaseURL)
+    }
+
     func test_setEnvironment_valid_Stage() {
         Rokt.setEnvironment(environment: .Stage)
         XCTAssertEqual(config.environment, Environment.Stage)

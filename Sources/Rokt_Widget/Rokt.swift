@@ -145,6 +145,19 @@ internal import RoktUXHelper
         config = Configuration(environment: Configuration.getEnvironment(environment))
     }
 
+    /// Routes all Rokt SDK requests through a custom CNAME domain.
+    /// Must be called before `initWith(roktTagId:)`.
+    /// Non-HTTPS or malformed URLs are rejected with a warning.
+    @objc public static func setCustomBaseURL(_ url: URL) {
+        guard url.scheme == "https" else {
+            RoktLogger.shared.warning("Rokt: custom base URL must use HTTPS — ignored.")
+            return
+        }
+        var normalized = url.absoluteString
+        if normalized.hasSuffix("/") { normalized = String(normalized.dropLast()) }
+        config = Configuration(environment: .custom(baseURL: normalized))
+    }
+
     /// Register a payment extension for Shoppable Ads.
     ///
     /// The partner passes configuration (e.g. Stripe publishable key) at runtime.
