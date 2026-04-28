@@ -759,8 +759,8 @@ class RoktInternalImplementation {
         }
 
         if attributes[keyAdsExperienceType] == valueAdsExperienceShoppable {
-            guard isShoppableFeatureFlagGatePassed(identifier: viewName, onFailure: composedEventHandler),
-                  isShoppablePaymentGatePassed(identifier: viewName, onFailure: composedEventHandler) else {
+            guard validateShoppableAdsFeatureFlag(identifier: viewName, onFailure: composedEventHandler),
+                  validateShoppableAdsPaymentExtension(identifier: viewName, onFailure: composedEventHandler) else {
                 return
             }
         }
@@ -1065,8 +1065,8 @@ class RoktInternalImplementation {
         config: RoktConfig?,
         onRoktEvent: ((RoktEvent) -> Void)?
     ) {
-        if isInitialized && !isShoppableFeatureFlagGatePassed(identifier: identifier, onFailure: onRoktEvent) { return }
-        guard isShoppablePaymentGatePassed(identifier: identifier, onFailure: onRoktEvent) else { return }
+        if isInitialized && !validateShoppableAdsFeatureFlag(identifier: identifier, onFailure: onRoktEvent) { return }
+        guard validateShoppableAdsPaymentExtension(identifier: identifier, onFailure: onRoktEvent) else { return }
 
         var enrichedAttributes = attributes
         if enrichedAttributes[keyAdsExperienceType] == nil {
@@ -1084,7 +1084,7 @@ class RoktInternalImplementation {
         )
     }
 
-    private func isShoppableFeatureFlagGatePassed(identifier: String?, onFailure: ((RoktEvent) -> Void)?) -> Bool {
+    private func validateShoppableAdsFeatureFlag(identifier: String?, onFailure: ((RoktEvent) -> Void)?) -> Bool {
         guard initFeatureFlags.isShoppableAdsEnabled() else {
             RoktLogger.shared.verbose(
                 "Rokt: Shoppable Ads feature flags are disabled for this account."
@@ -1095,7 +1095,7 @@ class RoktInternalImplementation {
         return true
     }
 
-    private func isShoppablePaymentGatePassed(identifier: String?, onFailure: ((RoktEvent) -> Void)?) -> Bool {
+    private func validateShoppableAdsPaymentExtension(identifier: String?, onFailure: ((RoktEvent) -> Void)?) -> Bool {
         guard paymentOrchestrator.hasRegisteredExtension else {
             RoktLogger.shared.error(
                 "Rokt: No PaymentExtension registered. Call registerPaymentExtension() before using Shoppable Ads."
