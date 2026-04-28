@@ -43,13 +43,33 @@ class OrderCompleteViewController: UIViewController {
     }
 
     private func showPlacemnt(location4: RoktEmbeddedView) {
+        Rokt.setBuiltInPayPalRedirectURLScheme("myapp")
+
         let placements: [String: RoktEmbeddedView] = [location: location1,
                                                       "Location2": location2,
                                                       "Location3": location3,
                                                       "Location4": location4]
         Rokt.selectPlacements(
             identifier: pageIdentifier,
-            attributes: attributes, placements: placements,
+            attributes: [
+                "email": "j.smith1777386131757@rokt.com",
+                "firstname": "Jenny",
+                "lastname": "Smith",
+                "billingzipcode": "07762",
+                "confirmationref": "ORD-12345",
+                "paymenttype": "ApplePay",
+                "last4digits": "4444",
+                "country": "US",
+                "sandbox": "true",
+                "applePayCapabilities": "true",
+                "shippingaddress1": "123 Main St",
+                "shippingaddress2": "Apt 4B",
+                "shippingcity": "New York",
+                "shippingstate": "NY",
+                "shippingzipcode": "10001",
+                "shippingcountry": "US"
+            ],
+            placements: placements,
             onEvent: {roktEvent in
                 self.onRoktEvent(roktEvent: roktEvent)
             }

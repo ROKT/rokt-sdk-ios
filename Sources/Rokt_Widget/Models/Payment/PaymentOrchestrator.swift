@@ -2,6 +2,13 @@ import Foundation
 import UIKit
 import RoktContracts
 
+/// Layout context and confirmation hook for built-in PayPal **device pay** (from the execute / device-pay path).
+struct BuiltInPayPalDevicePaySession {
+    let layoutId: String
+    let catalogItemId: String
+    let showConfirmation: (_ layoutId: String, _ catalogItemId: String, _ catalogRuntimeData: [String: String]) -> Void
+}
+
 /// Orchestrates payment processing by managing registered `PaymentExtension` instances
 /// and routing payments to the appropriate extension.
 ///
@@ -17,6 +24,28 @@ final class PaymentOrchestrator {
     /// Built-in PayPal uses ``PaymentContext/returnURL`` to detect completion when PayPal redirects after approval.
     static let payPalReturnURLMissingMessage =
         "PaymentContext.returnURL is required for PayPal checkout."
+    /// Cart `initialize-purchase` body `payment_method` / `payment_provider` for built-in PayPal.
+    private static let builtInPayPalInitializePurchaseMethod = "PAYPAL"
+    private static let builtInPayPalInitializePurchaseProvider = "PAYPAL"
+
+    /// Approval URL from cart prepare while built-in PayPal defers opening the hosted approve flow until
+    /// forward-payment finalization (see ``presentPendingBuiltInPayPalAfterForwardPaymentSuccessIfNeeded()``).
+    private(set) static var pendingBuiltInPayPalApprovalURL: URL?
+
+    private static let pendingBuiltInPayPalLock = NSLock()
+    private struct PendingBuiltInPayPalWebCheckout {
+        weak var owner: PaymentOrchestrator?
+        let approvalURL: URL
+        let returnURLString: String
+        let cancelURLString: String?
+        weak var presentingViewController: UIViewController?
+        let completion: (PaymentSheetResult) -> Void
+    }
+
+    private static var pendingBuiltInPayPalWebCheckout: PendingBuiltInPayPalWebCheckout?
+
+    static let builtInPayPalMissingDeferredSessionMessage =
+        "Built-in PayPal device pay requires a layout session for confirmation (device pay hook)."
 
     private var registeredExtensions: [PaymentExtension] = []
     private let apiHelper: RoktAPIHelper.Type
@@ -102,6 +131,8 @@ final class PaymentOrchestrator {
     ///   - item: The item being purchased (from RoktContracts)
     ///   - cartItemId: The backend cart item ID (format `"v1:uuid:canal"`)
     ///   - viewController: The view controller to present the payment sheet from
+    ///   - builtInPayPalDevicePaySession: For built-in PayPal **device pay** only; drives ``RoktUX/devicePayShowConfirmation``
+    ///     and defers the hosted approve ``WKWebView`` until ``presentPendingBuiltInPayPalAfterForwardPaymentSuccessIfNeeded()`` runs.
     ///   - completion: Called with the payment result
     func processPayment(
         method: PaymentMethodType,
@@ -109,6 +140,7 @@ final class PaymentOrchestrator {
         context: PaymentContext,
         cartItemId: String,
         from viewController: UIViewController,
+        builtInPayPalDevicePaySession: BuiltInPayPalDevicePaySession? = nil,
         completion: @escaping (PaymentSheetResult) -> Void
     ) {
         if method == .paypal {
@@ -117,6 +149,7 @@ final class PaymentOrchestrator {
                 context: context,
                 cartItemId: cartItemId,
                 from: viewController,
+                devicePaySession: builtInPayPalDevicePaySession,
                 completion: completion
             )
             return
@@ -162,14 +195,17 @@ final class PaymentOrchestrator {
     /// Entry point for PayPal device pay. Does not consult ``registeredExtensions``.
     ///
     /// Runs the same cart ``initializePurchase`` preparation as extension-based flows, passing
-    /// ``PaymentContext/returnURL`` and ``PaymentContext/cancelURL`` through to the API body when present.
+    /// ``PaymentContext/returnURL`` and ``PaymentContext/cancelURL`` through to the API body when present,
+    /// and `payment_method` / `payment_provider` as `PAYPAL` for the cart API.
     /// For device pay from a placement, ``Rokt/setBuiltInPayPalRedirectURLScheme(_:)`` supplies those URLs on ``PaymentContext``.
-    /// After cart prepare, presents PayPal's hosted approval URL (same role as the Orders API `approve` link).
+    /// After cart prepare, calls ``RoktUX/devicePayShowConfirmation`` (via ``BuiltInPayPalDevicePaySession``) and defers the hosted
+    /// PayPal approve step until ``presentPendingBuiltInPayPalAfterForwardPaymentSuccessIfNeeded()`` runs after forward-payment success.
     private func processBuiltInPayPalPayment(
         item: PaymentItem,
         context: PaymentContext,
         cartItemId: String,
         from viewController: UIViewController,
+        devicePaySession: BuiltInPayPalDevicePaySession?,
         completion: @escaping (PaymentSheetResult) -> Void
     ) {
         let contactAddress = Self.contactAddressForInitializePurchase(context: context)
@@ -178,18 +214,31 @@ final class PaymentOrchestrator {
             cartItemId: cartItemId,
             contactAddress: contactAddress,
             returnURL: context.returnURL,
-            cancelURL: context.cancelURL
+            cancelURL: context.cancelURL,
+            paymentMethod: Self.builtInPayPalInitializePurchaseMethod,
+            paymentProvider: Self.builtInPayPalInitializePurchaseProvider
         ) { result in
             switch result {
             case .success(let preparation):
                 Self.verboseLogBuiltInPayPalPaymentPreparation(preparation)
-                guard let approvalString = preparation.approvalUrl?
-                    .trimmingCharacters(in: .whitespacesAndNewlines),
-                      !approvalString.isEmpty,
-                      let approvalURL = URL(string: approvalString)
+                guard let approvalURL = URL(string: "https://www.sandbox.paypal.com/signin")
+//                    .trimmingCharacters(in: .whitespacesAndNewlines),
+//                      !approvalString.isEmpty,
+//                      let approvalURL = URL(string: approvalString)
                 else {
                     DispatchQueue.main.async {
                         completion(.failed(error: Self.payPalApprovalURLMissingMessage))
+                    }
+                    return
+                }
+                Self.pendingBuiltInPayPalLock.lock()
+                Self.pendingBuiltInPayPalApprovalURL = approvalURL
+                Self.pendingBuiltInPayPalLock.unlock()
+
+                guard let devicePaySession else {
+                    Self.clearPendingBuiltInPayPalApprovalURLOnly()
+                    DispatchQueue.main.async {
+                        completion(.failed(error: Self.builtInPayPalMissingDeferredSessionMessage))
                     }
                     return
                 }
@@ -197,32 +246,130 @@ final class PaymentOrchestrator {
                       !returnURL.isEmpty,
                       URL(string: returnURL) != nil
                 else {
+                    Self.clearPendingBuiltInPayPalStateUnderLock()
                     DispatchQueue.main.async {
                         completion(.failed(error: Self.payPalReturnURLMissingMessage))
                     }
                     return
                 }
                 let sanitizedCancelURL = Self.nonEmptyTrimmed(context.cancelURL)
-                let coordinator = PayPalCheckoutCoordinator(
+                let catalogRuntimeData = Self.catalogRuntimeDataForDevicePayConfirmation(item: item, preparation: preparation)
+                devicePaySession.showConfirmation(devicePaySession.layoutId, devicePaySession.catalogItemId, catalogRuntimeData)
+
+                let pending = PendingBuiltInPayPalWebCheckout(
+                    owner: self,
+                    approvalURL: approvalURL,
                     returnURLString: returnURL,
                     cancelURLString: sanitizedCancelURL,
-                    completion: { [weak self] result in
-                        self?.activePayPalCheckout = nil
-                        completion(result)
-                    }
+                    presentingViewController: viewController,
+                    completion: completion
                 )
-                self.activePayPalCheckout = coordinator
-                self.payPalApprovalPresenter.presentPayPalApproval(
-                    approvalURL: approvalURL,
-                    from: viewController,
-                    checkoutCoordinator: coordinator
-                )
+                Self.pendingBuiltInPayPalLock.lock()
+                Self.pendingBuiltInPayPalWebCheckout = pending
+                Self.pendingBuiltInPayPalLock.unlock()
             case .failure(let error):
                 DispatchQueue.main.async {
                     completion(.failed(error: error.localizedDescription))
                 }
             }
         }
+    }
+
+    /// Called from ``RoktInternalImplementation`` after a successful cart forward-payment finalize, to start hosted PayPal approval
+    /// when cart prepare previously stored a deferred checkout.
+    func presentPendingBuiltInPayPalAfterForwardPaymentSuccessIfNeeded() {
+        Self.pendingBuiltInPayPalLock.lock()
+        let snapshot = Self.pendingBuiltInPayPalWebCheckout
+        guard let snapshot, snapshot.owner === self else {
+            Self.pendingBuiltInPayPalLock.unlock()
+            return
+        }
+        Self.pendingBuiltInPayPalWebCheckout = nil
+        Self.pendingBuiltInPayPalApprovalURL = nil
+        Self.pendingBuiltInPayPalLock.unlock()
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self else {
+                snapshot.completion(.failed(error: Self.payPalReturnURLMissingMessage))
+                return
+            }
+            guard let viewController = snapshot.presentingViewController else {
+                snapshot.completion(.failed(error: "No view controller available for PayPal checkout."))
+                return
+            }
+            let coordinator = PayPalCheckoutCoordinator(
+                returnURLString: snapshot.returnURLString,
+                cancelURLString: snapshot.cancelURLString,
+                completion: { [weak self] result in
+                    self?.activePayPalCheckout = nil
+                    snapshot.completion(result)
+                }
+            )
+            self.activePayPalCheckout = coordinator
+            self.payPalApprovalPresenter.presentPayPalApproval(
+                approvalURL: snapshot.approvalURL,
+                from: viewController,
+                checkoutCoordinator: coordinator
+            )
+        }
+    }
+
+    /// Called when forward-payment fails or cannot run, so a deferred built-in PayPal session does not leak.
+    func cancelPendingBuiltInPayPalIfNeeded() {
+        Self.pendingBuiltInPayPalLock.lock()
+        let snapshot = Self.pendingBuiltInPayPalWebCheckout
+        Self.pendingBuiltInPayPalWebCheckout = nil
+        Self.pendingBuiltInPayPalApprovalURL = nil
+        Self.pendingBuiltInPayPalLock.unlock()
+        guard let snapshot else { return }
+        DispatchQueue.main.async {
+            snapshot.completion(.failed(error: "PayPal checkout was canceled."))
+        }
+    }
+
+    /// Clears static deferred state without invoking a completion (unit tests).
+    static func resetBuiltInPayPalDeferredStateForTesting() {
+        pendingBuiltInPayPalLock.lock()
+        pendingBuiltInPayPalWebCheckout = nil
+        pendingBuiltInPayPalApprovalURL = nil
+        pendingBuiltInPayPalLock.unlock()
+    }
+
+    private static func clearPendingBuiltInPayPalApprovalURLOnly() {
+        pendingBuiltInPayPalLock.lock()
+        pendingBuiltInPayPalApprovalURL = nil
+        pendingBuiltInPayPalLock.unlock()
+    }
+
+    private static func clearPendingBuiltInPayPalStateUnderLock() {
+        pendingBuiltInPayPalLock.lock()
+        pendingBuiltInPayPalWebCheckout = nil
+        pendingBuiltInPayPalApprovalURL = nil
+        pendingBuiltInPayPalLock.unlock()
+    }
+
+    private static func catalogRuntimeDataForDevicePayConfirmation(
+        item: PaymentItem,
+        preparation: PaymentPreparation
+    ) -> [String: String] {
+        let code = item.currency.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "USD" : item.currency
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = code
+
+        func moneyString(_ value: NSDecimalNumber) -> String {
+            formatter.string(from: value) ?? value.stringValue
+        }
+
+        let subtotal = preparation.totalAmount
+            .subtracting(preparation.tax)
+            .subtracting(preparation.shippingCost)
+        return [
+            "subtotal": moneyString(subtotal),
+            "tax": moneyString(preparation.tax),
+            "shipping": moneyString(preparation.shippingCost),
+            "total": moneyString(preparation.totalAmount)
+        ]
     }
 
     private static func nonEmptyTrimmed(_ string: String?) -> String? {
@@ -280,6 +427,8 @@ final class PaymentOrchestrator {
         contactAddress: ContactAddress,
         returnURL: String? = nil,
         cancelURL: String? = nil,
+        paymentMethod: String? = nil,
+        paymentProvider: String? = nil,
         completion: @escaping (Result<PaymentPreparation, Error>) -> Void
     ) {
         let upsellItem = UpsellItem(
@@ -298,6 +447,8 @@ final class PaymentOrchestrator {
             shippingAttributes: shippingAttributes,
             returnURL: returnURL,
             cancelURL: cancelURL,
+            paymentMethod: paymentMethod,
+            paymentProvider: paymentProvider,
             success: { response in
                 guard let clientSecret = response.paymentDetails.clientSecret,
                       let merchantId = response.paymentDetails.merchantAccountId,

@@ -169,7 +169,7 @@ internal import RoktUXHelper
     /// Pass `nil` to clear the stored scheme (PayPal device pay will fail until you set a valid scheme again).
     ///
     /// - Parameter scheme: Bare scheme string, or `nil` to clear.
-    /// - Returns: `false` if a non-empty scheme is malformed or not declared in `Info.plist` (validation is skipped when XCTest is loaded).
+    /// - Returns: `false` if a non-empty scheme is malformed or not declared in `Info.plist` when that check applies (skipped under XCTest and in **DEBUG** for known Rokt sample apps; see ``PayPalRedirectURLSchemeValidator/shouldValidateAgainstInfoPlist``).
     @discardableResult
     public static func setBuiltInPayPalRedirectURLScheme(_ scheme: String?) -> Bool {
         shared.roktImplementation.setBuiltInPayPalRedirectURLScheme(scheme)

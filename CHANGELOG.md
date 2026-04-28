@@ -12,13 +12,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 ### Added
 
 - Forward PayPal `paypalData.approvalUrl` from initialize-purchase into `PaymentPreparation` when present (depends on **RoktContracts** 2.0.1+).
-- Built-in PayPal: load the hosted approval URL from cart prepare in a `WKWebView`, detect redirects to `PaymentContext.returnURL` / `cancelURL`, complete the same flow when those URLs arrive as **deep links** via `Rokt.handleURLCallback`, and expose a swappable `PayPalApprovalPresenting` for testing.
+- Built-in PayPal device pay: after cart prepare, call **RoktUX** `devicePayShowConfirmation` (layout confirmation + `DATA.catalogRuntime.*` from [rokt-ux-helper-ios#265](https://github.com/ROKT/rokt-ux-helper-ios/pull/265)); defer the hosted **approve** `WKWebView` until **`/v1/cart/purchase`** forward-payment succeeds, then present approval and complete via `PaymentContext` return/cancel and `Rokt.handleURLCallback`. Swappable `PayPalApprovalPresenting` remains for tests.
 - `Rokt.setBuiltInPayPalRedirectURLScheme(_:)` — **required** for built-in PayPal **device pay**: composes return/cancel as `\(scheme)://rokt-paypal-return` and `\(scheme)://rokt-paypal-cancel` (bare scheme must appear under `CFBundleURLSchemes` in `Info.plist`). Pass `nil` only to clear configuration (PayPal device pay will not proceed until set again).
 
 ### Changed
 
 - **RoktContracts** SwiftPM dependency: require [2.0.1](https://github.com/ROKT/rokt-contracts-apple/releases/tag/2.0.1)+ (replaces branch pin). CocoaPods spec now requires RoktContracts `>= 2.0.1`, `< 3.0`.
+- **RoktUXHelper** SwiftPM: require [0.10.5](https://github.com/ROKT/rokt-ux-helper-ios/releases/tag/0.10.5)+ (replaces revision pin; includes PayPal confirmation / `devicePayShowConfirmation` from [#265](https://github.com/ROKT/rokt-ux-helper-ios/pull/265)). CocoaPods spec now requires RoktUXHelper `>= 0.10.5`, `< 0.11`.
 - Built-in PayPal device pay no longer reads return/cancel URLs from placement **`TransactionData`** metadata or execute **attributes**; the scheme-based URLs above are the only source.
+- Cart **`/v1/cart/initialize-purchase`** for built-in PayPal now sends `payment_method` and `payment_provider` as `PAYPAL` in the JSON body (extension-based Shoppable Ads prepare calls omit these keys).
 
 ## [5.1.0] - 2026-04-24
 

@@ -195,7 +195,8 @@ class RoktInternalImplementation {
     }
 
     /// Configures the host app’s custom URL scheme for built-in PayPal return/cancel deep links.
-    /// - Returns: `false` if a non-empty scheme is invalid or not listed under `CFBundleURLSchemes` in `Info.plist` (when not running under XCTest).
+    /// - Returns: `false` if a non-empty scheme is malformed, or not listed under `CFBundleURLSchemes` in `Info.plist`
+    ///   when ``PayPalRedirectURLSchemeValidator/shouldValidateAgainstInfoPlist`` is `true` (see that property for XCTest / sample-app **DEBUG** exceptions).
     @discardableResult
     func setBuiltInPayPalRedirectURLScheme(_ scheme: String?) -> Bool {
         guard let scheme, !scheme.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -478,13 +479,31 @@ class RoktInternalImplementation {
                 return
             }
 
+            let paypalSession: BuiltInPayPalDevicePaySession? = paymentMethod == .paypal
+                ? BuiltInPayPalDevicePaySession(
+                    layoutId: event.layoutId,
+                    catalogItemId: event.catalogItemId,
+                    showConfirmation: { [weak self] layoutId, catalogItemId, catalogRuntimeData in
+                        guard let self,
+                              let state = self.stateManager.getState(id: executeId),
+                              let ux = state.uxHelper as? RoktUX else { return }
+                        ux.devicePayShowConfirmation(
+                            layoutId: layoutId,
+                            catalogItemId: catalogItemId,
+                            catalogRuntimeData: catalogRuntimeData
+                        )
+                    }
+                )
+                : nil
+
             // Process the payment via the registered extension
             paymentOrchestrator.processPayment(
                 method: paymentMethod,
                 item: item,
                 context: context,
                 cartItemId: event.cartItemId,
-                from: viewController
+                from: viewController,
+                builtInPayPalDevicePaySession: paypalSession
             ) { [weak self] result in
                 let success = result.outcome == .succeeded
                 if success {
@@ -610,6 +629,7 @@ class RoktInternalImplementation {
             RoktLogger.shared.warning(
                 "Forward-payment event missing price or has non-positive quantity"
             )
+            paymentOrchestrator.cancelPendingBuiltInPayPalIfNeeded()
             forwardPaymentFinalized(
                 executeId: executeId,
                 layoutId: event.layoutId,
@@ -625,22 +645,37 @@ class RoktInternalImplementation {
         RoktAPIHelper.forwardPayment(
             request: request,
             success: { [weak self] response in
-                self?.callOnRoktEvent(executeId, event: RoktEvent.HideLoadingIndicator())
+                guard let self else { return }
+                self.callOnRoktEvent(executeId, event: RoktEvent.HideLoadingIndicator())
                 let finalization = Self.resolveForwardPaymentFinalization(from: response)
-                self?.forwardPaymentFinalized(
-                    executeId: executeId,
-                    layoutId: event.layoutId,
-                    catalogItemId: event.catalogItemId,
-                    success: finalization.success,
-                    failureReason: finalization.failureReason
-                )
+                if finalization.success {
+                    self.forwardPaymentFinalized(
+                        executeId: executeId,
+                        layoutId: event.layoutId,
+                        catalogItemId: event.catalogItemId,
+                        success: true,
+                        failureReason: nil
+                    )
+                    self.paymentOrchestrator.presentPendingBuiltInPayPalAfterForwardPaymentSuccessIfNeeded()
+                } else {
+                    self.paymentOrchestrator.cancelPendingBuiltInPayPalIfNeeded()
+                    self.forwardPaymentFinalized(
+                        executeId: executeId,
+                        layoutId: event.layoutId,
+                        catalogItemId: event.catalogItemId,
+                        success: false,
+                        failureReason: finalization.failureReason
+                    )
+                }
             },
             failure: { [weak self] _, _, message in
-                self?.callOnRoktEvent(executeId, event: RoktEvent.HideLoadingIndicator())
+                guard let self else { return }
+                self.callOnRoktEvent(executeId, event: RoktEvent.HideLoadingIndicator())
                 let finalization = Self.resolveForwardPaymentFinalization(
                     fromFailureMessage: message
                 )
-                self?.forwardPaymentFinalized(
+                self.paymentOrchestrator.cancelPendingBuiltInPayPalIfNeeded()
+                self.forwardPaymentFinalized(
                     executeId: executeId,
                     layoutId: event.layoutId,
                     catalogItemId: event.catalogItemId,

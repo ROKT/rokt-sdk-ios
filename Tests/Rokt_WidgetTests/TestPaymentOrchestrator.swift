@@ -109,14 +109,24 @@ class TestPaymentOrchestrator: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        PaymentOrchestrator.resetBuiltInPayPalDeferredStateForTesting()
         sut = PaymentOrchestrator()
         PaymentOrchestratorAPIHelperSpy.reset()
     }
 
     override func tearDown() {
         sut = nil
+        PaymentOrchestrator.resetBuiltInPayPalDeferredStateForTesting()
         PaymentOrchestratorAPIHelperSpy.reset()
         super.tearDown()
+    }
+
+    private func paypalDeviceSessionForTests(
+        onConfirmation: ((String, String, [String: String]) -> Void)? = nil
+    ) -> BuiltInPayPalDevicePaySession {
+        BuiltInPayPalDevicePaySession(layoutId: "test_layout", catalogItemId: "test_catalog") { lid, cid, data in
+            onConfirmation?(lid, cid, data)
+        }
     }
 
     // MARK: - Registration
@@ -387,6 +397,8 @@ class TestPaymentOrchestrator: XCTestCase {
         }
 
         wait(for: [expectation], timeout: 1.0)
+        XCTAssertNil(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod)
+        XCTAssertNil(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider)
     }
 
     func test_processPayment_preparePayment_plumbsApprovalUrlWhenPayPalDataPresent() {
@@ -441,6 +453,8 @@ class TestPaymentOrchestrator: XCTestCase {
         }
 
         wait(for: [expectation], timeout: 1.0)
+        XCTAssertNil(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod)
+        XCTAssertNil(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider)
     }
 
     func test_processPayment_payPal_routesToBuiltInFlowWithoutExtension() {
@@ -474,17 +488,21 @@ class TestPaymentOrchestrator: XCTestCase {
             item: item,
             context: context,
             cartItemId: "v1:cart-paypal:canal",
-            from: UIViewController()
+            from: UIViewController(),
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests()
         ) { result in
             XCTAssertEqual(result.outcome, .succeeded)
             XCTAssertEqual(result.transactionId, "mock_paypal_txn")
             expectation.fulfill()
         }
+        sut.presentPendingBuiltInPayPalAfterForwardPaymentSuccessIfNeeded()
 
         wait(for: [expectation], timeout: 1.0)
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.initializePurchaseCallCount, 1)
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchaseReturnURL, "myapp://paypal/success")
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchaseCancelURL, "myapp://paypal/cancel")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "PAYPAL")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "PAYPAL")
         XCTAssertEqual(payPalPresenter.presentCallCount, 1)
         XCTAssertEqual(payPalPresenter.lastApprovalURL?.absoluteString, "https://www.paypal.com/checkoutnow?token=MOCK")
     }
@@ -511,14 +529,18 @@ class TestPaymentOrchestrator: XCTestCase {
             item: PaymentItem(id: "p1", name: "P", amount: 1, currency: "USD"),
             context: context,
             cartItemId: "v1:cart:1",
-            from: UIViewController()
+            from: UIViewController(),
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests()
         ) { _ in
             expectation.fulfill()
         }
+        sut.presentPendingBuiltInPayPalAfterForwardPaymentSuccessIfNeeded()
 
         wait(for: [expectation], timeout: 1.0)
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchaseReturnURL, "myapp://paypal/success")
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchaseCancelURL, "myapp://paypal/cancel")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "PAYPAL")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "PAYPAL")
     }
 
     func test_processPayment_payPal_ignoresRegisteredExtensionSupportingPayPal() {
@@ -544,11 +566,15 @@ class TestPaymentOrchestrator: XCTestCase {
                 cancelURL: nil
             ),
             cartItemId: "v1:cart:1",
-            from: UIViewController()
+            from: UIViewController(),
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests()
         ) { _ in
             paypalExpectation.fulfill()
         }
+        sut.presentPendingBuiltInPayPalAfterForwardPaymentSuccessIfNeeded()
         wait(for: [paypalExpectation], timeout: 1.0)
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "PAYPAL")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "PAYPAL")
         XCTAssertEqual(ext.presentPaymentSheetCallCount, 0, "PayPal must not use PaymentExtension.presentPaymentSheet")
 
         let appleExpectation = expectation(description: "Apple Pay still uses extension")
@@ -637,6 +663,8 @@ class TestPaymentOrchestrator: XCTestCase {
         }
 
         wait(for: [expectation], timeout: 1.0)
+        XCTAssertNil(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod)
+        XCTAssertNil(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider)
     }
 
     private static func validInitializePurchaseResponse() -> InitializePurchaseResponse {
@@ -697,7 +725,8 @@ class TestPaymentOrchestrator: XCTestCase {
             item: PaymentItem(id: "p1", name: "P", amount: 1, currency: "USD"),
             context: PaymentContext(billingAddress: ContactAddress(name: "A", email: "a@b.com"), returnURL: "myapp://ok"),
             cartItemId: "v1:cart:1",
-            from: UIViewController()
+            from: UIViewController(),
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests()
         ) { result in
             XCTAssertEqual(result.outcome, .failed)
             XCTAssertEqual(result.errorMessage, PaymentOrchestrator.payPalApprovalURLMissingMessage)
@@ -705,6 +734,35 @@ class TestPaymentOrchestrator: XCTestCase {
         }
         wait(for: [expectation], timeout: 1.0)
         XCTAssertEqual(payPalPresenter.presentCallCount, 0)
+    }
+
+    func test_processPayment_payPal_failsWhenDevicePaySessionMissing() {
+        let payPalPresenter = MockPayPalApprovalPresenter()
+        sut = PaymentOrchestrator(
+            apiHelper: PaymentOrchestratorAPIHelperSpy.self,
+            payPalApprovalPresenter: payPalPresenter
+        )
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = Self.validPayPalInitializePurchaseResponse()
+
+        let expectation = expectation(description: "PayPal fails without device-pay session")
+        sut.processPayment(
+            method: .paypal,
+            item: PaymentItem(id: "p1", name: "P", amount: 1, currency: "USD"),
+            context: PaymentContext(
+                billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                returnURL: "myapp://paypal/success",
+                cancelURL: nil
+            ),
+            cartItemId: "v1:cart:1",
+            from: UIViewController()
+        ) { result in
+            XCTAssertEqual(result.outcome, .failed)
+            XCTAssertEqual(result.errorMessage, PaymentOrchestrator.builtInPayPalMissingDeferredSessionMessage)
+            expectation.fulfill()
+        }
+        wait(for: [expectation], timeout: 1.0)
+        XCTAssertEqual(payPalPresenter.presentCallCount, 0)
+        XCTAssertNil(PaymentOrchestrator.pendingBuiltInPayPalApprovalURL)
     }
 
     func test_handleURLCallback_completesPayPal_whenActiveCheckoutMatchesReturnDeepLink() {
@@ -725,12 +783,18 @@ class TestPaymentOrchestrator: XCTestCase {
                 cancelURL: nil
             ),
             cartItemId: "v1:cart:1",
-            from: UIViewController()
+            from: UIViewController(),
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests()
         ) { result in
             XCTAssertEqual(result.outcome, .succeeded)
             XCTAssertEqual(result.transactionId, "ORDER_FROM_LINK")
             expectation.fulfill()
         }
+        sut.presentPendingBuiltInPayPalAfterForwardPaymentSuccessIfNeeded()
+
+        let flush = expectation(description: "main queue flush for deferred PayPal coordinator")
+        DispatchQueue.main.async { flush.fulfill() }
+        wait(for: [flush], timeout: 1.0)
 
         let deepLink = URL(string: "myapp://paypal/success?token=ORDER_FROM_LINK")!
         XCTAssertTrue(sut.handleURLCallback(with: deepLink))
@@ -752,7 +816,8 @@ class TestPaymentOrchestrator: XCTestCase {
             item: PaymentItem(id: "p1", name: "P", amount: 1, currency: "USD"),
             context: PaymentContext(billingAddress: ContactAddress(name: "A", email: "a@b.com")),
             cartItemId: "v1:cart:1",
-            from: UIViewController()
+            from: UIViewController(),
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests()
         ) { result in
             XCTAssertEqual(result.outcome, .failed)
             XCTAssertEqual(result.errorMessage, PaymentOrchestrator.payPalReturnURLMissingMessage)
@@ -768,6 +833,8 @@ class PaymentOrchestratorAPIHelperSpy: RoktAPIHelper {
     static var initializePurchaseCallCount = 0
     static var lastInitializePurchaseReturnURL: String?
     static var lastInitializePurchaseCancelURL: String?
+    static var lastInitializePurchasePaymentMethod: String?
+    static var lastInitializePurchasePaymentProvider: String?
     static var sendDiagnosticsCallCount = 0
     static var lastDiagnosticsMessage: String?
     static var lastDiagnosticsCallStack: String?
@@ -777,6 +844,8 @@ class PaymentOrchestratorAPIHelperSpy: RoktAPIHelper {
         initializePurchaseCallCount = 0
         lastInitializePurchaseReturnURL = nil
         lastInitializePurchaseCancelURL = nil
+        lastInitializePurchasePaymentMethod = nil
+        lastInitializePurchasePaymentProvider = nil
         sendDiagnosticsCallCount = 0
         lastDiagnosticsMessage = nil
         lastDiagnosticsCallStack = nil
@@ -787,12 +856,16 @@ class PaymentOrchestratorAPIHelperSpy: RoktAPIHelper {
         shippingAttributes: ShippingAttributes,
         returnURL: String? = nil,
         cancelURL: String? = nil,
+        paymentMethod: String? = nil,
+        paymentProvider: String? = nil,
         success: ((InitializePurchaseResponse) -> Void)?,
         failure: ((Error, Int?, String) -> Void)?
     ) {
         initializePurchaseCallCount += 1
         lastInitializePurchaseReturnURL = returnURL
         lastInitializePurchaseCancelURL = cancelURL
+        lastInitializePurchasePaymentMethod = paymentMethod
+        lastInitializePurchasePaymentProvider = paymentProvider
         if let initializePurchaseResponse {
             success?(initializePurchaseResponse)
         } else {
