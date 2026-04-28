@@ -408,18 +408,25 @@ class RoktInternalImplementation {
             ))
             callOnRoktEvent(executeId, event: uxEvent.mapToRoktEvent)
 
-            // Map PaymentProvider -> PaymentMethodType
+            // Map PaymentProvider -> PaymentMethodType. Switching on the enum (not its
+            // rawValue) makes a future schema rename a compile-time error rather than a
+            // silent .default; @unknown default covers cases added in newer DcuiSchema versions.
             let paymentMethod: PaymentMethodType
-            switch event.paymentProvider.rawValue {
-            case "ApplePay":
+            switch event.paymentProvider {
+            case .applePay:
                 paymentMethod = .applePay
-            case "Stripe":
+            case .stripe:
                 paymentMethod = .card
-            case "Afterpay":
+            case .afterpay:
                 paymentMethod = .afterpay
-            case "Paypal", "PayPal":
+            case .paypal:
                 paymentMethod = .paypal
-            default:
+            case .googlePay:
+                RoktLogger.shared.error("GooglePay device-pay not supported on iOS")
+                devicePayFinalized(executeId: executeId, layoutId: event.layoutId,
+                                   catalogItemId: event.catalogItemId, success: false)
+                return
+            @unknown default:
                 RoktLogger.shared.error("Unsupported payment provider: \(event.paymentProvider.rawValue)")
                 devicePayFinalized(executeId: executeId, layoutId: event.layoutId,
                                    catalogItemId: event.catalogItemId, success: false)
@@ -619,6 +626,48 @@ class RoktInternalImplementation {
 
     func handleForwardPayment(executeId: String,
                               event: RoktUXEvent.CartItemForwardPayment) {
+        let presentedPayPal = paymentOrchestrator.presentPendingBuiltInPayPalForForwardPayment {
+            [weak self] result in
+            guard let self else { return }
+            switch result.outcome {
+            case .succeeded:
+                self.forwardPaymentFinalized(
+                    executeId: executeId,
+                    layoutId: event.layoutId,
+                    catalogItemId: event.catalogItemId,
+                    success: true,
+                    failureReason: nil
+                )
+            case .canceled:
+                self.forwardPaymentFinalized(
+                    executeId: executeId,
+                    layoutId: event.layoutId,
+                    catalogItemId: event.catalogItemId,
+                    success: false,
+                    failureReason: "User cancelled PayPal checkout"
+                )
+            case .failed:
+                self.forwardPaymentFinalized(
+                    executeId: executeId,
+                    layoutId: event.layoutId,
+                    catalogItemId: event.catalogItemId,
+                    success: false,
+                    failureReason: result.errorMessage ?? Self.unknownForwardPaymentFailureReason
+                )
+            @unknown default:
+                self.forwardPaymentFinalized(
+                    executeId: executeId,
+                    layoutId: event.layoutId,
+                    catalogItemId: event.catalogItemId,
+                    success: false,
+                    failureReason: Self.unknownForwardPaymentFailureReason
+                )
+            }
+        }
+        if presentedPayPal {
+            return
+        }
+
         let fulfillmentDetails = event.transactionData?.shippingAddress.map {
             FulfillmentDetails(shippingAttributes: ShippingAttributes(from: $0))
         }
@@ -629,7 +678,6 @@ class RoktInternalImplementation {
             RoktLogger.shared.warning(
                 "Forward-payment event missing price or has non-positive quantity"
             )
-            paymentOrchestrator.cancelPendingBuiltInPayPalIfNeeded()
             forwardPaymentFinalized(
                 executeId: executeId,
                 layoutId: event.layoutId,
@@ -648,25 +696,13 @@ class RoktInternalImplementation {
                 guard let self else { return }
                 self.callOnRoktEvent(executeId, event: RoktEvent.HideLoadingIndicator())
                 let finalization = Self.resolveForwardPaymentFinalization(from: response)
-                if finalization.success {
-                    self.forwardPaymentFinalized(
-                        executeId: executeId,
-                        layoutId: event.layoutId,
-                        catalogItemId: event.catalogItemId,
-                        success: true,
-                        failureReason: nil
-                    )
-                    self.paymentOrchestrator.presentPendingBuiltInPayPalAfterForwardPaymentSuccessIfNeeded()
-                } else {
-                    self.paymentOrchestrator.cancelPendingBuiltInPayPalIfNeeded()
-                    self.forwardPaymentFinalized(
-                        executeId: executeId,
-                        layoutId: event.layoutId,
-                        catalogItemId: event.catalogItemId,
-                        success: false,
-                        failureReason: finalization.failureReason
-                    )
-                }
+                self.forwardPaymentFinalized(
+                    executeId: executeId,
+                    layoutId: event.layoutId,
+                    catalogItemId: event.catalogItemId,
+                    success: finalization.success,
+                    failureReason: finalization.failureReason
+                )
             },
             failure: { [weak self] _, _, message in
                 guard let self else { return }
@@ -674,7 +710,6 @@ class RoktInternalImplementation {
                 let finalization = Self.resolveForwardPaymentFinalization(
                     fromFailureMessage: message
                 )
-                self.paymentOrchestrator.cancelPendingBuiltInPayPalIfNeeded()
                 self.forwardPaymentFinalized(
                     executeId: executeId,
                     layoutId: event.layoutId,

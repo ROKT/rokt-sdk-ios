@@ -221,10 +221,10 @@ final class PaymentOrchestrator {
             switch result {
             case .success(let preparation):
                 Self.verboseLogBuiltInPayPalPaymentPreparation(preparation)
-                guard let approvalURL = URL(string: "https://www.sandbox.paypal.com/signin")
-//                    .trimmingCharacters(in: .whitespacesAndNewlines),
-//                      !approvalString.isEmpty,
-//                      let approvalURL = URL(string: approvalString)
+                guard let approvalString = preparation.approvalUrl?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                      !approvalString.isEmpty,
+                      let approvalURL = URL(string: approvalString)
                 else {
                     DispatchQueue.main.async {
                         completion(.failed(error: Self.payPalApprovalURLMissingMessage))
@@ -314,6 +314,66 @@ final class PaymentOrchestrator {
         }
     }
 
+    /// PayPal-only forward-payment entry point: open the cached approval URL
+    /// fire `onCompletion` once the coordinator resolves via the in-webview redirect
+    /// or the deep-link `handleURLCallback` path.
+    ///
+    /// backend webhook finalizes the purchase from the PayPal redirect; the SDK only needs
+    /// to surface success/cancel/failure to the UXHelper.
+    ///
+    /// - Parameter onCompletion: called on the main queue with the coordinator outcome.
+    /// - Returns: `true` when a pending PayPal checkout existed and was presented; `false`
+    ///   when the caller should fall through to the non-PayPal `/v1/cart/purchase` flow.
+    @discardableResult
+    func presentPendingBuiltInPayPalForForwardPayment(
+        onCompletion: @escaping (PaymentSheetResult) -> Void
+    ) -> Bool {
+        Self.pendingBuiltInPayPalLock.lock()
+        let snapshot = Self.pendingBuiltInPayPalWebCheckout
+        guard let snapshot, snapshot.owner === self else {
+            Self.pendingBuiltInPayPalLock.unlock()
+            return false
+        }
+        Self.pendingBuiltInPayPalWebCheckout = nil
+        Self.pendingBuiltInPayPalApprovalURL = nil
+        Self.pendingBuiltInPayPalLock.unlock()
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self else {
+                let result = PaymentSheetResult.failed(error: Self.payPalReturnURLMissingMessage)
+                snapshot.completion(result)
+                onCompletion(result)
+                return
+            }
+            // Fall back to the current top view controller when the originally captured weak
+            // reference has been deallocated (e.g. host app dismissed and re-presented Rokt).
+            guard let viewController = snapshot.presentingViewController ?? UIApplication.topViewController() else {
+                let result = PaymentSheetResult.failed(
+                    error: "No view controller available for PayPal checkout."
+                )
+                snapshot.completion(result)
+                onCompletion(result)
+                return
+            }
+            let coordinator = PayPalCheckoutCoordinator(
+                returnURLString: snapshot.returnURLString,
+                cancelURLString: snapshot.cancelURLString,
+                completion: { [weak self] result in
+                    self?.activePayPalCheckout = nil
+                    snapshot.completion(result)
+                    onCompletion(result)
+                }
+            )
+            self.activePayPalCheckout = coordinator
+            self.payPalApprovalPresenter.presentPayPalApproval(
+                approvalURL: snapshot.approvalURL,
+                from: viewController,
+                checkoutCoordinator: coordinator
+            )
+        }
+        return true
+    }
+
     /// Called when forward-payment fails or cannot run, so a deferred built-in PayPal session does not leak.
     func cancelPendingBuiltInPayPalIfNeeded() {
         Self.pendingBuiltInPayPalLock.lock()
@@ -353,23 +413,24 @@ final class PaymentOrchestrator {
         preparation: PaymentPreparation
     ) -> [String: String] {
         let code = item.currency.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "USD" : item.currency
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencyCode = code
-
-        func moneyString(_ value: NSDecimalNumber) -> String {
-            formatter.string(from: value) ?? value.stringValue
-        }
-
-        let subtotal = preparation.totalAmount
-            .subtracting(preparation.tax)
-            .subtracting(preparation.shippingCost)
-        return [
-            "subtotal": moneyString(subtotal),
-            "tax": moneyString(preparation.tax),
-            "shipping": moneyString(preparation.shippingCost),
-            "total": moneyString(preparation.totalAmount)
-        ]
+        // Mirror the upsell item ``runInitializePurchase`` builds so subtotal reflects
+        // ``UpsellItem/totalPrice`` (single quantity-1 line item from the request) rather
+        // than `totalAmount − tax − shipping` arithmetic that drifts if backend tweaks rounding.
+        let upsell = UpsellItem(
+            cartItemId: "",
+            catalogItemId: item.id,
+            quantity: 1,
+            unitPrice: item.amount.decimalValue,
+            totalPrice: item.amount.decimalValue,
+            currency: code
+        )
+        return BreakdownFormatter.format(
+            upsellItems: [upsell],
+            shippingCost: preparation.shippingCost.decimalValue,
+            tax: preparation.tax.decimalValue,
+            totalAmount: preparation.totalAmount.decimalValue,
+            currency: code
+        )
     }
 
     private static func nonEmptyTrimmed(_ string: String?) -> String? {
