@@ -23,14 +23,30 @@ class TestRokt: XCTestCase {
         XCTAssertEqual(baseURL, "https://rkt.example.com")
     }
 
-    func test_setCustomBaseURL_stripsTrailingSlash() {
-        Rokt.setCustomBaseURL(URL(string: "https://rkt.example.com/")!)
+    func test_setCustomBaseURL_stripsPath() {
+        Rokt.setCustomBaseURL(URL(string: "https://rkt.example.com/api/v2")!)
         XCTAssertEqual(baseURL, "https://rkt.example.com")
+    }
+
+    func test_setCustomBaseURL_stripsQueryAndFragment() {
+        Rokt.setCustomBaseURL(URL(string: "https://rkt.example.com/path?q=1#frag")!)
+        XCTAssertEqual(baseURL, "https://rkt.example.com")
+    }
+
+    func test_setCustomBaseURL_preservesPort() {
+        Rokt.setCustomBaseURL(URL(string: "https://rkt.example.com:8443")!)
+        XCTAssertEqual(baseURL, "https://rkt.example.com:8443")
     }
 
     func test_setCustomBaseURL_rejectsNonHTTPS() {
         let originalBaseURL = baseURL
         Rokt.setCustomBaseURL(URL(string: "http://rkt.example.com")!)
+        XCTAssertEqual(baseURL, originalBaseURL)
+    }
+
+    func test_setCustomBaseURL_rejectsEmptyHost() {
+        let originalBaseURL = baseURL
+        Rokt.setCustomBaseURL(URL(string: "https://")!)
         XCTAssertEqual(baseURL, originalBaseURL)
     }
 

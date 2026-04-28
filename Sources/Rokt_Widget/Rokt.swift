@@ -147,15 +147,18 @@ internal import RoktUXHelper
 
     /// Routes all Rokt SDK requests through a custom CNAME domain.
     /// Must be called before `initWith(roktTagId:)`.
-    /// Non-HTTPS or malformed URLs are rejected with a warning.
+    /// Non-HTTPS URLs or URLs with a missing/empty host are rejected with a warning.
+    /// Any path, query, or fragment on the URL is ignored — only the scheme, host, and port are used.
     @objc public static func setCustomBaseURL(_ url: URL) {
-        guard url.scheme == "https" else {
-            RoktLogger.shared.warning("Rokt: custom base URL must use HTTPS — ignored.")
+        guard url.scheme == "https", let host = url.host, !host.isEmpty else {
+            RoktLogger.shared.warning("Rokt: custom base URL must use HTTPS and include a valid host - ignored.")
             return
         }
-        var normalized = url.absoluteString
-        if normalized.hasSuffix("/") { normalized = String(normalized.dropLast()) }
-        config = Configuration(environment: .custom(baseURL: normalized))
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = host
+        components.port = url.port
+        config = Configuration(environment: .custom(baseURL: components.string ?? url.absoluteString))
     }
 
     /// Register a payment extension for Shoppable Ads.
