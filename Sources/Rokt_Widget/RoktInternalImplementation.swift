@@ -758,6 +758,13 @@ class RoktInternalImplementation {
             trackingConsent = ATTrackingManager.trackingAuthorizationStatus.rawValue
         }
 
+        if attributes[keyAdsExperienceType] == valueAdsExperienceShoppable {
+            guard validateShoppableAdsFeatureFlag(identifier: viewName, onFailure: composedEventHandler),
+                  validateShoppableAdsPaymentExtension(identifier: viewName, onFailure: composedEventHandler) else {
+                return
+            }
+        }
+
         isExecuting = true
         self.placements = placements
         let startDate = Date()
@@ -1058,21 +1065,8 @@ class RoktInternalImplementation {
         config: RoktConfig?,
         onRoktEvent: ((RoktEvent) -> Void)?
     ) {
-        if isInitialized && !initFeatureFlags.isShoppableAdsEnabled() {
-            RoktLogger.shared.verbose(
-                "Rokt: selectShoppableAds skipped — Shoppable Ads feature flags are disabled for this account."
-            )
-            onRoktEvent?(RoktEvent.PlacementFailure(identifier: nil))
-            return
-        }
-
-        guard paymentOrchestrator.hasRegisteredExtension else {
-            RoktLogger.shared.error(
-                "Rokt: No PaymentExtension registered. Call registerPaymentExtension() before selectShoppableAds()."
-            )
-            onRoktEvent?(RoktEvent.PlacementFailure(identifier: nil))
-            return
-        }
+        if isInitialized && !validateShoppableAdsFeatureFlag(identifier: identifier, onFailure: onRoktEvent) { return }
+        guard validateShoppableAdsPaymentExtension(identifier: identifier, onFailure: onRoktEvent) else { return }
 
         var enrichedAttributes = attributes
         if enrichedAttributes[keyAdsExperienceType] == nil {
@@ -1088,6 +1082,28 @@ class RoktInternalImplementation {
             placementOptions: nil,
             onRoktEvent: onRoktEvent
         )
+    }
+
+    private func validateShoppableAdsFeatureFlag(identifier: String?, onFailure: ((RoktEvent) -> Void)?) -> Bool {
+        guard initFeatureFlags.isShoppableAdsEnabled() else {
+            RoktLogger.shared.verbose(
+                "Rokt: Shoppable Ads feature flags are disabled for this account."
+            )
+            onFailure?(RoktEvent.PlacementFailure(identifier: identifier))
+            return false
+        }
+        return true
+    }
+
+    private func validateShoppableAdsPaymentExtension(identifier: String?, onFailure: ((RoktEvent) -> Void)?) -> Bool {
+        guard paymentOrchestrator.hasRegisteredExtension else {
+            RoktLogger.shared.error(
+                "Rokt: No PaymentExtension registered. Call registerPaymentExtension() before using Shoppable Ads."
+            )
+            onFailure?(RoktEvent.PlacementFailure(identifier: identifier))
+            return false
+        }
+        return true
     }
 
     private func decodeOnSeparateThread<T: Decodable>(_ type: T.Type, _ data: Data) throws -> T {
