@@ -171,6 +171,18 @@ final class TestShoppableAds: XCTestCase {
         XCTAssertTrue(receivedEvents.contains { $0 is RoktEvent.PlacementFailure })
     }
 
+    func test_selectPlacements_withShoppableAttribute_proceedsToExecute_whenFlagsEnabledAndExtensionRegistered() {
+        mockImplementation.initFeatureFlags = Self.featureFlags(postPurchase: true, minimumSchema: true)
+        mockImplementation.registerPaymentExtension(StubPaymentExtension(), config: [:])
+
+        Rokt.selectPlacements(
+            identifier: "test",
+            attributes: ["adsExperience": "shoppable"]
+        )
+
+        XCTAssertEqual(mockImplementation.executeCallCount, 1)
+    }
+
     func test_selectPlacements_withoutShoppableAttribute_doesNotApplyShoppableGate() {
         // Feature flags and payment extension are both invalid for shoppable,
         // but the gate must NOT apply for non-shoppable attributes.
