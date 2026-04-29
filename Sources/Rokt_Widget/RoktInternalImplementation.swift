@@ -626,8 +626,7 @@ class RoktInternalImplementation {
 
     func handleForwardPayment(executeId: String,
                               event: RoktUXEvent.CartItemForwardPayment) {
-        let presentedPayPal = paymentOrchestrator.presentPendingBuiltInPayPalForForwardPayment {
-            [weak self] result in
+        let presentedPayPal = paymentOrchestrator.presentPendingBuiltInPayPalForForwardPayment { [weak self] result in
             guard let self else { return }
             switch result.outcome {
             case .succeeded:
