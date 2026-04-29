@@ -483,12 +483,16 @@ class TestPaymentOrchestrator: XCTestCase {
             cancelURL: "myapp://paypal/cancel"
         )
 
+        // Hold the presenting VC strongly: ``PendingBuiltInPayPalWebCheckout/presentingViewController``
+        // is weak, and the deferred ``DispatchQueue.main.async`` in
+        // ``presentPendingBuiltInPayPalAfterForwardPaymentSuccessIfNeeded`` would otherwise see nil.
+        let viewController = UIViewController()
         sut.processPayment(
             method: .paypal,
             item: item,
             context: context,
             cartItemId: "v1:cart-paypal:canal",
-            from: UIViewController(),
+            from: viewController,
             builtInPayPalDevicePaySession: paypalDeviceSessionForTests()
         ) { result in
             XCTAssertEqual(result.outcome, .succeeded)
@@ -774,6 +778,10 @@ class TestPaymentOrchestrator: XCTestCase {
         PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = Self.validPayPalInitializePurchaseResponse()
 
         let expectation = expectation(description: "PayPal completes via deep link callback")
+        // Hold the presenting VC strongly: ``PendingBuiltInPayPalWebCheckout/presentingViewController``
+        // is weak, and the deferred main-queue dispatch in ``presentPendingBuiltInPayPalAfterForwardPaymentSuccessIfNeeded``
+        // would otherwise see nil and complete with .failed before the deep link arrives.
+        let viewController = UIViewController()
         sut.processPayment(
             method: .paypal,
             item: PaymentItem(id: "p1", name: "P", amount: 1, currency: "USD"),
@@ -783,7 +791,7 @@ class TestPaymentOrchestrator: XCTestCase {
                 cancelURL: nil
             ),
             cartItemId: "v1:cart:1",
-            from: UIViewController(),
+            from: viewController,
             builtInPayPalDevicePaySession: paypalDeviceSessionForTests()
         ) { result in
             XCTAssertEqual(result.outcome, .succeeded)
@@ -792,7 +800,9 @@ class TestPaymentOrchestrator: XCTestCase {
         }
         sut.presentPendingBuiltInPayPalAfterForwardPaymentSuccessIfNeeded()
 
-        let flush = expectation(description: "main queue flush for deferred PayPal coordinator")
+        // Disambiguate from the local `expectation` var declared above, which shadows
+        // ``XCTestCase/expectation(description:)`` and produced a build error in Brandon's commit.
+        let flush = self.expectation(description: "main queue flush for deferred PayPal coordinator")
         DispatchQueue.main.async { flush.fulfill() }
         wait(for: [flush], timeout: 1.0)
 
