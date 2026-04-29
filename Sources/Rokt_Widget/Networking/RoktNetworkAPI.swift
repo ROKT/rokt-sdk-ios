@@ -10,6 +10,8 @@ var experiencesResourceURL: String { "\(baseURL)/\(mobileAPIPathPrefix)/v1/exper
 var eventResourceURL: String { "\(baseURL)/\(mobileAPIPathPrefix)/v2/events" }
 var diagnosticsResourceURL: String { "\(baseURL)/\(mobileAPIPathPrefix)/v1/diagnostics" }
 var timingsResourceURL: String { "\(baseURL)/\(mobileAPIPathPrefix)/v1/timings" }
+var initializePurchaseResourceURL: String { "\(baseURL)/\(mobileAPIPathPrefix)/v1/cart/initialize-purchase" }
+var purchaseResourceURL: String { "\(baseURL)/\(mobileAPIPathPrefix)/v1/cart/purchase" }
 
 // MARK: - Header keys (internal — used by test mocks)
 
@@ -417,7 +419,7 @@ internal class RoktNetWorkAPI {
         let headers = getDefaultHeaders(tagId: tagId)
 
         NetworkingHelper.performPost(
-            url: "\(baseURL)/\(mobileAPIPathPrefix)/v1/cart/initialize-purchase",
+            url: initializePurchaseResourceURL,
             body: request.toDictionary(),
             headers: headers,
             success: { _, data, _ in
@@ -471,7 +473,7 @@ internal class RoktNetWorkAPI {
         let headers = getDefaultHeaders(tagId: tagId)
 
         NetworkingHelper.performPost(
-            url: "\(baseURL)/\(mobileAPIPathPrefix)/v1/cart/purchase",
+            url: purchaseResourceURL,
             body: request.toDictionary(),
             headers: headers,
             success: { _, data, _ in
