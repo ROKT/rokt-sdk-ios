@@ -160,13 +160,27 @@ internal import RoktUXHelper
         shared.roktImplementation.registerPaymentExtension(paymentExtension, config: config)
     }
 
-    /// Forward an incoming URL to registered payment extensions.
+    /// Sets the host app’s **bare** custom URL scheme (e.g. `"myapp"`, no `://`) used for **built-in PayPal** device-pay redirects.
     ///
-    /// Redirect-based payment methods (e.g. Afterpay) authenticate the user in a
-    /// web view and return to the host app via a custom URL scheme. The host app
-    /// should forward every incoming URL to this method — the SDK asks each
-    /// registered extension whether it recognizes the URL and stops at the first
-    /// match.
+    /// **Required** before PayPal device pay from a placement: the SDK always composes return/cancel as
+    /// `\(scheme)://rokt-paypal-return` and `\(scheme)://rokt-paypal-cancel` (same idea as the Stripe payment extension’s fixed host pattern).
+    /// Register **scheme** under `CFBundleURLTypes` / `CFBundleURLSchemes` in `Info.plist`, then forward matching URLs to ``handleURLCallback(with:)``.
+    ///
+    /// Pass `nil` to clear the stored scheme (PayPal device pay will fail until you set a valid scheme again).
+    ///
+    /// - Parameter scheme: Bare scheme string, or `nil` to clear.
+    /// - Returns: `false` if a non-empty scheme is malformed or not declared in `Info.plist` when that check applies (skipped under XCTest and in **DEBUG** for known Rokt sample apps; see ``PayPalRedirectURLSchemeValidator/shouldValidateAgainstInfoPlist``).
+    @discardableResult
+    public static func setBuiltInPayPalRedirectURLScheme(_ scheme: String?) -> Bool {
+        shared.roktImplementation.setBuiltInPayPalRedirectURLScheme(scheme)
+    }
+
+    /// Forward an incoming URL to built-in PayPal (when active) and registered payment extensions.
+    ///
+    /// Redirect-based payment methods (e.g. Afterpay, built-in PayPal) authenticate in a browser or
+    /// web view and return to the host app via a custom URL scheme. The host app should forward every
+    /// incoming URL to this method — the SDK handles built-in PayPal first, then asks each registered
+    /// extension until one recognizes the URL.
     ///
     /// Example (SwiftUI):
     /// ```swift
@@ -179,7 +193,7 @@ internal import RoktUXHelper
     /// ```
     ///
     /// - Parameter url: The URL received by the host app.
-    /// - Returns: `true` if a registered payment extension handled the URL.
+    /// - Returns: `true` if built-in PayPal or a registered payment extension handled the URL.
     @discardableResult
     public static func handleURLCallback(with url: URL) -> Bool {
         shared.roktImplementation.handleURLCallback(with: url)

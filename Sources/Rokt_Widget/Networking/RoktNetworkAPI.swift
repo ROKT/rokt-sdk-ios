@@ -386,10 +386,18 @@ internal class RoktNetWorkAPI {
     /// - Parameters:
     ///   - upsellItems: The items being purchased
     ///   - shippingAttributes: Shipping address for the order
+    ///   - returnURL: Optional redirect success URL for payment flows that need it
+    ///   - cancelURL: Optional redirect cancel URL for payment flows that need it
+    ///   - paymentMethod: Optional cart body `payment_method` (e.g. `"PAYPAL"` for built-in PayPal)
+    ///   - paymentProvider: Optional cart body `payment_provider` (e.g. `"PAYPAL"` for built-in PayPal)
     ///   - success: Callback with the parsed response
     ///   - failure: Callback with error details
     class func initializePurchase(upsellItems: [UpsellItem],
                                   shippingAttributes: ShippingAttributes,
+                                  returnURL: String? = nil,
+                                  cancelURL: String? = nil,
+                                  paymentMethod: String? = nil,
+                                  paymentProvider: String? = nil,
                                   success: ((InitializePurchaseResponse) -> Void)? = nil,
                                   failure: ((Error, Int?, String) -> Void)? = nil) {
         guard let tagId = Rokt.shared.roktImplementation.roktTagId else {
@@ -410,7 +418,11 @@ internal class RoktNetWorkAPI {
             totalUpsellPrice: totalUpsellPrice,
             currency: currency,
             upsellItems: upsellItems,
-            fulfillmentDetails: fulfillmentDetails)
+            fulfillmentDetails: fulfillmentDetails,
+            returnURL: returnURL,
+            cancelURL: cancelURL,
+            paymentMethod: paymentMethod,
+            paymentProvider: paymentProvider)
 
         let headers = getDefaultHeaders(tagId: tagId)
 
