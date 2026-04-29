@@ -161,7 +161,7 @@ class TestPaymentOrchestrator: XCTestCase {
         let found = sut.paymentExtension(id: "stripe")
         XCTAssertTrue(found === second, "Should reference the second (replacement) extension")
         XCTAssertEqual(first.onUnregisterCallCount, 1)
-        XCTAssertEqual(sut.availablePaymentMethods(), [.card])
+        XCTAssertEqual(Set(sut.availablePaymentMethods()), Set([.card, .paypal]))
     }
 
     func test_register_duplicateId_removesOldEvenWhenNewFails() {
@@ -228,8 +228,10 @@ class TestPaymentOrchestrator: XCTestCase {
 
     // MARK: - availablePaymentMethods
 
-    func test_availablePaymentMethods_empty_whenNoExtensions() {
-        XCTAssertTrue(sut.availablePaymentMethods().isEmpty)
+    func test_availablePaymentMethods_builtinPayPalOnly_whenNoExtensionsRegistered() {
+        let methods = sut.availablePaymentMethods()
+        XCTAssertEqual(Set(methods), Set([.paypal]))
+        XCTAssertEqual(methods.count, 1)
     }
 
     func test_availablePaymentMethods_deduplicatesAcrossExtensions() {
@@ -240,8 +242,8 @@ class TestPaymentOrchestrator: XCTestCase {
         sut.register(ext2, config: [:])
 
         let methods = sut.availablePaymentMethods()
-        XCTAssertEqual(Set(methods), Set([.applePay, .card]))
-        XCTAssertEqual(methods.count, 2, "Should not contain duplicates")
+        XCTAssertEqual(Set(methods), Set([.applePay, .card, .paypal]))
+        XCTAssertEqual(methods.count, 3, "Should not contain duplicates")
     }
 
     // MARK: - handleURLCallback
@@ -485,7 +487,7 @@ class TestPaymentOrchestrator: XCTestCase {
 
         // Hold the presenting VC strongly: ``PendingBuiltInPayPalWebCheckout/presentingViewController``
         // is weak, and the deferred ``DispatchQueue.main.async`` in
-        // ``presentPendingBuiltInPayPalAfterForwardPaymentSuccessIfNeeded`` would otherwise see nil.
+        // ``presentPendingBuiltInPayPalForForwardPayment(onCompletion:)`` would otherwise see nil.
         let viewController = UIViewController()
         sut.processPayment(
             method: .paypal,
@@ -499,7 +501,7 @@ class TestPaymentOrchestrator: XCTestCase {
             XCTAssertEqual(result.transactionId, "mock_paypal_txn")
             expectation.fulfill()
         }
-        sut.presentPendingBuiltInPayPalAfterForwardPaymentSuccessIfNeeded()
+        _ = sut.presentPendingBuiltInPayPalForForwardPayment { _ in }
 
         wait(for: [expectation], timeout: 1.0)
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.initializePurchaseCallCount, 1)
@@ -538,7 +540,7 @@ class TestPaymentOrchestrator: XCTestCase {
         ) { _ in
             expectation.fulfill()
         }
-        sut.presentPendingBuiltInPayPalAfterForwardPaymentSuccessIfNeeded()
+        _ = sut.presentPendingBuiltInPayPalForForwardPayment { _ in }
 
         wait(for: [expectation], timeout: 1.0)
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchaseReturnURL, "myapp://paypal/success")
@@ -575,7 +577,7 @@ class TestPaymentOrchestrator: XCTestCase {
         ) { _ in
             paypalExpectation.fulfill()
         }
-        sut.presentPendingBuiltInPayPalAfterForwardPaymentSuccessIfNeeded()
+        _ = sut.presentPendingBuiltInPayPalForForwardPayment { _ in }
         wait(for: [paypalExpectation], timeout: 1.0)
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "PAYPAL")
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "PAYPAL")
@@ -766,7 +768,7 @@ class TestPaymentOrchestrator: XCTestCase {
         }
         wait(for: [expectation], timeout: 1.0)
         XCTAssertEqual(payPalPresenter.presentCallCount, 0)
-        XCTAssertNil(PaymentOrchestrator.pendingBuiltInPayPalApprovalURL)
+        XCTAssertFalse(sut.presentPendingBuiltInPayPalForForwardPayment { _ in })
     }
 
     func test_handleURLCallback_completesPayPal_whenActiveCheckoutMatchesReturnDeepLink() {
@@ -779,7 +781,7 @@ class TestPaymentOrchestrator: XCTestCase {
 
         let expectation = expectation(description: "PayPal completes via deep link callback")
         // Hold the presenting VC strongly: ``PendingBuiltInPayPalWebCheckout/presentingViewController``
-        // is weak, and the deferred main-queue dispatch in ``presentPendingBuiltInPayPalAfterForwardPaymentSuccessIfNeeded``
+        // is weak, and the deferred main-queue dispatch in ``presentPendingBuiltInPayPalForForwardPayment(onCompletion:)``
         // would otherwise see nil and complete with .failed before the deep link arrives.
         let viewController = UIViewController()
         sut.processPayment(
@@ -798,7 +800,7 @@ class TestPaymentOrchestrator: XCTestCase {
             XCTAssertEqual(result.transactionId, "ORDER_FROM_LINK")
             expectation.fulfill()
         }
-        sut.presentPendingBuiltInPayPalAfterForwardPaymentSuccessIfNeeded()
+        _ = sut.presentPendingBuiltInPayPalForForwardPayment { _ in }
 
         // Disambiguate from the local `expectation` var declared above, which shadows
         // ``XCTestCase/expectation(description:)`` and produced a build error in Brandon's commit.

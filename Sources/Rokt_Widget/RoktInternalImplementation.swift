@@ -677,6 +677,7 @@ class RoktInternalImplementation {
             RoktLogger.shared.warning(
                 "Forward-payment event missing price or has non-positive quantity"
             )
+            paymentOrchestrator.cancelPendingBuiltInPayPalIfNeeded()
             forwardPaymentFinalized(
                 executeId: executeId,
                 layoutId: event.layoutId,
@@ -1052,7 +1053,7 @@ class RoktInternalImplementation {
 
             let cacheProperties = LayoutPageCacheProperties(
                 viewName: viewName,
-                attributes: attributes,
+                experienceCacheAttributes: cacheAttributes,
                 pluginViewStates: pluginViewStates,
                 onPluginViewStateChange: onPluginViewStateChange
             )
@@ -1276,7 +1277,8 @@ struct LayoutPageExecutePayload {
 
 struct LayoutPageCacheProperties {
     let viewName: String?
-    let attributes: [String: String]
+    // Snapshot aligned with cache-attribute keys for this execute (see getCacheAttributesOrFallback).
+    let experienceCacheAttributes: [String: String]
     let pluginViewStates: [RoktPluginViewState]?
     let onPluginViewStateChange: ((RoktPluginViewState) -> Void)?
 }

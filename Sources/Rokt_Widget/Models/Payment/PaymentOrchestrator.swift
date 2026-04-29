@@ -28,10 +28,6 @@ final class PaymentOrchestrator {
     private static let builtInPayPalInitializePurchaseMethod = "PAYPAL"
     private static let builtInPayPalInitializePurchaseProvider = "PAYPAL"
 
-    /// Approval URL from cart prepare while built-in PayPal defers opening the hosted approve flow until
-    /// forward-payment finalization (see ``presentPendingBuiltInPayPalAfterForwardPaymentSuccessIfNeeded()``).
-    private(set) static var pendingBuiltInPayPalApprovalURL: URL?
-
     private static let pendingBuiltInPayPalLock = NSLock()
     private struct PendingBuiltInPayPalWebCheckout {
         weak var owner: PaymentOrchestrator?
@@ -132,7 +128,7 @@ final class PaymentOrchestrator {
     ///   - cartItemId: The backend cart item ID (format `"v1:uuid:canal"`)
     ///   - viewController: The view controller to present the payment sheet from
     ///   - builtInPayPalDevicePaySession: For built-in PayPal **device pay** only; drives ``RoktUX/devicePayShowConfirmation``
-    ///     and defers the hosted approve ``WKWebView`` until ``presentPendingBuiltInPayPalAfterForwardPaymentSuccessIfNeeded()`` runs.
+    ///     and defers the hosted approve ``WKWebView`` until ``presentPendingBuiltInPayPalForForwardPayment(onCompletion:)`` runs.
     ///   - completion: Called with the payment result
     func processPayment(
         method: PaymentMethodType,
@@ -199,7 +195,7 @@ final class PaymentOrchestrator {
     /// and `payment_method` / `payment_provider` as `PAYPAL` for the cart API.
     /// For device pay from a placement, ``Rokt/setBuiltInPayPalRedirectURLScheme(_:)`` supplies those URLs on ``PaymentContext``.
     /// After cart prepare, calls ``RoktUX/devicePayShowConfirmation`` (via ``BuiltInPayPalDevicePaySession``) and defers the hosted
-    /// PayPal approve step until ``presentPendingBuiltInPayPalAfterForwardPaymentSuccessIfNeeded()`` runs after forward-payment success.
+    /// PayPal approve step until ``presentPendingBuiltInPayPalForForwardPayment(onCompletion:)`` runs from the forward-payment handler.
     private func processBuiltInPayPalPayment(
         item: PaymentItem,
         context: PaymentContext,
@@ -231,12 +227,8 @@ final class PaymentOrchestrator {
                     }
                     return
                 }
-                Self.pendingBuiltInPayPalLock.lock()
-                Self.pendingBuiltInPayPalApprovalURL = approvalURL
-                Self.pendingBuiltInPayPalLock.unlock()
 
                 guard let devicePaySession else {
-                    Self.clearPendingBuiltInPayPalApprovalURLOnly()
                     DispatchQueue.main.async {
                         completion(.failed(error: Self.builtInPayPalMissingDeferredSessionMessage))
                     }
@@ -275,45 +267,6 @@ final class PaymentOrchestrator {
         }
     }
 
-    /// Called from ``RoktInternalImplementation`` after a successful cart forward-payment finalize, to start hosted PayPal approval
-    /// when cart prepare previously stored a deferred checkout.
-    func presentPendingBuiltInPayPalAfterForwardPaymentSuccessIfNeeded() {
-        Self.pendingBuiltInPayPalLock.lock()
-        let snapshot = Self.pendingBuiltInPayPalWebCheckout
-        guard let snapshot, snapshot.owner === self else {
-            Self.pendingBuiltInPayPalLock.unlock()
-            return
-        }
-        Self.pendingBuiltInPayPalWebCheckout = nil
-        Self.pendingBuiltInPayPalApprovalURL = nil
-        Self.pendingBuiltInPayPalLock.unlock()
-
-        DispatchQueue.main.async { [weak self] in
-            guard let self else {
-                snapshot.completion(.failed(error: Self.payPalReturnURLMissingMessage))
-                return
-            }
-            guard let viewController = snapshot.presentingViewController else {
-                snapshot.completion(.failed(error: "No view controller available for PayPal checkout."))
-                return
-            }
-            let coordinator = PayPalCheckoutCoordinator(
-                returnURLString: snapshot.returnURLString,
-                cancelURLString: snapshot.cancelURLString,
-                completion: { [weak self] result in
-                    self?.activePayPalCheckout = nil
-                    snapshot.completion(result)
-                }
-            )
-            self.activePayPalCheckout = coordinator
-            self.payPalApprovalPresenter.presentPayPalApproval(
-                approvalURL: snapshot.approvalURL,
-                from: viewController,
-                checkoutCoordinator: coordinator
-            )
-        }
-    }
-
     /// PayPal-only forward-payment entry point: open the cached approval URL
     /// fire `onCompletion` once the coordinator resolves via the in-webview redirect
     /// or the deep-link `handleURLCallback` path.
@@ -335,7 +288,6 @@ final class PaymentOrchestrator {
             return false
         }
         Self.pendingBuiltInPayPalWebCheckout = nil
-        Self.pendingBuiltInPayPalApprovalURL = nil
         Self.pendingBuiltInPayPalLock.unlock()
 
         DispatchQueue.main.async { [weak self] in
@@ -379,7 +331,6 @@ final class PaymentOrchestrator {
         Self.pendingBuiltInPayPalLock.lock()
         let snapshot = Self.pendingBuiltInPayPalWebCheckout
         Self.pendingBuiltInPayPalWebCheckout = nil
-        Self.pendingBuiltInPayPalApprovalURL = nil
         Self.pendingBuiltInPayPalLock.unlock()
         guard let snapshot else { return }
         DispatchQueue.main.async {
@@ -387,24 +338,17 @@ final class PaymentOrchestrator {
         }
     }
 
-    /// Clears static deferred state without invoking a completion (unit tests).
+    // Clears static deferred state without invoking a completion (unit tests).
+    // periphery:ignore
     static func resetBuiltInPayPalDeferredStateForTesting() {
         pendingBuiltInPayPalLock.lock()
         pendingBuiltInPayPalWebCheckout = nil
-        pendingBuiltInPayPalApprovalURL = nil
-        pendingBuiltInPayPalLock.unlock()
-    }
-
-    private static func clearPendingBuiltInPayPalApprovalURLOnly() {
-        pendingBuiltInPayPalLock.lock()
-        pendingBuiltInPayPalApprovalURL = nil
         pendingBuiltInPayPalLock.unlock()
     }
 
     private static func clearPendingBuiltInPayPalStateUnderLock() {
         pendingBuiltInPayPalLock.lock()
         pendingBuiltInPayPalWebCheckout = nil
-        pendingBuiltInPayPalApprovalURL = nil
         pendingBuiltInPayPalLock.unlock()
     }
 
@@ -532,6 +476,12 @@ final class PaymentOrchestrator {
                     )
                     completion(.failure(validationError))
                     return
+                }
+
+                if let paypalData = response.paypalData {
+                    RoktLogger.shared.verbose(
+                        "\(Self.devicePayErrorCode) initialize-purchase PayPal order id length=\(paypalData.orderId.count)"
+                    )
                 }
 
                 let preparation = PaymentPreparation(

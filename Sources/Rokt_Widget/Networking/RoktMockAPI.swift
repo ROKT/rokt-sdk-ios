@@ -111,7 +111,7 @@ internal class RoktMockAPI {
                                   paymentProvider: String? = nil,
                                   success: ((InitializePurchaseResponse) -> Void)? = nil,
                                   failure: ((Error, Int?, String) -> Void)? = nil) {
-        _ = (returnURL, cancelURL, paymentMethod, paymentProvider)
+        _ = (returnURL, cancelURL, paymentMethod, paymentProvider, shippingAttributes, failure)
         let mockResponse = InitializePurchaseResponse(
             success: true,
             totalUpsellPrice: upsellItems.reduce(Decimal.zero) { $0 + $1.totalPrice },
