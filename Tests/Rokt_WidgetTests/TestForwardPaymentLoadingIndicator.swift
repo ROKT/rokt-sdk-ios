@@ -9,7 +9,7 @@ import Mocker
 /// partner app can't show its own spinner while we wait on the backend.
 final class TestForwardPaymentLoadingIndicator: XCTestCase {
 
-    private let purchaseURL = URL(string: "https://mobile-api.rokt.com/v1/cart/purchase")!
+    private let purchaseURL = URL(string: "https://apps.rokt.com/rokt-mobile/v1/cart/purchase")!
     private let executeId = "test-execute-id"
 
     private var originalTagId: String?

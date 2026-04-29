@@ -10,7 +10,7 @@ import Mocker
 /// `fulfillmentDetails` must be omitted when no shipping address is present.
 final class TestForwardPaymentRequestBody: XCTestCase {
 
-    private let purchaseURL = URL(string: "https://mobile-api.rokt.com/v1/cart/purchase")!
+    private let purchaseURL = URL(string: "https://apps.rokt.com/rokt-mobile/v1/cart/purchase")!
     private let executeId = "test-execute-id"
 
     private var originalTagId: String?

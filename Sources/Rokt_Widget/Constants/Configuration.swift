@@ -11,8 +11,8 @@ internal enum Environment: Equatable {
     var baseURL: String {
         switch self {
         case .Mock: return ""
-        case .Stage: return "https://mobile-api.stage.rokt.com"
-        case .Prod: return "https://mobile-api.rokt.com"
+        case .Stage: return "https://apps.stage.rokt.com"
+        case .Prod: return "https://apps.rokt.com"
         case .ProdDemo: return "https://mobile-api-demo.rokt.com"
         case .Local: return "http://localhost:9011"
         case .custom(let url): return url
