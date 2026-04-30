@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 ### Changed
 
 - **RoktContracts** SwiftPM dependency: require [2.0.1](https://github.com/ROKT/rokt-contracts-apple/releases/tag/2.0.1)+ (replaces branch pin). CocoaPods spec now requires RoktContracts `>= 2.0.1`, `< 3.0`.
-- **RoktUXHelper** SwiftPM: require [0.10.5](https://github.com/ROKT/rokt-ux-helper-ios/releases/tag/0.10.5)+ (replaces revision pin; includes PayPal confirmation / `devicePayShowConfirmation` from [#265](https://github.com/ROKT/rokt-ux-helper-ios/pull/265)). CocoaPods spec now requires RoktUXHelper `>= 0.10.5`, `< 0.11`.
+- **RoktUXHelper** SwiftPM: require [0.10.6](https://github.com/ROKT/rokt-ux-helper-ios/releases/tag/0.10.6)+ (replaces revision pin; includes card payment provider support from [#267](https://github.com/ROKT/rokt-ux-helper-ios/pull/267) alongside the PayPal confirmation / `devicePayShowConfirmation` changes from [#265](https://github.com/ROKT/rokt-ux-helper-ios/pull/265)). CocoaPods spec now requires RoktUXHelper `>= 0.10.6`, `< 0.11`.
 - Built-in PayPal device pay no longer reads return/cancel URLs from placement **`TransactionData`** metadata or execute **attributes**; the scheme-based URLs above are the only source.
 - Cart **`/v1/cart/initialize-purchase`** for built-in PayPal now sends `payment_method` and `payment_provider` as `PAYPAL` in the JSON body (extension-based Shoppable Ads prepare calls omit these keys).
 

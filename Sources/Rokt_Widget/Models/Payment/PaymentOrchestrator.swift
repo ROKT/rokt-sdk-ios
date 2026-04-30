@@ -2,8 +2,11 @@ import Foundation
 import UIKit
 import RoktContracts
 
-/// Layout context and confirmation hook for built-in PayPal **device pay** (from the execute / device-pay path).
-struct BuiltInPayPalDevicePaySession {
+/// Layout context and confirmation hook for built-in **two-step device pay** flows (PayPal, Card).
+///
+/// Used to drive ``RoktUX/devicePayShowConfirmation`` from the orchestrator after Step-1
+/// (`initialize-purchase`) resolves, so the layout can transition to the Step-2 confirm button.
+struct BuiltInTwoStepDevicePaySession {
     let layoutId: String
     let catalogItemId: String
     let showConfirmation: (_ layoutId: String, _ catalogItemId: String, _ catalogRuntimeData: [String: String]) -> Void
@@ -28,7 +31,9 @@ final class PaymentOrchestrator {
     private static let builtInPayPalInitializePurchaseMethod = "PAYPAL"
     private static let builtInPayPalInitializePurchaseProvider = "PAYPAL"
 
-    private static let pendingBuiltInPayPalLock = NSLock()
+    private static let pendingBuiltInTwoStepLock = NSLock()
+
+    /// PayPal Step-1 cache: WebView context + deferred Step-1 completion fired on Step-2 resolve.
     private struct PendingBuiltInPayPalWebCheckout {
         weak var owner: PaymentOrchestrator?
         let approvalURL: URL
@@ -38,7 +43,20 @@ final class PaymentOrchestrator {
         let completion: (PaymentSheetResult) -> Void
     }
 
-    private static var pendingBuiltInPayPalWebCheckout: PendingBuiltInPayPalWebCheckout?
+    /// Card Step-1 cache: just the deferred completion. Step-2 dispatch lives in
+    /// ``RoktInternalImplementation.handleForwardPayment`` (POST `/v1/cart/purchase`); the
+    /// orchestrator only holds the completion so it can fire alongside ``forwardPaymentFinalized``.
+    private struct PendingBuiltInCardCheckout {
+        weak var owner: PaymentOrchestrator?
+        let completion: (PaymentSheetResult) -> Void
+    }
+
+    private enum PendingBuiltInTwoStepCheckout {
+        case paypal(PendingBuiltInPayPalWebCheckout)
+        case card(PendingBuiltInCardCheckout)
+    }
+
+    private static var pendingBuiltInTwoStepCheckout: PendingBuiltInTwoStepCheckout?
 
     static let builtInPayPalMissingDeferredSessionMessage =
         "Built-in PayPal device pay requires a layout session for confirmation (device pay hook)."
@@ -136,7 +154,8 @@ final class PaymentOrchestrator {
         context: PaymentContext,
         cartItemId: String,
         from viewController: UIViewController,
-        builtInPayPalDevicePaySession: BuiltInPayPalDevicePaySession? = nil,
+        builtInPayPalDevicePaySession: BuiltInTwoStepDevicePaySession? = nil,
+        builtInCardDevicePaySession: BuiltInTwoStepDevicePaySession? = nil,
         completion: @escaping (PaymentSheetResult) -> Void
     ) {
         if method == .paypal {
@@ -146,6 +165,17 @@ final class PaymentOrchestrator {
                 cartItemId: cartItemId,
                 from: viewController,
                 devicePaySession: builtInPayPalDevicePaySession,
+                completion: completion
+            )
+            return
+        }
+
+        if method == .card, let cardSession = builtInCardDevicePaySession {
+            processBuiltInCardPayment(
+                item: item,
+                context: context,
+                cartItemId: cartItemId,
+                devicePaySession: cardSession,
                 completion: completion
             )
             return
@@ -194,14 +224,14 @@ final class PaymentOrchestrator {
     /// ``PaymentContext/returnURL`` and ``PaymentContext/cancelURL`` through to the API body when present,
     /// and `payment_method` / `payment_provider` as `PAYPAL` for the cart API.
     /// For device pay from a placement, ``Rokt/setBuiltInPayPalRedirectURLScheme(_:)`` supplies those URLs on ``PaymentContext``.
-    /// After cart prepare, calls ``RoktUX/devicePayShowConfirmation`` (via ``BuiltInPayPalDevicePaySession``) and defers the hosted
+    /// After cart prepare, calls ``RoktUX/devicePayShowConfirmation`` (via ``BuiltInTwoStepDevicePaySession``) and defers the hosted
     /// PayPal approve step until ``presentPendingBuiltInPayPalForForwardPayment(onCompletion:)`` runs from the forward-payment handler.
     private func processBuiltInPayPalPayment(
         item: PaymentItem,
         context: PaymentContext,
         cartItemId: String,
         from viewController: UIViewController,
-        devicePaySession: BuiltInPayPalDevicePaySession?,
+        devicePaySession: BuiltInTwoStepDevicePaySession?,
         completion: @escaping (PaymentSheetResult) -> Void
     ) {
         let contactAddress = Self.contactAddressForInitializePurchase(context: context)
@@ -238,7 +268,7 @@ final class PaymentOrchestrator {
                       !returnURL.isEmpty,
                       URL(string: returnURL) != nil
                 else {
-                    Self.clearPendingBuiltInPayPalStateUnderLock()
+                    Self.clearPendingBuiltInTwoStepStateUnderLock()
                     DispatchQueue.main.async {
                         completion(.failed(error: Self.payPalReturnURLMissingMessage))
                     }
@@ -256,9 +286,9 @@ final class PaymentOrchestrator {
                     presentingViewController: viewController,
                     completion: completion
                 )
-                Self.pendingBuiltInPayPalLock.lock()
-                Self.pendingBuiltInPayPalWebCheckout = pending
-                Self.pendingBuiltInPayPalLock.unlock()
+                Self.pendingBuiltInTwoStepLock.lock()
+                Self.pendingBuiltInTwoStepCheckout = .paypal(pending)
+                Self.pendingBuiltInTwoStepLock.unlock()
             case .failure(let error):
                 DispatchQueue.main.async {
                     completion(.failed(error: error.localizedDescription))
@@ -281,14 +311,16 @@ final class PaymentOrchestrator {
     func presentPendingBuiltInPayPalForForwardPayment(
         onCompletion: @escaping (PaymentSheetResult) -> Void
     ) -> Bool {
-        Self.pendingBuiltInPayPalLock.lock()
-        let snapshot = Self.pendingBuiltInPayPalWebCheckout
-        guard let snapshot, snapshot.owner === self else {
-            Self.pendingBuiltInPayPalLock.unlock()
+        Self.pendingBuiltInTwoStepLock.lock()
+        // Only consume PayPal entries; leave a card entry intact for ``popPendingBuiltInCardCompletion``.
+        guard case let .paypal(snapshot) = Self.pendingBuiltInTwoStepCheckout,
+              snapshot.owner === self
+        else {
+            Self.pendingBuiltInTwoStepLock.unlock()
             return false
         }
-        Self.pendingBuiltInPayPalWebCheckout = nil
-        Self.pendingBuiltInPayPalLock.unlock()
+        Self.pendingBuiltInTwoStepCheckout = nil
+        Self.pendingBuiltInTwoStepLock.unlock()
 
         DispatchQueue.main.async { [weak self] in
             guard let self else {
@@ -326,30 +358,98 @@ final class PaymentOrchestrator {
         return true
     }
 
-    /// Called when forward-payment fails or cannot run, so a deferred built-in PayPal session does not leak.
-    func cancelPendingBuiltInPayPalIfNeeded() {
-        Self.pendingBuiltInPayPalLock.lock()
-        let snapshot = Self.pendingBuiltInPayPalWebCheckout
-        Self.pendingBuiltInPayPalWebCheckout = nil
-        Self.pendingBuiltInPayPalLock.unlock()
+    /// Called when forward-payment fails or cannot run, so a deferred two-step session does not leak.
+    /// Fires the cached completion with a provider-appropriate cancellation message.
+    func cancelPendingBuiltInTwoStepIfNeeded() {
+        Self.pendingBuiltInTwoStepLock.lock()
+        let snapshot = Self.pendingBuiltInTwoStepCheckout
+        Self.pendingBuiltInTwoStepCheckout = nil
+        Self.pendingBuiltInTwoStepLock.unlock()
         guard let snapshot else { return }
         DispatchQueue.main.async {
-            snapshot.completion(.failed(error: "PayPal checkout was canceled."))
+            switch snapshot {
+            case .paypal(let pending):
+                pending.completion(.failed(error: "PayPal checkout was canceled."))
+            case .card(let pending):
+                pending.completion(.failed(error: "Card checkout was canceled."))
+            }
         }
+    }
+
+    // MARK: - Built-in Card forwarding (no PaymentExtension)
+
+    /// Entry point for Card device-pay (Step-1 of the two-step Card forward-payment flow).
+    ///
+    /// Runs the same cart ``initializePurchase`` preparation as PayPal but without `paymentMethod` /
+    /// `paymentProvider` overrides or return/cancel URLs (no hosted approval step). After cart prepare,
+    /// triggers ``RoktUX/devicePayShowConfirmation`` so the layout transitions to the Step-2 confirm
+    /// button, and caches `completion` so it can fire alongside ``forwardPaymentFinalized`` once
+    /// ``handleForwardPayment`` posts to `/v1/cart/purchase`.
+    private func processBuiltInCardPayment(
+        item: PaymentItem,
+        context: PaymentContext,
+        cartItemId: String,
+        devicePaySession: BuiltInTwoStepDevicePaySession,
+        completion: @escaping (PaymentSheetResult) -> Void
+    ) {
+        let contactAddress = Self.contactAddressForInitializePurchase(context: context)
+        preparePaymentForItem(
+            item: item,
+            cartItemId: cartItemId,
+            contactAddress: contactAddress,
+            returnURL: nil,
+            cancelURL: nil
+        ) { result in
+            switch result {
+            case .success(let preparation):
+                let catalogRuntimeData = Self.catalogRuntimeDataForDevicePayConfirmation(item: item, preparation: preparation)
+                devicePaySession.showConfirmation(devicePaySession.layoutId, devicePaySession.catalogItemId, catalogRuntimeData)
+
+                let pending = PendingBuiltInCardCheckout(owner: self, completion: completion)
+                Self.pendingBuiltInTwoStepLock.lock()
+                Self.pendingBuiltInTwoStepCheckout = .card(pending)
+                Self.pendingBuiltInTwoStepLock.unlock()
+            case .failure(let error):
+                DispatchQueue.main.async {
+                    completion(.failed(error: error.localizedDescription))
+                }
+            }
+        }
+    }
+
+    /// Card-only forward-payment hook: pop the cached Step-1 completion so the caller can
+    /// fire it after `/v1/cart/purchase` resolves.
+    ///
+    /// Card has no orchestrator-driven Step-2 (no WebView). ``handleForwardPayment`` runs the
+    /// standard `/v1/cart/purchase` path; this method just hands back the deferred completion
+    /// so device-pay finalization can chain off the same response.
+    ///
+    /// - Returns: the cached completion when the pending checkout was a card flow owned by
+    ///   this orchestrator; `nil` otherwise (so PayPal entries are left intact).
+    func popPendingBuiltInCardCompletion() -> ((PaymentSheetResult) -> Void)? {
+        Self.pendingBuiltInTwoStepLock.lock()
+        defer { Self.pendingBuiltInTwoStepLock.unlock() }
+        guard case let .card(snapshot) = Self.pendingBuiltInTwoStepCheckout,
+              snapshot.owner === self
+        else {
+            return nil
+        }
+        Self.pendingBuiltInTwoStepCheckout = nil
+        return snapshot.completion
     }
 
     // Clears static deferred state without invoking a completion (unit tests).
     // periphery:ignore
-    static func resetBuiltInPayPalDeferredStateForTesting() {
-        pendingBuiltInPayPalLock.lock()
-        pendingBuiltInPayPalWebCheckout = nil
-        pendingBuiltInPayPalLock.unlock()
+    static func resetBuiltInTwoStepDeferredStateForTesting() {
+        pendingBuiltInTwoStepLock.lock()
+        pendingBuiltInTwoStepCheckout = nil
+        pendingBuiltInTwoStepLock.unlock()
     }
 
-    private static func clearPendingBuiltInPayPalStateUnderLock() {
-        pendingBuiltInPayPalLock.lock()
-        pendingBuiltInPayPalWebCheckout = nil
-        pendingBuiltInPayPalLock.unlock()
+    private static func clearPendingBuiltInTwoStepStateUnderLock() {
+        pendingBuiltInTwoStepLock.lock()
+        pendingBuiltInTwoStepCheckout = nil
+        pendingBuiltInTwoStepLock.unlock()
     }
 
     private static func catalogRuntimeDataForDevicePayConfirmation(
