@@ -109,22 +109,22 @@ class TestPaymentOrchestrator: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        PaymentOrchestrator.resetBuiltInPayPalDeferredStateForTesting()
+        PaymentOrchestrator.resetBuiltInTwoStepDeferredStateForTesting()
         sut = PaymentOrchestrator()
         PaymentOrchestratorAPIHelperSpy.reset()
     }
 
     override func tearDown() {
         sut = nil
-        PaymentOrchestrator.resetBuiltInPayPalDeferredStateForTesting()
+        PaymentOrchestrator.resetBuiltInTwoStepDeferredStateForTesting()
         PaymentOrchestratorAPIHelperSpy.reset()
         super.tearDown()
     }
 
     private func paypalDeviceSessionForTests(
         onConfirmation: ((String, String, [String: String]) -> Void)? = nil
-    ) -> BuiltInPayPalDevicePaySession {
-        BuiltInPayPalDevicePaySession(layoutId: "test_layout", catalogItemId: "test_catalog") { lid, cid, data in
+    ) -> BuiltInTwoStepDevicePaySession {
+        BuiltInTwoStepDevicePaySession(layoutId: "test_layout", catalogItemId: "test_catalog") { lid, cid, data in
             onConfirmation?(lid, cid, data)
         }
     }
@@ -671,6 +671,111 @@ class TestPaymentOrchestrator: XCTestCase {
         wait(for: [expectation], timeout: 1.0)
         XCTAssertNil(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod)
         XCTAssertNil(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider)
+    }
+
+    // MARK: - Built-in Card forwarding (two-step)
+
+    func test_processPayment_card_routesToBuiltInCardFlowWithoutExtension() {
+        sut = PaymentOrchestrator(apiHelper: PaymentOrchestratorAPIHelperSpy.self)
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = Self.validInitializePurchaseResponse()
+
+        let confirmationExpectation = expectation(description: "Card showConfirmation fires after prepare")
+        var confirmationData: [String: String]?
+        let cardSession = BuiltInTwoStepDevicePaySession(
+            layoutId: "test_layout",
+            catalogItemId: "test_catalog"
+        ) { _, _, data in
+            confirmationData = data
+            confirmationExpectation.fulfill()
+        }
+
+        let item = PaymentItem(id: "item-card", name: "Widget", amount: 9.99, currency: "USD")
+        sut.processPayment(
+            method: .card,
+            item: item,
+            context: PaymentContext(),
+            cartItemId: "v1:cart-card:canal",
+            from: UIViewController(),
+            builtInCardDevicePaySession: cardSession
+        ) { _ in
+            // Step-1 completion is held until popPendingBuiltInCardCompletion fires it.
+            XCTFail("Card Step-1 completion fired before Step-2 popped it")
+        }
+
+        wait(for: [confirmationExpectation], timeout: 1.0)
+
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.initializePurchaseCallCount, 1)
+        // Card flow does NOT pass payment_method/payment_provider overrides — those are PayPal-specific.
+        XCTAssertNil(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod)
+        XCTAssertNil(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider)
+        XCTAssertNil(PaymentOrchestratorAPIHelperSpy.lastInitializePurchaseReturnURL)
+        XCTAssertNil(PaymentOrchestratorAPIHelperSpy.lastInitializePurchaseCancelURL)
+        XCTAssertNotNil(confirmationData)
+    }
+
+    func test_popPendingBuiltInCardCompletion_returnsCompletionAndClearsCache() {
+        sut = PaymentOrchestrator(apiHelper: PaymentOrchestratorAPIHelperSpy.self)
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = Self.validInitializePurchaseResponse()
+
+        let confirmationExpectation = expectation(description: "Card showConfirmation fires")
+        let cardSession = BuiltInTwoStepDevicePaySession(
+            layoutId: "test_layout",
+            catalogItemId: "test_catalog"
+        ) { _, _, _ in
+            confirmationExpectation.fulfill()
+        }
+
+        let stepOneCompletionExpectation = expectation(description: "Step-1 completion fires once popped")
+        sut.processPayment(
+            method: .card,
+            item: PaymentItem(id: "item-card", name: "Widget", amount: 9.99, currency: "USD"),
+            context: PaymentContext(),
+            cartItemId: "v1:cart-card:canal",
+            from: UIViewController(),
+            builtInCardDevicePaySession: cardSession
+        ) { result in
+            XCTAssertEqual(result.outcome, .succeeded)
+            stepOneCompletionExpectation.fulfill()
+        }
+        wait(for: [confirmationExpectation], timeout: 1.0)
+
+        guard let popped = sut.popPendingBuiltInCardCompletion() else {
+            XCTFail("Expected card Step-1 completion to be available after prepare")
+            return
+        }
+        // Second pop should return nil — cache is one-shot.
+        XCTAssertNil(sut.popPendingBuiltInCardCompletion())
+
+        popped(.succeeded(transactionId: "card_txn"))
+        wait(for: [stepOneCompletionExpectation], timeout: 1.0)
+    }
+
+    func test_popPendingBuiltInCardCompletion_returnsNilWhenCacheHoldsPayPal() {
+        let payPalPresenter = MockPayPalApprovalPresenter()
+        sut = PaymentOrchestrator(
+            apiHelper: PaymentOrchestratorAPIHelperSpy.self,
+            payPalApprovalPresenter: payPalPresenter
+        )
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = Self.validPayPalInitializePurchaseResponse()
+
+        let viewController = UIViewController()
+        sut.processPayment(
+            method: .paypal,
+            item: PaymentItem(id: "item-pp", name: "Widget", amount: 9.99, currency: "USD"),
+            context: PaymentContext(
+                billingAddress: nil,
+                shippingAddress: nil,
+                returnURL: "myapp://paypal/success",
+                cancelURL: "myapp://paypal/cancel"
+            ),
+            cartItemId: "v1:cart-pp:canal",
+            from: viewController,
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests()
+        ) { _ in }
+
+        // PayPal cache is set; popPendingBuiltInCardCompletion must NOT consume it.
+        XCTAssertNil(sut.popPendingBuiltInCardCompletion())
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment { _ in })
     }
 
     private static func validInitializePurchaseResponse() -> InitializePurchaseResponse {
