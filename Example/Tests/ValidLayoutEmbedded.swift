@@ -30,14 +30,27 @@ final class ValidLayoutEmbedded: QuickSpec {
                 // Stub response for widget call
                 self.stubExecute(kValidLayoutEmbeddedFilename, isLayout: true)
 
+                // Initialize event tracking arrays so stub callbacks never
+                // touch a `nil` IUO if a request fires before the inner
+                // beforeEach assigns fresh arrays.
+                events = []
+                errors = []
+                timingsRequests = []
+                partnerEvents = []
+                partnerEventsInfo = [:]
+
                 // Stub response for event call
                 self.stubEvents(onEventReceive: { event in
-                    events.append(event)
+                    DispatchQueue.main.async {
+                        events.append(event)
+                    }
                 })
 
                 // Stub response for diagnostic call
                 self.stubDiagnostics(onDiagnosticsReceive: { (error) in
-                    errors.append(error)
+                    DispatchQueue.main.async {
+                        errors.append(error)
+                    }
                 })
 
                 // Mock date
@@ -46,7 +59,9 @@ final class ValidLayoutEmbedded: QuickSpec {
 
                 // Stub response for timings call
                 self.stubTimings(onTimingsRequestReceive: { request in
-                    timingsRequests.append(request)
+                    DispatchQueue.main.async {
+                        timingsRequests.append(request)
+                    }
                 })
 
                 Rokt.events(identifier: "Test") { roktEvent in
@@ -99,6 +114,31 @@ final class ValidLayoutEmbedded: QuickSpec {
 
                     UIApplication.shared.keyWindow!.rootViewController = testVC
                     _ = testVC.view
+                }
+
+                afterEach {
+                    // Dismiss any Rokt-presented modal so the next test starts
+                    // with a clean window hierarchy. Embedded layouts don't
+                    // present, but other specs in the run may have left one.
+                    if let viewController = UIApplication.topViewController(),
+                       viewController is RoktUXSwiftUIViewController {
+                        viewController.dismiss(animated: false)
+                    }
+
+                    // Reset state
+                    events = []
+                    errors = []
+                    timingsRequests = []
+                    partnerEvents = []
+                    partnerEventsInfo = [:]
+
+                    // Reset any global mocking state
+                    RoktSDKDateHandler.customDate = nil
+                    DateHandler.customDate = nil
+
+                    // Clear the view controller
+                    testVC = nil
+                    UIApplication.shared.keyWindow!.rootViewController = nil
                 }
 
                 it("1. layout is configured") {
@@ -249,14 +289,24 @@ final class ValidLayoutEmbedded: QuickSpec {
                 // Stub response for widget call
                 self.stubExecute(kValidLayoutEmbedded4Filename, isLayout: true)
 
+                // Initialize event tracking arrays so stub callbacks never
+                // touch a `nil` IUO if a request fires before the inner
+                // beforeEach assigns fresh arrays.
+                events = []
+                errors = []
+
                 // Stub response for event call
                 self.stubEvents(onEventReceive: { event in
-                    events.append(event)
+                    DispatchQueue.main.async {
+                        events.append(event)
+                    }
                 })
 
                 // Stub response for diagnostic call
                 self.stubDiagnostics(onDiagnosticsReceive: { (error) in
-                    errors.append(error)
+                    DispatchQueue.main.async {
+                        errors.append(error)
+                    }
                 })
             }
 
@@ -269,6 +319,19 @@ final class ValidLayoutEmbedded: QuickSpec {
 
                     UIApplication.shared.keyWindow!.rootViewController = testVC
                     _ = testVC.view
+                }
+
+                afterEach {
+                    if let viewController = UIApplication.topViewController(),
+                       viewController is RoktUXSwiftUIViewController {
+                        viewController.dismiss(animated: false)
+                    }
+
+                    events = []
+                    errors = []
+
+                    testVC = nil
+                    UIApplication.shared.keyWindow!.rootViewController = nil
                 }
 
                 it("1. layout is configured") {
