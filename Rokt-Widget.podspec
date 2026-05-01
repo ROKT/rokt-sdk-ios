@@ -20,5 +20,5 @@ Pod::Spec.new do |s|
   s.frameworks       = 'Foundation', 'UIKit', 'SwiftUI', 'Combine'
 
   s.dependency 'RoktContracts', '>= 2.0.1', '< 3.0'
-  s.dependency 'RoktUXHelper', '>= 0.10.6', '< 0.11'
+  s.dependency 'RoktUXHelper', '>= 0.10.7', '< 0.11'
 end
