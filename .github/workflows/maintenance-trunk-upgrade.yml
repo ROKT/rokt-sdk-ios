@@ -10,10 +10,9 @@ permissions:
   pull-requests: write
 
 jobs:
-  generate-and-call-upgrade:
+  trunk-upgrade:
+    name: Run trunk upgrade
     runs-on: ubuntu-latest
-    outputs:
-      generated-token: ${{ steps.generate-token.outputs.token }}
     steps:
       - name: Generate a token
         id: generate-token
@@ -25,22 +24,42 @@ jobs:
           repositories: |
             rokt-sdk-ios
 
-  trunk-upgrade:
-    needs: generate-and-call-upgrade
-    name: Run trunk upgrade
-    uses: ROKT/rokt-workflows/.github/workflows/trunk-upgrade.yml@main
-    with:
-      token: ${{ needs.generate-and-call-upgrade.outputs.generated-token }}
-
-  trunk-check:
-    name: Trunk code check
-    runs-on: macos-latest
-    steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          persist-credentials: false
-      - name: Trunk Check
-        uses: trunk-io/trunk-action@75699af9e26881e564e9d832ef7dc3af25ec031b # v1.2.4
+          token: ${{ steps.generate-token.outputs.token }}
+
+      - name: Trunk Upgrade
+        id: trunk-upgrade
+        uses: trunk-io/trunk-action/upgrade@75699af9e26881e564e9d832ef7dc3af25ec031b # v1.2.4
         with:
-          check-mode: all
+          base: ${{ github.ref_name }}
+          github-token: ${{ steps.generate-token.outputs.token }}
+
+      - name: Check if trunk config file changed
+        id: version-changed
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
+        with:
+          files: .trunk/trunk.yaml
+
+      - name: Output Summary
+        env:
+          CHANGES_DETECTED: ${{ steps.version-changed.outputs.any_changed }}
+          PULL_REQUEST_OPERATION: ${{ steps.trunk-upgrade.outputs.pull-request-operation }}
+          PULL_REQUEST_URL: ${{ steps.trunk-upgrade.outputs.pull-request-url }}
+        run: |
+          if [ "$CHANGES_DETECTED" = "true" ]; then
+            echo "## 🎉 Trunk Upgrade Summary" >> $GITHUB_STEP_SUMMARY
+            echo "A trunk upgrade was performed and changes were detected in \`.trunk/trunk.yaml\`." >> $GITHUB_STEP_SUMMARY
+            if [ -n "$PULL_REQUEST_URL" ]; then
+              if [ "$PULL_REQUEST_OPERATION" = "updated" ]; then
+                echo "The existing pull request was updated: $PULL_REQUEST_URL" >> $GITHUB_STEP_SUMMARY
+              else
+                echo "A pull request was created: $PULL_REQUEST_URL" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+          else
+            echo "## ℹ️ Trunk Upgrade Summary" >> $GITHUB_STEP_SUMMARY
+            echo "No changes were detected in \`.trunk/trunk.yaml\` during the upgrade process." >> $GITHUB_STEP_SUMMARY
+            echo "Your trunk configuration is up to date!" >> $GITHUB_STEP_SUMMARY
+          fi
