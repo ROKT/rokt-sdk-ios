@@ -3,11 +3,15 @@ internal import RoktUXHelper
 
 // MARK: - URL constants (internal — also used by test mocks)
 
-var initResourceURL: String { "\(baseURL)/v1/init" }
-var experiencesResourceURL: String { "\(baseURL)/v1/experiences" }
-var eventResourceURL: String { "\(baseURL)/v2/events" }
-var diagnosticsResourceURL: String { "\(baseURL)/v1/diagnostics" }
-var timingsResourceURL: String { "\(baseURL)/v1/timings" }
+let mobileAPIPathPrefix = "rokt-mobile"
+
+var initResourceURL: String { "\(baseURL)/\(mobileAPIPathPrefix)/v1/init" }
+var experiencesResourceURL: String { "\(baseURL)/\(mobileAPIPathPrefix)/v1/experiences" }
+var eventResourceURL: String { "\(baseURL)/\(mobileAPIPathPrefix)/v2/events" }
+var diagnosticsResourceURL: String { "\(baseURL)/\(mobileAPIPathPrefix)/v1/diagnostics" }
+var timingsResourceURL: String { "\(baseURL)/\(mobileAPIPathPrefix)/v1/timings" }
+var initializePurchaseResourceURL: String { "\(baseURL)/\(mobileAPIPathPrefix)/v1/cart/initialize-purchase" }
+var purchaseResourceURL: String { "\(baseURL)/\(mobileAPIPathPrefix)/v1/cart/purchase" }
 
 // MARK: - Header keys (internal — used by test mocks)
 
@@ -427,7 +431,7 @@ internal class RoktNetWorkAPI {
         let headers = getDefaultHeaders(tagId: tagId)
 
         NetworkingHelper.performPost(
-            url: "\(baseURL)/v1/cart/initialize-purchase",
+            url: initializePurchaseResourceURL,
             body: request.toDictionary(),
             headers: headers,
             success: { _, data, _ in
@@ -481,7 +485,7 @@ internal class RoktNetWorkAPI {
         let headers = getDefaultHeaders(tagId: tagId)
 
         NetworkingHelper.performPost(
-            url: "\(baseURL)/v1/cart/purchase",
+            url: purchaseResourceURL,
             body: request.toDictionary(),
             headers: headers,
             success: { _, data, _ in
