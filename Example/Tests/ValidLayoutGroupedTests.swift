@@ -23,14 +23,24 @@ final class ValidLayoutGroupedTests: QuickSpec {
                 // Stub response for widget call
                 self.stubExecute(kValidLayoutGroupedFilename, isLayout: true)
 
+                // Initialize event tracking arrays so stub callbacks never
+                // touch a `nil` IUO if a request fires before the inner
+                // beforeEach assigns fresh arrays.
+                events = []
+                errors = []
+
                 // Stub response for event call
                 self.stubEvents(onEventReceive: { event in
-                    events.append(event)
+                    DispatchQueue.main.async {
+                        events.append(event)
+                    }
                 })
 
                 // Stub response for diagnostic call
                 self.stubDiagnostics(onDiagnosticsReceive: { (error) in
-                    errors.append(error)
+                    DispatchQueue.main.async {
+                        errors.append(error)
+                    }
                 })
             }
 
@@ -43,6 +53,19 @@ final class ValidLayoutGroupedTests: QuickSpec {
 
                     UIApplication.shared.keyWindow!.rootViewController = testVC
                     _ = testVC.view
+                }
+
+                afterEach {
+                    if let viewController = UIApplication.topViewController(),
+                       viewController is RoktUXSwiftUIViewController {
+                        viewController.dismiss(animated: false)
+                    }
+
+                    events = []
+                    errors = []
+
+                    testVC = nil
+                    UIApplication.shared.keyWindow!.rootViewController = nil
                 }
 
                 it("1. layout is configured") {
