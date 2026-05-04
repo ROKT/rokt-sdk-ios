@@ -31,10 +31,10 @@ struct InitializePurchaseRequest {
             dict["cancelURL"] = cancelURL
         }
         if let paymentMethod {
-            dict["payment_method"] = paymentMethod
+            dict["paymentMethod"] = paymentMethod
         }
         if let paymentProvider {
-            dict["payment_provider"] = paymentProvider
+            dict["paymentProvider"] = paymentProvider
         }
 
         return dict
