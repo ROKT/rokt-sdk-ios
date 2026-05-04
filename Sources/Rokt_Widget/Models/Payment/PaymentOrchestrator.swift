@@ -27,7 +27,7 @@ final class PaymentOrchestrator {
     /// Built-in PayPal uses ``PaymentContext/returnURL`` to detect completion when PayPal redirects after approval.
     static let payPalReturnURLMissingMessage =
         "PaymentContext.returnURL is required for PayPal checkout."
-    /// Cart `initialize-purchase` body `payment_method` / `payment_provider` for built-in PayPal.
+    /// Cart `initialize-purchase` body `paymentMethod` / `paymentProvider` for built-in PayPal.
     private static let builtInPayPalInitializePurchaseMethod = "PAYPAL"
     private static let builtInPayPalInitializePurchaseProvider = "PAYPAL"
 
@@ -222,7 +222,7 @@ final class PaymentOrchestrator {
     ///
     /// Runs the same cart ``initializePurchase`` preparation as extension-based flows, passing
     /// ``PaymentContext/returnURL`` and ``PaymentContext/cancelURL`` through to the API body when present,
-    /// and `payment_method` / `payment_provider` as `PAYPAL` for the cart API.
+    /// and `paymentMethod` / `paymentProvider` as `PAYPAL` for the cart API.
     /// For device pay from a placement, ``Rokt/setBuiltInPayPalRedirectURLScheme(_:)`` supplies those URLs on ``PaymentContext``.
     /// After cart prepare, calls ``RoktUX/devicePayShowConfirmation`` (via ``BuiltInTwoStepDevicePaySession``) and defers the hosted
     /// PayPal approve step until ``presentPendingBuiltInPayPalForForwardPayment(onCompletion:)`` runs from the forward-payment handler.

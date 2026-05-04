@@ -705,7 +705,7 @@ class TestPaymentOrchestrator: XCTestCase {
         wait(for: [confirmationExpectation], timeout: 1.0)
 
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.initializePurchaseCallCount, 1)
-        // Card flow does NOT pass payment_method/payment_provider overrides — those are PayPal-specific.
+        // Card flow does NOT pass paymentMethod/paymentProvider overrides — those are PayPal-specific.
         XCTAssertNil(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod)
         XCTAssertNil(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider)
         XCTAssertNil(PaymentOrchestratorAPIHelperSpy.lastInitializePurchaseReturnURL)
