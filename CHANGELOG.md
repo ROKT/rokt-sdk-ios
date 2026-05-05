@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 - Forward PayPal `paypalData.approvalUrl` from initialize-purchase into `PaymentPreparation` when present (depends on **RoktContracts** 2.0.1+).
 - Built-in PayPal device pay: after cart prepare, call **RoktUX** `devicePayShowConfirmation` (layout confirmation + `DATA.catalogRuntime.*` from [rokt-ux-helper-ios#265](https://github.com/ROKT/rokt-ux-helper-ios/pull/265)); defer the hosted **approve** `WKWebView` until **`/v1/cart/purchase`** forward-payment succeeds, then present approval and complete via `PaymentContext` return/cancel and `Rokt.handleURLCallback`. Swappable `PayPalApprovalPresenting` remains for tests.
 - `Rokt.setBuiltInPayPalRedirectURLScheme(_:)` — **required** for built-in PayPal **device pay**: composes return/cancel as `\(scheme)://rokt-paypal-return` and `\(scheme)://rokt-paypal-cancel` (bare scheme must appear under `CFBundleURLSchemes` in `Info.plist`). Pass `nil` only to clear configuration (PayPal device pay will not proceed until set again).
+- Automatically enrich experience requests with `availablePaymentMethods`, including registered extension methods, built-in card forwarding, and built-in PayPal when its redirect URL scheme is configured.
 
 ### Changed
 

@@ -112,12 +112,15 @@ final class PaymentOrchestrator {
         !registeredExtensions.isEmpty
     }
 
-    /// All available payment methods across all registered extensions, plus built-in PayPal.
-    func availablePaymentMethods() -> [PaymentMethodType] {
+    /// All available payment methods across registered extensions, plus enabled built-in payment forwarding methods.
+    func availablePaymentMethods(isBuiltInPayPalAvailable: Bool = true) -> [PaymentMethodType] {
         var methods = Set(
             registeredExtensions.flatMap { $0.supportedMethods }.compactMap { PaymentMethodType(wireValue: $0) }
         )
-        methods.insert(.paypal)
+        methods.insert(.card)
+        if isBuiltInPayPalAvailable {
+            methods.insert(.paypal)
+        }
         return PaymentMethodType.allCases.filter { methods.contains($0) }
     }
 

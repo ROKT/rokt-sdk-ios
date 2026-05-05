@@ -1,7 +1,9 @@
 import XCTest
+import RoktContracts
 @testable import Rokt_Widget
 
 private let BE_IS_PAYMENT_EXTENSION_REGISTERED_KEY = "paymentExtensionRegistered"
+private let BE_AVAILABLE_PAYMENT_METHODS_KEY = "availablePaymentMethods"
 
 class TestPaymentExtensionAttributeEnricher: XCTestCase {
 
@@ -19,44 +21,68 @@ class TestPaymentExtensionAttributeEnricher: XCTestCase {
 
     func testEnrich_withPaymentExtensionRegistered_shouldReturnTrue() {
         // Given
-        let sut = PaymentExtensionAttributeEnricher(provider: { true })
+        let sut = PaymentExtensionAttributeEnricher(
+            provider: { true },
+            availablePaymentMethodsProvider: { [.card, .paypal] }
+        )
 
         // When
         let attributes = sut.enrich(config: mockConfig)
 
         // Then
-        XCTAssertEqual(attributes.count, 1, "Should contain one key.")
+        XCTAssertEqual(attributes.count, 2, "Should contain payment extension and available payment method keys.")
         XCTAssertEqual(
             attributes[BE_IS_PAYMENT_EXTENSION_REGISTERED_KEY], "true",
-            "paymentExtensionActivated should be true when a payment extension is registered."
+            "paymentExtensionRegistered should be true when a payment extension is registered."
         )
     }
 
     func testEnrich_withNoPaymentExtensionRegistered_shouldReturnFalse() {
         // Given
-        let sut = PaymentExtensionAttributeEnricher(provider: { false })
+        let sut = PaymentExtensionAttributeEnricher(
+            provider: { false },
+            availablePaymentMethodsProvider: { [.card, .paypal] }
+        )
 
         // When
         let attributes = sut.enrich(config: mockConfig)
 
         // Then
-        XCTAssertEqual(attributes.count, 1, "Should contain one key.")
+        XCTAssertEqual(attributes.count, 2, "Should contain payment extension and available payment method keys.")
         XCTAssertEqual(
             attributes[BE_IS_PAYMENT_EXTENSION_REGISTERED_KEY], "false",
-            "paymentExtensionActivated should be false when no payment extension is registered."
+            "paymentExtensionRegistered should be false when no payment extension is registered."
         )
     }
 
     func testEnrich_withNilConfig_shouldStillReturnAttribute() {
         // Given
-        let sut = PaymentExtensionAttributeEnricher(provider: { true })
+        let sut = PaymentExtensionAttributeEnricher(
+            provider: { true },
+            availablePaymentMethodsProvider: { [.card, .paypal] }
+        )
 
         // When
         let attributes = sut.enrich(config: nil)
 
         // Then
-        XCTAssertEqual(attributes.count, 1, "Should contain one key regardless of config.")
+        XCTAssertEqual(attributes.count, 2, "Should contain both keys regardless of config.")
         XCTAssertEqual(attributes[BE_IS_PAYMENT_EXTENSION_REGISTERED_KEY], "true")
+    }
+
+    func testEnrich_withAvailablePaymentMethods_shouldReturnWireValues() {
+        // Given
+        let methods: [PaymentMethodType] = [.applePay, .card, .paypal]
+        let sut = PaymentExtensionAttributeEnricher(
+            provider: { true },
+            availablePaymentMethodsProvider: { methods }
+        )
+
+        // When
+        let attributes = sut.enrich(config: mockConfig)
+
+        // Then
+        XCTAssertEqual(attributes[BE_AVAILABLE_PAYMENT_METHODS_KEY], methods.map(\.wireValue).joined(separator: ","))
     }
 
     func testEnrich_providerIsCalledOnEachEnrich() {
@@ -65,6 +91,8 @@ class TestPaymentExtensionAttributeEnricher: XCTestCase {
         let sut = PaymentExtensionAttributeEnricher(provider: {
             callCount += 1
             return true
+        }, availablePaymentMethodsProvider: {
+            [.card, .paypal]
         })
 
         // When

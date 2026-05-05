@@ -278,10 +278,11 @@ final class ShoppableAdsDemoViewController: UITableViewController {
             appendLog("Missing Apple Pay merchant ID.")
             return
         }
-        guard let ext = RoktPaymentExtension(applePayMerchantId: merchantId) else {
+        guard let ext = RoktPaymentExtension(applePayMerchantId: merchantId, urlScheme: "com.rokt.example") else {
             appendLog("RoktPaymentExtension init returned nil.")
             return
         }
+        Rokt.setBuiltInPayPalRedirectURLScheme("com.rokt.example")
         registeredExtension = ext
         roktClient.registerPaymentExtension(ext, config: ["stripeKey": stripeKey])
         appendLog("Registered RoktPaymentExtension (merchantId=\(merchantId)).")

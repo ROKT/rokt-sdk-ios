@@ -79,6 +79,9 @@ class RoktInternalImplementation {
     private var builtInPayPalRedirectURLScheme: String?
 
     var isPaymentExtensionRegistered: Bool { paymentOrchestrator.hasRegisteredExtension }
+    var availablePaymentMethods: [PaymentMethodType] {
+        paymentOrchestrator.availablePaymentMethods(isBuiltInPayPalAvailable: builtInPayPalRedirectURLScheme != nil)
+    }
 
     func close() {
         guard let window = UIApplication.shared.windows.filter({$0.isKeyWindow}).first,
