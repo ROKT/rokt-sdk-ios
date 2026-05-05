@@ -228,9 +228,15 @@ class TestPaymentOrchestrator: XCTestCase {
 
     // MARK: - availablePaymentMethods
 
-    func test_availablePaymentMethods_builtinPayPalOnly_whenNoExtensionsRegistered() {
+    func test_availablePaymentMethods_builtinDefaults_whenNoExtensionsRegistered() {
         let methods = sut.availablePaymentMethods()
-        XCTAssertEqual(Set(methods), Set([.paypal]))
+        XCTAssertEqual(Set(methods), Set([.card, .paypal]))
+        XCTAssertEqual(methods.count, 2)
+    }
+
+    func test_availablePaymentMethods_excludesPayPalWhenBuiltInPayPalUnavailable() {
+        let methods = sut.availablePaymentMethods(isBuiltInPayPalAvailable: false)
+        XCTAssertEqual(Set(methods), Set([.card]))
         XCTAssertEqual(methods.count, 1)
     }
 
@@ -600,6 +606,11 @@ class TestPaymentOrchestrator: XCTestCase {
     func test_availablePaymentMethods_includesPayPalWhenNoExtensionsRegistered() {
         let methods = sut.availablePaymentMethods()
         XCTAssertTrue(methods.contains(.paypal))
+    }
+
+    func test_availablePaymentMethods_includesCardForwardingWhenNoExtensionsRegistered() {
+        let methods = sut.availablePaymentMethods()
+        XCTAssertTrue(methods.contains(.card))
     }
 
     func test_handleURLCallback_builtinPayPalPlaceholder_defersToExtensions() {
