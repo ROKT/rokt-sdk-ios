@@ -1,5 +1,6 @@
 import XCTest
 import Foundation
+import RoktContracts
 @testable internal import RoktUXHelper
 
 @testable import Rokt_Widget
@@ -171,6 +172,33 @@ class TestRokt: XCTestCase {
             roktInternalImplementation.sessionManager.getCurrentSessionIdWithoutExpiring(),
             "existing-session-id"
         )
+    }
+
+    // MARK: - availablePaymentMethods Tests
+
+    func test_availablePaymentMethods_excludesPayPalBeforeRedirectSchemeIsSet() {
+        let roktInternalImplementation = RoktInternalImplementation()
+
+        let methods = roktInternalImplementation.availablePaymentMethods
+
+        XCTAssertEqual(Set(methods), Set([PaymentMethodType.card]))
+    }
+
+    func test_availablePaymentMethods_includesPayPalAfterRedirectSchemeIsSet() {
+        let roktInternalImplementation = RoktInternalImplementation()
+
+        XCTAssertTrue(roktInternalImplementation.setBuiltInPayPalRedirectURLScheme("myapp"))
+
+        XCTAssertEqual(Set(roktInternalImplementation.availablePaymentMethods), Set([.card, .paypal]))
+    }
+
+    func test_availablePaymentMethods_excludesPayPalAfterRedirectSchemeIsCleared() {
+        let roktInternalImplementation = RoktInternalImplementation()
+        XCTAssertTrue(roktInternalImplementation.setBuiltInPayPalRedirectURLScheme("myapp"))
+
+        XCTAssertTrue(roktInternalImplementation.setBuiltInPayPalRedirectURLScheme(nil))
+
+        XCTAssertEqual(Set(roktInternalImplementation.availablePaymentMethods), Set([PaymentMethodType.card]))
     }
 
     // MARK: - getSessionId Tests

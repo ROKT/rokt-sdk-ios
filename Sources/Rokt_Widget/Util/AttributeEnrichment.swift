@@ -10,7 +10,10 @@ struct AttributeEnrichment {
         ApplePayAttributeEnricher(),
         ColorModeAttributeEnricher(),
         StripeAttributeEnricher(),
-        PaymentExtensionAttributeEnricher { Rokt.shared.roktImplementation.isPaymentExtensionRegistered }
+        PaymentExtensionAttributeEnricher(
+            provider: { Rokt.shared.roktImplementation.isPaymentExtensionRegistered },
+            availablePaymentMethodsProvider: { Rokt.shared.roktImplementation.availablePaymentMethods }
+        )
     ])
     let enrichers: [AttributeEnricher]
 

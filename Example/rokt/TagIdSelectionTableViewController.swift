@@ -12,6 +12,7 @@ class TagIdSelectionTableViewController: UIViewController, UIPickerViewDelegate,
     @IBOutlet weak var customTagIdLabel: UILabel!
     @IBOutlet weak var customTagIdTextField: UITextField!
     var roktTags: [RoktTag] = [RoktTag]()
+    private var currentEnvironment: Environment = .Stage
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -21,6 +22,40 @@ class TagIdSelectionTableViewController: UIViewController, UIPickerViewDelegate,
         customTagIdTextField.text = "2754655826098840951"
         customTagIdTextField.delegate = self
         self.view.addGestureRecognizer(UITapGestureRecognizer(target: self.view, action: #selector(UIView.endEditing(_:))))
+        installShoppableAdsDemoButton()
+    }
+
+    private func installShoppableAdsDemoButton() {
+        let button = UIButton(type: .system)
+        button.setTitle("Shoppable Ads Demo", for: .normal)
+        button.accessibilityIdentifier = "ShoppableAdsDemoButton"
+        button.setTitleColor(.white, for: .normal)
+        button.titleLabel?.font = .boldSystemFont(ofSize: 16)
+        button.backgroundColor = .systemBlue
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.addTarget(self, action: #selector(openShoppableAdsDemo), for: .touchUpInside)
+        view.addSubview(button)
+
+        var constraints: [NSLayoutConstraint] = [
+            button.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            button.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            button.heightAnchor.constraint(equalToConstant: 50)
+        ]
+        // Stack flush above the Initialize button; fall back to the safe-area bottom.
+        if let initializeButton = view.findSubview(withAccessibilityIdentifier: "InitializeButton") {
+            constraints.append(button.bottomAnchor.constraint(equalTo: initializeButton.topAnchor))
+        } else {
+            constraints.append(button.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor))
+        }
+        NSLayoutConstraint.activate(constraints)
+    }
+
+    @objc private func openShoppableAdsDemo() {
+        let seed = ShoppableAdsDemoSeed(
+            environment: selectedEnvironment(),
+            tagID: selectedTagID()
+        )
+        navigationController?.pushViewController(ShoppableAdsDemoViewController(seed: seed), animated: true)
     }
 
     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
@@ -124,17 +159,11 @@ class TagIdSelectionTableViewController: UIViewController, UIPickerViewDelegate,
     }
 
     func setEnvironment(_ environment: Environment) {
-        switch environment {
-        case .Stage: Rokt.setEnvironment(environment: .Stage)
-        case .Prod: Rokt.setEnvironment(environment: .Prod)
-        case .ProdDemo: Rokt.setEnvironment(environment: .ProdDemo)
-        case .Local: Rokt.setEnvironment(environment: .Local)
-        }
+        currentEnvironment = environment
+        Rokt.setEnvironment(environment: environment.roktEnvironment)
     }
 
     @IBAction func initialRokt(_ sender: Any) {
-        let selectedRow = tagIdPicker.selectedRow(inComponent: 0)
-        let selectedTag = selectedRow == 0 ? customTagIdTextField.text ?? "" : roktTags[selectedRow].id
         Rokt.globalEvents { roktEvent in
             if let initEvent = roktEvent as? RoktEvent.InitComplete {
                 print("Received Rokt global event InitComplete with status: \(initEvent.success)")
@@ -142,7 +171,7 @@ class TagIdSelectionTableViewController: UIViewController, UIPickerViewDelegate,
                 print("Received Rokt global event \(roktEvent)")
             }
         }
-        Rokt.initWith(roktTagId: selectedTag)
+        Rokt.initWith(roktTagId: selectedTagID())
     }
 
     @IBAction func getTrackingConsent(_ sender: Any) {
@@ -213,4 +242,28 @@ class TagIdSelectionTableViewController: UIViewController, UIPickerViewDelegate,
         return true
     }
 
+    private func selectedEnvironment() -> Environment {
+        currentEnvironment
+    }
+
+    private func selectedTagID() -> String {
+        let selectedRow = tagIdPicker.selectedRow(inComponent: 0)
+        guard selectedRow != 0 else {
+            return customTagIdTextField.text ?? ""
+        }
+        return roktTags[selectedRow].id
+    }
+
+}
+
+private extension UIView {
+    func findSubview(withAccessibilityIdentifier identifier: String) -> UIView? {
+        if accessibilityIdentifier == identifier { return self }
+        for subview in subviews {
+            if let match = subview.findSubview(withAccessibilityIdentifier: identifier) {
+                return match
+            }
+        }
+        return nil
+    }
 }

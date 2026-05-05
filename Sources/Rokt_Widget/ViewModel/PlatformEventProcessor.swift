@@ -159,7 +159,8 @@ class PlatformEventProcessor {
         // Sends new events and updates cache
         sendEvents(newEvents)
         ExperienceCacheManager.cacheExperiencesViewStateSentEventHashes(viewName: cacheProperties.viewName,
-                                                                        attributes: cacheProperties.attributes,
+                                                                        attributes: cacheProperties
+                                                                            .experienceCacheAttributes,
                                                                         sentEventHashes: Rokt.shared.roktImplementation
                                                                         .sentEventHashes.allElements)
     }

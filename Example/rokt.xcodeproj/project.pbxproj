@@ -77,6 +77,20 @@
 		58EF6D2025E364BE0058A2B2 /* initWithFalseRoktTrackingStatus.json in Resources */ = {isa = PBXBuildFile; fileRef = 58EF6D1F25E364BE0058A2B2 /* initWithFalseRoktTrackingStatus.json */; };
 		58EF6D2125E364BE0058A2B2 /* initWithFalseRoktTrackingStatus.json in Resources */ = {isa = PBXBuildFile; fileRef = 58EF6D1F25E364BE0058A2B2 /* initWithFalseRoktTrackingStatus.json */; };
 		607FACD61AFB9204008FA782 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 607FACD51AFB9204008FA782 /* AppDelegate.swift */; };
+		C1C0D10000000000000001E1 /* ShoppableAdsDemoViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1C0D10000000000000002E1 /* ShoppableAdsDemoViewController.swift */; };
+		C1C0D10000000000000005E1 /* RoktPaymentExtension in Frameworks */ = {isa = PBXBuildFile; productRef = C1C0D10000000000000004E1 /* RoktPaymentExtension */; };
+		C1C0D10000000000000006E1 /* ShoppableAdsDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1C0D10000000000000007E1 /* ShoppableAdsDefaults.swift */; };
+		C1C0D10000000000000009E1 /* ShoppableAdsDemoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1C0D10000000000000008E1 /* ShoppableAdsDemoTests.swift */; };
+		C1C0D10000000000000010E1 /* RoktPaymentExtension in Frameworks */ = {isa = PBXBuildFile; productRef = C1C0D10000000000000011E1 /* RoktPaymentExtension */; };
+		C1C0D10000000000000013E1 /* ShoppableAdsDemoViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1C0D10000000000000002E1 /* ShoppableAdsDemoViewController.swift */; };
+		C1C0D10000000000000014E1 /* ShoppableAdsDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1C0D10000000000000007E1 /* ShoppableAdsDefaults.swift */; };
+		C1C0D10000000000000015E1 /* TagIdSelectionTableViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F31D685213D829100F044CC /* TagIdSelectionTableViewController.swift */; };
+		C1C0D10000000000000016E1 /* CartViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 607FACD71AFB9204008FA782 /* CartViewController.swift */; };
+		C1C0D10000000000000017E1 /* OrderCompleteTableViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 250B2B08236AF29E0020A450 /* OrderCompleteTableViewController.swift */; };
+		C1C0D10000000000000018E1 /* RoktTag.swift in Sources */ = {isa = PBXBuildFile; fileRef = 258EDB1624062BBF003202F5 /* RoktTag.swift */; };
+		C1C0D10000000000000019E1 /* Environment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 258EDB1824062D59003202F5 /* Environment.swift */; };
+		C1C0D10000000000000020E1 /* Toast.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25226FF52A415C85006AFCF7 /* Toast.swift */; };
+		C1C0D10000000000000021E1 /* RoktCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 250B2B06236AF2430020A450 /* RoktCell.swift */; };
 		607FACD81AFB9204008FA782 /* CartViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 607FACD71AFB9204008FA782 /* CartViewController.swift */; };
 		607FACDB1AFB9204008FA782 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 607FACD91AFB9204008FA782 /* Main.storyboard */; };
 		607FACDD1AFB9204008FA782 /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 607FACDC1AFB9204008FA782 /* Images.xcassets */; };
@@ -194,6 +208,9 @@
 		607FACD01AFB9204008FA782 /* rokt_Example.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = rokt_Example.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		607FACD41AFB9204008FA782 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		607FACD51AFB9204008FA782 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		C1C0D10000000000000002E1 /* ShoppableAdsDemoViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppableAdsDemoViewController.swift; sourceTree = "<group>"; };
+		C1C0D10000000000000007E1 /* ShoppableAdsDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ShoppableAdsDefaults.swift; path = model/ShoppableAdsDefaults.swift; sourceTree = "<group>"; };
+		C1C0D10000000000000008E1 /* ShoppableAdsDemoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppableAdsDemoTests.swift; sourceTree = "<group>"; };
 		607FACD71AFB9204008FA782 /* CartViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CartViewController.swift; sourceTree = "<group>"; };
 		607FACDA1AFB9204008FA782 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		607FACDC1AFB9204008FA782 /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Images.xcassets; sourceTree = "<group>"; };
@@ -222,6 +239,7 @@
 				B3457BC42F46BC2F00AE9D86 /* PassKit.framework in Frameworks */,
 				898FAB782EC50F6A00EFBA65 /* SVProgressHUD in Frameworks */,
 				B3457BC72F46BCB300AE9D86 /* Rokt-Widget in Frameworks */,
+				C1C0D10000000000000005E1 /* RoktPaymentExtension in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -232,6 +250,7 @@
 				A11F4D132F9B87AC006B1A2F /* Rokt-Widget in Frameworks */,
 				8922B0A92ECE64BC0083D05B /* Quick in Frameworks */,
 				898FAB7A2EC5127100EFBA65 /* SVProgressHUD in Frameworks */,
+				C1C0D10000000000000010E1 /* RoktPaymentExtension in Frameworks */,
 				89FA8CA32ECE5C2D00F26E1B /* Nimble-Snapshots in Frameworks */,
 				5881EE5D26D8A2AB006DA89C /* Mocker in Frameworks */,
 			);
@@ -301,6 +320,7 @@
 			children = (
 				258EDB1624062BBF003202F5 /* RoktTag.swift */,
 				258EDB1824062D59003202F5 /* Environment.swift */,
+				C1C0D10000000000000007E1 /* ShoppableAdsDefaults.swift */,
 			);
 			name = model;
 			sourceTree = "<group>";
@@ -345,6 +365,7 @@
 				607FACD51AFB9204008FA782 /* AppDelegate.swift */,
 				25FD47362BF4922C0051C704 /* main.swift */,
 				4F31D685213D829100F044CC /* TagIdSelectionTableViewController.swift */,
+				C1C0D10000000000000002E1 /* ShoppableAdsDemoViewController.swift */,
 				607FACD71AFB9204008FA782 /* CartViewController.swift */,
 				4FCF94A0210931B7000CE923 /* OrderCompleteViewController.swift */,
 				250B2B08236AF29E0020A450 /* OrderCompleteTableViewController.swift */,
@@ -373,6 +394,7 @@
 				250610FA232F66CB00E6CBD9 /* ViewControllers */,
 				2534233C231F2C2900463C74 /* NetworkMock */,
 				4F7DEE35212DBBAF007DABC4 /* UnitTests.swift */,
+				C1C0D10000000000000008E1 /* ShoppableAdsDemoTests.swift */,
 				2536C0C029D29D0A00AABC4F /* ValidLayoutBottomSheetTests.swift */,
 				252120F02A4AB1720087B6F9 /* ValidLayoutOverlayTests.swift */,
 				250CF2472A4BB88B00C6FDE7 /* ValidLayoutEmbedded.swift */,
@@ -481,6 +503,7 @@
 			packageProductDependencies = (
 				898FAB772EC50F6A00EFBA65 /* SVProgressHUD */,
 				B3457BC62F46BCB300AE9D86 /* Rokt-Widget */,
+				C1C0D10000000000000004E1 /* RoktPaymentExtension */,
 			);
 			productName = rokt;
 			productReference = 607FACD01AFB9204008FA782 /* rokt_Example.app */;
@@ -507,6 +530,7 @@
 				89FA8CA22ECE5C2D00F26E1B /* Nimble-Snapshots */,
 				8922B0A82ECE64BC0083D05B /* Quick */,
 				B3457BC22F45127800AE9D86 /* Rokt-Widget */,
+				C1C0D10000000000000011E1 /* RoktPaymentExtension */,
 			);
 			productName = Tests;
 			productReference = 607FACE51AFB9204008FA782 /* rokt_Tests.xctest */;
@@ -556,6 +580,7 @@
 				898FAB762EC50F6A00EFBA65 /* XCRemoteSwiftPackageReference "SVProgressHUD" */,
 				89FA8CA12ECE5C2D00F26E1B /* XCRemoteSwiftPackageReference "Nimble-Snapshots" */,
 				8922B0A72ECE64BC0083D05B /* XCRemoteSwiftPackageReference "Quick" */,
+				C1C0D10000000000000003E1 /* XCRemoteSwiftPackageReference "rokt-payment-extension-ios" */,
 				B3457BC52F46BCB300AE9D86 /* XCLocalSwiftPackageReference ".." */,
 			);
 			productRefGroup = 607FACD11AFB9204008FA782 /* Products */;
@@ -678,6 +703,8 @@
 				607FACD61AFB9204008FA782 /* AppDelegate.swift in Sources */,
 				25690F9C260AB87C00744387 /* HashUtils.swift in Sources */,
 				4F31D686213D829100F044CC /* TagIdSelectionTableViewController.swift in Sources */,
+				C1C0D10000000000000001E1 /* ShoppableAdsDemoViewController.swift in Sources */,
+				C1C0D10000000000000006E1 /* ShoppableAdsDefaults.swift in Sources */,
 				25FD47372BF4922C0051C704 /* main.swift in Sources */,
 				25226FF32A415861006AFCF7 /* OrderCompleteSwiftUI.swift in Sources */,
 				4FCF94A1210931B7000CE923 /* OrderCompleteViewController.swift in Sources */,
@@ -705,6 +732,16 @@
 				4F4B29B8210B68D600334961 /* OrderCompleteViewController.swift in Sources */,
 				250CF2482A4BB88B00C6FDE7 /* ValidLayoutEmbedded.swift in Sources */,
 				9914913E2C4651DE00D3355B /* MockTimingsRequest.swift in Sources */,
+				C1C0D10000000000000021E1 /* RoktCell.swift in Sources */,
+				C1C0D10000000000000020E1 /* Toast.swift in Sources */,
+				C1C0D10000000000000019E1 /* Environment.swift in Sources */,
+				C1C0D10000000000000018E1 /* RoktTag.swift in Sources */,
+				C1C0D10000000000000017E1 /* OrderCompleteTableViewController.swift in Sources */,
+				C1C0D10000000000000016E1 /* CartViewController.swift in Sources */,
+				C1C0D10000000000000015E1 /* TagIdSelectionTableViewController.swift in Sources */,
+				C1C0D10000000000000013E1 /* ShoppableAdsDemoViewController.swift in Sources */,
+				C1C0D10000000000000014E1 /* ShoppableAdsDefaults.swift in Sources */,
+				C1C0D10000000000000009E1 /* ShoppableAdsDemoTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2024,8 +2061,16 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/ashfurrow/Nimble-Snapshots";
 			requirement = {
-				kind = exactVersion;
-				version = 9.8.0;
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.9.1;
+			};
+		};
+		C1C0D10000000000000003E1 /* XCRemoteSwiftPackageReference "rokt-payment-extension-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ROKT/rokt-payment-extension-ios.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.1;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
@@ -2063,6 +2108,16 @@
 		B3457BC62F46BCB300AE9D86 /* Rokt-Widget */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = "Rokt-Widget";
+		};
+		C1C0D10000000000000004E1 /* RoktPaymentExtension */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C1C0D10000000000000003E1 /* XCRemoteSwiftPackageReference "rokt-payment-extension-ios" */;
+			productName = RoktPaymentExtension;
+		};
+		C1C0D10000000000000011E1 /* RoktPaymentExtension */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C1C0D10000000000000003E1 /* XCRemoteSwiftPackageReference "rokt-payment-extension-ios" */;
+			productName = RoktPaymentExtension;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

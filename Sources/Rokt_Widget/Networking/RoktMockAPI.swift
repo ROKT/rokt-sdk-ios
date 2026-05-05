@@ -105,8 +105,13 @@ internal class RoktMockAPI {
 
     class func initializePurchase(upsellItems: [UpsellItem],
                                   shippingAttributes: ShippingAttributes? = nil,
+                                  returnURL: String? = nil,
+                                  cancelURL: String? = nil,
+                                  paymentMethod: String? = nil,
+                                  paymentProvider: String? = nil,
                                   success: ((InitializePurchaseResponse) -> Void)? = nil,
                                   failure: ((Error, Int?, String) -> Void)? = nil) {
+        _ = (returnURL, cancelURL, paymentMethod, paymentProvider, shippingAttributes, failure)
         let mockResponse = InitializePurchaseResponse(
             success: true,
             totalUpsellPrice: upsellItems.reduce(Decimal.zero) { $0 + $1.totalPrice },
@@ -121,7 +126,8 @@ internal class RoktMockAPI {
                 shippingCost: 0,
                 tax: 0,
                 totalAmount: upsellItems.reduce(Decimal.zero) { $0 + $1.totalPrice }
-            )
+            ),
+            paypalData: nil
         )
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {

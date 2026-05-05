@@ -25,14 +25,26 @@ final class ValidLayoutBottomSheetTests: QuickSpec {
                 // Stub response for widget call
                 self.stubExecute(kValidLayoutBottomSheetFilename, isLayout: true)
 
+                // Initialize event tracking arrays so stub callbacks never
+                // touch a `nil` IUO if a request fires before the inner
+                // beforeEach assigns fresh arrays.
+                events = []
+                errors = []
+                timingsRequests = []
+                partnerEvents = []
+
                 // Stub response for event call
                 self.stubEvents(onEventReceive: { event in
-                    events.append(event)
+                    DispatchQueue.main.async {
+                        events.append(event)
+                    }
                 })
 
                 // Stub response for diagnostic call
                 self.stubDiagnostics(onDiagnosticsReceive: { (error) in
-                    errors.append(error)
+                    DispatchQueue.main.async {
+                        errors.append(error)
+                    }
                 })
 
                 // Mock date
@@ -40,7 +52,9 @@ final class ValidLayoutBottomSheetTests: QuickSpec {
 
                 // Stub response for timings call
                 self.stubTimings(onTimingsRequestReceive: { request in
-                    timingsRequests.append(request)
+                    DispatchQueue.main.async {
+                        timingsRequests.append(request)
+                    }
                 })
 
                 Rokt.events(identifier: "Test") { roktEvent in
@@ -79,6 +93,30 @@ final class ValidLayoutBottomSheetTests: QuickSpec {
 
                     UIApplication.shared.keyWindow!.rootViewController = testVC
                     _ = testVC.view
+                }
+
+                afterEach {
+                    // Dismiss the bottom sheet modal if it's still on screen so
+                    // the next test starts with a clean window hierarchy and
+                    // the SDK isn't holding a reference to a presented
+                    // controller from a previous run.
+                    if let viewController = UIApplication.topViewController(),
+                       viewController is RoktUXSwiftUIViewController {
+                        viewController.dismiss(animated: false)
+                    }
+
+                    // Reset state
+                    events = []
+                    errors = []
+                    timingsRequests = []
+                    partnerEvents = []
+
+                    // Reset any global mocking state
+                    RoktSDKDateHandler.customDate = nil
+
+                    // Clear the view controller
+                    testVC = nil
+                    UIApplication.shared.keyWindow!.rootViewController = nil
                 }
 
                 it("1. layout is configured") {
@@ -143,8 +181,11 @@ final class ValidLayoutBottomSheetTests: QuickSpec {
                         parentGuid: "f5987bb9-f7ba-4a89-91e7-80a446c5d29c"
                     ))).toEventually(beTrue(), timeout: .seconds(10))
 
-                    // validate timings requests
-                    expect(timingsRequests.count).to(equal(1))
+                    // validate timings requests — wait for the request to land
+                    // first because the stub appends asynchronously on the main
+                    // queue, so the synchronous reads below would race the
+                    // network completion otherwise.
+                    expect(timingsRequests.count).toEventually(equal(1), timeout: .seconds(5))
                     expect(timingsRequests.first?.pageId).to(equal("edecb4b2-91a5-4fd7-859f-82347b6e79fd"))
                     expect(timingsRequests.first?.pageInstanceGuid).to(equal("afbc0187-2d0f-4ad4-be6b-7545f9273565"))
                     expect(timingsRequests.first?.pluginId).to(equal("2675781658204502278"))

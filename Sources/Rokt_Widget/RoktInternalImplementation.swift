@@ -21,6 +21,9 @@ class RoktInternalImplementation {
     static let defaultTimeout: Double = 9000
     static let defaultFontTimeout: Double = 30 // second
     static let defaultDelay: Double = 1000
+    private static let builtInPayPalMissingRedirectSchemeMessage =
+        "Rokt: Built-in PayPal device pay requires Rokt.setBuiltInPayPalRedirectURLScheme(_:) "
+            + "with a bare URL scheme registered in Info.plist (CFBundleURLTypes / CFBundleURLSchemes)."
 
     private var fontLoadObservers: [NSObjectProtocol] = []
 
@@ -71,7 +74,14 @@ class RoktInternalImplementation {
     // Payment orchestrator for Shoppable Ads
     private lazy var paymentOrchestrator = PaymentOrchestrator()
 
+    /// Bare URL scheme (no `://`) for built-in PayPal device-pay redirects: `\(scheme)://rokt-paypal-return` / `rokt-paypal-cancel`.
+    /// Set via ``Rokt/setBuiltInPayPalRedirectURLScheme(_:)`` before PayPal device pay; required for that flow.
+    private var builtInPayPalRedirectURLScheme: String?
+
     var isPaymentExtensionRegistered: Bool { paymentOrchestrator.hasRegisteredExtension }
+    var availablePaymentMethods: [PaymentMethodType] {
+        paymentOrchestrator.availablePaymentMethods(isBuiltInPayPalAvailable: builtInPayPalRedirectURLScheme != nil)
+    }
 
     func close() {
         guard let window = UIApplication.shared.windows.filter({$0.isKeyWindow}).first,
@@ -185,6 +195,33 @@ class RoktInternalImplementation {
             postalCode: attributes["shippingzipcode"],
             country: attributes["shippingcountry"]
         )
+    }
+
+    /// Configures the host app’s custom URL scheme for built-in PayPal return/cancel deep links.
+    /// - Returns: `false` if a non-empty scheme is malformed, or not listed under `CFBundleURLSchemes` in `Info.plist`
+    ///   when ``PayPalRedirectURLSchemeValidator/shouldValidateAgainstInfoPlist`` is `true` (see that property for XCTest / sample-app **DEBUG** exceptions).
+    @discardableResult
+    func setBuiltInPayPalRedirectURLScheme(_ scheme: String?) -> Bool {
+        guard let scheme, !scheme.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            builtInPayPalRedirectURLScheme = nil
+            return true
+        }
+        let trimmed = scheme.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard PayPalRedirectURLSchemeValidator.isValidBareScheme(trimmed) else {
+            RoktLogger.shared.error(
+                "Rokt: built-in PayPal redirect URL scheme must be a bare scheme (no \"://\" or path segments)."
+            )
+            return false
+        }
+        if PayPalRedirectURLSchemeValidator.shouldValidateAgainstInfoPlist,
+           !PayPalRedirectURLSchemeValidator.isSchemeRegistered(trimmed, in: .main) {
+            RoktLogger.shared.error(
+                "Rokt: URL scheme '\(trimmed)' is not registered under CFBundleURLSchemes in Info.plist."
+            )
+            return false
+        }
+        builtInPayPalRedirectURLScheme = trimmed
+        return true
     }
 
     func setFrameworkType(_ frameworkType: RoktFrameworkType) {
@@ -374,16 +411,30 @@ class RoktInternalImplementation {
             ))
             callOnRoktEvent(executeId, event: uxEvent.mapToRoktEvent)
 
-            // Map PaymentProvider -> PaymentMethodType
+            // Map PaymentProvider -> PaymentMethodType. Switching on the enum (not its
+            // rawValue) makes a future schema rename a compile-time error rather than a
+            // silent .default; @unknown default covers cases added in newer DcuiSchema versions.
             let paymentMethod: PaymentMethodType
-            switch event.paymentProvider.rawValue {
-            case "ApplePay":
+            // Card schema and Stripe schema both map to PaymentMethodType.card today;
+            // routes diverge in processPayment via builtInCardDevicePaySession (set only for `.card`).
+            let isBuiltInCardForwarding = (event.paymentProvider == .card)
+            switch event.paymentProvider {
+            case .applePay:
                 paymentMethod = .applePay
-            case "Stripe":
+            case .stripe:
                 paymentMethod = .card
-            case "Afterpay":
+            case .afterpay:
                 paymentMethod = .afterpay
-            default:
+            case .paypal:
+                paymentMethod = .paypal
+            case .card:
+                paymentMethod = .card
+            case .googlePay:
+                RoktLogger.shared.error("GooglePay device-pay not supported on iOS")
+                devicePayFinalized(executeId: executeId, layoutId: event.layoutId,
+                                   catalogItemId: event.catalogItemId, success: false)
+                return
+            @unknown default:
                 RoktLogger.shared.error("Unsupported payment provider: \(event.paymentProvider.rawValue)")
                 devicePayFinalized(executeId: executeId, layoutId: event.layoutId,
                                    catalogItemId: event.catalogItemId, success: false)
@@ -403,13 +454,48 @@ class RoktInternalImplementation {
             // back to partner-supplied attributes if the offer did not include
             // transaction data (e.g. older backend versions).
             let context: PaymentContext
-            if paymentMethod == .afterpay {
+            switch paymentMethod {
+            case .afterpay, .paypal:
                 let billing = buildContactAddress(from: event.transactionData?.billingAddress)
                     ?? buildContactAddressFromAttributes()
                 let shipping = buildContactAddress(from: event.transactionData?.shippingAddress)
                     ?? buildContactAddressFromAttributes()
-                context = PaymentContext(billingAddress: billing, shippingAddress: shipping)
-            } else {
+                let returnURL: String?
+                let cancelURL: String?
+                if paymentMethod == .paypal {
+                    guard let scheme = builtInPayPalRedirectURLScheme else {
+                        RoktLogger.shared.error(Self.builtInPayPalMissingRedirectSchemeMessage)
+                        devicePayFinalized(executeId: executeId, layoutId: event.layoutId,
+                                           catalogItemId: event.catalogItemId, success: false)
+                        return
+                    }
+                    let urls = BuiltInPayPalRedirectURLs.returnAndCancelURLs(forBareScheme: scheme)
+                    returnURL = urls.returnURL
+                    cancelURL = urls.cancelURL
+                } else {
+                    returnURL = nil
+                    cancelURL = nil
+                }
+                context = PaymentContext(
+                    billingAddress: billing,
+                    shippingAddress: shipping,
+                    returnURL: returnURL,
+                    cancelURL: cancelURL
+                )
+            case .card where isBuiltInCardForwarding:
+                // Built-in card forwarding needs shipping/billing for /v1/cart/purchase but
+                // no hosted-approval return/cancel URLs (Step-2 is a direct API call).
+                let billing = buildContactAddress(from: event.transactionData?.billingAddress)
+                    ?? buildContactAddressFromAttributes()
+                let shipping = buildContactAddress(from: event.transactionData?.shippingAddress)
+                    ?? buildContactAddressFromAttributes()
+                context = PaymentContext(
+                    billingAddress: billing,
+                    shippingAddress: shipping,
+                    returnURL: nil,
+                    cancelURL: nil
+                )
+            default:
                 context = PaymentContext()
             }
 
@@ -421,13 +507,38 @@ class RoktInternalImplementation {
                 return
             }
 
-            // Process the payment via the registered extension
+            let twoStepSessionFactory: (() -> BuiltInTwoStepDevicePaySession) = {
+                BuiltInTwoStepDevicePaySession(
+                    layoutId: event.layoutId,
+                    catalogItemId: event.catalogItemId,
+                    showConfirmation: { [weak self] layoutId, catalogItemId, catalogRuntimeData in
+                        guard let self,
+                              let state = self.stateManager.getState(id: executeId),
+                              let ux = state.uxHelper as? RoktUX else { return }
+                        ux.devicePayShowConfirmation(
+                            layoutId: layoutId,
+                            catalogItemId: catalogItemId,
+                            catalogRuntimeData: catalogRuntimeData
+                        )
+                    }
+                )
+            }
+            let paypalSession: BuiltInTwoStepDevicePaySession? = paymentMethod == .paypal
+                ? twoStepSessionFactory()
+                : nil
+            let cardSession: BuiltInTwoStepDevicePaySession? = isBuiltInCardForwarding
+                ? twoStepSessionFactory()
+                : nil
+
+            // Process the payment via the registered extension or built-in two-step flow
             paymentOrchestrator.processPayment(
                 method: paymentMethod,
                 item: item,
                 context: context,
                 cartItemId: event.cartItemId,
-                from: viewController
+                from: viewController,
+                builtInPayPalDevicePaySession: paypalSession,
+                builtInCardDevicePaySession: cardSession
             ) { [weak self] result in
                 let success = result.outcome == .succeeded
                 if success {
@@ -543,6 +654,51 @@ class RoktInternalImplementation {
 
     func handleForwardPayment(executeId: String,
                               event: RoktUXEvent.CartItemForwardPayment) {
+        let presentedPayPal = paymentOrchestrator.presentPendingBuiltInPayPalForForwardPayment { [weak self] result in
+            guard let self else { return }
+            switch result.outcome {
+            case .succeeded:
+                self.forwardPaymentFinalized(
+                    executeId: executeId,
+                    layoutId: event.layoutId,
+                    catalogItemId: event.catalogItemId,
+                    success: true,
+                    failureReason: nil
+                )
+            case .canceled:
+                self.forwardPaymentFinalized(
+                    executeId: executeId,
+                    layoutId: event.layoutId,
+                    catalogItemId: event.catalogItemId,
+                    success: false,
+                    failureReason: "User cancelled PayPal checkout"
+                )
+            case .failed:
+                self.forwardPaymentFinalized(
+                    executeId: executeId,
+                    layoutId: event.layoutId,
+                    catalogItemId: event.catalogItemId,
+                    success: false,
+                    failureReason: result.errorMessage ?? Self.unknownForwardPaymentFailureReason
+                )
+            @unknown default:
+                self.forwardPaymentFinalized(
+                    executeId: executeId,
+                    layoutId: event.layoutId,
+                    catalogItemId: event.catalogItemId,
+                    success: false,
+                    failureReason: Self.unknownForwardPaymentFailureReason
+                )
+            }
+        }
+        if presentedPayPal {
+            return
+        }
+
+        // Built-in card forwarding caches its Step-1 completion in PaymentOrchestrator;
+        // pop it here so device-pay finalization can chain off the same `/v1/cart/purchase` outcome.
+        let cardStepOneCompletion = paymentOrchestrator.popPendingBuiltInCardCompletion()
+
         let fulfillmentDetails = event.transactionData?.shippingAddress.map {
             FulfillmentDetails(shippingAttributes: ShippingAttributes(from: $0))
         }
@@ -553,6 +709,8 @@ class RoktInternalImplementation {
             RoktLogger.shared.warning(
                 "Forward-payment event missing price or has non-positive quantity"
             )
+            paymentOrchestrator.cancelPendingBuiltInTwoStepIfNeeded()
+            cardStepOneCompletion?(.failed(error: Self.missingForwardPaymentPriceReason))
             forwardPaymentFinalized(
                 executeId: executeId,
                 layoutId: event.layoutId,
@@ -568,9 +726,15 @@ class RoktInternalImplementation {
         RoktAPIHelper.forwardPayment(
             request: request,
             success: { [weak self] response in
-                self?.callOnRoktEvent(executeId, event: RoktEvent.HideLoadingIndicator())
+                guard let self else { return }
+                self.callOnRoktEvent(executeId, event: RoktEvent.HideLoadingIndicator())
                 let finalization = Self.resolveForwardPaymentFinalization(from: response)
-                self?.forwardPaymentFinalized(
+                if finalization.success {
+                    cardStepOneCompletion?(.succeeded(transactionId: ""))
+                } else {
+                    cardStepOneCompletion?(.failed(error: finalization.failureReason ?? Self.unknownForwardPaymentFailureReason))
+                }
+                self.forwardPaymentFinalized(
                     executeId: executeId,
                     layoutId: event.layoutId,
                     catalogItemId: event.catalogItemId,
@@ -579,11 +743,13 @@ class RoktInternalImplementation {
                 )
             },
             failure: { [weak self] _, _, message in
-                self?.callOnRoktEvent(executeId, event: RoktEvent.HideLoadingIndicator())
+                guard let self else { return }
+                self.callOnRoktEvent(executeId, event: RoktEvent.HideLoadingIndicator())
                 let finalization = Self.resolveForwardPaymentFinalization(
                     fromFailureMessage: message
                 )
-                self?.forwardPaymentFinalized(
+                cardStepOneCompletion?(.failed(error: finalization.failureReason ?? Self.unknownForwardPaymentFailureReason))
+                self.forwardPaymentFinalized(
                     executeId: executeId,
                     layoutId: event.layoutId,
                     catalogItemId: event.catalogItemId,
@@ -758,6 +924,13 @@ class RoktInternalImplementation {
             trackingConsent = ATTrackingManager.trackingAuthorizationStatus.rawValue
         }
 
+        if attributes[keyAdsExperienceType] == valueAdsExperienceShoppable {
+            guard validateShoppableAdsFeatureFlag(identifier: viewName, onFailure: composedEventHandler),
+                  validateShoppableAdsPaymentExtension(identifier: viewName, onFailure: composedEventHandler) else {
+                return
+            }
+        }
+
         isExecuting = true
         self.placements = placements
         let startDate = Date()
@@ -919,7 +1092,7 @@ class RoktInternalImplementation {
 
             let cacheProperties = LayoutPageCacheProperties(
                 viewName: viewName,
-                attributes: attributes,
+                experienceCacheAttributes: cacheAttributes,
                 pluginViewStates: pluginViewStates,
                 onPluginViewStateChange: onPluginViewStateChange
             )
@@ -1058,21 +1231,8 @@ class RoktInternalImplementation {
         config: RoktConfig?,
         onRoktEvent: ((RoktEvent) -> Void)?
     ) {
-        if isInitialized && !initFeatureFlags.isShoppableAdsEnabled() {
-            RoktLogger.shared.verbose(
-                "Rokt: selectShoppableAds skipped — Shoppable Ads feature flags are disabled for this account."
-            )
-            onRoktEvent?(RoktEvent.PlacementFailure(identifier: nil))
-            return
-        }
-
-        guard paymentOrchestrator.hasRegisteredExtension else {
-            RoktLogger.shared.error(
-                "Rokt: No PaymentExtension registered. Call registerPaymentExtension() before selectShoppableAds()."
-            )
-            onRoktEvent?(RoktEvent.PlacementFailure(identifier: nil))
-            return
-        }
+        if isInitialized && !validateShoppableAdsFeatureFlag(identifier: identifier, onFailure: onRoktEvent) { return }
+        guard validateShoppableAdsPaymentExtension(identifier: identifier, onFailure: onRoktEvent) else { return }
 
         var enrichedAttributes = attributes
         if enrichedAttributes[keyAdsExperienceType] == nil {
@@ -1088,6 +1248,28 @@ class RoktInternalImplementation {
             placementOptions: nil,
             onRoktEvent: onRoktEvent
         )
+    }
+
+    private func validateShoppableAdsFeatureFlag(identifier: String?, onFailure: ((RoktEvent) -> Void)?) -> Bool {
+        guard initFeatureFlags.isShoppableAdsEnabled() else {
+            RoktLogger.shared.verbose(
+                "Rokt: Shoppable Ads feature flags are disabled for this account."
+            )
+            onFailure?(RoktEvent.PlacementFailure(identifier: identifier))
+            return false
+        }
+        return true
+    }
+
+    private func validateShoppableAdsPaymentExtension(identifier: String?, onFailure: ((RoktEvent) -> Void)?) -> Bool {
+        guard paymentOrchestrator.hasRegisteredExtension else {
+            RoktLogger.shared.error(
+                "Rokt: No PaymentExtension registered. Call registerPaymentExtension() before using Shoppable Ads."
+            )
+            onFailure?(RoktEvent.PlacementFailure(identifier: identifier))
+            return false
+        }
+        return true
     }
 
     private func decodeOnSeparateThread<T: Decodable>(_ type: T.Type, _ data: Data) throws -> T {
@@ -1134,7 +1316,8 @@ struct LayoutPageExecutePayload {
 
 struct LayoutPageCacheProperties {
     let viewName: String?
-    let attributes: [String: String]
+    // Snapshot aligned with cache-attribute keys for this execute (see getCacheAttributesOrFallback).
+    let experienceCacheAttributes: [String: String]
     let pluginViewStates: [RoktPluginViewState]?
     let onPluginViewStateChange: ((RoktPluginViewState) -> Void)?
 }
