@@ -88,7 +88,7 @@ class TestNetworkingHelper: XCTestCase {
         let expectation = self.expectation(description: "Network request with pageIdentifier")
         var capturedRequest: URLRequest?
 
-        let experienceURL = URL(string: "https://mobile-api.rokt.com/v1/experiences")!
+        let experienceURL = URL(string: "https://apps.rokt.com/rokt-mobile/v1/experiences")!
         var mock = Mock(url: experienceURL, dataType: .json, statusCode: 200, data: [
             .post: Data("{\"placements\":[]}".utf8)
         ])
@@ -122,7 +122,7 @@ class TestNetworkingHelper: XCTestCase {
         let expectation = self.expectation(description: "Network request without pageIdentifier")
         var capturedRequest: URLRequest?
 
-        let experienceURL = URL(string: "https://mobile-api.rokt.com/v1/experiences")!
+        let experienceURL = URL(string: "https://apps.rokt.com/rokt-mobile/v1/experiences")!
         var mock = Mock(url: experienceURL, dataType: .json, statusCode: 200, data: [
             .post: Data("{\"placements\":[]}".utf8)
         ])
@@ -156,7 +156,7 @@ class TestNetworkingHelper: XCTestCase {
         let expectation = self.expectation(description: "RoktAPIHelper passes viewName to network layer")
         var capturedRequest: URLRequest?
 
-        let experienceURL = URL(string: "https://mobile-api.rokt.com/v1/experiences")!
+        let experienceURL = URL(string: "https://apps.rokt.com/rokt-mobile/v1/experiences")!
         var mock = Mock(url: experienceURL, dataType: .json, statusCode: 200, data: [
             .post: Data("{\"placements\":[]}".utf8)
         ])
@@ -290,7 +290,7 @@ class TestNetworkingHelper: XCTestCase {
         Rokt.shared.roktImplementation.roktTagId = "test-tag-id"
         Rokt.shared.roktImplementation.sessionManager.updateSessionId(newSessionId: "session-123")
 
-        let purchaseURL = URL(string: "https://mobile-api.stage.rokt.com/v1/cart/purchase")!
+        let purchaseURL = URL(string: "https://apps.stage.rokt.com/rokt-mobile/v1/cart/purchase")!
         var mock = Mock(url: purchaseURL, dataType: .json, statusCode: 200, data: [
             .post: Data(#"{"success":true}"#.utf8)
         ])
@@ -338,7 +338,7 @@ class TestNetworkingHelper: XCTestCase {
         Rokt.setEnvironment(environment: .Stage)
         Rokt.shared.roktImplementation.roktTagId = "test-tag-id"
 
-        let purchaseURL = URL(string: "https://mobile-api.stage.rokt.com/v1/cart/purchase")!
+        let purchaseURL = URL(string: "https://apps.stage.rokt.com/rokt-mobile/v1/cart/purchase")!
         let mock = Mock(url: purchaseURL, dataType: .json, statusCode: 200, data: [
             .post: Data(#"{"reason":"missing success"}"#.utf8)
         ])
@@ -377,7 +377,7 @@ class TestNetworkingHelper: XCTestCase {
         Rokt.setEnvironment(environment: .Stage)
         Rokt.shared.roktImplementation.roktTagId = "test-tag-id"
 
-        let purchaseURL = URL(string: "https://mobile-api.stage.rokt.com/v1/cart/purchase")!
+        let purchaseURL = URL(string: "https://apps.stage.rokt.com/rokt-mobile/v1/cart/purchase")!
         let mock = Mock(url: purchaseURL, dataType: .json, statusCode: 200, data: [
             .post: Data(#"{"success":false,"reason":"Declined"}"#.utf8)
         ])

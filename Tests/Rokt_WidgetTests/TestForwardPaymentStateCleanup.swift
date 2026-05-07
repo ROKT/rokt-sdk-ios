@@ -12,7 +12,7 @@ import Mocker
 /// `find(where: \.instantPurchaseInitiated)` and finalize the wrong flow.
 final class TestForwardPaymentStateCleanup: XCTestCase {
 
-    private let purchaseURL = URL(string: "https://mobile-api.rokt.com/v1/cart/purchase")!
+    private let purchaseURL = URL(string: "https://apps.rokt.com/rokt-mobile/v1/cart/purchase")!
     private let executeId = "test-execute-id"
 
     private var originalTagId: String?
