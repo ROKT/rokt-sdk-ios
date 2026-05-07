@@ -23,6 +23,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 - Built-in PayPal device pay no longer reads return/cancel URLs from placement **`TransactionData`** metadata or execute **attributes**; the scheme-based URLs above are the only source.
 - Cart **`/v1/cart/initialize-purchase`** for built-in PayPal now sends `paymentMethod` and `paymentProvider` as `PAYPAL` in the JSON body (extension-based Shoppable Ads prepare calls omit these keys).
 
+## [5.2.0] - 2026-05-07
+
+### Added
+
+- CNAME support ([#148](https://github.com/ROKT/rokt-sdk-ios/pull/148))
+- Enrich available payment methods ([#155](https://github.com/ROKT/rokt-sdk-ios/pull/155))
+- Add Shoppable Ads demo ([#129](https://github.com/ROKT/rokt-sdk-ios/pull/129))
+- Support built-in card forward payment ([#150](https://github.com/ROKT/rokt-sdk-ios/pull/150))
+- Add PayPal Support ([#144](https://github.com/ROKT/rokt-sdk-ios/pull/144))
+- Check Shoppable feature flag depending on attribute ([#145](https://github.com/ROKT/rokt-sdk-ios/pull/145))
+
+### Fixed
+
+- Send initialize purchase payment fields in camel case ([#153](https://github.com/ROKT/rokt-sdk-ios/pull/153))
+
+### Changed
+
+- Bump actions/create-github-app-token from 3.0.0 to 3.1.1 ([#154](https://github.com/ROKT/rokt-sdk-ios/pull/154))
+- Upgrade trunk ([#151](https://github.com/ROKT/rokt-sdk-ios/pull/151))
+- Bump rokt-ux-helper-ios to 0.10.7 ([#152](https://github.com/ROKT/rokt-sdk-ios/pull/152))
+- Bump softprops/action-gh-release from 2.6.1 to 3.0.0 ([#146](https://github.com/ROKT/rokt-sdk-ios/pull/146))
+- Bump zizmorcore/zizmor-action from 0.5.2 to 0.5.3 ([#147](https://github.com/ROKT/rokt-sdk-ios/pull/147))
+
 ## [5.1.0] - 2026-04-24
 
 ### Added
@@ -351,7 +374,8 @@ For a complete migration walkthrough with before/after code examples, see the [v
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.1.0...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.0...HEAD
+[5.2.0]: https://github.com/ROKT/rokt-sdk-ios/compare/5.1.0...5.2.0
 [5.1.0]: https://github.com/ROKT/rokt-sdk-ios/compare/5.0.0...5.1.0
 [5.0.0]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.4...5.0.0
 [4.16.4]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.3...4.16.4
