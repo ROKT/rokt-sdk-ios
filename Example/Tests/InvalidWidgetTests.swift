@@ -33,8 +33,7 @@ class InvalidWidgetTests: QuickSpec {
 
                 testVC = TestViewController()
 
-                UIApplication.shared.keyWindow!.rootViewController = testVC
-                _ = testVC.view
+                testVC.installInTestWindow()
 
             }
 
@@ -49,7 +48,7 @@ class InvalidWidgetTests: QuickSpec {
 
             afterEach {
                 testVC = nil
-                UIApplication.shared.keyWindow!.rootViewController = nil
+                UIViewController.clearTestWindowRoot()
             }
         }
     }

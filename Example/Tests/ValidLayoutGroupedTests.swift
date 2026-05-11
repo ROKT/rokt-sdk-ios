@@ -51,8 +51,7 @@ final class ValidLayoutGroupedTests: QuickSpec {
                     errors = []
                     testVC = TestViewController()
 
-                    UIApplication.shared.keyWindow!.rootViewController = testVC
-                    _ = testVC.view
+                    testVC.installInTestWindow()
                 }
 
                 afterEach {
@@ -65,7 +64,7 @@ final class ValidLayoutGroupedTests: QuickSpec {
                     errors = []
 
                     testVC = nil
-                    UIApplication.shared.keyWindow!.rootViewController = nil
+                    UIViewController.clearTestWindowRoot()
                 }
 
                 it("1. layout is configured") {

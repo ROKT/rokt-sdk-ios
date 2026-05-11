@@ -90,8 +90,7 @@ class APIErrorTests: QuickSpec {
 
                 testVC = TestViewController()
 
-                UIApplication.shared.keyWindow!.rootViewController = testVC
-                _ = testVC.view
+                testVC.installInTestWindow()
             }
 
             it("is not shown after widget call retries") {
@@ -102,7 +101,7 @@ class APIErrorTests: QuickSpec {
 
             afterEach {
                 testVC = nil
-                UIApplication.shared.keyWindow!.rootViewController = nil
+                UIViewController.clearTestWindowRoot()
             }
         }
     }

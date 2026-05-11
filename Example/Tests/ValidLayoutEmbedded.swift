@@ -112,8 +112,7 @@ final class ValidLayoutEmbedded: QuickSpec {
                     testVC = TestViewController()
                     testVC.pageInitAttr = invalidPageInitDateEpoch
 
-                    UIApplication.shared.keyWindow!.rootViewController = testVC
-                    _ = testVC.view
+                    testVC.installInTestWindow()
                 }
 
                 afterEach {
@@ -138,7 +137,7 @@ final class ValidLayoutEmbedded: QuickSpec {
 
                     // Clear the view controller
                     testVC = nil
-                    UIApplication.shared.keyWindow!.rootViewController = nil
+                    UIViewController.clearTestWindowRoot()
                 }
 
                 it("1. layout is configured") {
@@ -242,34 +241,34 @@ final class ValidLayoutEmbedded: QuickSpec {
                     // validate timings request sent
                     expect(timingsRequests.contains(expectedTimingsRequest)).toEventually(beTrue(), timeout: .seconds(9))
 
-                    let matchedTimingsRequest = timingsRequests[timingsRequests.lastIndex(of: expectedTimingsRequest)!]
+                    let matchedTimingsRequest = timingsRequests.first(where: { $0 == expectedTimingsRequest })
                     // validate timings request contains all expected metrics
-                    expect(matchedTimingsRequest.containNameValueInTimings(
+                    expect(matchedTimingsRequest?.containNameValueInTimings(
                         name: TimingType.initStart.rawValue, value: timingsDateEpoch
                     )).toEventually(beTrue())
-                    expect(matchedTimingsRequest.containNameValueInTimings(
+                    expect(matchedTimingsRequest?.containNameValueInTimings(
                         name: TimingType.initEnd.rawValue, value: timingsDateEpoch
                     )).toEventually(beTrue())
-                    expect(matchedTimingsRequest.containNameValueInTimings(
+                    expect(matchedTimingsRequest?.containNameValueInTimings(
                         name: TimingType.selectionStart.rawValue, value: timingsDateEpoch
                     )).toEventually(beTrue())
-                    expect(matchedTimingsRequest.containNameValueInTimings(
+                    expect(matchedTimingsRequest?.containNameValueInTimings(
                         name: TimingType.selectionEnd.rawValue, value: timingsDateEpoch
                     )).toEventually(beTrue())
-                    expect(matchedTimingsRequest.containNameValueInTimings(
+                    expect(matchedTimingsRequest?.containNameValueInTimings(
                         name: TimingType.experiencesRequestStart.rawValue, value: timingsDateEpoch
                     )).toEventually(beTrue())
-                    expect(matchedTimingsRequest.containNameValueInTimings(
+                    expect(matchedTimingsRequest?.containNameValueInTimings(
                         name: TimingType.experiencesRequestEnd.rawValue, value: timingsDateEpoch
                     )).toEventually(beTrue())
                     // only for placement interactive as this went through UXHelper, thus it gets converted from date -> String -> date -> String,
                     // since its only accurate up to millisecond, the 100th microsecond can be lost
                     let roundedDate = String(Int((timingsDate.timeIntervalSince1970 * 1000).rounded()))
-                    expect(matchedTimingsRequest.getValueInTimings(name: TimingType.placementInteractive.rawValue))
+                    expect(matchedTimingsRequest?.getValueInTimings(name: TimingType.placementInteractive.rawValue))
                         .toEventually(equal(roundedDate))
 
                     // timings request ignores pageInit timestamp outside of valid range
-                    expect(matchedTimingsRequest.containNameValueInTimings(
+                    expect(matchedTimingsRequest?.containNameValueInTimings(
                         name: TimingType.pageInit.rawValue, value: timingsDateEpoch
                     )).toEventually(beFalse())
                 }
@@ -317,8 +316,7 @@ final class ValidLayoutEmbedded: QuickSpec {
                     errors = []
                     testVC = TestViewController()
 
-                    UIApplication.shared.keyWindow!.rootViewController = testVC
-                    _ = testVC.view
+                    testVC.installInTestWindow()
                 }
 
                 afterEach {
@@ -331,7 +329,7 @@ final class ValidLayoutEmbedded: QuickSpec {
                     errors = []
 
                     testVC = nil
-                    UIApplication.shared.keyWindow!.rootViewController = nil
+                    UIViewController.clearTestWindowRoot()
                 }
 
                 it("1. layout is configured") {
