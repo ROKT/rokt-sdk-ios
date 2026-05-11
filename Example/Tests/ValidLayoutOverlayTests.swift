@@ -114,8 +114,7 @@ final class ValidLayoutOverlayTests: QuickSpec {
                     testVC = TestViewController()
                     testVC.pageInitAttr = timingsDateEpoch
 
-                    UIApplication.shared.keyWindow!.rootViewController = testVC
-                    _ = testVC.view
+                    testVC.installInTestWindow()
                 }
 
                 afterEach {
@@ -139,7 +138,7 @@ final class ValidLayoutOverlayTests: QuickSpec {
 
                     // Clear the view controller
                     testVC = nil
-                    UIApplication.shared.keyWindow!.rootViewController = nil
+                    UIViewController.clearTestWindowRoot()
                 }
 
                 it("1. layout is configured") {

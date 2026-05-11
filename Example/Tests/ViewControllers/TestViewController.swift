@@ -12,6 +12,7 @@ class TestViewController: UIViewController {
     var cutOffParentSize: CGSize?
     var pageInitAttr: String?
     var embeddedLocation1, embeddedLocation2, embeddedLocation4: RoktEmbeddedView!
+    private var didStartSDKExecution = false
 
     override func viewDidLoad() {
         intitialSDK()
@@ -27,6 +28,8 @@ class TestViewController: UIViewController {
     }
 
     fileprivate func executeSDK() {
+        guard !didStartSDKExecution else { return }
+        didStartSDKExecution = true
         attachEmbeddedLocations()
         let placements: [String: RoktEmbeddedView] = ["Location1": embeddedLocation1,
                                                       "Location2": embeddedLocation2,
@@ -91,4 +94,29 @@ class TestViewController: UIViewController {
         }
     }
 
+}
+
+extension TestViewController {
+    func installInTestWindow() {
+        guard let window = UIApplication.shared.roktTestWindow else { return }
+        window.rootViewController = self
+        window.makeKeyAndVisible()
+        loadViewIfNeeded()
+        executeSDK()
+    }
+}
+
+extension UIViewController {
+    static func clearTestWindowRoot() {
+        UIApplication.shared.roktTestWindow?.rootViewController = nil
+    }
+}
+
+private extension UIApplication {
+    var roktTestWindow: UIWindow? {
+        let windows = connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+        return windows.first(where: \.isKeyWindow) ?? windows.first
+    }
 }
