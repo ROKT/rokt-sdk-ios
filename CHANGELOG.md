@@ -27,6 +27,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 - Populate payment extension contact names from first and last name attributes when transaction data omits the address name.
 
+## [5.2.1] - 2026-05-12
+
+### Fixed
+
+- Report payment extension failures in diagnostics ([#160](https://github.com/ROKT/rokt-sdk-ios/pull/160))
+- Send contact names to payment extensions ([#159](https://github.com/ROKT/rokt-sdk-ios/pull/159))
+- Forward payment return URLs to SDK ([#157](https://github.com/ROKT/rokt-sdk-ios/pull/157))
+
+### Changed
+
+- Update Rokt payment package versions ([#161](https://github.com/ROKT/rokt-sdk-ios/pull/161))
+- Stabilize mocked UI tests ([#158](https://github.com/ROKT/rokt-sdk-ios/pull/158))
+
 ## [5.2.0] - 2026-05-07
 
 ### Added
@@ -378,7 +391,8 @@ For a complete migration walkthrough with before/after code examples, see the [v
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.0...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.1...HEAD
+[5.2.1]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.0...5.2.1
 [5.2.0]: https://github.com/ROKT/rokt-sdk-ios/compare/5.1.0...5.2.0
 [5.1.0]: https://github.com/ROKT/rokt-sdk-ios/compare/5.0.0...5.1.0
 [5.0.0]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.4...5.0.0
