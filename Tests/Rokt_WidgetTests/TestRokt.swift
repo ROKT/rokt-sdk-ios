@@ -255,6 +255,40 @@ class TestRokt: XCTestCase {
         XCTAssertEqual(contactAddress?.country, "US")
     }
 
+    func test_buildContactAddress_fallsBackToAttributeNameWhenTransactionDataNameIsEmpty() throws {
+        let roktInternalImplementation = RoktInternalImplementation()
+        roktInternalImplementation.attributes = [
+            "firstname": "Jane",
+            "lastname": "Doe",
+            "email": "jane@example.com"
+        ]
+
+        let address = try JSONDecoder().decode(
+            Address.self,
+            from: Data(
+                """
+                {
+                  "name": "",
+                  "address1": "123 Test St",
+                  "address2": null,
+                  "city": "New York",
+                  "state": "New York",
+                  "stateCode": "NY",
+                  "country": "United States",
+                  "countryCode": "US",
+                  "zip": "10001"
+                }
+                """.utf8
+            )
+        )
+
+        let contactAddress = roktInternalImplementation.buildContactAddress(from: address)
+
+        XCTAssertEqual(contactAddress?.name, "Jane Doe")
+        XCTAssertEqual(contactAddress?.email, "jane@example.com")
+        XCTAssertEqual(contactAddress?.addressLine1, "123 Test St")
+    }
+
     func test_buildContactAddressFromAttributes_mapsLegacyShippingAttributes() {
         let roktInternalImplementation = RoktInternalImplementation()
         roktInternalImplementation.attributes = [

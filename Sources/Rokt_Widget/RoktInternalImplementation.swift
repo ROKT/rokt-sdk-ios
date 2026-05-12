@@ -167,7 +167,7 @@ class RoktInternalImplementation {
     func buildContactAddress(from address: RoktUXHelper.Address?) -> ContactAddress? {
         guard let address else { return nil }
         return ContactAddress(
-            name: address.name,
+            name: resolvedContactName(address.name),
             email: attributes["email"] ?? "",
             addressLine1: address.address1,
             city: address.city,
@@ -183,11 +183,8 @@ class RoktInternalImplementation {
     func buildContactAddressFromAttributes() -> ContactAddress? {
         let line1 = attributes["shippingaddress1"] ?? ""
         guard !line1.isEmpty else { return nil }
-        let name = [attributes["firstname"], attributes["lastname"]]
-            .compactMap { $0 }
-            .joined(separator: " ")
         return ContactAddress(
-            name: name,
+            name: contactNameFromAttributes(),
             email: attributes["email"] ?? "",
             addressLine1: line1,
             city: attributes["shippingcity"],
@@ -195,6 +192,26 @@ class RoktInternalImplementation {
             postalCode: attributes["shippingzipcode"],
             country: attributes["shippingcountry"]
         )
+    }
+
+    private func resolvedContactName(_ name: String) -> String {
+        if let trimmed = nonEmptyTrimmed(name) {
+            return trimmed
+        }
+
+        return contactNameFromAttributes()
+    }
+
+    private func contactNameFromAttributes() -> String {
+        [attributes["firstname"], attributes["lastname"]]
+            .compactMap(nonEmptyTrimmed)
+            .joined(separator: " ")
+    }
+
+    private func nonEmptyTrimmed(_ value: String?) -> String? {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let trimmed, !trimmed.isEmpty else { return nil }
+        return trimmed
     }
 
     /// Configures the host app’s custom URL scheme for built-in PayPal return/cancel deep links.

@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 - Built-in PayPal device pay no longer reads return/cancel URLs from placement **`TransactionData`** metadata or execute **attributes**; the scheme-based URLs above are the only source.
 - Cart **`/v1/cart/initialize-purchase`** for built-in PayPal now sends `paymentMethod` and `paymentProvider` as `PAYPAL` in the JSON body (extension-based Shoppable Ads prepare calls omit these keys).
 
+### Fixed
+
+- Populate payment extension contact names from first and last name attributes when transaction data omits the address name.
+
 ## [5.2.0] - 2026-05-07
 
 ### Added
