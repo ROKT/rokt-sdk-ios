@@ -9,23 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
-### Added
-
-- Forward PayPal `paypalData.approvalUrl` from initialize-purchase into `PaymentPreparation` when present (depends on **RoktContracts** 2.0.1+).
-- Built-in PayPal device pay: after cart prepare, call **RoktUX** `devicePayShowConfirmation` (layout confirmation + `DATA.catalogRuntime.*` from [rokt-ux-helper-ios#265](https://github.com/ROKT/rokt-ux-helper-ios/pull/265)); defer the hosted **approve** `WKWebView` until **`/v1/cart/purchase`** forward-payment succeeds, then present approval and complete via `PaymentContext` return/cancel and `Rokt.handleURLCallback`. Swappable `PayPalApprovalPresenting` remains for tests.
-- `Rokt.setBuiltInPayPalRedirectURLScheme(_:)` — **required** for built-in PayPal **device pay**: composes return/cancel as `\(scheme)://rokt-paypal-return` and `\(scheme)://rokt-paypal-cancel` (bare scheme must appear under `CFBundleURLSchemes` in `Info.plist`). Pass `nil` only to clear configuration (PayPal device pay will not proceed until set again).
-- Automatically enrich experience requests with `availablePaymentMethods`, including registered extension methods, built-in card forwarding, and built-in PayPal when its redirect URL scheme is configured.
-
-### Changed
-
-- **RoktContracts** SwiftPM dependency: require [2.0.1](https://github.com/ROKT/rokt-contracts-apple/releases/tag/2.0.1)+ (replaces branch pin). CocoaPods spec now requires RoktContracts `>= 2.0.1`, `< 3.0`.
-- **RoktUXHelper** SwiftPM: require [0.10.8](https://github.com/ROKT/rokt-ux-helper-ios/releases/tag/0.10.8)+ (includes card payment provider support from [#267](https://github.com/ROKT/rokt-ux-helper-ios/pull/267) alongside the PayPal confirmation / `devicePayShowConfirmation` changes from [#265](https://github.com/ROKT/rokt-ux-helper-ios/pull/265)). CocoaPods spec now requires RoktUXHelper `>= 0.10.8`, `< 0.11`.
-- Built-in PayPal device pay no longer reads return/cancel URLs from placement **`TransactionData`** metadata or execute **attributes**; the scheme-based URLs above are the only source.
-- Cart **`/v1/cart/initialize-purchase`** for built-in PayPal now sends `paymentMethod` and `paymentProvider` as `PAYPAL` in the JSON body (extension-based Shoppable Ads prepare calls omit these keys).
+## [5.2.1] - 2026-05-12
 
 ### Fixed
 
-- Populate payment extension contact names from first and last name attributes when transaction data omits the address name.
+- Report payment extension failures in diagnostics ([#160](https://github.com/ROKT/rokt-sdk-ios/pull/160))
+- Send contact names to payment extensions ([#159](https://github.com/ROKT/rokt-sdk-ios/pull/159))
+- Forward payment return URLs to SDK ([#157](https://github.com/ROKT/rokt-sdk-ios/pull/157))
+
+### Changed
+
+- Update Rokt payment package versions ([#161](https://github.com/ROKT/rokt-sdk-ios/pull/161))
+- Stabilize mocked UI tests ([#158](https://github.com/ROKT/rokt-sdk-ios/pull/158))
 
 ## [5.2.0] - 2026-05-07
 
@@ -378,7 +373,8 @@ For a complete migration walkthrough with before/after code examples, see the [v
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.0...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.1...HEAD
+[5.2.1]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.0...5.2.1
 [5.2.0]: https://github.com/ROKT/rokt-sdk-ios/compare/5.1.0...5.2.0
 [5.1.0]: https://github.com/ROKT/rokt-sdk-ios/compare/5.0.0...5.1.0
 [5.0.0]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.4...5.0.0
