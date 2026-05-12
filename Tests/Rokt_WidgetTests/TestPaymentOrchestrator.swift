@@ -349,6 +349,51 @@ class TestPaymentOrchestrator: XCTestCase {
         wait(for: [expectation], timeout: 1.0)
     }
 
+    func test_processPayment_extensionFailure_sendsDiagnostics() {
+        sut = PaymentOrchestrator(apiHelper: PaymentOrchestratorAPIHelperSpy.self)
+
+        let ext = MockPaymentExtension(id: "ext1", supportedMethods: [.afterpay])
+        ext.paymentResultToReturn = .failed(
+            error: "The PaymentMethod provided is not allowed (Stripe paymentIntentId: pi_test123)"
+        )
+        sut.register(ext, config: [:])
+
+        let expectation = expectation(description: "Payment completes with failure")
+        let item = PaymentItem(id: "item1", name: "Widget", amount: 9.99, currency: "USD")
+
+        sut.processPayment(
+            method: .afterpay,
+            item: item,
+            context: PaymentContext(),
+            cartItemId: "v1:cart-456:canal",
+            from: UIViewController()
+        ) { result in
+            XCTAssertEqual(result.outcome, .failed)
+            XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.sendDiagnosticsCallCount, 1)
+            XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastDiagnosticsMessage, PaymentOrchestrator.devicePayErrorCode)
+            XCTAssertEqual(
+                PaymentOrchestratorAPIHelperSpy.lastDiagnosticsCallStack,
+                "The PaymentMethod provided is not allowed (Stripe paymentIntentId: pi_test123)"
+            )
+            XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastDiagnosticsSeverity, .warning)
+            XCTAssertEqual(
+                PaymentOrchestratorAPIHelperSpy.lastDiagnosticsAdditionalInfo?["paymentMethod"] as? String,
+                PaymentMethodType.afterpay.wireValue
+            )
+            XCTAssertEqual(
+                PaymentOrchestratorAPIHelperSpy.lastDiagnosticsAdditionalInfo?["cartItemId"] as? String,
+                "v1:cart-456:canal"
+            )
+            XCTAssertEqual(
+                PaymentOrchestratorAPIHelperSpy.lastDiagnosticsAdditionalInfo?["catalogItemId"] as? String,
+                "item1"
+            )
+            expectation.fulfill()
+        }
+
+        wait(for: [expectation], timeout: 1.0)
+    }
+
     func test_processPayment_preparePayment_plumbsTotalAmountTaxAndShipping() {
         sut = PaymentOrchestrator(apiHelper: PaymentOrchestratorAPIHelperSpy.self)
 
@@ -966,6 +1011,8 @@ class PaymentOrchestratorAPIHelperSpy: RoktAPIHelper {
     static var sendDiagnosticsCallCount = 0
     static var lastDiagnosticsMessage: String?
     static var lastDiagnosticsCallStack: String?
+    static var lastDiagnosticsSeverity: Severity?
+    static var lastDiagnosticsAdditionalInfo: [String: Any]?
 
     static func reset() {
         initializePurchaseResponse = nil
@@ -977,6 +1024,8 @@ class PaymentOrchestratorAPIHelperSpy: RoktAPIHelper {
         sendDiagnosticsCallCount = 0
         lastDiagnosticsMessage = nil
         lastDiagnosticsCallStack = nil
+        lastDiagnosticsSeverity = nil
+        lastDiagnosticsAdditionalInfo = nil
     }
 
     override class func initializePurchase(
@@ -1019,6 +1068,8 @@ class PaymentOrchestratorAPIHelperSpy: RoktAPIHelper {
         sendDiagnosticsCallCount += 1
         lastDiagnosticsMessage = message
         lastDiagnosticsCallStack = callStack
+        lastDiagnosticsSeverity = severity
+        lastDiagnosticsAdditionalInfo = additionalInfo
         success?()
     }
 }
