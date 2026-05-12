@@ -189,6 +189,8 @@ final class PaymentOrchestrator {
             return
         }
 
+        var lastPreparePaymentFailureMessage: String?
+
         // The preparePayment callback bridges the completion-handler pattern
         // to the SDK's backend API call (initializePurchase)
         let preparePayment: (ContactAddress, @escaping (PaymentPreparation?, Error?) -> Void)
@@ -202,8 +204,10 @@ final class PaymentOrchestrator {
             ) { result in
                 switch result {
                 case .success(let preparation):
+                    lastPreparePaymentFailureMessage = nil
                     prepareCompletion(preparation, nil)
                 case .failure(let error):
+                    lastPreparePaymentFailureMessage = error.localizedDescription
                     prepareCompletion(nil, error)
                 }
             }
@@ -215,7 +219,18 @@ final class PaymentOrchestrator {
             context: context,
             from: viewController,
             preparePayment: preparePayment,
-            completion: completion
+            completion: { [weak self] result in
+                if result.outcome == .failed,
+                   result.errorMessage != lastPreparePaymentFailureMessage {
+                    self?.sendPaymentFailureDiagnostics(
+                        method: method,
+                        item: item,
+                        cartItemId: cartItemId,
+                        result: result
+                    )
+                }
+                completion(result)
+            }
         )
     }
 
@@ -484,6 +499,28 @@ final class PaymentOrchestrator {
         guard let string else { return nil }
         let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func sendPaymentFailureDiagnostics(
+        method: PaymentMethodType,
+        item: PaymentItem,
+        cartItemId: String,
+        result: PaymentSheetResult
+    ) {
+        let errorMessage = result.errorMessage?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let callStack = errorMessage?.isEmpty == false
+            ? errorMessage ?? ""
+            : "Payment extension failed without an error message"
+        apiHelper.sendDiagnostics(
+            message: Self.devicePayErrorCode,
+            callStack: callStack,
+            severity: .warning,
+            additionalInfo: [
+                "paymentMethod": method.wireValue,
+                "cartItemId": cartItemId,
+                "catalogItemId": item.id
+            ]
+        )
     }
 
     /// Prefer shipping, then billing, for cart shipping attributes; otherwise a minimal placeholder.
