@@ -64,6 +64,7 @@ struct ShippingAttributes {
             state: contactAddress.state ?? "",
             postalCode: contactAddress.postalCode ?? "",
             country: contactAddress.country ?? "",
+            address2: contactAddress.addressLine2,
             firstName: firstName,
             lastName: lastName
         )

@@ -232,7 +232,7 @@ class TestRokt: XCTestCase {
                 {
                   "name": "Jane Doe",
                   "address1": "123 Test St",
-                  "address2": null,
+                  "address2": "Apt 1101",
                   "city": "New York",
                   "state": "New York",
                   "stateCode": "NY",
@@ -249,6 +249,7 @@ class TestRokt: XCTestCase {
         XCTAssertEqual(contactAddress?.name, "Jane Doe")
         XCTAssertEqual(contactAddress?.email, "jane@example.com")
         XCTAssertEqual(contactAddress?.addressLine1, "123 Test St")
+        XCTAssertEqual(contactAddress?.addressLine2, "Apt 1101")
         XCTAssertEqual(contactAddress?.city, "New York")
         XCTAssertEqual(contactAddress?.state, "NY")
         XCTAssertEqual(contactAddress?.postalCode, "10001")
@@ -296,6 +297,7 @@ class TestRokt: XCTestCase {
             "lastname": "Doe",
             "email": "jane@example.com",
             "shippingaddress1": "456 Legacy Rd",
+            "shippingaddress2": "Unit 9",
             "shippingcity": "Boston",
             "shippingstate": "MA",
             "shippingzipcode": "02110",
@@ -307,6 +309,7 @@ class TestRokt: XCTestCase {
         XCTAssertEqual(contactAddress?.name, "Jane Doe")
         XCTAssertEqual(contactAddress?.email, "jane@example.com")
         XCTAssertEqual(contactAddress?.addressLine1, "456 Legacy Rd")
+        XCTAssertEqual(contactAddress?.addressLine2, "Unit 9")
         XCTAssertEqual(contactAddress?.city, "Boston")
         XCTAssertEqual(contactAddress?.state, "MA")
         XCTAssertEqual(contactAddress?.postalCode, "02110")

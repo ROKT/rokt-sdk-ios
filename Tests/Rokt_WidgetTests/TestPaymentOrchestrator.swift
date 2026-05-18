@@ -454,6 +454,55 @@ class TestPaymentOrchestrator: XCTestCase {
         XCTAssertNil(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider)
     }
 
+    func test_processPayment_preparePayment_includesContactAddressLine2InInitializePurchase() {
+        sut = PaymentOrchestrator(apiHelper: PaymentOrchestratorAPIHelperSpy.self)
+
+        let ext = MockPaymentExtension(id: "ext1", supportedMethods: [.afterpay])
+        ext.shouldAutomaticallyCompletePayment = false
+        sut.register(ext, config: [:])
+
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = Self.validInitializePurchaseResponse()
+
+        let item = PaymentItem(id: "item1", name: "Widget", amount: 49, currency: "USD")
+
+        sut.processPayment(
+            method: .afterpay,
+            item: item,
+            context: PaymentContext(),
+            cartItemId: "v1:cart-address2:canal",
+            from: UIViewController()
+        ) { _ in
+            XCTFail("Completion should not be called in this test")
+        }
+
+        guard let preparePayment = ext.capturedPreparePayment else {
+            XCTFail("Expected preparePayment callback to be captured")
+            return
+        }
+
+        let expectation = expectation(description: "preparePayment sends preserved shipping attributes")
+        let contactAddress = ContactAddress(
+            name: "Thomson Thomas",
+            email: "thomson@example.com",
+            addressLine1: "69-65 Yellowstone Blvd",
+            addressLine2: "Apt 1101",
+            city: "Forest Hills",
+            state: "NY",
+            postalCode: "11375",
+            country: "US"
+        )
+        preparePayment(contactAddress) { preparation, error in
+            XCTAssertNil(error)
+            XCTAssertNotNil(preparation)
+            expectation.fulfill()
+        }
+
+        wait(for: [expectation], timeout: 1.0)
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchaseShippingAttributes?.address1,
+                       "69-65 Yellowstone Blvd")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchaseShippingAttributes?.address2, "Apt 1101")
+    }
+
     func test_processPayment_preparePayment_plumbsApprovalUrlWhenPayPalDataPresent() {
         sut = PaymentOrchestrator(apiHelper: PaymentOrchestratorAPIHelperSpy.self)
 
@@ -1008,6 +1057,7 @@ class PaymentOrchestratorAPIHelperSpy: RoktAPIHelper {
     static var lastInitializePurchaseCancelURL: String?
     static var lastInitializePurchasePaymentMethod: String?
     static var lastInitializePurchasePaymentProvider: String?
+    static var lastInitializePurchaseShippingAttributes: ShippingAttributes?
     static var sendDiagnosticsCallCount = 0
     static var lastDiagnosticsMessage: String?
     static var lastDiagnosticsCallStack: String?
@@ -1021,6 +1071,7 @@ class PaymentOrchestratorAPIHelperSpy: RoktAPIHelper {
         lastInitializePurchaseCancelURL = nil
         lastInitializePurchasePaymentMethod = nil
         lastInitializePurchasePaymentProvider = nil
+        lastInitializePurchaseShippingAttributes = nil
         sendDiagnosticsCallCount = 0
         lastDiagnosticsMessage = nil
         lastDiagnosticsCallStack = nil
@@ -1043,6 +1094,7 @@ class PaymentOrchestratorAPIHelperSpy: RoktAPIHelper {
         lastInitializePurchaseCancelURL = cancelURL
         lastInitializePurchasePaymentMethod = paymentMethod
         lastInitializePurchasePaymentProvider = paymentProvider
+        lastInitializePurchaseShippingAttributes = shippingAttributes
         if let initializePurchaseResponse {
             success?(initializePurchaseResponse)
         } else {
