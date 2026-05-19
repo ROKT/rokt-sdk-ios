@@ -9,15 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [5.2.2] - 2026-05-19
+
 ### Fixed
 
-- Preserve address line 2 when preparing Shoppable Ads cart purchases.
+- Preserve address line 2 in cart initialize-purchase ([#163](https://github.com/ROKT/rokt-sdk-ios/pull/163))
 
 ### Changed
 
-- Require `RoktContracts` 2.0.2 or later.
-- Require `RoktUXHelper` 0.10.10 or later.
-- Update the Shoppable Ads example payment extension to `RoktPaymentExtension` 2.0.3.
+- Update Rokt payment dependencies ([#166](https://github.com/ROKT/rokt-sdk-ios/pull/166))
+- Bump actions/create-github-app-token from 3.1.1 to 3.2.0 ([#165](https://github.com/ROKT/rokt-sdk-ios/pull/165))
+- Bump trunk-io/trunk-action from 1.2.4 to 1.3.1 ([#164](https://github.com/ROKT/rokt-sdk-ios/pull/164))
 
 ## [5.2.1] - 2026-05-12
 
@@ -383,7 +385,8 @@ For a complete migration walkthrough with before/after code examples, see the [v
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.1...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.2...HEAD
+[5.2.2]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.1...5.2.2
 [5.2.1]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.0...5.2.1
 [5.2.0]: https://github.com/ROKT/rokt-sdk-ios/compare/5.1.0...5.2.0
 [5.1.0]: https://github.com/ROKT/rokt-sdk-ios/compare/5.0.0...5.1.0
