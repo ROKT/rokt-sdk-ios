@@ -9,16 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
-### Fixed
-
-- Preserve address line 2 when preparing Shoppable Ads cart purchases.
-
-### Changed
-
-- Require `RoktContracts` 2.0.2 or later.
-- Require `RoktUXHelper` 0.10.10 or later.
-- Update the Shoppable Ads example payment extension to `RoktPaymentExtension` 2.0.3.
-
 ## [5.2.2] - 2026-05-19
 
 ### Fixed
