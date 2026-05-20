@@ -609,6 +609,9 @@ class TestPaymentOrchestrator: XCTestCase {
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchaseCancelURL, "myapp://paypal/cancel")
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "paypal")
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "paypal")
+        // Tripwire against re-introducing the legacy uppercase token.
+        XCTAssertNotEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "PAYPAL")
+        XCTAssertNotEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "PAYPAL")
         XCTAssertEqual(payPalPresenter.presentCallCount, 1)
         XCTAssertEqual(payPalPresenter.lastApprovalURL?.absoluteString, "https://www.paypal.com/checkoutnow?token=MOCK")
     }

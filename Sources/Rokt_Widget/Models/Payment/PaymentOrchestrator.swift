@@ -178,6 +178,11 @@ final class PaymentOrchestrator {
         completion: @escaping (PaymentSheetResult) -> Void
     ) {
         if method == .paypal {
+            Self.warnIfCallerSuppliedProviderIgnored(
+                method: method,
+                callerProvider: paymentProvider,
+                hardcodedProvider: Self.cartWireValue(for: .paypal)
+            )
             processBuiltInPayPalPayment(
                 item: item,
                 context: context,
@@ -190,6 +195,11 @@ final class PaymentOrchestrator {
         }
 
         if method == .card, let cardSession = builtInCardDevicePaySession {
+            Self.warnIfCallerSuppliedProviderIgnored(
+                method: method,
+                callerProvider: paymentProvider,
+                hardcodedProvider: Self.cartWireValue(for: .card)
+            )
             processBuiltInCardPayment(
                 item: item,
                 context: context,
@@ -217,6 +227,8 @@ final class PaymentOrchestrator {
                 contactAddress: contactAddress,
                 returnURL: nil,
                 cancelURL: nil,
+                // `cartWireValue` is total and guaranteed non-empty; only the
+                // caller-supplied provider needs whitespace/empty normalization.
                 paymentMethod: Self.cartWireValue(for: method),
                 paymentProvider: Self.nonEmptyTrimmed(paymentProvider)
             ) { result in
@@ -519,6 +531,24 @@ final class PaymentOrchestrator {
         guard let string else { return nil }
         let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    /// Logs when a built-in flow ignored a caller-supplied `paymentProvider` that
+    /// disagrees with the hardcoded override. Helps the next person catch a wiring
+    /// bug (e.g. plumbing `"stripe"` into a built-in PayPal flow) without changing
+    /// the cart payload semantics.
+    private static func warnIfCallerSuppliedProviderIgnored(
+        method: PaymentMethodType,
+        callerProvider: String?,
+        hardcodedProvider: String
+    ) {
+        guard let provided = nonEmptyTrimmed(callerProvider),
+              provided != hardcodedProvider
+        else { return }
+        RoktLogger.shared.warning(
+            "Built-in \(method.wireValue) flow ignoring caller-supplied " +
+                "paymentProvider=\(provided); using \(hardcodedProvider)."
+        )
     }
 
     private func sendPaymentFailureDiagnostics(
