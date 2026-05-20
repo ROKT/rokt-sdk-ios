@@ -9,9 +9,12 @@ struct InitializePurchaseRequest {
     let returnURL: String?
     /// Optional cancel URL for the cart initialize-purchase API.
     let cancelURL: String?
-    /// Cart API payment method discriminator (e.g. built-in PayPal: `"PAYPAL"`).
+    /// Cart API `paymentMethod` discriminator (lowercase, e.g. `"card"`, `"apple_pay"`,
+    /// `"paypal"`, `"afterpay"`). Maps to the protobuf `PaymentMethodType` enum on the backend.
     let paymentMethod: String?
-    /// Cart API payment provider discriminator (e.g. built-in PayPal: `"PAYPAL"`).
+    /// Cart API `paymentProvider` discriminator (lowercase, e.g. `"stripe"`, `"paypal"`,
+    /// `"card"`, `"afterpay"`). Pass-through of the upstream DCUI provider so the backend can
+    /// disambiguate routing (e.g. stripe-routed apple_pay vs built-in apple_pay).
     let paymentProvider: String?
 
     func toDictionary() -> [String: Any] {

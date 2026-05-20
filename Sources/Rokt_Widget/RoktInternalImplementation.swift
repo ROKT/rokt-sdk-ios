@@ -434,20 +434,29 @@ class RoktInternalImplementation {
             // rawValue) makes a future schema rename a compile-time error rather than a
             // silent .default; @unknown default covers cases added in newer DcuiSchema versions.
             let paymentMethod: PaymentMethodType
+            // Lowercase wire token for the cart `initialize-purchase` body's `paymentProvider`
+            // field — pass-through of the upstream DCUI provider so backend can disambiguate
+            // routing (e.g. stripe-routed apple_pay vs built-in apple_pay).
+            let paymentProviderWireValue: String
             // Card schema and Stripe schema both map to PaymentMethodType.card today;
             // routes diverge in processPayment via builtInCardDevicePaySession (set only for `.card`).
             let isBuiltInCardForwarding = (event.paymentProvider == .card)
             switch event.paymentProvider {
             case .applePay:
                 paymentMethod = .applePay
+                paymentProviderWireValue = "apple_pay"
             case .stripe:
                 paymentMethod = .card
+                paymentProviderWireValue = "stripe"
             case .afterpay:
                 paymentMethod = .afterpay
+                paymentProviderWireValue = "afterpay"
             case .paypal:
                 paymentMethod = .paypal
+                paymentProviderWireValue = "paypal"
             case .card:
                 paymentMethod = .card
+                paymentProviderWireValue = "card"
             case .googlePay:
                 RoktLogger.shared.error("GooglePay device-pay not supported on iOS")
                 devicePayFinalized(executeId: executeId, layoutId: event.layoutId,
@@ -552,6 +561,7 @@ class RoktInternalImplementation {
             // Process the payment via the registered extension or built-in two-step flow
             paymentOrchestrator.processPayment(
                 method: paymentMethod,
+                paymentProvider: paymentProviderWireValue,
                 item: item,
                 context: context,
                 cartItemId: event.cartItemId,

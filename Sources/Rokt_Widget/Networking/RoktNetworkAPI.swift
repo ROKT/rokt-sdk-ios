@@ -392,8 +392,10 @@ internal class RoktNetWorkAPI {
     ///   - shippingAttributes: Shipping address for the order
     ///   - returnURL: Optional redirect success URL for payment flows that need it
     ///   - cancelURL: Optional redirect cancel URL for payment flows that need it
-    ///   - paymentMethod: Optional cart body `paymentMethod` (e.g. `"PAYPAL"` for built-in PayPal)
-    ///   - paymentProvider: Optional cart body `paymentProvider` (e.g. `"PAYPAL"` for built-in PayPal)
+    ///   - paymentMethod: Optional cart body `paymentMethod` (lowercase, e.g. `"card"`,
+    ///     `"apple_pay"`, `"paypal"`, `"afterpay"`).
+    ///   - paymentProvider: Optional cart body `paymentProvider` (lowercase, e.g. `"stripe"`,
+    ///     `"paypal"`, `"card"`, `"afterpay"`).
     ///   - success: Callback with the parsed response
     ///   - failure: Callback with error details
     class func initializePurchase(upsellItems: [UpsellItem],
