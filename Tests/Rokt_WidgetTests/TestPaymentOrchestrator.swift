@@ -450,7 +450,7 @@ class TestPaymentOrchestrator: XCTestCase {
         }
 
         wait(for: [expectation], timeout: 1.0)
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "apple_pay")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "APPLE_PAY")
         XCTAssertNil(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider)
     }
 
@@ -555,7 +555,7 @@ class TestPaymentOrchestrator: XCTestCase {
         }
 
         wait(for: [expectation], timeout: 1.0)
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "apple_pay")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "APPLE_PAY")
         XCTAssertNil(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider)
     }
 
@@ -607,11 +607,11 @@ class TestPaymentOrchestrator: XCTestCase {
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.initializePurchaseCallCount, 1)
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchaseReturnURL, "myapp://paypal/success")
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchaseCancelURL, "myapp://paypal/cancel")
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "paypal")
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "paypal")
-        // Tripwire against re-introducing the legacy uppercase token.
-        XCTAssertNotEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "PAYPAL")
-        XCTAssertNotEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "PAYPAL")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "PAYPAL")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "PayPal")
+        // Tripwire against re-introducing the legacy lowercase tokens.
+        XCTAssertNotEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "paypal")
+        XCTAssertNotEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "paypal")
         XCTAssertEqual(payPalPresenter.presentCallCount, 1)
         XCTAssertEqual(payPalPresenter.lastApprovalURL?.absoluteString, "https://www.paypal.com/checkoutnow?token=MOCK")
     }
@@ -648,8 +648,8 @@ class TestPaymentOrchestrator: XCTestCase {
         wait(for: [expectation], timeout: 1.0)
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchaseReturnURL, "myapp://paypal/success")
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchaseCancelURL, "myapp://paypal/cancel")
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "paypal")
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "paypal")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "PAYPAL")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "PayPal")
     }
 
     func test_processPayment_payPal_ignoresRegisteredExtensionSupportingPayPal() {
@@ -682,8 +682,8 @@ class TestPaymentOrchestrator: XCTestCase {
         }
         _ = sut.presentPendingBuiltInPayPalForForwardPayment { _ in }
         wait(for: [paypalExpectation], timeout: 1.0)
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "paypal")
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "paypal")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "PAYPAL")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "PayPal")
         XCTAssertEqual(ext.presentPaymentSheetCallCount, 0, "PayPal must not use PaymentExtension.presentPaymentSheet")
 
         let appleExpectation = expectation(description: "Apple Pay still uses extension")
@@ -777,7 +777,7 @@ class TestPaymentOrchestrator: XCTestCase {
         }
 
         wait(for: [expectation], timeout: 1.0)
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "apple_pay")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "APPLE_PAY")
         XCTAssertNil(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider)
     }
 
@@ -813,9 +813,9 @@ class TestPaymentOrchestrator: XCTestCase {
         wait(for: [confirmationExpectation], timeout: 1.0)
 
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.initializePurchaseCallCount, 1)
-        // Built-in card forwarding passes `card` / `card` as the cart wire values.
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "card")
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "card")
+        // Built-in card forwarding passes `CARD` / `Card` as the cart wire values.
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "CARD")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "Card")
         XCTAssertNil(PaymentOrchestratorAPIHelperSpy.lastInitializePurchaseReturnURL)
         XCTAssertNil(PaymentOrchestratorAPIHelperSpy.lastInitializePurchaseCancelURL)
         XCTAssertNotNil(confirmationData)
@@ -1052,16 +1052,27 @@ class TestPaymentOrchestrator: XCTestCase {
         XCTAssertEqual(payPalPresenter.presentCallCount, 0)
     }
 
-    // MARK: - cartWireValue helper
+    // MARK: - cart wire-value helpers
 
-    func test_cartWireValue_returnsLowercaseTokensForAllMethods() {
-        XCTAssertEqual(PaymentOrchestrator.cartWireValue(for: .applePay), "apple_pay")
-        XCTAssertEqual(PaymentOrchestrator.cartWireValue(for: .card), "card")
-        XCTAssertEqual(PaymentOrchestrator.cartWireValue(for: .paypal), "paypal")
-        // Cart wire (`afterpay`) intentionally diverges from `PaymentMethodType.wireValue`
+    func test_cartPaymentMethodWireValue_returnsUppercaseTokensForAllMethods() {
+        // Matches LayoutPaymentMethodType (web SDK) and PaymentMethod.MethodType rawValues
+        // decoded from backend transactionData.
+        XCTAssertEqual(PaymentOrchestrator.cartPaymentMethodWireValue(for: .applePay), "APPLE_PAY")
+        XCTAssertEqual(PaymentOrchestrator.cartPaymentMethodWireValue(for: .card), "CARD")
+        XCTAssertEqual(PaymentOrchestrator.cartPaymentMethodWireValue(for: .paypal), "PAYPAL")
+        // Cart wire (`AFTERPAY`) intentionally diverges from `PaymentMethodType.wireValue`
         // (`afterpay_clearpay`, used for extension matching).
-        XCTAssertEqual(PaymentOrchestrator.cartWireValue(for: .afterpay), "afterpay")
+        XCTAssertEqual(PaymentOrchestrator.cartPaymentMethodWireValue(for: .afterpay), "AFTERPAY")
         XCTAssertEqual(PaymentMethodType.afterpay.wireValue, "afterpay_clearpay")
+    }
+
+    func test_cartPaymentProviderWireValue_returnsPascalCaseTokensForAllMethods() {
+        // PascalCase pass-through of the DcuiSchema PaymentProvider enum — matches the web
+        // SDK payload on INITIATE_DEVICE_PAY_EVENT.
+        XCTAssertEqual(PaymentOrchestrator.cartPaymentProviderWireValue(for: .applePay), "ApplePay")
+        XCTAssertEqual(PaymentOrchestrator.cartPaymentProviderWireValue(for: .card), "Card")
+        XCTAssertEqual(PaymentOrchestrator.cartPaymentProviderWireValue(for: .paypal), "PayPal")
+        XCTAssertEqual(PaymentOrchestrator.cartPaymentProviderWireValue(for: .afterpay), "Afterpay")
     }
 
     // MARK: - paymentMethod / paymentProvider plumbing for extension flows
@@ -1077,7 +1088,7 @@ class TestPaymentOrchestrator: XCTestCase {
         let item = PaymentItem(id: "item1", name: "Widget", amount: 10, currency: "USD")
         sut.processPayment(
             method: .applePay,
-            paymentProvider: "stripe",
+            paymentProvider: "Stripe",
             item: item,
             context: PaymentContext(),
             cartItemId: "v1:cart-stripe:canal",
@@ -1096,8 +1107,8 @@ class TestPaymentOrchestrator: XCTestCase {
         preparePayment(address) { _, _ in expectation.fulfill() }
         wait(for: [expectation], timeout: 1.0)
 
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "apple_pay")
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "stripe")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "APPLE_PAY")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "Stripe")
     }
 
     func test_processPayment_extensionFlow_cardMethod_passesCardWireValueAsPaymentMethod() {
@@ -1112,7 +1123,7 @@ class TestPaymentOrchestrator: XCTestCase {
         // No builtInCardDevicePaySession -> routes via the registered extension, not built-in card.
         sut.processPayment(
             method: .card,
-            paymentProvider: "stripe",
+            paymentProvider: "Stripe",
             item: item,
             context: PaymentContext(),
             cartItemId: "v1:cart-stripe-card:canal",
@@ -1131,8 +1142,8 @@ class TestPaymentOrchestrator: XCTestCase {
         preparePayment(address) { _, _ in expectation.fulfill() }
         wait(for: [expectation], timeout: 1.0)
 
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "card")
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "stripe")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "CARD")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "Stripe")
     }
 
     func test_processPayment_extensionFlow_afterpay_passesAfterpayWireValueNotClearpay() {
@@ -1146,7 +1157,7 @@ class TestPaymentOrchestrator: XCTestCase {
         let item = PaymentItem(id: "item1", name: "Widget", amount: 10, currency: "USD")
         sut.processPayment(
             method: .afterpay,
-            paymentProvider: "afterpay",
+            paymentProvider: "Afterpay",
             item: item,
             context: PaymentContext(),
             cartItemId: "v1:cart-afterpay:canal",
@@ -1165,9 +1176,9 @@ class TestPaymentOrchestrator: XCTestCase {
         preparePayment(address) { _, _ in expectation.fulfill() }
         wait(for: [expectation], timeout: 1.0)
 
-        // Cart wire is "afterpay", not the extension-matching "afterpay_clearpay".
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "afterpay")
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "afterpay")
+        // Cart wire is "AFTERPAY", not the extension-matching "afterpay_clearpay".
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "AFTERPAY")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "Afterpay")
     }
 
     func test_processPayment_extensionFlow_emptyPaymentProvider_passesNilToInitializePurchase() {
@@ -1200,7 +1211,7 @@ class TestPaymentOrchestrator: XCTestCase {
         preparePayment(address) { _, _ in expectation.fulfill() }
         wait(for: [expectation], timeout: 1.0)
 
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "apple_pay")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "APPLE_PAY")
         XCTAssertNil(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider)
     }
 
@@ -1216,7 +1227,7 @@ class TestPaymentOrchestrator: XCTestCase {
         let item = PaymentItem(id: "item-paypal", name: "Widget", amount: 9.99, currency: "USD")
         sut.processPayment(
             method: .paypal,
-            paymentProvider: "stripe", // garbage value — built-in PayPal must override.
+            paymentProvider: "Stripe", // garbage value — built-in PayPal must override.
             item: item,
             context: context,
             cartItemId: "v1:cart-paypal-override:canal",
@@ -1224,8 +1235,8 @@ class TestPaymentOrchestrator: XCTestCase {
             builtInPayPalDevicePaySession: paypalDeviceSessionForTests()
         ) { _ in }
 
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "paypal")
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "paypal")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "PAYPAL")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "PayPal")
     }
 
     func test_processPayment_builtInCard_ignoresCallerSuppliedPaymentProvider() {
@@ -1243,7 +1254,7 @@ class TestPaymentOrchestrator: XCTestCase {
         let item = PaymentItem(id: "item-card", name: "Widget", amount: 9.99, currency: "USD")
         sut.processPayment(
             method: .card,
-            paymentProvider: "stripe", // garbage value — built-in card must override.
+            paymentProvider: "Stripe", // garbage value — built-in card must override.
             item: item,
             context: PaymentContext(),
             cartItemId: "v1:cart-card-override:canal",
@@ -1255,8 +1266,8 @@ class TestPaymentOrchestrator: XCTestCase {
 
         wait(for: [confirmationExpectation], timeout: 1.0)
 
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "card")
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "card")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "CARD")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "Card")
     }
 }
 

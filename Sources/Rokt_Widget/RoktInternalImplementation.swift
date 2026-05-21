@@ -434,9 +434,10 @@ class RoktInternalImplementation {
             // rawValue) makes a future schema rename a compile-time error rather than a
             // silent .default; @unknown default covers cases added in newer DcuiSchema versions.
             let paymentMethod: PaymentMethodType
-            // Lowercase wire token for the cart `initialize-purchase` body's `paymentProvider`
-            // field — pass-through of the upstream DCUI provider so backend can disambiguate
-            // routing (e.g. stripe-routed apple_pay vs built-in apple_pay).
+            // PascalCase wire token for the cart `initialize-purchase` body's `paymentProvider`
+            // field — pass-through of the upstream DcuiSchema `PaymentProvider` enum so backend
+            // can disambiguate routing (e.g. Stripe-routed ApplePay vs built-in ApplePay).
+            // Matches the web SDK payload on `INITIATE_DEVICE_PAY_EVENT`.
             let paymentProviderWireValue: String
             // Card schema and Stripe schema both map to PaymentMethodType.card today;
             // routes diverge in processPayment via builtInCardDevicePaySession (set only for `.card`).
@@ -444,19 +445,19 @@ class RoktInternalImplementation {
             switch event.paymentProvider {
             case .applePay:
                 paymentMethod = .applePay
-                paymentProviderWireValue = "apple_pay"
+                paymentProviderWireValue = "ApplePay"
             case .stripe:
                 paymentMethod = .card
-                paymentProviderWireValue = "stripe"
+                paymentProviderWireValue = "Stripe"
             case .afterpay:
                 paymentMethod = .afterpay
-                paymentProviderWireValue = "afterpay"
+                paymentProviderWireValue = "Afterpay"
             case .paypal:
                 paymentMethod = .paypal
-                paymentProviderWireValue = "paypal"
+                paymentProviderWireValue = "PayPal"
             case .card:
                 paymentMethod = .card
-                paymentProviderWireValue = "card"
+                paymentProviderWireValue = "Card"
             case .googlePay:
                 RoktLogger.shared.error("GooglePay device-pay not supported on iOS")
                 devicePayFinalized(executeId: executeId, layoutId: event.layoutId,

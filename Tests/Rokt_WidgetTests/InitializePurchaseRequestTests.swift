@@ -44,13 +44,13 @@ final class InitializePurchaseRequestTests: XCTestCase {
             fulfillmentDetails: nil,
             returnURL: nil,
             cancelURL: nil,
-            paymentMethod: "apple_pay",
-            paymentProvider: "stripe"
+            paymentMethod: "APPLE_PAY",
+            paymentProvider: "Stripe"
         )
 
         let dict = request.toDictionary()
 
-        XCTAssertEqual(dict["paymentMethod"] as? String, "apple_pay")
-        XCTAssertEqual(dict["paymentProvider"] as? String, "stripe")
+        XCTAssertEqual(dict["paymentMethod"] as? String, "APPLE_PAY")
+        XCTAssertEqual(dict["paymentProvider"] as? String, "Stripe")
     }
 }
