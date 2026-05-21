@@ -1,6 +1,18 @@
 import XCTest
 import PactSwift
 
+/// Consumer-driven pact spec for the v2 `/v2/sessions/offers` endpoint.
+///
+/// Drives `V2OffersClient.fetchOffers(input:)` — a public method that takes
+/// domain inputs (page identifier, customer email, attributes, request-scoped
+/// ids) and internally builds the wire request. The pact matchers below
+/// describe the EXPECTED wire shape; if `V2OffersClient` ever drifts from
+/// those expectations (e.g., sends `rokt-platform-type: "ios-mobile"` instead
+/// of `"iOS"`), the pact mock service rejects the request and this test fails.
+///
+/// Pattern mirrors sdk-web's consumer-pact specs (see PR ROKT/sdk-web#1372):
+/// the test never constructs request headers or body directly, only domain
+/// inputs. Wire-shape construction lives entirely in `V2OffersClient`.
 class V2OffersClientPactSpec: XCTestCase {
     static var mockService: MockService!
 
@@ -93,34 +105,27 @@ class V2OffersClientPactSpec: XCTestCase {
                 defer { done() }
                 do {
                     let url = try XCTUnwrap(URL(string: baseURL))
-                    let client = V2OffersClient(baseURL: url)
-                    let headers = V2OffersHeaders.iOSDefaults(
+                    let client = V2OffersClient(
+                        baseURL: url,
                         accountId: "account-456",
-                        authorization: "Bearer session-token-abc",
-                        requestId: "request-id-123",
-                        pageInstanceGuid: "page-instance-guid-123"
-                    )
-                    let body = V2OffersRequest(
+                        authToken: "Bearer session-token-abc",
                         sessionId: "session-123",
                         mpSessionId: "mp-session-123",
                         mpid: "mpid-123",
-                        page: V2OffersPage(
-                            pageIdentifier: "checkout-page",
-                            url: "https://merchant.test/checkout"
-                        ),
-                        privacy: V2OffersPrivacy(
-                            doNotTrack: false,
-                            gpcEnabled: false,
-                            doNotShareOrSell: false
-                        ),
-                        channel: V2OffersChannel(type: "msdk", sdkVersion: "5.2.2"),
-                        customer: V2OffersCustomer(email: "user@example.com"),
+                        sdkVersion: "5.2.2",
+                        pageInstanceGuid: "page-instance-guid-123"
+                    )
+                    let input = V2OffersInput(
+                        requestId: "request-id-123",
+                        pageIdentifier: "checkout-page",
+                        pageURL: "https://merchant.test/checkout",
+                        customerEmail: "user@example.com",
                         attributes: [
                             "standalone": "notdefined",
                             "customer.locale": "en-US"
                         ]
                     )
-                    let (_, response) = try await client.sendOffers(headers: headers, body: body)
+                    let (_, response) = try await client.fetchOffers(input: input)
                     let httpResponse = response as? HTTPURLResponse
                     XCTAssertEqual(httpResponse?.statusCode, 200)
                 } catch {
