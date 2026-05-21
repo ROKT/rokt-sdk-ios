@@ -1,7 +1,7 @@
 import XCTest
 import PactSwift
 
-final class V2OffersClientPactSpec: XCTestCase {
+class V2OffersClientPactSpec: XCTestCase {
     static var mockService: MockService!
 
     override class func setUp() {
@@ -30,7 +30,7 @@ final class V2OffersClientPactSpec: XCTestCase {
                     "rokt-integration-type": Matcher.SomethingLike("msdk-ios"),
                     "x-request-id": Matcher.SomethingLike("request-id-123"),
                     "rokt-page-instance-guid": Matcher.SomethingLike("page-instance-guid-123"),
-                    "Content-Type": "application/json",
+                    "Content-Type": "application/json"
                 ],
                 body: [
                     "session_id": Matcher.SomethingLike("session-123"),
@@ -38,24 +38,24 @@ final class V2OffersClientPactSpec: XCTestCase {
                     "mpid": Matcher.SomethingLike("mpid-123"),
                     "page": [
                         "page_identifier": Matcher.SomethingLike("checkout-page"),
-                        "url": Matcher.SomethingLike("https://merchant.test/checkout"),
+                        "url": Matcher.SomethingLike("https://merchant.test/checkout")
                     ],
                     "privacy": [
                         "do_not_track": Matcher.SomethingLike(false),
                         "gpc_enabled": Matcher.SomethingLike(false),
-                        "do_not_share_or_sell": Matcher.SomethingLike(false),
+                        "do_not_share_or_sell": Matcher.SomethingLike(false)
                     ],
                     "channel": [
                         "type": Matcher.SomethingLike("msdk"),
-                        "sdk_version": Matcher.SomethingLike("5.2.2"),
+                        "sdk_version": Matcher.SomethingLike("5.2.2")
                     ],
                     "customer": [
-                        "email": Matcher.SomethingLike("user@example.com"),
+                        "email": Matcher.SomethingLike("user@example.com")
                     ],
                     "attributes": [
                         "standalone": Matcher.SomethingLike("notdefined"),
-                        "customer.locale": Matcher.SomethingLike("en-US"),
-                    ],
+                        "customer.locale": Matcher.SomethingLike("en-US")
+                    ]
                 ]
             )
             .willRespondWith(
@@ -65,7 +65,7 @@ final class V2OffersClientPactSpec: XCTestCase {
                     "session_id": Matcher.SomethingLike("session-123"),
                     "session_token": [
                         "token": Matcher.SomethingLike("rotated-session-token"),
-                        "expires_at": Matcher.SomethingLike(1_774_474_053_000),
+                        "expires_at": Matcher.SomethingLike(1_774_474_053_000)
                     ],
                     "page_context": [
                         "rokt_tag_id": Matcher.SomethingLike("tag-123"),
@@ -74,15 +74,15 @@ final class V2OffersClientPactSpec: XCTestCase {
                         "page_type": Matcher.RegexLike("checkout", term: validPageTypes),
                         "language": Matcher.SomethingLike("en-US"),
                         "is_page_detected": Matcher.SomethingLike(true),
-                        "page_variant_name": Matcher.SomethingLike("control"),
+                        "page_variant_name": Matcher.SomethingLike("control")
                     ],
                     "plugins": [],
                     "placements": [],
                     "event_data": [:],
                     "page_instance_guid": Matcher.SomethingLike("page-instance-guid-123"),
                     "privacy_control": [
-                        "limited_use": Matcher.SomethingLike(false),
-                    ],
+                        "limited_use": Matcher.SomethingLike(false)
+                    ]
                 ]
             )
 
@@ -94,30 +94,30 @@ final class V2OffersClientPactSpec: XCTestCase {
                 do {
                     let url = try XCTUnwrap(URL(string: baseURL))
                     let client = V2OffersClient(baseURL: url)
-                    let headers = V2OffersClient.Headers.iOSDefaults(
+                    let headers = V2OffersHeaders.iOSDefaults(
                         accountId: "account-456",
                         authorization: "Bearer session-token-abc",
                         requestId: "request-id-123",
                         pageInstanceGuid: "page-instance-guid-123"
                     )
-                    let body = V2OffersClient.Request(
+                    let body = V2OffersRequest(
                         sessionId: "session-123",
                         mpSessionId: "mp-session-123",
                         mpid: "mpid-123",
-                        page: .init(
+                        page: V2OffersPage(
                             pageIdentifier: "checkout-page",
                             url: "https://merchant.test/checkout"
                         ),
-                        privacy: .init(
+                        privacy: V2OffersPrivacy(
                             doNotTrack: false,
                             gpcEnabled: false,
                             doNotShareOrSell: false
                         ),
-                        channel: .init(type: "msdk", sdkVersion: "5.2.2"),
-                        customer: .init(email: "user@example.com"),
+                        channel: V2OffersChannel(type: "msdk", sdkVersion: "5.2.2"),
+                        customer: V2OffersCustomer(email: "user@example.com"),
                         attributes: [
                             "standalone": "notdefined",
-                            "customer.locale": "en-US",
+                            "customer.locale": "en-US"
                         ]
                     )
                     let (_, response) = try await client.sendOffers(headers: headers, body: body)

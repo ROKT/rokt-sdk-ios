@@ -16,90 +16,7 @@ struct V2OffersClient {
         self.urlSession = urlSession
     }
 
-    struct Headers {
-        let accountId: String
-        let authorization: String
-        let platformType: String
-        let integrationType: String
-        let requestId: String
-        let pageInstanceGuid: String
-
-        static func iOSDefaults(
-            accountId: String,
-            authorization: String,
-            requestId: String,
-            pageInstanceGuid: String
-        ) -> Headers {
-            Headers(
-                accountId: accountId,
-                authorization: authorization,
-                platformType: "iOS",
-                integrationType: "msdk-ios",
-                requestId: requestId,
-                pageInstanceGuid: pageInstanceGuid
-            )
-        }
-    }
-
-    struct Request: Encodable {
-        let sessionId: String
-        let mpSessionId: String
-        let mpid: String
-        let page: Page
-        let privacy: Privacy
-        let channel: Channel
-        let customer: Customer
-        let attributes: [String: String]
-
-        enum CodingKeys: String, CodingKey {
-            case sessionId = "session_id"
-            case mpSessionId = "mp_session_id"
-            case mpid
-            case page
-            case privacy
-            case channel
-            case customer
-            case attributes
-        }
-
-        struct Page: Encodable {
-            let pageIdentifier: String
-            let url: String
-
-            enum CodingKeys: String, CodingKey {
-                case pageIdentifier = "page_identifier"
-                case url
-            }
-        }
-
-        struct Privacy: Encodable {
-            let doNotTrack: Bool
-            let gpcEnabled: Bool
-            let doNotShareOrSell: Bool
-
-            enum CodingKeys: String, CodingKey {
-                case doNotTrack = "do_not_track"
-                case gpcEnabled = "gpc_enabled"
-                case doNotShareOrSell = "do_not_share_or_sell"
-            }
-        }
-
-        struct Channel: Encodable {
-            let type: String
-            let sdkVersion: String
-
-            enum CodingKeys: String, CodingKey {
-                case type
-                case sdkVersion = "sdk_version"
-            }
-        }
-
-        struct Customer: Encodable {
-            let email: String
-        }
-    }
-
-    func sendOffers(headers: Headers, body: Request) async throws -> (Data, URLResponse) {
+    func sendOffers(headers: V2OffersHeaders, body: V2OffersRequest) async throws -> (Data, URLResponse) {
         let url = baseURL
             .appendingPathComponent("v2")
             .appendingPathComponent("sessions")
@@ -118,4 +35,87 @@ struct V2OffersClient {
 
         return try await urlSession.data(for: request)
     }
+}
+
+struct V2OffersHeaders {
+    let accountId: String
+    let authorization: String
+    let platformType: String
+    let integrationType: String
+    let requestId: String
+    let pageInstanceGuid: String
+
+    static func iOSDefaults(
+        accountId: String,
+        authorization: String,
+        requestId: String,
+        pageInstanceGuid: String
+    ) -> V2OffersHeaders {
+        V2OffersHeaders(
+            accountId: accountId,
+            authorization: authorization,
+            platformType: "iOS",
+            integrationType: "msdk-ios",
+            requestId: requestId,
+            pageInstanceGuid: pageInstanceGuid
+        )
+    }
+}
+
+struct V2OffersRequest: Encodable {
+    let sessionId: String
+    let mpSessionId: String
+    let mpid: String
+    let page: V2OffersPage
+    let privacy: V2OffersPrivacy
+    let channel: V2OffersChannel
+    let customer: V2OffersCustomer
+    let attributes: [String: String]
+
+    enum CodingKeys: String, CodingKey {
+        case sessionId = "session_id"
+        case mpSessionId = "mp_session_id"
+        case mpid
+        case page
+        case privacy
+        case channel
+        case customer
+        case attributes
+    }
+}
+
+struct V2OffersPage: Encodable {
+    let pageIdentifier: String
+    let url: String
+
+    enum CodingKeys: String, CodingKey {
+        case pageIdentifier = "page_identifier"
+        case url
+    }
+}
+
+struct V2OffersPrivacy: Encodable {
+    let doNotTrack: Bool
+    let gpcEnabled: Bool
+    let doNotShareOrSell: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case doNotTrack = "do_not_track"
+        case gpcEnabled = "gpc_enabled"
+        case doNotShareOrSell = "do_not_share_or_sell"
+    }
+}
+
+struct V2OffersChannel: Encodable {
+    let type: String
+    let sdkVersion: String
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case sdkVersion = "sdk_version"
+    }
+}
+
+struct V2OffersCustomer: Encodable {
+    let email: String
 }
