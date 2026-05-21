@@ -19,7 +19,7 @@ final class V2OffersClientPactSpec: XCTestCase {
 
         Self.mockService
             .uponReceiving("a v2 sessions offers request from rokt-sdk-ios for a configured page")
-            .given(ProviderState(description: "a valid offers request is submitted"))
+            .given(ProviderState(description: "a valid offers request is submitted", params: [:]))
             .withRequest(
                 method: .POST,
                 path: "/v2/sessions/offers",
@@ -92,7 +92,8 @@ final class V2OffersClientPactSpec: XCTestCase {
             Task {
                 defer { done() }
                 do {
-                    let client = V2OffersClient(baseURL: baseURL)
+                    let url = try XCTUnwrap(URL(string: baseURL))
+                    let client = V2OffersClient(baseURL: url)
                     let headers = V2OffersClient.Headers.iOSDefaults(
                         accountId: "account-456",
                         authorization: "Bearer session-token-abc",
