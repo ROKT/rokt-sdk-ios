@@ -1,3 +1,7 @@
+// periphery:ignore:all - referenced from Tests/ContractTests/V2OffersClientPactSpec.swift,
+// which isn't part of the rokt-Example scheme that Periphery scans. See the V2OffersClient
+// doc comment below for why this client lives in Sources/ rather than Tests/.
+
 import Foundation
 
 /// Client for the v2 sessions offers endpoint on transactions-api.
