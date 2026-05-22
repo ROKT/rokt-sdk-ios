@@ -1,0 +1,136 @@
+name: Pact Consumer
+
+# Consumer-driven pact testing for the iOS SDK against `transactions-api` v2.
+#
+# Two jobs:
+#  - `consumer-test` runs on every PR + every push to `main`. It executes the
+#    PactSwift spec against the in-process mock server, generates a pact JSON,
+#    and uploads it as a workflow artifact. No Rokt secrets are exposed; PR code
+#    from public forks is safe to run here because the GitHub-provided runner is
+#    fully isolated from Rokt infrastructure.
+#  - `publish` runs only on push to `main` and is gated by the `pact-publish`
+#    GitHub environment (required-reviewers + main-branch-only). On approval,
+#    broker write credentials are exposed and the pact JSON is published
+#    directly to the pact broker.
+#
+# Reading: ../../documentation/pact-v2-migration.md (lands with a later PR).
+
+on:
+  pull_request:
+    paths:
+      - "Sources/Rokt_Widget/Networking/V2OffersClient.swift"
+      - "Tests/ContractTests/**"
+      - "Package.swift"
+      - ".github/workflows/pact-consumer.yml"
+  push:
+    branches: [main]
+    paths:
+      - "Sources/Rokt_Widget/Networking/V2OffersClient.swift"
+      - "Tests/ContractTests/**"
+      - "Package.swift"
+      - ".github/workflows/pact-consumer.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  consumer-test:
+    name: Consumer Test (PactSwift)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
+        with:
+          xcode-version: "26.2"
+
+      - name: Run contract tests
+        env:
+          # PactSwift writes inside the simulator data container by default. The
+          # TEST_RUNNER_ prefix is xcodebuild's mechanism for propagating env vars
+          # to the test runner inside the simulator (the prefix is stripped on
+          # arrival, so the test reads `PACT_OUTPUT_DIR` directly).
+          TEST_RUNNER_PACT_OUTPUT_DIR: ${{ runner.temp }}/pacts
+        run: |
+          mkdir -p "${{ runner.temp }}/pacts"
+          xcodebuild test \
+            -scheme Rokt-Widget \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
+            -only-testing:ContractTests \
+            -resultBundlePath "${{ runner.temp }}/test-results.xcresult"
+
+      - name: Verify pact JSON generated
+        run: |
+          if ! ls "${{ runner.temp }}/pacts/"*.json >/dev/null 2>&1; then
+            echo "::error::No pact JSON generated under ${{ runner.temp }}/pacts/" >&2
+            echo "Listing simulator data container as a fallback diagnostic:"
+            find ~/Library/Developer/CoreSimulator/Devices -name "rokt-sdk-ios-*.json" 2>/dev/null || true
+            exit 1
+          fi
+          echo "Generated pact files:"
+          ls -la "${{ runner.temp }}/pacts/"
+
+      - name: Upload pact JSON
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pact-json
+          path: ${{ runner.temp }}/pacts/
+          retention-days: 14
+          if-no-files-found: error
+
+  publish:
+    name: Publish to Broker
+    needs: consumer-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # `pact-publish` is configured with required reviewers + main-only deployment
+    # branches. Broker write credentials are exposed only after maintainer approval.
+    # See documentation/pact-v2-migration.md for setup details.
+    environment: pact-publish
+    steps:
+      - name: Download pact JSON
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: pact-json
+          path: pacts/
+
+      - name: Publish to pact broker
+        env:
+          PACT_BROKER_BASE_URL: ${{ vars.PACT_BROKER_BASE_URL }}
+          PACT_BROKER_USERNAME: ${{ vars.PACT_BROKER_USERNAME }}
+          PACT_BROKER_PASSWORD: ${{ secrets.PACT_BROKER_PASSWORD }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          BUILD_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${PACT_BROKER_BASE_URL:-}" ]; then
+            echo "::error::PACT_BROKER_BASE_URL is unset. Configure the pact-publish environment." >&2
+            exit 1
+          fi
+          if [ -z "${PACT_BROKER_USERNAME:-}" ] || [ -z "${PACT_BROKER_PASSWORD:-}" ]; then
+            echo "::error::PACT_BROKER_USERNAME / PACT_BROKER_PASSWORD missing." >&2
+            exit 1
+          fi
+
+          docker run --rm \
+            -v "${PWD}/pacts:/pacts" \
+            -e PACT_BROKER_BASE_URL \
+            -e PACT_BROKER_USERNAME \
+            -e PACT_BROKER_PASSWORD \
+            pactfoundation/pact-cli:latest \
+            broker publish /pacts \
+              --consumer-app-version "${GITHUB_SHA}" \
+              --branch "${GITHUB_REF_NAME}" \
+              --tag "forward-looking" \
+              --build-url "${BUILD_URL}"
