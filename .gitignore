@@ -10,3 +10,7 @@ Package.resolved
 vendor/
 Tests/Rokt_WidgetTests/**/*.swift.plist
 Tests/SizeReport/build/
+
+# Pact JSON artifacts (generated locally by ContractTests, published to broker
+# by CI, never committed — see rokt-pact-mobile-runner for the publish path).
+pacts/
