@@ -48,6 +48,7 @@ let package = Package(
         .testTarget(
             name: "ContractTests",
             dependencies: [
+                "Rokt_Widget",
                 .product(name: "PactSwift", package: "PactSwift")
             ],
             path: "Tests/ContractTests"

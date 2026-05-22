@@ -1,18 +1,23 @@
 import Foundation
 
-/// Test-only client for the v2 sessions offers endpoint on transactions-api.
+/// Client for the v2 sessions offers endpoint on transactions-api.
 ///
-/// Mobile is not yet a consumer of this surface — production code still calls
-/// `/rokt-mobile/v1/*`. This client describes the v2 contract that mobile will
-/// satisfy at v1→v2 migration. Lift / replace at cutover.
+/// Not yet called from any production code path — the SDK still uses
+/// `/rokt-mobile/v1/*` via `RoktNetWorkAPI`. This client describes the
+/// v2 wire contract that mobile will satisfy when v1→v2 migration lands;
+/// at that point the existing networking code switches over to call this.
 ///
-/// Design intentionally mirrors sdk-web's consumer-pact pattern (see
-/// `build-pact-services.ts` in that repo): the client owns wire-shape
-/// construction — header and body assembly — based on domain inputs. The
-/// pact spec describes the expected wire shape via matchers, and any drift
-/// in this client's outgoing request will be caught by the pact mock. The
-/// test never constructs the headers or body directly.
-struct V2OffersClient {
+/// Lives in Sources/ rather than Tests/ so the consumer pact spec in
+/// `Tests/ContractTests/V2OffersClientPactSpec.swift` constrains the
+/// actual shipping SDK code. A pact contract describing test-only code
+/// can silently diverge from production at migration time; describing
+/// real SDK code closes that gap.
+///
+/// The client owns wire-shape construction — header and body assembly —
+/// based on domain inputs. The pact spec describes the expected wire
+/// shape via matchers, and any drift here will be caught by the pact
+/// mock service. See [[pact-consumer-conventions]] §10a for the rule.
+internal struct V2OffersClient {
     let baseURL: URL
     let accountId: String
     let authToken: String
@@ -82,8 +87,8 @@ struct V2OffersClient {
 /// Holds only the values that vary per-request from a caller's perspective.
 /// Session-shaped values (account id, session token, mp ids, etc.) are
 /// injected at client construction time, mirroring how a production iOS
-/// service would resolve them from session / config services.
-struct V2OffersInput {
+/// service resolves them from session / config services.
+internal struct V2OffersInput {
     let requestId: String
     let pageIdentifier: String
     let pageURL: String
@@ -91,7 +96,7 @@ struct V2OffersInput {
     let attributes: [String: String]
 }
 
-struct V2OffersRequest: Encodable {
+internal struct V2OffersRequest: Encodable {
     let sessionId: String
     let mpSessionId: String
     let mpid: String
@@ -113,7 +118,7 @@ struct V2OffersRequest: Encodable {
     }
 }
 
-struct V2OffersPage: Encodable {
+internal struct V2OffersPage: Encodable {
     let pageIdentifier: String
     let url: String
 
@@ -123,7 +128,7 @@ struct V2OffersPage: Encodable {
     }
 }
 
-struct V2OffersPrivacy: Encodable {
+internal struct V2OffersPrivacy: Encodable {
     let doNotTrack: Bool
     let gpcEnabled: Bool
     let doNotShareOrSell: Bool
@@ -135,7 +140,7 @@ struct V2OffersPrivacy: Encodable {
     }
 }
 
-struct V2OffersChannel: Encodable {
+internal struct V2OffersChannel: Encodable {
     let type: String
     let sdkVersion: String
 
@@ -145,6 +150,6 @@ struct V2OffersChannel: Encodable {
     }
 }
 
-struct V2OffersCustomer: Encodable {
+internal struct V2OffersCustomer: Encodable {
     let email: String
 }

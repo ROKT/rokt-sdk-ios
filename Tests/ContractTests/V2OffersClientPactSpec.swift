@@ -1,5 +1,6 @@
 import XCTest
 import PactSwift
+@testable import Rokt_Widget
 
 /// Consumer-driven pact spec for the v2 `/v2/sessions/offers` endpoint.
 ///
@@ -13,6 +14,14 @@ import PactSwift
 /// Pattern mirrors sdk-web's consumer-pact specs (see PR ROKT/sdk-web#1372):
 /// the test never constructs request headers or body directly, only domain
 /// inputs. Wire-shape construction lives entirely in `V2OffersClient`.
+///
+/// Matcher policy: fixed-value strings hardcoded in `V2OffersClient`
+/// (`"iOS"`, `"msdk-ios"`, `"msdk"`) are pinned as exact strings rather
+/// than `SomethingLike`. `SomethingLike` only matches by type, which
+/// would let the client drift to `"ios-mobile"` without failing the
+/// consumer test. Per-runtime values (account id, auth token, request id,
+/// session ids, page identifier, etc.) stay as `SomethingLike` because
+/// they legitimately vary per call.
 class V2OffersClientPactSpec: XCTestCase {
     static var mockService: MockService!
 
@@ -38,8 +47,8 @@ class V2OffersClientPactSpec: XCTestCase {
                 headers: [
                     "rokt-account-id": Matcher.SomethingLike("account-456"),
                     "Authorization": Matcher.SomethingLike("Bearer session-token-abc"),
-                    "rokt-platform-type": Matcher.SomethingLike("iOS"),
-                    "rokt-integration-type": Matcher.SomethingLike("msdk-ios"),
+                    "rokt-platform-type": "iOS",
+                    "rokt-integration-type": "msdk-ios",
                     "x-request-id": Matcher.SomethingLike("request-id-123"),
                     "rokt-page-instance-guid": Matcher.SomethingLike("page-instance-guid-123"),
                     "Content-Type": "application/json"
@@ -58,7 +67,7 @@ class V2OffersClientPactSpec: XCTestCase {
                         "do_not_share_or_sell": Matcher.SomethingLike(false)
                     ],
                     "channel": [
-                        "type": Matcher.SomethingLike("msdk"),
+                        "type": "msdk",
                         "sdk_version": Matcher.SomethingLike("5.2.2")
                     ],
                     "customer": [
