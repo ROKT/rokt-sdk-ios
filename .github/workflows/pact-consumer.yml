@@ -18,17 +18,17 @@ name: Pact Consumer
 on:
   pull_request:
     paths:
-      - "Sources/Rokt_Widget/Networking/V2OffersClient.swift"
-      - "Tests/ContractTests/**"
-      - "Package.swift"
-      - ".github/workflows/pact-consumer.yml"
+      - Sources/Rokt_Widget/Networking/V2OffersClient.swift
+      - Tests/ContractTests/**
+      - Package.swift
+      - .github/workflows/pact-consumer.yml
   push:
     branches: [main]
     paths:
-      - "Sources/Rokt_Widget/Networking/V2OffersClient.swift"
-      - "Tests/ContractTests/**"
-      - "Package.swift"
-      - ".github/workflows/pact-consumer.yml"
+      - Sources/Rokt_Widget/Networking/V2OffersClient.swift
+      - Tests/ContractTests/**
+      - Package.swift
+      - .github/workflows/pact-consumer.yml
 
 permissions:
   contents: read
