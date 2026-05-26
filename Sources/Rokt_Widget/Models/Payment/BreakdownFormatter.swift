@@ -3,9 +3,8 @@ import Foundation
 /// Formats the order breakdown values pushed into the UXHelper layout's
 /// `DATA.catalogRuntime.*` placeholders by ``RoktUX/devicePayShowConfirmation``.
 ///
-/// Subtotal is summed from ``UpsellItem/totalPrice`` (the response echoes back
-/// what the SDK sent in `/v1/cart/initialize-purchase`); shipping / tax / total
-/// come straight from the cart-prepare response's ``PaymentDetails``.
+/// Subtotal is summed from ``UpsellItem/totalPrice`` (the line item the SDK sent for
+/// `POST /v2/commerce/purchases`); shipping / tax / total come from the prepare response's ``PaymentDetails``.
 enum BreakdownFormatter {
     static let subtotalKey = "subtotal"
     static let taxKey = "tax"

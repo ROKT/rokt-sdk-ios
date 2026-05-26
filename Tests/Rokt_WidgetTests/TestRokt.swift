@@ -55,6 +55,7 @@ class TestRokt: XCTestCase {
         Rokt.setEnvironment(environment: .Stage)
         XCTAssertEqual(config.environment, Environment.Stage)
         XCTAssertEqual(baseURL, Environment.Stage.baseURL)
+        XCTAssertEqual(commerceAPIBaseURL, "https://api.stage.rokt.com")
     }
 
     func test_setEnvironment_valid_Prod() {

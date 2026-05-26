@@ -21,6 +21,8 @@ final class PaymentOrchestrator {
     static let devicePayErrorCode = "[DEVICE_PAY]"
     static let paymentPreparationResponseValidationError = "Payment preparation response missing required fields"
     static let paymentPreparationFailedError = "Payment preparation failed"
+    /// Commerce `POST /v2/commerce/purchases` PayPal responses omit Stripe `client_secret`; the built-in PayPal flow only needs ``InitializePurchasePayPalData``.
+    private static let payPalCommerceClientSecretPlaceholder = "PAYPAL_COMMERCE_NO_STRIPE_CLIENT_SECRET"
     /// Cart prepare succeeded but the response did not include a PayPal approval URL (`paypalData.approvalUrl`).
     static let payPalApprovalURLMissingMessage =
         "PayPal approval URL was not returned; cannot start checkout."
@@ -661,27 +663,33 @@ final class PaymentOrchestrator {
             paymentMethod: paymentMethod,
             paymentProvider: paymentProvider,
             success: { response in
-                guard let clientSecret = response.paymentDetails.clientSecret,
-                      let merchantId = response.paymentDetails.merchantAccountId,
-                      !clientSecret.isEmpty,
-                      !merchantId.isEmpty
-                else {
-                    let validationError = NSError(
-                        domain: "RoktSDK",
-                        code: -1,
-                        userInfo: [NSLocalizedDescriptionKey: PaymentOrchestrator.paymentPreparationResponseValidationError]
-                    )
-                    self.apiHelper.sendDiagnostics(
-                        message: PaymentOrchestrator.devicePayErrorCode,
-                        callStack: PaymentOrchestrator.paymentPreparationResponseValidationError,
-                        severity: .warning,
-                        additionalInfo: [
-                            "clientSecretPresent": response.paymentDetails.clientSecret != nil,
-                            "merchantIdPresent": response.paymentDetails.merchantAccountId != nil
-                        ]
-                    )
-                    completion(.failure(validationError))
-                    return
+                let payPalReady = response.paypalData.map {
+                    !$0.approvalUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                } ?? false
+
+                if !payPalReady {
+                    guard let clientSecret = response.paymentDetails.clientSecret,
+                          let merchantId = response.paymentDetails.merchantAccountId,
+                          !clientSecret.isEmpty,
+                          !merchantId.isEmpty
+                    else {
+                        let validationError = NSError(
+                            domain: "RoktSDK",
+                            code: -1,
+                            userInfo: [NSLocalizedDescriptionKey: PaymentOrchestrator.paymentPreparationResponseValidationError]
+                        )
+                        self.apiHelper.sendDiagnostics(
+                            message: PaymentOrchestrator.devicePayErrorCode,
+                            callStack: PaymentOrchestrator.paymentPreparationResponseValidationError,
+                            severity: .warning,
+                            additionalInfo: [
+                                "clientSecretPresent": response.paymentDetails.clientSecret != nil,
+                                "merchantIdPresent": response.paymentDetails.merchantAccountId != nil
+                            ]
+                        )
+                        completion(.failure(validationError))
+                        return
+                    }
                 }
 
                 if let paypalData = response.paypalData {
@@ -691,8 +699,8 @@ final class PaymentOrchestrator {
                 }
 
                 let preparation = PaymentPreparation(
-                    clientSecret: clientSecret,
-                    merchantId: merchantId,
+                    clientSecret: response.paymentDetails.clientSecret ?? Self.payPalCommerceClientSecretPlaceholder,
+                    merchantId: response.paymentDetails.merchantAccountId ?? response.paypalData?.orderId ?? "",
                     totalAmount: response.paymentDetails.totalAmount,
                     shippingCost: response.paymentDetails.shippingCost,
                     tax: response.paymentDetails.tax,

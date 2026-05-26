@@ -9,7 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
-## [5.2.2] - 2026-05-19
+### Changed
+
+- Shoppable Ads initialize purchase now calls Transactions `POST /v2/commerce/purchases` on the `api.*` host (see `github.com/ROKT/transactions`), with `rokt-legacy-session-id` and protojson request field names.
 
 ### Fixed
 

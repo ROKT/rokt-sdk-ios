@@ -188,14 +188,15 @@ class TestNetworkingHelper: XCTestCase {
         XCTAssertEqual(capturedRequest?.allHTTPHeaderFields?[Self.headerPageIdentifierKey], "my-view")
     }
 
-    func test_initializePurchase_invokesFailure_whenTagIdMissing() {
-        let expectation = expectation(description: "initializePurchase fails without tag id")
-        let originalTagId = Rokt.shared.roktImplementation.roktTagId
-        Rokt.shared.roktImplementation.roktTagId = nil
+    func test_initializePurchase_invokesFailure_whenSessionIdMissing() {
+        let expectation = expectation(description: "initializePurchase fails without session id")
+        let originalSessionId = Rokt.shared.roktImplementation.sessionManager.getCurrentSessionIdWithoutExpiring()
 
         defer {
-            Rokt.shared.roktImplementation.roktTagId = originalTagId
+            Rokt.shared.roktImplementation.sessionManager.updateSessionId(newSessionId: originalSessionId)
         }
+
+        Rokt.shared.roktImplementation.sessionManager.updateSessionId(newSessionId: "")
 
         let item = UpsellItem(
             cartItemId: "cart-id",
@@ -217,10 +218,10 @@ class TestNetworkingHelper: XCTestCase {
             upsellItems: [item],
             shippingAttributes: shippingAttributes,
             success: { _ in
-                XCTFail("Expected initializePurchase to fail when tag id is missing")
+                XCTFail("Expected initializePurchase to fail when session id is missing")
             },
             failure: { error, statusCode, response in
-                let expectedError = "Missing Rokt tag ID for initialize-purchase request"
+                let expectedError = "Missing session ID for initialize purchase (POST /v2/commerce/purchases)"
                 XCTAssertEqual(error.localizedDescription, expectedError)
                 XCTAssertNil(statusCode)
                 XCTAssertEqual(response, expectedError)

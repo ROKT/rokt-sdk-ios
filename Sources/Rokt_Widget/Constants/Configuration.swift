@@ -18,6 +18,23 @@ internal enum Environment: Equatable {
         case .custom(let url): return url
         }
     }
+
+    /// Base URL for Transactions **sessions** commerce REST (`POST /v2/commerce/purchases`, etc.).
+    /// Host is the `api.*` edge, not `apps.*` (see `github.com/ROKT/transactions` `apps/api`).
+    var commerceAPIBaseURL: String {
+        switch self {
+        case .Mock: return ""
+        case .Stage: return "https://api.stage.rokt.com"
+        case .Prod: return "https://api.rokt.com"
+        case .ProdDemo: return "https://api.rokt.com"
+        case .Local: return "http://localhost:8080"
+        case .custom(let url):
+            if url.contains("apps.") {
+                return url.replacingOccurrences(of: "apps.", with: "api.")
+            }
+            return url
+        }
+    }
 }
 
 internal struct Configuration {

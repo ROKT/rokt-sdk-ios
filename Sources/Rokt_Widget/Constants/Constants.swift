@@ -7,6 +7,10 @@ var baseURL: String {
   config.environment.baseURL
 }
 
+var commerceAPIBaseURL: String {
+  config.environment.commerceAPIBaseURL
+}
+
 // MARK: - Library details
 
 let libraryVersion = "5.2.2"

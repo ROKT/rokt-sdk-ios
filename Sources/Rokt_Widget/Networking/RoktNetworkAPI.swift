@@ -10,7 +10,8 @@ var experiencesResourceURL: String { "\(baseURL)/\(mobileAPIPathPrefix)/v1/exper
 var eventResourceURL: String { "\(baseURL)/\(mobileAPIPathPrefix)/v2/events" }
 var diagnosticsResourceURL: String { "\(baseURL)/\(mobileAPIPathPrefix)/v1/diagnostics" }
 var timingsResourceURL: String { "\(baseURL)/\(mobileAPIPathPrefix)/v1/timings" }
-var initializePurchaseResourceURL: String { "\(baseURL)/\(mobileAPIPathPrefix)/v1/cart/initialize-purchase" }
+/// Transactions API initialize purchase — `POST /v2/commerce/purchases` (see `github.com/ROKT/transactions`).
+var commerceInitializePurchaseURL: String { "\(commerceAPIBaseURL)/v2/commerce/purchases" }
 var purchaseResourceURL: String { "\(baseURL)/\(mobileAPIPathPrefix)/v1/cart/purchase" }
 
 // MARK: - Header keys (internal — used by test mocks)
@@ -44,6 +45,8 @@ internal class RoktNetWorkAPI {
     // MARK: - Other constants
 
     private static let headerTagIdKey = "rokt-tag-id"
+    /// Sent to Transactions `POST /v2/commerce/purchases` as `rokt-legacy-session-id` (maps to `session_id` on the wire).
+    private static let headerLegacySessionIdKey = "rokt-legacy-session-id"
     private static let headerSdkFrameworkType = "rokt-sdk-framework-type"
     private static let eventDiagnosticCode = "[EVENT]"
     private static let fontErrorMessage = "Error downloading font: "
@@ -385,17 +388,16 @@ internal class RoktNetWorkAPI {
                                         RoktLogger.shared.verbose(callStack) })
     }
 
-    /// Initialize a purchase for Shoppable Ads via the cart API.
+    /// Initialize a purchase for Shoppable Ads via Transactions `POST /v2/commerce/purchases`
+    /// (`github.com/ROKT/transactions` `apps/api`).
     ///
     /// - Parameters:
-    ///   - upsellItems: The items being purchased
+    ///   - upsellItems: The items being purchased (`catalog_item_guid` is taken from each item's `catalogItemId`).
     ///   - shippingAttributes: Shipping address for the order
-    ///   - returnURL: Optional redirect success URL for payment flows that need it
+    ///   - returnURL: Optional redirect success URL for payment flows that need it (PayPal requires this and `cancelURL`)
     ///   - cancelURL: Optional redirect cancel URL for payment flows that need it
-    ///   - paymentMethod: Optional cart body `paymentMethod` (UPPERCASE, e.g. `"CARD"`,
-    ///     `"APPLE_PAY"`, `"PAYPAL"`, `"AFTERPAY"`).
-    ///   - paymentProvider: Optional cart body `paymentProvider` (PascalCase, e.g. `"Stripe"`,
-    ///     `"PayPal"`, `"Card"`, `"Afterpay"`, `"ApplePay"`).
+    ///   - paymentMethod: Cart-style token (e.g. `"CARD"`, `"APPLE_PAY"`, `"PAYPAL"`, `"AFTERPAY"`) mapped to `PAYMENT_METHOD_*` enum strings.
+    ///   - paymentProvider: Legacy cart discriminator; not sent on the commerce endpoint (backend infers PSP from `payment_method`).
     ///   - success: Callback with the parsed response
     ///   - failure: Callback with error details
     class func initializePurchase(upsellItems: [UpsellItem],
@@ -406,8 +408,12 @@ internal class RoktNetWorkAPI {
                                   paymentProvider: String? = nil,
                                   success: ((InitializePurchaseResponse) -> Void)? = nil,
                                   failure: ((Error, Int?, String) -> Void)? = nil) {
-        guard let tagId = Rokt.shared.roktImplementation.roktTagId else {
-            let message = "Missing Rokt tag ID for initialize-purchase request"
+        _ = paymentProvider
+
+        let sessionId = getSessionId(requestingLayouts: false)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !sessionId.isEmpty else {
+            let message = "Missing session ID for initialize purchase (POST /v2/commerce/purchases)"
             let error = NSError(
                 domain: "RoktSDK",
                 code: -1,
@@ -421,6 +427,7 @@ internal class RoktNetWorkAPI {
         let fulfillmentDetails = FulfillmentDetails(shippingAttributes: shippingAttributes)
 
         let request = InitializePurchaseRequest(
+            sessionId: sessionId,
             totalUpsellPrice: totalUpsellPrice,
             currency: currency,
             upsellItems: upsellItems,
@@ -430,25 +437,28 @@ internal class RoktNetWorkAPI {
             paymentMethod: paymentMethod,
             paymentProvider: paymentProvider)
 
-        let headers = getDefaultHeaders(tagId: tagId)
+        var headerExtras: [String: String] = [
+            headerLegacySessionIdKey: sessionId
+        ]
+        if let tagId = Rokt.shared.roktImplementation.roktTagId, !tagId.isEmpty {
+            headerExtras[headerTagIdKey] = tagId
+        }
 
         NetworkingHelper.performPost(
-            url: initializePurchaseResourceURL,
-            body: request.toDictionary(),
-            headers: headers,
+            url: commerceInitializePurchaseURL,
+            body: request.toCommercePurchasesDictionary(),
+            headers: headerExtras,
             success: { _, data, _ in
                 guard let data, let successCallback = success else { return }
                 do {
-                    let response = try JSONDecoder().decode(
-                        InitializePurchaseResponse.self,
-                        from: data)
+                    let response = try InitializePurchaseResponse.decodeFromCommercePurchasesAPI(data: data)
                     successCallback(response)
                 } catch {
                     let parseError = NSError(
                         domain: "RoktSDK",
                         code: -1,
-                        userInfo: [NSLocalizedDescriptionKey: "Failed to parse initialize-purchase response"])
-                    failure?(parseError, 200, "Failed to parse response")
+                        userInfo: [NSLocalizedDescriptionKey: "Failed to parse initialize purchase response"])
+                    failure?(parseError, 201, "Failed to parse response")
                 }
             },
             failure: { error, statusCode, response in
