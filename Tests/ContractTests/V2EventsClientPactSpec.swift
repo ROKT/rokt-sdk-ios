@@ -92,8 +92,7 @@ class V2EventsClientPactSpec: XCTestCase {
                         timestamp: 1_774_474_053_000,
                         data: ["source_message_id": "source-message-001"]
                     )
-                    let (_, response) = try await client.recordEvents(events: [event])
-                    let httpResponse = response as? HTTPURLResponse
+                    let (_, httpResponse) = try await client.recordEvents(events: [event])
                     XCTAssertEqual(httpResponse?.statusCode, 202)
                 } catch {
                     XCTFail("V2EventsClient request failed: \(error)")

@@ -1,26 +1,7 @@
-// periphery:ignore:all - referenced from Tests/ContractTests/V2OffersClientPactSpec.swift,
-// which isn't part of the rokt-Example scheme that Periphery scans. See the V2OffersClient
-// doc comment below for why this client lives in Sources/ rather than Tests/.
+// periphery:ignore:all - referenced from Tests/ContractTests/V2OffersClientPactSpec.swift
 
 import Foundation
 
-/// Client for the v2 sessions offers endpoint on transactions-api.
-///
-/// Not yet called from any production code path — the SDK still uses
-/// `/rokt-mobile/v1/*` via `RoktNetWorkAPI`. This client describes the
-/// v2 wire contract that mobile will satisfy when v1→v2 migration lands;
-/// at that point the existing networking code switches over to call this.
-///
-/// Lives in Sources/ rather than Tests/ so the consumer pact spec in
-/// `Tests/ContractTests/V2OffersClientPactSpec.swift` constrains the
-/// actual shipping SDK code. A pact contract describing test-only code
-/// can silently diverge from production at migration time; describing
-/// real SDK code closes that gap.
-///
-/// The client owns wire-shape construction — header and body assembly —
-/// based on domain inputs. The pact spec describes the expected wire
-/// shape via matchers, and any drift here will be caught by the pact
-/// mock service. See [[pact-consumer-conventions]] §10a for the rule.
 internal struct V2OffersClient {
     let baseURL: URL
     let accountId: String
@@ -30,7 +11,7 @@ internal struct V2OffersClient {
     let mpid: String
     let sdkVersion: String
     let pageInstanceGuid: String
-    let urlSession: URLSession
+    let httpClient: HTTPClientAdapter
 
     init(
         baseURL: URL,
@@ -41,7 +22,7 @@ internal struct V2OffersClient {
         mpid: String,
         sdkVersion: String,
         pageInstanceGuid: String,
-        urlSession: URLSession = .shared
+        httpClient: HTTPClientAdapter = RoktHTTPClient()
     ) {
         self.baseURL = baseURL
         self.accountId = accountId
@@ -51,26 +32,16 @@ internal struct V2OffersClient {
         self.mpid = mpid
         self.sdkVersion = sdkVersion
         self.pageInstanceGuid = pageInstanceGuid
-        self.urlSession = urlSession
+        self.httpClient = httpClient
     }
 
-    func fetchOffers(input: V2OffersInput) async throws -> (Data, URLResponse) {
+    func fetchOffers(input: V2OffersInput) async throws -> (Data?, HTTPURLResponse?) {
         let url = baseURL
             .appendingPathComponent("v2")
             .appendingPathComponent("sessions")
             .appendingPathComponent("offers")
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue(accountId, forHTTPHeaderField: "rokt-account-id")
-        request.setValue(authToken, forHTTPHeaderField: "Authorization")
-        request.setValue("iOS", forHTTPHeaderField: "rokt-platform-type")
-        request.setValue("msdk-ios", forHTTPHeaderField: "rokt-integration-type")
-        request.setValue(input.requestId, forHTTPHeaderField: "x-request-id")
-        request.setValue(pageInstanceGuid, forHTTPHeaderField: "rokt-page-instance-guid")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let body = V2OffersRequest(
+        let requestBody = V2OffersRequest(
             sessionId: sessionId,
             mpSessionId: mpSessionId,
             mpid: mpid,
@@ -80,18 +51,47 @@ internal struct V2OffersClient {
             customer: V2OffersCustomer(email: input.customerEmail),
             attributes: input.attributes
         )
-        request.httpBody = try JSONEncoder().encode(body)
+        let bodyData = try JSONEncoder().encode(requestBody)
+        guard let bodyParameters = try JSONSerialization.jsonObject(with: bodyData) as? RoktHTTPParameters else {
+            throw V2OffersClientError.bodyEncodingFailed
+        }
 
-        return try await urlSession.data(for: request)
+        let headers: RoktHTTPHeaders = [
+            "rokt-account-id": accountId,
+            "Authorization": authToken,
+            "rokt-platform-type": "iOS",
+            "rokt-integration-type": "msdk-ios",
+            "x-request-id": input.requestId,
+            "rokt-page-instance-guid": pageInstanceGuid,
+            "Content-Type": "application/json"
+        ]
+
+        return try await withCheckedThrowingContinuation { continuation in
+            httpClient.startRequestWith(
+                urlAddress: url.absoluteString,
+                method: .post,
+                parameters: bodyParameters,
+                parameterArray: nil,
+                headers: headers,
+                onRequestStart: nil,
+                requestTimeout: nil,
+                completionQueue: .main,
+                completionHandler: { result in
+                    if let error = result.responseError {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume(returning: (result.responseData, result.httpURLResponse))
+                    }
+                }
+            )
+        }
     }
 }
 
-/// Per-call domain inputs for `V2OffersClient.fetchOffers`.
-///
-/// Holds only the values that vary per-request from a caller's perspective.
-/// Session-shaped values (account id, session token, mp ids, etc.) are
-/// injected at client construction time, mirroring how a production iOS
-/// service resolves them from session / config services.
+internal enum V2OffersClientError: Error {
+    case bodyEncodingFailed
+}
+
 internal struct V2OffersInput {
     let requestId: String
     let pageIdentifier: String

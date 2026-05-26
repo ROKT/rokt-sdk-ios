@@ -7,44 +7,69 @@ internal struct V2EventsClient {
     let accountId: String
     let authToken: String
     let sdkVersion: String
-    let urlSession: URLSession
+    let httpClient: HTTPClientAdapter
 
     init(
         baseURL: URL,
         accountId: String,
         authToken: String,
         sdkVersion: String,
-        urlSession: URLSession = .shared
+        httpClient: HTTPClientAdapter = RoktHTTPClient()
     ) {
         self.baseURL = baseURL
         self.accountId = accountId
         self.authToken = authToken
         self.sdkVersion = sdkVersion
-        self.urlSession = urlSession
+        self.httpClient = httpClient
     }
 
-    func recordEvents(events: [V2Event]) async throws -> (Data, URLResponse) {
+    func recordEvents(events: [V2Event]) async throws -> (Data?, HTTPURLResponse?) {
         let url = baseURL
             .appendingPathComponent("v2")
             .appendingPathComponent("sessions")
             .appendingPathComponent("events")
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue(accountId, forHTTPHeaderField: "rokt-account-id")
-        request.setValue(authToken, forHTTPHeaderField: "Authorization")
-        request.setValue("iOS", forHTTPHeaderField: "rokt-platform-type")
-        request.setValue("msdk-ios", forHTTPHeaderField: "rokt-integration-type")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let body = V2EventsRequest(
+        let requestBody = V2EventsRequest(
             channel: V2EventsChannel(type: "msdk", sdkVersion: sdkVersion),
             events: events
         )
-        request.httpBody = try JSONEncoder().encode(body)
+        let bodyData = try JSONEncoder().encode(requestBody)
+        guard let bodyParameters = try JSONSerialization.jsonObject(with: bodyData) as? RoktHTTPParameters else {
+            throw V2EventsClientError.bodyEncodingFailed
+        }
 
-        return try await urlSession.data(for: request)
+        let headers: RoktHTTPHeaders = [
+            "rokt-account-id": accountId,
+            "Authorization": authToken,
+            "rokt-platform-type": "iOS",
+            "rokt-integration-type": "msdk-ios",
+            "Content-Type": "application/json"
+        ]
+
+        return try await withCheckedThrowingContinuation { continuation in
+            httpClient.startRequestWith(
+                urlAddress: url.absoluteString,
+                method: .post,
+                parameters: bodyParameters,
+                parameterArray: nil,
+                headers: headers,
+                onRequestStart: nil,
+                requestTimeout: nil,
+                completionQueue: .main,
+                completionHandler: { result in
+                    if let error = result.responseError {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume(returning: (result.responseData, result.httpURLResponse))
+                    }
+                }
+            )
+        }
     }
+}
+
+internal enum V2EventsClientError: Error {
+    case bodyEncodingFailed
 }
 
 internal struct V2EventsRequest: Encodable {
