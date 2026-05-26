@@ -2,16 +2,21 @@ name: Pact Consumer
 
 # Consumer-driven pact testing for the iOS SDK against `transactions-api` v2.
 #
-# Two jobs:
-#  - `consumer-test` runs on every PR + every push to `main`. It executes the
-#    PactSwift spec against the in-process mock server, generates a pact JSON,
-#    and uploads it as a workflow artifact. No Rokt secrets are exposed; PR code
-#    from public forks is safe to run here because the GitHub-provided runner is
-#    fully isolated from Rokt infrastructure.
-#  - `publish` runs only on push to `main` and is gated by the `pact-publish`
-#    GitHub environment (required-reviewers + main-branch-only). On approval,
-#    broker write credentials are exposed and the pact JSON is published
-#    directly to the pact broker.
+# Three jobs:
+#  - `detect-changes` runs first on every PR + every push to `main`. It uses
+#    dorny/paths-filter to check whether contract-relevant files changed
+#    (V2 clients, contract tests, Package.swift, this workflow). Its output
+#    gates the publish job below.
+#  - `consumer-test` runs unconditionally on every PR + every push to `main`,
+#    regardless of which files changed. This catches *indirect* drift — e.g.
+#    a refactor to a shared networking helper that V2OffersClient calls would
+#    still run the pact spec. Uses macos-latest for the iOS Simulator. No
+#    Rokt secrets are exposed; fork-PR code is safe to run here.
+#  - `publish` runs only on push to `main` AND only when contract-relevant
+#    files actually changed (per `detect-changes`). It is gated by the
+#    `pact-publish` GitHub environment (required-reviewers + main-branch-only).
+#    Skipping publish on no-op merges saves maintainer approval clicks while
+#    keeping the consumer-test safety net unconditional.
 #
 # Reading: ../../documentation/pact-v2-migration.md (lands with a later PR).
 
@@ -28,6 +33,35 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  detect-changes:
+    name: Detect Contract Changes
+    runs-on: ubuntu-latest
+    outputs:
+      contract: ${{ steps.filter.outputs.contract }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          # paths-filter needs git history on push events to diff against the
+          # previous main commit. Full clone for safety; this job is tiny.
+          fetch-depth: 0
+
+      - name: Filter contract paths
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        id: filter
+        with:
+          # `contract` is true when any of these paths changed in the PR /
+          # push. The publish job below gates on this. consumer-test runs
+          # unconditionally regardless of this output.
+          filters: |
+            contract:
+              - 'Sources/Rokt_Widget/Networking/V2OffersClient.swift'
+              - 'Sources/Rokt_Widget/Networking/V2EventsClient.swift'
+              - 'Tests/ContractTests/**'
+              - 'Package.swift'
+              - '.github/workflows/pact-consumer.yml'
+
   consumer-test:
     name: Consumer Test (PactSwift)
     runs-on: macos-latest
@@ -79,8 +113,17 @@ jobs:
 
   publish:
     name: Publish to Broker
-    needs: consumer-test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [consumer-test, detect-changes]
+    # Publish only when:
+    #   1. This is a push to main (not a PR)
+    #   2. Contract-relevant files actually changed (per detect-changes)
+    # The second gate prevents approval-click fatigue on no-op merges. The
+    # broker would dedup byte-identical content anyway, but skipping the
+    # publish job entirely also skips the env-protected approval prompt.
+    if: |
+      github.event_name == 'push'
+      && github.ref == 'refs/heads/main'
+      && needs.detect-changes.outputs.contract == 'true'
     runs-on: ubuntu-latest
     # `pact-publish` is configured with required reviewers + main-only deployment
     # branches. Broker write credentials are exposed only after maintainer approval.
