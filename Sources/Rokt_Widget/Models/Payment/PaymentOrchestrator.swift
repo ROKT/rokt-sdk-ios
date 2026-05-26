@@ -27,9 +27,33 @@ final class PaymentOrchestrator {
     /// Built-in PayPal uses ``PaymentContext/returnURL`` to detect completion when PayPal redirects after approval.
     static let payPalReturnURLMissingMessage =
         "PaymentContext.returnURL is required for PayPal checkout."
-    /// Cart `initialize-purchase` body `paymentMethod` / `paymentProvider` for built-in PayPal.
-    private static let builtInPayPalInitializePurchaseMethod = "PAYPAL"
-    private static let builtInPayPalInitializePurchaseProvider = "PAYPAL"
+    /// Cart `initialize-purchase` body `paymentMethod` wire value. UPPERCASE tokens that match
+    /// the `LayoutPaymentMethodType` enum (see ROKT/rokt-web-plugin-dcui PR #966) and the
+    /// `PaymentMethod.MethodType` rawValues decoded from backend `transactionData`.
+    /// Distinct from ``PaymentMethodType/wireValue`` (which is for extension matching and uses
+    /// `"afterpay_clearpay"` for `.afterpay`).
+    static func cartPaymentMethodWireValue(for method: PaymentMethodType) -> String {
+        switch method {
+        case .applePay: return "APPLE_PAY"
+        case .card: return "CARD"
+        case .afterpay: return "AFTERPAY"
+        case .paypal: return "PAYPAL"
+        }
+    }
+
+    /// Cart `initialize-purchase` body `paymentProvider` wire value for built-in flows.
+    /// PascalCase pass-through of the `DcuiSchema.PaymentProvider` enum — matches the web
+    /// SDK payload (`paymentProvider: PaymentProvider`) on `INITIATE_DEVICE_PAY_EVENT`.
+    /// Used only for built-in flows that hardcode their own provider (PayPal, Card);
+    /// extension-routed flows forward the caller-supplied PascalCase value verbatim.
+    static func cartPaymentProviderWireValue(for method: PaymentMethodType) -> String {
+        switch method {
+        case .applePay: return "ApplePay"
+        case .card: return "Card"
+        case .afterpay: return "Afterpay"
+        case .paypal: return "PayPal"
+        }
+    }
 
     private static let pendingBuiltInTwoStepLock = NSLock()
 
@@ -144,7 +168,14 @@ final class PaymentOrchestrator {
     /// Process a payment using the first registered extension that supports the given method.
     ///
     /// - Parameters:
-    ///   - method: The payment method to use (e.g. `.applePay`)
+    ///   - method: The payment method to use (e.g. `.applePay`). Forwarded to the cart
+    ///     `initialize-purchase` body as an UPPERCASE token (e.g. `"APPLE_PAY"`) via
+    ///     ``cartPaymentMethodWireValue(for:)``.
+    ///   - paymentProvider: PascalCase cart wire value for the upstream processor (e.g. `"Stripe"`,
+    ///     `"Afterpay"`). Forwarded as `paymentProvider` on the cart `initialize-purchase` body
+    ///     for extension-routed flows. Ignored for built-in PayPal and built-in card forwarding,
+    ///     which hardcode their own `paymentMethod` / `paymentProvider` (`"PAYPAL"` / `"PayPal"`,
+    ///     `"CARD"` / `"Card"`).
     ///   - item: The item being purchased (from RoktContracts)
     ///   - cartItemId: The backend cart item ID (format `"v1:uuid:canal"`)
     ///   - viewController: The view controller to present the payment sheet from
@@ -153,6 +184,7 @@ final class PaymentOrchestrator {
     ///   - completion: Called with the payment result
     func processPayment(
         method: PaymentMethodType,
+        paymentProvider: String? = nil,
         item: PaymentItem,
         context: PaymentContext,
         cartItemId: String,
@@ -162,6 +194,11 @@ final class PaymentOrchestrator {
         completion: @escaping (PaymentSheetResult) -> Void
     ) {
         if method == .paypal {
+            Self.warnIfCallerSuppliedProviderIgnored(
+                method: method,
+                callerProvider: paymentProvider,
+                hardcodedProvider: Self.cartPaymentProviderWireValue(for: .paypal)
+            )
             processBuiltInPayPalPayment(
                 item: item,
                 context: context,
@@ -174,6 +211,11 @@ final class PaymentOrchestrator {
         }
 
         if method == .card, let cardSession = builtInCardDevicePaySession {
+            Self.warnIfCallerSuppliedProviderIgnored(
+                method: method,
+                callerProvider: paymentProvider,
+                hardcodedProvider: Self.cartPaymentProviderWireValue(for: .card)
+            )
             processBuiltInCardPayment(
                 item: item,
                 context: context,
@@ -200,7 +242,11 @@ final class PaymentOrchestrator {
                 cartItemId: cartItemId,
                 contactAddress: contactAddress,
                 returnURL: nil,
-                cancelURL: nil
+                cancelURL: nil,
+                // `cartPaymentMethodWireValue` is total and guaranteed non-empty; only the
+                // caller-supplied provider needs whitespace/empty normalization.
+                paymentMethod: Self.cartPaymentMethodWireValue(for: method),
+                paymentProvider: Self.nonEmptyTrimmed(paymentProvider)
             ) { result in
                 switch result {
                 case .success(let preparation):
@@ -240,7 +286,7 @@ final class PaymentOrchestrator {
     ///
     /// Runs the same cart ``initializePurchase`` preparation as extension-based flows, passing
     /// ``PaymentContext/returnURL`` and ``PaymentContext/cancelURL`` through to the API body when present,
-    /// and `paymentMethod` / `paymentProvider` as `PAYPAL` for the cart API.
+    /// and `paymentMethod` / `paymentProvider` as `PAYPAL` / `PayPal` for the cart API.
     /// For device pay from a placement, ``Rokt/setBuiltInPayPalRedirectURLScheme(_:)`` supplies those URLs on ``PaymentContext``.
     /// After cart prepare, calls ``RoktUX/devicePayShowConfirmation`` (via ``BuiltInTwoStepDevicePaySession``) and defers the hosted
     /// PayPal approve step until ``presentPendingBuiltInPayPalForForwardPayment(onCompletion:)`` runs from the forward-payment handler.
@@ -259,8 +305,8 @@ final class PaymentOrchestrator {
             contactAddress: contactAddress,
             returnURL: context.returnURL,
             cancelURL: context.cancelURL,
-            paymentMethod: Self.builtInPayPalInitializePurchaseMethod,
-            paymentProvider: Self.builtInPayPalInitializePurchaseProvider
+            paymentMethod: Self.cartPaymentMethodWireValue(for: .paypal),
+            paymentProvider: Self.cartPaymentProviderWireValue(for: .paypal)
         ) { result in
             switch result {
             case .success(let preparation):
@@ -398,11 +444,11 @@ final class PaymentOrchestrator {
 
     /// Entry point for Card device-pay (Step-1 of the two-step Card forward-payment flow).
     ///
-    /// Runs the same cart ``initializePurchase`` preparation as PayPal but without `paymentMethod` /
-    /// `paymentProvider` overrides or return/cancel URLs (no hosted approval step). After cart prepare,
-    /// triggers ``RoktUX/devicePayShowConfirmation`` so the layout transitions to the Step-2 confirm
-    /// button, and caches `completion` so it can fire alongside ``forwardPaymentFinalized`` once
-    /// ``handleForwardPayment`` posts to `/v1/cart/purchase`.
+    /// Runs the same cart ``initializePurchase`` preparation as PayPal but without return/cancel URLs
+    /// (no hosted approval step). Passes `paymentMethod` / `paymentProvider` as `CARD` / `Card`.
+    /// After cart prepare, triggers ``RoktUX/devicePayShowConfirmation`` so the layout transitions
+    /// to the Step-2 confirm button, and caches `completion` so it can fire alongside
+    /// ``forwardPaymentFinalized`` once ``handleForwardPayment`` posts to `/v1/cart/purchase`.
     private func processBuiltInCardPayment(
         item: PaymentItem,
         context: PaymentContext,
@@ -416,7 +462,9 @@ final class PaymentOrchestrator {
             cartItemId: cartItemId,
             contactAddress: contactAddress,
             returnURL: nil,
-            cancelURL: nil
+            cancelURL: nil,
+            paymentMethod: Self.cartPaymentMethodWireValue(for: .card),
+            paymentProvider: Self.cartPaymentProviderWireValue(for: .card)
         ) { result in
             switch result {
             case .success(let preparation):
@@ -499,6 +547,24 @@ final class PaymentOrchestrator {
         guard let string else { return nil }
         let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    /// Logs when a built-in flow ignored a caller-supplied `paymentProvider` that
+    /// disagrees with the hardcoded override. Helps the next person catch a wiring
+    /// bug (e.g. plumbing `"Stripe"` into a built-in PayPal flow) without changing
+    /// the cart payload semantics.
+    private static func warnIfCallerSuppliedProviderIgnored(
+        method: PaymentMethodType,
+        callerProvider: String?,
+        hardcodedProvider: String
+    ) {
+        guard let provided = nonEmptyTrimmed(callerProvider),
+              provided != hardcodedProvider
+        else { return }
+        RoktLogger.shared.warning(
+            "Built-in \(method.wireValue) flow ignoring caller-supplied " +
+                "paymentProvider=\(provided); using \(hardcodedProvider)."
+        )
     }
 
     private func sendPaymentFailureDiagnostics(
