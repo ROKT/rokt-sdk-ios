@@ -138,8 +138,7 @@ class V2OffersClientPactSpec: XCTestCase {
                             "customer.locale": "en-US"
                         ]
                     )
-                    let (_, response) = try await client.fetchOffers(input: input)
-                    let httpResponse = response as? HTTPURLResponse
+                    let (_, httpResponse) = try await client.fetchOffers(input: input)
                     XCTAssertEqual(httpResponse?.statusCode, 200)
                 } catch {
                     XCTFail("V2OffersClient request failed: \(error)")

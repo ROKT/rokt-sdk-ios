@@ -221,8 +221,10 @@ internal class RoktAPIHelper {
     ///   - shippingAttributes: Shipping address
     ///   - returnURL: Optional redirect success URL (e.g. built-in PayPal)
     ///   - cancelURL: Optional redirect cancel URL (e.g. built-in PayPal)
-    ///   - paymentMethod: Optional cart body `paymentMethod` (e.g. `"PAYPAL"` for built-in PayPal)
-    ///   - paymentProvider: Optional cart body `paymentProvider` (e.g. `"PAYPAL"` for built-in PayPal)
+    ///   - paymentMethod: Optional cart body `paymentMethod` (UPPERCASE, e.g. `"CARD"`,
+    ///     `"APPLE_PAY"`, `"PAYPAL"`, `"AFTERPAY"`).
+    ///   - paymentProvider: Optional cart body `paymentProvider` (PascalCase, e.g. `"Stripe"`,
+    ///     `"PayPal"`, `"Card"`, `"Afterpay"`, `"ApplePay"`).
     ///   - success: Callback with the initialize-purchase response
     ///   - failure: Callback with error details
     class func initializePurchase(upsellItems: [UpsellItem],
