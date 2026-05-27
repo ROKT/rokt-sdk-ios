@@ -14,23 +14,6 @@ struct InitializePurchaseResponse: Decodable {
     let paymentDetails: PaymentDetails
     /// Present when the backend returns PayPal order details for redirect-based checkout.
     let paypalData: InitializePurchasePayPalData?
-
-    /// Memberwise initializer for tests and mocks (alongside synthesized ``Decodable``).
-    init(
-        success: Bool,
-        totalUpsellPrice: Decimal,
-        currency: String,
-        upsellItems: [UpsellItem],
-        paymentDetails: PaymentDetails,
-        paypalData: InitializePurchasePayPalData?
-    ) {
-        self.success = success
-        self.totalUpsellPrice = totalUpsellPrice
-        self.currency = currency
-        self.upsellItems = upsellItems
-        self.paymentDetails = paymentDetails
-        self.paypalData = paypalData
-    }
 }
 
 struct PaymentDetails: Decodable {
@@ -42,26 +25,6 @@ struct PaymentDetails: Decodable {
     let shippingCost: Decimal
     let tax: Decimal
     let totalAmount: Decimal
-
-    init(
-        gateway: String,
-        merchantName: String?,
-        merchantAccountId: String?,
-        paymentIntentId: String?,
-        clientSecret: String?,
-        shippingCost: Decimal,
-        tax: Decimal,
-        totalAmount: Decimal
-    ) {
-        self.gateway = gateway
-        self.merchantName = merchantName
-        self.merchantAccountId = merchantAccountId
-        self.paymentIntentId = paymentIntentId
-        self.clientSecret = clientSecret
-        self.shippingCost = shippingCost
-        self.tax = tax
-        self.totalAmount = totalAmount
-    }
 }
 
 extension InitializePurchaseResponse {

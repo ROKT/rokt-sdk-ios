@@ -222,6 +222,10 @@ class NetworkingHelper {
             headersDict.updateValue(version, forKey: RoktHeaderKeys.packageVersion)
         }
 
+        if let routeOverride = Rokt.shared.roktImplementation.httpRouteOverrideForNetworking() {
+            headersDict["rokt-route-override"] = routeOverride
+        }
+
         return headersDict
     }
 

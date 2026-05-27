@@ -78,6 +78,10 @@ class RoktInternalImplementation {
     /// Set via ``Rokt/setBuiltInPayPalRedirectURLScheme(_:)`` before PayPal device pay; required for that flow.
     private var builtInPayPalRedirectURLScheme: String?
 
+    private let httpRouteOverrideLock = NSLock()
+    /// Sanitized branch name for `rokt-route-override` (stage SBS routing). Set via ``Rokt/setHTTPRouteOverride(_:)``.
+    private var httpRouteOverride: String?
+
     var isPaymentExtensionRegistered: Bool { paymentOrchestrator.hasRegisteredExtension }
     var availablePaymentMethods: [PaymentMethodType] {
         paymentOrchestrator.availablePaymentMethods(isBuiltInPayPalAvailable: builtInPayPalRedirectURLScheme != nil)
@@ -241,6 +245,20 @@ class RoktInternalImplementation {
         }
         builtInPayPalRedirectURLScheme = trimmed
         return true
+    }
+
+    /// Sets or clears the optional `rokt-route-override` HTTP header on all Rokt mobile API requests.
+    func setHTTPRouteOverride(_ value: String?) {
+        let trimmed = value.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) } ?? ""
+        httpRouteOverrideLock.lock()
+        defer { httpRouteOverrideLock.unlock() }
+        httpRouteOverride = trimmed.isEmpty ? nil : trimmed
+    }
+
+    func httpRouteOverrideForNetworking() -> String? {
+        httpRouteOverrideLock.lock()
+        defer { httpRouteOverrideLock.unlock() }
+        return httpRouteOverride
     }
 
     func setFrameworkType(_ frameworkType: RoktFrameworkType) {

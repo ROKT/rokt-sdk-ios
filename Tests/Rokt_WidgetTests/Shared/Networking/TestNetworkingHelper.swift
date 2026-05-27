@@ -56,6 +56,25 @@ class TestNetworkingHelper: XCTestCase {
         XCTAssertEqual(headers[RoktHeaderKeys.mParticleKitVersion], "4.5.6")
     }
 
+    func test_getCommonHeaders_includesRouteOverrideWhenSet() {
+        let branch = "feat-test-sbs-route"
+        Rokt.setHTTPRouteOverride(branch)
+        defer { Rokt.setHTTPRouteOverride(nil) }
+
+        let headers = NetworkingHelper.getCommonHeaders([:])
+
+        XCTAssertEqual(headers["rokt-route-override"], branch)
+    }
+
+    func test_getCommonHeaders_omitsRouteOverrideWhenCleared() {
+        Rokt.setHTTPRouteOverride("temp-value")
+        Rokt.setHTTPRouteOverride(nil)
+
+        let headers = NetworkingHelper.getCommonHeaders([:])
+
+        XCTAssertNil(headers["rokt-route-override"])
+    }
+
     func test_isRetryableStatusCode() {
         // Retryable codes
         XCTAssertTrue(NetworkingHelper.isRetryableStatusCode(500)) // Internal Server Error

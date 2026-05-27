@@ -28,4 +28,10 @@ enum ShoppableAdsDefaults {
         ("paymenttype", "ApplePay"),
         ("last4digits", "4444")
     ]
+
+    /// Reads optional `RoktHTTPRouteOverride` from the Example app Info.plist for stage SBS (`rokt-route-override`).
+    static func httpRouteOverrideFromInfoPlist() -> String {
+        let raw = Bundle.main.object(forInfoDictionaryKey: "RoktHTTPRouteOverride") as? String
+        return raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
 }

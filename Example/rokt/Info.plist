@@ -50,6 +50,8 @@
 	</dict>
 	<key>ApplePayMerchantID</key>
 	<string>merchant.rokt.test</string>
+	<key>RoktHTTPRouteOverride</key>
+	<string></string>
 	<key>NSUserTrackingUsageDescription</key>
 	<string> Personal and device information is used to deliver personalised offers</string>
 	<key>UILaunchStoryboardName</key>

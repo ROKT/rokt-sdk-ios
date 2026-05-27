@@ -392,7 +392,7 @@ internal class RoktNetWorkAPI {
     /// (`github.com/ROKT/transactions` `apps/api`).
     ///
     /// - Parameters:
-    ///   - upsellItems: The items being purchased (`catalog_item_guid` is taken from each item's `catalogItemId`).
+    ///   - upsellItems: The items being purchased (`catalog_item_guid` is taken from each item's `cartItemId` when non-empty, else `catalogItemId`).
     ///   - shippingAttributes: Shipping address for the order
     ///   - returnURL: Optional redirect success URL for payment flows that need it (PayPal requires this and `cancelURL`)
     ///   - cancelURL: Optional redirect cancel URL for payment flows that need it

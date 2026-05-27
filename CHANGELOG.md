@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ### Fixed
 
+- Commerce `POST /v2/commerce/purchases` line items use `cartItemId` for `catalog_item_guid` (matches selection cache key), falling back to `catalogItemId` when `cartItemId` is empty.
 - Preserve address line 2 in cart initialize-purchase ([#163](https://github.com/ROKT/rokt-sdk-ios/pull/163))
 
 ### Changed
@@ -387,8 +388,7 @@ For a complete migration walkthrough with before/after code examples, see the [v
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.2...HEAD
-[5.2.2]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.1...5.2.2
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.1...HEAD
 [5.2.1]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.0...5.2.1
 [5.2.0]: https://github.com/ROKT/rokt-sdk-ios/compare/5.1.0...5.2.0
 [5.1.0]: https://github.com/ROKT/rokt-sdk-ios/compare/5.0.0...5.1.0

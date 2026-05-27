@@ -60,12 +60,28 @@ struct InitializePurchaseRequest {
     }
 }
 
+/// Shipping payload shared by initialize purchase and forward (`/v1/cart/purchase`) requests.
+struct FulfillmentDetails {
+    let shippingAttributes: ShippingAttributes
+
+    /// Legacy cart JSON (`fulfillmentDetails` wrapper) for `POST .../v1/cart/purchase`.
+    func toDictionary() -> [String: Any] {
+        ["shippingAttributes": shippingAttributes.toDictionary()]
+    }
+}
+
 extension UpsellItem {
     /// Single `line_items[]` entry: `catalog_item_guid` + `quantity` (Transactions commerce contract).
+    ///
+    /// `catalog_item_guid` must match ``selection_items.catalog_item_instance_guid`` for the session
+    /// (what Gateway forwards on ``RecordSelection``). That key is the **cart row id** (`cartItemId`,
+    /// e.g. `v1:…:canal`), not the layout’s product `catalogItemId`.
     func toCommerceLineItemDictionary() -> [String: Any] {
         let qty = max(1, Int(truncating: NSDecimalNumber(decimal: quantity)))
+        let trimmedCart = cartItemId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let guid = trimmedCart.isEmpty ? catalogItemId : trimmedCart
         return [
-            "catalog_item_guid": catalogItemId,
+            "catalog_item_guid": guid,
             "quantity": qty
         ]
     }

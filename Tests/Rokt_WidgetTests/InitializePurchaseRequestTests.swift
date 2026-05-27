@@ -37,7 +37,7 @@ final class InitializePurchaseRequestTests: XCTestCase {
 
         let lineItems = dict["line_items"] as? [[String: Any]]
         XCTAssertEqual(lineItems?.count, 1)
-        XCTAssertEqual(lineItems?.first?["catalog_item_guid"] as? String, "cat-guid-1")
+        XCTAssertEqual(lineItems?.first?["catalog_item_guid"] as? String, "c1")
         XCTAssertEqual(lineItems?.first?["quantity"] as? Int, 1)
 
         let shippingDetails = dict["shipping_details"] as? [String: Any]
@@ -75,5 +75,18 @@ final class InitializePurchaseRequestTests: XCTestCase {
 
         let dict = request.toCommercePurchasesDictionary()
         XCTAssertNil(dict["redirect_urls"])
+    }
+
+    func test_toCommerceLineItem_fallsBackToCatalogItemIdWhenCartItemIdEmpty() {
+        let upsell = UpsellItem(
+            cartItemId: "",
+            catalogItemId: "fallback-guid",
+            quantity: 1,
+            unitPrice: 10,
+            totalPrice: 10,
+            currency: "USD"
+        )
+        let dict = upsell.toCommerceLineItemDictionary()
+        XCTAssertEqual(dict["catalog_item_guid"] as? String, "fallback-guid")
     }
 }

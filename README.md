@@ -27,6 +27,15 @@ For more information on Swift Package Manager, open [Swift official documentatio
 - `Sources/Rokt_Widget/` — SDK source (source-based distribution via SPM)
 - `Example/` — sample app demonstrating SDK integration
 
+### Stage side-by-side (SBS) against Rokt transactions
+
+After your **transactions** branch deploys to stage (Buildkite annotates the sanitized branch), you can send that value as the `rokt-route-override` HTTP header on mobile API calls:
+
+- **API:** `Rokt.setHTTPRouteOverride("your-sanitized-branch")` (pass `nil` to clear).
+- **Example app:** set `RoktHTTPRouteOverride` in `Example/rokt/Info.plist`, or edit **SBS route (rokt-route-override)** under Shoppable Ads → Account, then tap **Initialize Rokt**.
+
+See `apps/gateway/docs/side-by-side-deployments.md` in the **transactions** repo for the server-side flow.
+
 ## How to install
 
 ### Swift Package Manager (recommended)

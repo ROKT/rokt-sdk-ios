@@ -45,6 +45,7 @@ private struct LiveShoppableAdsRoktClient: ShoppableAdsRoktClient {
     }
 
     func selectShoppableAds(identifier: String, attributes: [String: String], onEvent: ((RoktEvent) -> Void)?) {
+        Rokt.setBuiltInPayPalRedirectURLScheme("rokt.com.rokt.redirect")
         Rokt.selectShoppableAds(identifier: identifier, attributes: attributes, onEvent: onEvent)
     }
 
@@ -144,7 +145,12 @@ final class ShoppableAdsDemoViewController: UITableViewController {
             Field(key: "tagID", label: "Tag ID", value: seed.tagID),
             Field(key: "stripeKey", label: "Stripe Publishable Key", value: ShoppableAdsDefaults.stripePublishableKey),
             Field(key: "merchantId", label: "Apple Pay Merchant ID", value: ShoppableAdsDefaults.applePayMerchantId),
-            Field(key: "viewName", label: "View Name (identifier)", value: seed.viewName)
+            Field(key: "viewName", label: "View Name (identifier)", value: seed.viewName),
+            Field(
+                key: "sbsRoute",
+                label: "SBS route (rokt-route-override)",
+                value: ShoppableAdsDefaults.httpRouteOverrideFromInfoPlist()
+            )
         ]
         attributeFields = ShoppableAdsDefaults.attributes.map {
             Field(key: $0.key, label: $0.key, value: $0.value)
@@ -244,6 +250,13 @@ final class ShoppableAdsDemoViewController: UITableViewController {
         }
         roktClient.setEnvironment(seed.environment.roktEnvironment)
         appendLog("Set Rokt environment: \(seed.environment.rawValue).")
+        let sbsRoute = value(for: "sbsRoute", in: accountFields).trimmingCharacters(in: .whitespacesAndNewlines)
+        Rokt.setHTTPRouteOverride(sbsRoute.isEmpty ? nil : sbsRoute)
+        if sbsRoute.isEmpty {
+            appendLog("rokt-route-override: cleared (default stage routing).")
+        } else {
+            appendLog("rokt-route-override: \"\(sbsRoute)\" (SBS / branch routing).")
+        }
         if !isGlobalEventsRegistered {
             roktClient.globalEvents { [weak self] roktEvent in
                 DispatchQueue.main.async {

@@ -161,6 +161,20 @@ internal import RoktUXHelper
         config = Configuration(environment: .custom(baseURL: components.string ?? url.absoluteString))
     }
 
+    /// Sets an optional `rokt-route-override` HTTP header on every outbound Rokt mobile API request.
+    ///
+    /// Use this for **stage side-by-side (SBS)** testing: after your branch deploys via Buildkite/Helm
+    /// (e.g. transactions gateway), set the value to the **sanitized branch name** shown in the Buildkite
+    /// annotation so traffic routes to your SBS pods. Pass `nil` or whitespace-only to stop sending the header.
+    ///
+    /// The Example app reads `RoktHTTPRouteOverride` from `Info.plist` at launch and exposes the same value
+    /// in the Shoppable Ads **Account** section before **Initialize Rokt**.
+    ///
+    /// - Parameter value: Sanitized branch token (e.g. `feat-my-branch`), or `nil` to clear.
+    public static func setHTTPRouteOverride(_ value: String?) {
+        shared.roktImplementation.setHTTPRouteOverride(value)
+    }
+
     /// Register a payment extension for Shoppable Ads.
     ///
     /// The partner passes configuration (e.g. Stripe publishable key) at runtime.
