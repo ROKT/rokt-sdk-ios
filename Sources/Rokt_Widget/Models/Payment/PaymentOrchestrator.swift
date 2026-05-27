@@ -180,7 +180,7 @@ final class PaymentOrchestrator {
     ///   - cartItemId: The backend cart item ID (format `"v1:uuid:canal"`)
     ///   - viewController: The view controller to present the payment sheet from
     ///   - builtInPayPalDevicePaySession: For built-in PayPal **device pay** only; drives ``RoktUX/devicePayShowConfirmation``
-    ///     and defers the hosted approve ``WKWebView`` until ``presentPendingBuiltInPayPalForForwardPayment(onCompletion:)`` runs.
+    ///     and defers the hosted approve ``SFSafariViewController`` until ``presentPendingBuiltInPayPalForForwardPayment(onCompletion:)`` runs.
     ///   - completion: Called with the payment result
     func processPayment(
         method: PaymentMethodType,

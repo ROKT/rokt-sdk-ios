@@ -96,7 +96,7 @@ final class MockPayPalApprovalPresenter: PayPalApprovalPresenting {
         presentCallCount += 1
         lastApprovalURL = approvalURL
         DispatchQueue.main.async {
-            checkoutCoordinator.completeFromEmbeddedCheckout(self.sheetResult)
+            checkoutCoordinator.completeFromUserDismissal(self.sheetResult)
         }
     }
 }
