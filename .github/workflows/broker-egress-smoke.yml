@@ -1,0 +1,52 @@
+name: Broker Egress Smoke Test
+
+# Throwaway workflow to verify GitHub Actions runners can reach the
+# pact broker before relying on the publish step in pact-consumer.yml.
+# Triggers on any push to any branch + manual dispatch.
+#
+# Delete this workflow after the question is answered (or keep as a
+# permanent canary on a schedule once we know the baseline works).
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ubuntu-egress:
+    name: Ubuntu Runner → Broker
+    runs-on: ubuntu-latest
+    steps:
+      - name: Anonymous heartbeat
+        run: |
+          set -e
+          echo "Testing from $(curl -s ifconfig.me 2>/dev/null || echo 'unknown egress IP')"
+          status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 \
+            "https://pact.eng.roktinternal.com/diagnostic/status/heartbeat")
+          echo "Anonymous heartbeat from ubuntu-latest: HTTP $status"
+          if [ "$status" = "200" ]; then
+            echo "::notice::Broker reachable from GitHub Actions ubuntu-latest runner"
+          else
+            echo "::error::Broker NOT reachable from GitHub Actions ubuntu-latest runner (HTTP $status). Publish job will fail post-merge."
+            exit 1
+          fi
+
+  macos-egress:
+    name: macOS Runner → Broker
+    runs-on: macos-latest
+    steps:
+      - name: Anonymous heartbeat
+        run: |
+          set -e
+          echo "Testing from $(curl -s ifconfig.me 2>/dev/null || echo 'unknown egress IP')"
+          status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 \
+            "https://pact.eng.roktinternal.com/diagnostic/status/heartbeat")
+          echo "Anonymous heartbeat from macos-latest: HTTP $status"
+          if [ "$status" = "200" ]; then
+            echo "::notice::Broker reachable from GitHub Actions macos-latest runner"
+          else
+            echo "::error::Broker NOT reachable from GitHub Actions macos-latest runner (HTTP $status)"
+            exit 1
+          fi
