@@ -75,7 +75,10 @@ class V2EventsClientPactSpec: XCTestCase {
 
         let expectation = expectation(description: "v2 events request completes")
 
-        Self.mockService.run(timeout: 5) { baseURL, done in
+        // Timeout sized for CI cold-start: first PactSwift mock-service spin-up +
+        // simulator Network.framework init can take 5+ seconds before the request
+        // even begins. Once warm, the actual round trip is <100ms.
+        Self.mockService.run(timeout: 30) { baseURL, done in
             Task {
                 defer { done() }
                 do {
@@ -101,6 +104,6 @@ class V2EventsClientPactSpec: XCTestCase {
             }
         }
 
-        wait(for: [expectation], timeout: 6)
+        wait(for: [expectation], timeout: 35)
     }
 }

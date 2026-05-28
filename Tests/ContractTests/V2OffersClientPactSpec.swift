@@ -113,7 +113,8 @@ class V2OffersClientPactSpec: XCTestCase {
 
         let expectation = expectation(description: "v2 offers request completes")
 
-        Self.mockService.run(timeout: 5) { baseURL, done in
+        // See V2EventsClientPactSpec for why this is sized for CI cold-start.
+        Self.mockService.run(timeout: 30) { baseURL, done in
             Task {
                 defer { done() }
                 do {
@@ -147,6 +148,6 @@ class V2OffersClientPactSpec: XCTestCase {
             }
         }
 
-        wait(for: [expectation], timeout: 6)
+        wait(for: [expectation], timeout: 35)
     }
 }
