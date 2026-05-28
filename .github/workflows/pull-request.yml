@@ -10,10 +10,6 @@ on:
 permissions:
   contents: read
   pull-requests: read
-  checks: write
-  # No id-token: write at workflow level. On pull_request: triggers, granting
-  # it lets fork PRs request OIDC tokens scoped to the fork. Scope per job if
-  # a step actually consumes the token.
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -23,6 +19,10 @@ jobs:
   trunk-check:
     name: Trunk Check
     runs-on: macos-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -195,9 +195,6 @@ jobs:
     name: Notify GChat
     needs: [unit-test, ui-test, periphery-scan]
     uses: ROKT/rokt-workflows/.github/workflows/oss_pr_opened_notification.yml@main
-    # Caller must grant every permission the called workflow declares, or
-    # GH Actions fails workflow validation (startup_failure). Scoped here
-    # so other jobs in this file stay free of id-token: write.
     permissions:
       contents: read
       id-token: write
