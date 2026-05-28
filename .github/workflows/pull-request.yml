@@ -194,7 +194,7 @@ jobs:
       github.event.pull_request.draft == false
     name: Notify GChat
     needs: [unit-test, ui-test, periphery-scan]
-    uses: ROKT/rokt-workflows/.github/workflows/oss_pr_opened_notification.yml@main
+    uses: ROKT/rokt-workflows/.github/workflows/oss_pr_opened_notification.yml@93d6833818312c13d472e69050e2f0560b31076e # main
     permissions:
       contents: read
       id-token: write
