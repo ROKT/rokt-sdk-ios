@@ -11,7 +11,13 @@ permissions:
   contents: read
   pull-requests: read
   checks: write
-  id-token: write
+  # NOTE: id-token: write removed 2026-05-28 (security review by Sushant
+  # Adhikari). No step in this workflow uses aws-actions/configure-aws-credentials
+  # or any other OIDC consumer that needs it — Codecov is passed an explicit
+  # token. Granting id-token: write on a pull_request: workflow lets fork PRs
+  # request OIDC tokens scoped to the fork, which is a latent supply-chain risk
+  # if any AWS IAM role gets a trust policy referencing this repo. If a future
+  # step genuinely needs OIDC, add `id-token: write` to that specific job only.
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
