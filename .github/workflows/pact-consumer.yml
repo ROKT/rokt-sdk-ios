@@ -156,12 +156,20 @@ jobs:
             exit 1
           fi
 
+          # Image pinned to manifest digest (not :latest). Renovate keeps it
+          # current via the `# renovate: datasource=docker depName=...` comment
+          # convention. Don't replace with :latest or a moving tag; this step
+          # runs with broker write credentials, so a compromised upstream image
+          # would have direct credential-exfiltration access. See security
+          # review note from 2026-05-27 (Sushant Adhikari) for the threat model.
+          # renovate: datasource=docker depName=pactfoundation/pact-cli
+          PACT_CLI_IMAGE="pactfoundation/pact-cli:1.5.0.4@sha256:4708c3d61157bff90082a483e4ff70541eb66f951eb3e218ea3e80a557abd170"
           docker run --rm \
             -v "${PWD}/pacts:/pacts" \
             -e PACT_BROKER_BASE_URL \
             -e PACT_BROKER_USERNAME \
             -e PACT_BROKER_PASSWORD \
-            pactfoundation/pact-cli:latest \
+            "${PACT_CLI_IMAGE}" \
             broker publish /pacts \
               --consumer-app-version "${GITHUB_SHA}" \
               --branch "${GITHUB_REF_NAME}" \
