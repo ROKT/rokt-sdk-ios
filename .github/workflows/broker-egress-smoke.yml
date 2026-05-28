@@ -1,11 +1,9 @@
 name: Broker Egress Smoke Test
 
-# Throwaway workflow to verify GitHub Actions runners can reach the
-# pact broker before relying on the publish step in pact-consumer.yml.
-# Triggers on any push to any branch + manual dispatch.
-#
-# Delete this workflow after the question is answered (or keep as a
-# permanent canary on a schedule once we know the baseline works).
+# Verifies GitHub Actions runners can reach the pact broker.
+# Tests BOTH stageeng (deployed via kube-configs PR #2501) and eng
+# (still has old allowlist — acts as a control until that PR ships
+# to eng too). stageeng must pass; eng failure is expected for now.
 
 on:
   push:
@@ -15,38 +13,36 @@ permissions:
   contents: read
 
 jobs:
-  ubuntu-egress:
-    name: Ubuntu Runner → Broker
-    runs-on: ubuntu-latest
+  reachability:
+    name: ${{ matrix.runner }} → ${{ matrix.host }}
+    runs-on: ${{ matrix.runner }}
+    continue-on-error: ${{ matrix.host == 'pact.eng.roktinternal.com' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, macos-latest]
+        host:
+          - pact.stageeng.roktinternal.com
+          - pact.eng.roktinternal.com
     steps:
       - name: Anonymous heartbeat
         run: |
           set -e
-          echo "Testing from $(curl -s ifconfig.me 2>/dev/null || echo 'unknown egress IP')"
-          status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 \
-            "https://pact.eng.roktinternal.com/diagnostic/status/heartbeat")
-          echo "Anonymous heartbeat from ubuntu-latest: HTTP $status"
-          if [ "$status" = "200" ]; then
-            echo "::notice::Broker reachable from GitHub Actions ubuntu-latest runner"
-          else
-            echo "::error::Broker NOT reachable from GitHub Actions ubuntu-latest runner (HTTP $status). Publish job will fail post-merge."
-            exit 1
-          fi
+          egress=$(curl -s ifconfig.me 2>/dev/null || echo 'unknown')
+          echo "Runner egress IP: ${egress}"
+          echo "Target: https://${{ matrix.host }}/diagnostic/status/heartbeat"
 
-  macos-egress:
-    name: macOS Runner → Broker
-    runs-on: macos-latest
-    steps:
-      - name: Anonymous heartbeat
-        run: |
-          set -e
-          echo "Testing from $(curl -s ifconfig.me 2>/dev/null || echo 'unknown egress IP')"
           status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 \
-            "https://pact.eng.roktinternal.com/diagnostic/status/heartbeat")
-          echo "Anonymous heartbeat from macos-latest: HTTP $status"
+            "https://${{ matrix.host }}/diagnostic/status/heartbeat" || echo "timeout")
+          echo "Result: HTTP ${status}"
+
           if [ "$status" = "200" ]; then
-            echo "::notice::Broker reachable from GitHub Actions macos-latest runner"
+            echo "::notice::Reachable from ${{ matrix.runner }} (egress ${egress})"
           else
-            echo "::error::Broker NOT reachable from GitHub Actions macos-latest runner (HTTP $status)"
+            if [ "${{ matrix.host }}" = "pact.eng.roktinternal.com" ]; then
+              echo "::warning::eng unreachable (expected — kube-configs PR #2501 hasn't deployed to eng yet)"
+            else
+              echo "::error::stageeng unreachable from ${{ matrix.runner }} (HTTP ${status})"
+            fi
             exit 1
           fi
