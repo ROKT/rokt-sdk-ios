@@ -11,16 +11,9 @@ permissions:
   contents: read
   pull-requests: read
   checks: write
-  # NOTE: id-token: write removed from workflow level 2026-05-28 (security
-  # review by Sushant Adhikari). No step here uses aws-actions/configure-aws-
-  # credentials or any other genuine OIDC consumer — Codecov is passed an
-  # explicit token. Granting id-token: write on a pull_request: workflow lets
-  # fork PRs request OIDC tokens scoped to the fork, which is a latent supply-
-  # chain risk if any AWS IAM role gets a trust policy referencing this repo.
-  # The pr-notify job re-grants id-token: write at job level only, because the
-  # reusable workflow it calls (ROKT/rokt-workflows) still declares the
-  # permission and GH Actions fails validation otherwise. If a future job
-  # genuinely needs OIDC, scope it at that job, never back at workflow level.
+  # No id-token: write at workflow level. On pull_request: triggers, granting
+  # it lets fork PRs request OIDC tokens scoped to the fork. Scope per job if
+  # a step actually consumes the token.
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -202,17 +195,9 @@ jobs:
     name: Notify GChat
     needs: [unit-test, ui-test, periphery-scan]
     uses: ROKT/rokt-workflows/.github/workflows/oss_pr_opened_notification.yml@main
-    # The reusable workflow declares `permissions: id-token: write` at workflow
-    # level (see ROKT/rokt-workflows/.github/workflows/oss_pr_opened_notification.yml).
-    # GH Actions validates that the caller grants every permission the called
-    # workflow declares; without this match the entire Pull Request workflow
-    # fails with `startup_failure` before any job runs (verified empirically on
-    # this PR's earlier commit). Scoping the permission here — rather than at
-    # workflow level — keeps every other job (trunk, unit-test, ui-test,
-    # periphery, size-report) free of id-token: write while satisfying the
-    # validation for this one call. Follow-up: ROKT/rokt-workflows should drop
-    # the unused id-token: write declaration; once that ships, this block can
-    # be removed.
+    # Caller must grant every permission the called workflow declares, or
+    # GH Actions fails workflow validation (startup_failure). Scoped here
+    # so other jobs in this file stay free of id-token: write.
     permissions:
       contents: read
       id-token: write
