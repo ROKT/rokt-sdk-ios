@@ -27,7 +27,11 @@ class V2OffersClientPactSpec: XCTestCase {
 
     override class func setUp() {
         super.setUp()
-        let outputDir = URL(fileURLWithPath: "pacts", isDirectory: true)
+        // PACT_OUTPUT_DIR lets CI redirect the generated JSON to a host path that
+        // can be picked up after the simulator exits — without it, PactSwift writes
+        // into the simulator data container where GH Actions can't reach it.
+        let outputPath = ProcessInfo.processInfo.environment["PACT_OUTPUT_DIR"] ?? "pacts"
+        let outputDir = URL(fileURLWithPath: outputPath, isDirectory: true)
         mockService = MockService(
             consumer: "rokt-sdk-ios",
             provider: "transactions-api",
@@ -109,7 +113,8 @@ class V2OffersClientPactSpec: XCTestCase {
 
         let expectation = expectation(description: "v2 offers request completes")
 
-        Self.mockService.run(timeout: 5) { baseURL, done in
+        // See V2EventsClientPactSpec for why this is sized for CI cold-start.
+        Self.mockService.run(timeout: 30) { baseURL, done in
             Task {
                 defer { done() }
                 do {
@@ -143,6 +148,6 @@ class V2OffersClientPactSpec: XCTestCase {
             }
         }
 
-        wait(for: [expectation], timeout: 6)
+        wait(for: [expectation], timeout: 35)
     }
 }
