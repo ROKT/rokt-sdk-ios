@@ -1,12 +1,12 @@
 import Foundation
 import RoktContracts
+import SafariServices
 import UIKit
-import WebKit
 
-// MARK: - Return URL matching (embedded web view + deep link)
+// MARK: - Return URL matching (deep link)
 
 enum PayPalMerchantReturnURL {
-    /// Same rules for ``WKWebView`` navigation and app deep links: scheme, host, and path must match
+    /// Same rules for app deep links: scheme, host, and path must match
     /// (PayPal appends query parameters such as ``token``).
     static func matches(navigated: URL, expectedRedirectString: String) -> Bool {
         guard let expected = URL(string: expectedRedirectString) else { return false }
@@ -22,11 +22,11 @@ enum PayPalMerchantReturnURL {
     }
 }
 
-// MARK: - Single completion + dismiss (WKWebView path or deep link)
+// MARK: - Single completion + dismiss (Safari or deep link)
 
-/// Coordinates PayPal checkout completion exactly once. PayPal typically redirects to a **deep link**
-/// ``PaymentContext/returnURL``; iOS may open your app with that URL instead of delivering navigation
-/// inside ``WKWebView``, so ``PaymentOrchestrator/handleURLCallback(with:)`` forwards matching URLs here.
+/// Coordinates PayPal checkout completion exactly once. PayPal redirects to ``PaymentContext/returnURL``;
+/// iOS opens the host app with that URL, and ``PaymentOrchestrator/handleURLCallback(with:)`` forwards
+/// matching URLs here. The hosted approval UI is presented with ``SFSafariViewController``.
 final class PayPalCheckoutCoordinator {
     private let lock = NSLock()
     private var finished = false
@@ -36,7 +36,7 @@ final class PayPalCheckoutCoordinator {
 
     private let completion: (PaymentSheetResult) -> Void
 
-    weak var presentingNavigationController: UINavigationController?
+    weak var presentingCheckoutViewController: UIViewController?
 
     init(returnURLString: String, cancelURLString: String?, completion: @escaping (PaymentSheetResult) -> Void) {
         self.returnURLString = returnURLString
@@ -44,12 +44,12 @@ final class PayPalCheckoutCoordinator {
         self.completion = completion
     }
 
-    func attachPresentingNavigationController(_ navigationController: UINavigationController) {
-        presentingNavigationController = navigationController
+    func attachPresentingCheckoutViewController(_ viewController: UIViewController) {
+        presentingCheckoutViewController = viewController
     }
 
-    /// Called when the embedded web view intercepts a matching redirect (in-app navigation).
-    func completeFromEmbeddedCheckout(_ result: PaymentSheetResult) {
+    /// Called when the buyer dismisses ``SFSafariViewController`` without completing approval.
+    func completeFromUserDismissal(_ result: PaymentSheetResult) {
         completeOnce(result)
     }
 
@@ -95,12 +95,15 @@ final class PayPalCheckoutCoordinator {
         finished = true
         lock.unlock()
 
-        let nav = presentingNavigationController
+        let checkoutViewController = presentingCheckoutViewController
+        if let safari = checkoutViewController as? SFSafariViewController {
+            safari.payPalApprovalRetainedDelegate = nil
+        }
         let callback = completion
 
         DispatchQueue.main.async {
-            if let nav {
-                nav.dismiss(animated: true) {
+            if let checkoutViewController {
+                checkoutViewController.dismiss(animated: true) {
                     callback(result)
                 }
             } else {
@@ -116,10 +119,9 @@ final class PayPalCheckoutCoordinator {
 ///
 /// PayPal's create-order response includes HATEOAS links; the ``rel`` value `approve` points at the
 /// hosted page where the buyer approves the order (see PayPal Orders API — response `links`).
-/// Loading that URL in a web view and intercepting the subsequent redirect to the merchant
-/// ``PaymentContext/returnURL`` completes the browser-based approval step. Return URLs are often
-/// **deep links**; when iOS opens the host app with that URL, ``PayPalCheckoutCoordinator/handleDeepLinkReturn``
-/// completes the flow. PayPal also offers a dedicated iOS SDK for apps that prefer a non-web integration.
+/// Loading that URL in ``SFSafariViewController`` and completing when iOS delivers the redirect to
+/// ``PaymentContext/returnURL`` (custom URL scheme or universal link) finishes the browser-based approval step.
+/// PayPal also offers a dedicated iOS SDK for apps that prefer a non-web integration.
 ///
 /// - SeeAlso: [Orders API — Create order](https://developer.paypal.com/docs/api/orders/v2/#orders_create)
 protocol PayPalApprovalPresenting: AnyObject {
@@ -130,8 +132,7 @@ protocol PayPalApprovalPresenting: AnyObject {
     )
 }
 
-/// Default presenter that loads the approval URL in a ``WKWebView`` and listens for redirects to
-/// the partner return or cancel URLs supplied in ``PaymentContext``.
+/// Default presenter that loads the approval URL in ``SFSafariViewController``.
 final class PayPalApprovalWebPresenter: PayPalApprovalPresenting {
     func presentPayPalApproval(
         approvalURL: URL,
@@ -139,83 +140,48 @@ final class PayPalApprovalWebPresenter: PayPalApprovalPresenting {
         checkoutCoordinator: PayPalCheckoutCoordinator
     ) {
         DispatchQueue.main.async {
-            let screen = PayPalApprovalWebViewController(
-                approvalURL: approvalURL,
-                checkoutCoordinator: checkoutCoordinator
-            )
-            let nav = UINavigationController(rootViewController: screen)
-            nav.modalPresentationStyle = .fullScreen
-            viewController.present(nav, animated: true) {
-                checkoutCoordinator.attachPresentingNavigationController(nav)
+            let safari = SFSafariViewController(url: approvalURL)
+            safari.modalPresentationStyle = .fullScreen
+            let delegate = PayPalApprovalSafariDelegate(checkoutCoordinator: checkoutCoordinator)
+            safari.payPalApprovalRetainedDelegate = delegate
+            safari.delegate = delegate
+            viewController.present(safari, animated: true) {
+                checkoutCoordinator.attachPresentingCheckoutViewController(safari)
             }
         }
     }
 }
 
-// MARK: - Web view controller
+// MARK: - Safari delegate
 
-private final class PayPalApprovalWebViewController: UIViewController, WKNavigationDelegate {
-    private let approvalURL: URL
-    private let checkoutCoordinator: PayPalCheckoutCoordinator
+private enum PayPalApprovalAssociatedKeys {
+    static var retainedDelegate = 0
+}
 
-    private lazy var webView: WKWebView = {
-        let configuration = WKWebViewConfiguration()
-        configuration.preferences.javaScriptCanOpenWindowsAutomatically = true
-        let view = WKWebView(frame: .zero, configuration: configuration)
-        view.navigationDelegate = self
-        view.translatesAutoresizingMaskIntoConstraints = false
-        return view
-    }()
+private extension SFSafariViewController {
+    var payPalApprovalRetainedDelegate: PayPalApprovalSafariDelegate? {
+        get {
+            objc_getAssociatedObject(self, &PayPalApprovalAssociatedKeys.retainedDelegate) as? PayPalApprovalSafariDelegate
+        }
+        set {
+            objc_setAssociatedObject(
+                self,
+                &PayPalApprovalAssociatedKeys.retainedDelegate,
+                newValue,
+                .OBJC_ASSOCIATION_RETAIN_NONATOMIC
+            )
+        }
+    }
+}
 
-    init(approvalURL: URL, checkoutCoordinator: PayPalCheckoutCoordinator) {
-        self.approvalURL = approvalURL
+private final class PayPalApprovalSafariDelegate: NSObject, SFSafariViewControllerDelegate {
+    private weak var checkoutCoordinator: PayPalCheckoutCoordinator?
+
+    init(checkoutCoordinator: PayPalCheckoutCoordinator) {
         self.checkoutCoordinator = checkoutCoordinator
-        super.init(nibName: nil, bundle: nil)
     }
 
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        view.backgroundColor = .systemBackground
-        title = "PayPal"
-
-        navigationItem.leftBarButtonItem = UIBarButtonItem(
-            systemItem: .cancel,
-            primaryAction: UIAction { [weak self] _ in
-                self?.checkoutCoordinator.completeFromEmbeddedCheckout(.canceled)
-            }
-        )
-
-        view.addSubview(webView)
-        NSLayoutConstraint.activate([
-            webView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-            webView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            webView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            webView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
-        ])
-
-        webView.load(URLRequest(url: approvalURL))
-    }
-
-    func webView(
-        _ webView: WKWebView,
-        decidePolicyFor navigationAction: WKNavigationAction,
-        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
-    ) {
-        guard let url = navigationAction.request.url else {
-            decisionHandler(.allow)
-            return
-        }
-
-        if checkoutCoordinator.handleDeepLinkReturn(url) {
-            decisionHandler(.cancel)
-            return
-        }
-
-        decisionHandler(.allow)
+    func safariViewControllerDidFinish(_ controller: SFSafariViewController) {
+        checkoutCoordinator?.completeFromUserDismissal(.canceled)
     }
 }

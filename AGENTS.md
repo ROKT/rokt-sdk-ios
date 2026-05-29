@@ -104,18 +104,26 @@ You are a senior iOS SDK engineer specializing in stable, lightweight client lib
   - After changes, always re-run affected tests + full suite if core/shared code is touched.
 
 - **CHANGELOG.md maintenance**:
-  - We follow a hybrid approach: Minor/trivial changes (e.g., dependency bumps, small internal refactors, lint fixes) do **not** require manual entries — these are already obvious in the commit history.
-  - For **substantial changes** (new features, API additions/deprecations, behavior changes affecting partners, bug fixes with user impact, performance improvements, security updates), **always add a clear, human-written entry** to `CHANGELOG.md` under the appropriate version section.
-  - Use standard categories: `Added`, `Changed`, `Deprecated`, `Fixed`, `Removed`, `Security` (per Keep a Changelog / SemVer conventions).
-  - Keep entries concise, user/partner-focused (what changed and why it matters), and written in imperative mood (e.g., "Added new placement rendering API" not "Adds...").
-  - Update `CHANGELOG.md` **before** finalizing a change.
-  - Never auto-generate or hallucinate changelog entries and flag for human review.
+  - Do **not** manually edit `CHANGELOG.md` in feature/fix PRs. The release workflow (`.github/workflows/release-draft.yml`) generates the changelog automatically from git history at release-draft time and opens a release PR with the updated entries; `release-publish.yml` then publishes the release notes from `CHANGELOG.md`.
+  - Because the changelog is derived from commit history, write clear, conventional commit messages (`fix:`, `feat:`, `perf:`, etc. with a concise imperative summary) — these are what surface in the generated release notes.
+  - No per-PR changelog step is required.
 
 ## Pull request and branching
 
 - Ensure the branch is created with a feat/\* pattern e.g. fix, perf, ci, docs, test, etc
 - Keep commits to a minimum before opening the pull request and try to follow the pattern "feat: Short description summarising changes" e.g. "feat: Increased timeout for experiences call to 8000ms" for the commit message
 - When creating pull requests Use the the template, located at: .github/pull_request_template.md, as the basis for the description
+
+### This is a PUBLIC repository — keep internal details out of public text
+
+Anything written to the repo is publicly visible and permanent: PR titles/descriptions, commit messages, branch names, code comments, CHANGELOG entries, and test names. Never include internal-only information in these. Specifically do **not** expose:
+
+- Partner, client, customer, or advertiser names and identifiers — and any detail that could identify one (account/tenant/campaign IDs, deal terms, integration specifics, "we're doing X for partner Y"). Keep examples generic and anonymized.
+- Internal service/system names, internal contract/class names, or their field layouts.
+- Backend or infrastructure implementation details: serializer libraries and versions, deserialization/validation behavior, enum/value internals, DB or infra specifics, or anything describing how a payload is checked server-side (it reads as a probing aid).
+- Links to private repos, internal PRs/tickets, or internal dashboards.
+
+Instead, describe **client-side behavior only**: what the SDK sends and receives and why, in partner-facing terms. When a change is driven by a server contract, refer to it generically (e.g. "to match the server contract") without naming internal types, versions, or server behavior. Keep internal rationale (backend internals, version-specific findings, private links) in non-public channels — internal review, chat, or private tickets — not in repo history.
 
 ## External Resources
 

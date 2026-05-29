@@ -10,8 +10,6 @@ on:
 permissions:
   contents: read
   pull-requests: read
-  checks: write
-  id-token: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -21,6 +19,10 @@ jobs:
   trunk-check:
     name: Trunk Check
     runs-on: macos-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -89,7 +91,7 @@ jobs:
 
       - name: Upload coverage report
         if: always()
-        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0
+        uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v6.0.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml
@@ -140,7 +142,7 @@ jobs:
 
       - name: Upload coverage report
         if: always()
-        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0
+        uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v6.0.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./ui-coverage.xml
@@ -192,6 +194,9 @@ jobs:
       github.event.pull_request.draft == false
     name: Notify GChat
     needs: [unit-test, ui-test, periphery-scan]
-    uses: ROKT/rokt-workflows/.github/workflows/oss_pr_opened_notification.yml@main
+    uses: ROKT/rokt-workflows/.github/workflows/oss_pr_opened_notification.yml@93d6833818312c13d472e69050e2f0560b31076e # main
+    permissions:
+      contents: read
+      id-token: write
     secrets:
       gchat_webhook: ${{ secrets.GCHAT_PRS_MOBILE_INTEGRATION_CHANNEL_WEBHOOK }}
