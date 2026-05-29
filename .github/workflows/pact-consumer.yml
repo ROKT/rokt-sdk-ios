@@ -136,13 +136,15 @@ jobs:
               --build-url "${BUILD_URL}"
 
   can-i-deploy:
-    name: Can I Deploy
+    name: Can I Deploy (advisory)
     needs: [publish]
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    # Advisory until the provider side is bootstrapped for environment-based
-    # can-i-deploy; flip to false to make this a blocking merge gate.
-    continue-on-error: true
+    # Advisory: the published pacts are forward-looking V2 contracts the SDK
+    # does not consume yet, so there is no `stage` deployment to verify
+    # against — the step reports the broker's answer but never fails the job.
+    # When the SDK starts consuming the V2 APIs, make this a blocking gate
+    # (remove the advisory wrapper in the step below) and re-validate end-to-end.
     environment: pact-publish
     steps:
       - name: Check provider verification
@@ -152,10 +154,10 @@ jobs:
           PACT_BROKER_PASSWORD: ${{ secrets.PACT_BROKER_PASSWORD }}
           GITHUB_SHA: ${{ github.sha }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           # renovate: datasource=docker depName=pactfoundation/pact-cli
           PACT_CLI_IMAGE="pactfoundation/pact-cli:1.5.0.4@sha256:4708c3d61157bff90082a483e4ff70541eb66f951eb3e218ea3e80a557abd170"
-          docker run --rm \
+          if docker run --rm \
             -e PACT_BROKER_BASE_URL \
             -e PACT_BROKER_USERNAME \
             -e PACT_BROKER_PASSWORD \
@@ -163,4 +165,8 @@ jobs:
             broker can-i-deploy \
               --pacticipant rokt-sdk-ios \
               --version "${GITHUB_SHA}" \
-              --to-environment stage
+              --to-environment stage; then
+            echo "can-i-deploy: deployable."
+          else
+            echo "::warning::can-i-deploy is advisory and non-blocking: these are forward-looking V2 contracts the SDK does not consume yet, so there is no stage deployment to verify against."
+          fi
