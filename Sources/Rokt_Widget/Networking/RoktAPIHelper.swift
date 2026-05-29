@@ -221,8 +221,8 @@ internal class RoktAPIHelper {
     ///   - shippingAttributes: Shipping address
     ///   - returnURL: Optional redirect success URL (e.g. built-in PayPal)
     ///   - cancelURL: Optional redirect cancel URL (e.g. built-in PayPal)
-    ///   - paymentMethod: Optional cart body `paymentMethod` (UPPERCASE, e.g. `"CARD"`,
-    ///     `"APPLE_PAY"`, `"PAYPAL"`, `"AFTERPAY"`).
+    ///   - paymentMethodType: Optional cart body `paymentMethodType` (PascalCase cart-api
+    ///     `PaymentMethodType` member name, e.g. `"Card"`, `"ApplePay"`, `"Paypal"`, `"Afterpay"`).
     ///   - paymentProvider: Optional cart body `paymentProvider` (PascalCase, e.g. `"Stripe"`,
     ///     `"PayPal"`, `"Card"`, `"Afterpay"`, `"ApplePay"`).
     ///   - success: Callback with the initialize-purchase response
@@ -231,7 +231,7 @@ internal class RoktAPIHelper {
                                   shippingAttributes: ShippingAttributes,
                                   returnURL: String? = nil,
                                   cancelURL: String? = nil,
-                                  paymentMethod: String? = nil,
+                                  paymentMethodType: String? = nil,
                                   paymentProvider: String? = nil,
                                   success: ((InitializePurchaseResponse) -> Void)? = nil,
                                   failure: ((Error, Int?, String) -> Void)? = nil) {
@@ -240,7 +240,7 @@ internal class RoktAPIHelper {
                                            shippingAttributes: shippingAttributes,
                                            returnURL: returnURL,
                                            cancelURL: cancelURL,
-                                           paymentMethod: paymentMethod,
+                                           paymentMethodType: paymentMethodType,
                                            paymentProvider: paymentProvider,
                                            success: success,
                                            failure: failure)
@@ -249,7 +249,7 @@ internal class RoktAPIHelper {
                                               shippingAttributes: shippingAttributes,
                                               returnURL: returnURL,
                                               cancelURL: cancelURL,
-                                              paymentMethod: paymentMethod,
+                                              paymentMethodType: paymentMethodType,
                                               paymentProvider: paymentProvider,
                                               success: success,
                                               failure: failure)
