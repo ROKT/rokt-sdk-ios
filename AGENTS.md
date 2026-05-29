@@ -117,6 +117,17 @@ You are a senior iOS SDK engineer specializing in stable, lightweight client lib
 - Keep commits to a minimum before opening the pull request and try to follow the pattern "feat: Short description summarising changes" e.g. "feat: Increased timeout for experiences call to 8000ms" for the commit message
 - When creating pull requests Use the the template, located at: .github/pull_request_template.md, as the basis for the description
 
+### This is a PUBLIC repository — keep internal details out of public text
+
+Anything written to the repo is publicly visible and permanent: PR titles/descriptions, commit messages, branch names, code comments, CHANGELOG entries, and test names. Never include internal-only information in these. Specifically do **not** expose:
+
+- Partner, client, customer, or advertiser names and identifiers — and any detail that could identify one (account/tenant/campaign IDs, deal terms, integration specifics, "we're doing X for partner Y"). Keep examples generic and anonymized.
+- Internal service/system names, internal contract/class names, or their field layouts.
+- Backend or infrastructure implementation details: serializer libraries and versions, deserialization/validation behavior, enum/value internals, DB or infra specifics, or anything describing how a payload is checked server-side (it reads as a probing aid).
+- Links to private repos, internal PRs/tickets, or internal dashboards.
+
+Instead, describe **client-side behavior only**: what the SDK sends and receives and why, in partner-facing terms. When a change is driven by a server contract, refer to it generically (e.g. "to match the server contract") without naming internal types, versions, or server behavior. Keep internal rationale (backend internals, version-specific findings, private links) in non-public channels — internal review, chat, or private tickets — not in repo history.
+
 ## External Resources
 
 - [Rokt Developer Docs](https://docs.rokt.com/developers/integration-guides/ios/overview)
