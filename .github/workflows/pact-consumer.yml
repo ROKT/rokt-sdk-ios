@@ -87,10 +87,13 @@ jobs:
   publish:
     name: Publish to Broker
     needs: [consumer-test, detect-changes]
+    # Main pushes and same-repo (non-fork) PR pushes with contract changes.
     if: |
-      github.event_name == 'push'
-      && github.ref == 'refs/heads/main'
-      && needs.detect-changes.outputs.contract == 'true'
+      needs.detect-changes.outputs.contract == 'true'
+      && (
+        (github.event_name == 'push' && github.ref == 'refs/heads/main')
+        || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+      )
     runs-on: ubuntu-latest
     environment: pact-publish
     steps:
@@ -106,17 +109,15 @@ jobs:
           PACT_BROKER_USERNAME: ${{ vars.PACT_BROKER_USERNAME }}
           PACT_BROKER_PASSWORD: ${{ secrets.PACT_BROKER_PASSWORD }}
           GITHUB_SHA: ${{ github.sha }}
-          GITHUB_REF_NAME: ${{ github.ref_name }}
+          # On PR runs `github.head_ref` is the source branch; on main pushes
+          # it's empty and falls through to `github.ref_name` ("main").
+          PACT_BRANCH: ${{ github.head_ref || github.ref_name }}
           BUILD_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
 
-          if [ -z "${PACT_BROKER_BASE_URL:-}" ]; then
-            echo "::error::PACT_BROKER_BASE_URL is unset. Configure the pact-publish environment." >&2
-            exit 1
-          fi
-          if [ -z "${PACT_BROKER_USERNAME:-}" ] || [ -z "${PACT_BROKER_PASSWORD:-}" ]; then
-            echo "::error::PACT_BROKER_USERNAME / PACT_BROKER_PASSWORD missing." >&2
+          if [ -z "${PACT_BROKER_BASE_URL:-}" ] || [ -z "${PACT_BROKER_USERNAME:-}" ] || [ -z "${PACT_BROKER_PASSWORD:-}" ]; then
+            echo "::error::Broker credentials are not set." >&2
             exit 1
           fi
 
@@ -130,6 +131,36 @@ jobs:
             "${PACT_CLI_IMAGE}" \
             broker publish /pacts \
               --consumer-app-version "${GITHUB_SHA}" \
-              --branch "${GITHUB_REF_NAME}" \
+              --branch "${PACT_BRANCH}" \
               --tag "forward-looking" \
               --build-url "${BUILD_URL}"
+
+  can-i-deploy:
+    name: Can I Deploy
+    needs: [publish]
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    # Advisory until the provider side is bootstrapped for environment-based
+    # can-i-deploy; flip to false to make this a blocking merge gate.
+    continue-on-error: true
+    environment: pact-publish
+    steps:
+      - name: Check provider verification
+        env:
+          PACT_BROKER_BASE_URL: ${{ vars.PACT_BROKER_BASE_URL }}
+          PACT_BROKER_USERNAME: ${{ vars.PACT_BROKER_USERNAME }}
+          PACT_BROKER_PASSWORD: ${{ secrets.PACT_BROKER_PASSWORD }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # renovate: datasource=docker depName=pactfoundation/pact-cli
+          PACT_CLI_IMAGE="pactfoundation/pact-cli:1.5.0.4@sha256:4708c3d61157bff90082a483e4ff70541eb66f951eb3e218ea3e80a557abd170"
+          docker run --rm \
+            -e PACT_BROKER_BASE_URL \
+            -e PACT_BROKER_USERNAME \
+            -e PACT_BROKER_PASSWORD \
+            "${PACT_CLI_IMAGE}" \
+            broker can-i-deploy \
+              --pacticipant rokt-sdk-ios \
+              --version "${GITHUB_SHA}" \
+              --to-environment stage
