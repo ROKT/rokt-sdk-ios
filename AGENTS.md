@@ -104,12 +104,9 @@ You are a senior iOS SDK engineer specializing in stable, lightweight client lib
   - After changes, always re-run affected tests + full suite if core/shared code is touched.
 
 - **CHANGELOG.md maintenance**:
-  - We follow a hybrid approach: Minor/trivial changes (e.g., dependency bumps, small internal refactors, lint fixes) do **not** require manual entries — these are already obvious in the commit history.
-  - For **substantial changes** (new features, API additions/deprecations, behavior changes affecting partners, bug fixes with user impact, performance improvements, security updates), **always add a clear, human-written entry** to `CHANGELOG.md` under the appropriate version section.
-  - Use standard categories: `Added`, `Changed`, `Deprecated`, `Fixed`, `Removed`, `Security` (per Keep a Changelog / SemVer conventions).
-  - Keep entries concise, user/partner-focused (what changed and why it matters), and written in imperative mood (e.g., "Added new placement rendering API" not "Adds...").
-  - Update `CHANGELOG.md` **before** finalizing a change.
-  - Never auto-generate or hallucinate changelog entries and flag for human review.
+  - Do **not** manually edit `CHANGELOG.md` in feature/fix PRs. The release workflow (`.github/workflows/release-draft.yml`) generates the changelog automatically from git history at release-draft time and opens a release PR with the updated entries; `release-publish.yml` then publishes the release notes from `CHANGELOG.md`.
+  - Because the changelog is derived from commit history, write clear, conventional commit messages (`fix:`, `feat:`, `perf:`, etc. with a concise imperative summary) — these are what surface in the generated release notes.
+  - No per-PR changelog step is required.
 
 ## Pull request and branching
 
