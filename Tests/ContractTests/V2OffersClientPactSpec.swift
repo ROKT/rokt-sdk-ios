@@ -11,8 +11,7 @@ import PactSwift
 /// those expectations (e.g., sends `rokt-platform-type: "ios-mobile"` instead
 /// of `"iOS"`), the pact mock service rejects the request and this test fails.
 ///
-/// Pattern mirrors sdk-web's consumer-pact specs (see PR ROKT/sdk-web#1372):
-/// the test never constructs request headers or body directly, only domain
+/// The test never constructs request headers or body directly, only domain
 /// inputs. Wire-shape construction lives entirely in `V2OffersClient`.
 ///
 /// Matcher policy: fixed-value strings hardcoded in `V2OffersClient`
@@ -27,7 +26,11 @@ class V2OffersClientPactSpec: XCTestCase {
 
     override class func setUp() {
         super.setUp()
-        let outputDir = URL(fileURLWithPath: "pacts", isDirectory: true)
+        // PACT_OUTPUT_DIR lets CI redirect the generated JSON to a host path that
+        // can be picked up after the simulator exits — without it, PactSwift writes
+        // into the simulator data container where GH Actions can't reach it.
+        let outputPath = ProcessInfo.processInfo.environment["PACT_OUTPUT_DIR"] ?? "pacts"
+        let outputDir = URL(fileURLWithPath: outputPath, isDirectory: true)
         mockService = MockService(
             consumer: "rokt-sdk-ios",
             provider: "transactions-api",
@@ -79,9 +82,15 @@ class V2OffersClientPactSpec: XCTestCase {
                     ]
                 ]
             )
+            // Assert only the response fields V2OffersClient consumes and that
+            // the v2 API returns for a configured page: session and token data,
+            // the resolved page_instance_guid, and a page_context limited to
+            // page_instance_guid, page_id, page_type and is_page_detected. Any
+            // other page_context keys and the plugins / placements / event_data
+            // / privacy_control blocks are not part of this contract.
             .willRespondWith(
                 status: 200,
-                headers: ["Content-Type": "application/json"],
+                headers: ["Content-Type": Matcher.RegexLike("application/json; charset=utf-8", term: #"application/json(;.*)?"#)],
                 body: [
                     "session_id": Matcher.SomethingLike("session-123"),
                     "session_token": [
@@ -89,27 +98,19 @@ class V2OffersClientPactSpec: XCTestCase {
                         "expires_at": Matcher.SomethingLike(1_774_474_053_000)
                     ],
                     "page_context": [
-                        "rokt_tag_id": Matcher.SomethingLike("tag-123"),
                         "page_instance_guid": Matcher.SomethingLike("page-instance-guid-123"),
                         "page_id": Matcher.SomethingLike("checkout-page"),
                         "page_type": Matcher.RegexLike("checkout", term: validPageTypes),
-                        "language": Matcher.SomethingLike("en-US"),
-                        "is_page_detected": Matcher.SomethingLike(true),
-                        "page_variant_name": Matcher.SomethingLike("control")
+                        "is_page_detected": Matcher.SomethingLike(true)
                     ],
-                    "plugins": [],
-                    "placements": [],
-                    "event_data": [:],
-                    "page_instance_guid": Matcher.SomethingLike("page-instance-guid-123"),
-                    "privacy_control": [
-                        "limited_use": Matcher.SomethingLike(false)
-                    ]
+                    "page_instance_guid": Matcher.SomethingLike("page-instance-guid-123")
                 ]
             )
 
         let expectation = expectation(description: "v2 offers request completes")
 
-        Self.mockService.run(timeout: 5) { baseURL, done in
+        // See V2EventsClientPactSpec for why this is sized for CI cold-start.
+        Self.mockService.run(timeout: 30) { baseURL, done in
             Task {
                 defer { done() }
                 do {
@@ -143,6 +144,6 @@ class V2OffersClientPactSpec: XCTestCase {
             }
         }
 
-        wait(for: [expectation], timeout: 6)
+        wait(for: [expectation], timeout: 35)
     }
 }
