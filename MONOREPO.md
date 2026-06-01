@@ -42,7 +42,9 @@ Root [`Package.swift`](Package.swift) depends on UX Helper via a **local** packa
 
 [Pull Request](.github/workflows/pull-request.yml) runs **`xcodebuild test`** from the root of each [`Packages/matrix.json`](Packages/matrix.json) `local_path` (same pattern as [mParticle kit SPM tests](https://github.com/mParticle/mparticle-apple-sdk/blob/main/.github/workflows/build-kits.yml)): resolve SwiftPM dependencies, derive the Xcode scheme from `Package.swift` (single-library packages use the package `name` as the scheme), then run that package’s unit tests on the iOS Simulator alongside the root `Rokt-Widget` SPM tests and Example scheme tests.
 
-## Release flow
+**Podspec lint** runs `pod lib lint Rokt-Widget.podspec` with `--include-podspecs=Packages/rokt-ux-helper-ios/RoktUXHelper.podspec` so `RoktUXHelper (= VERSION)` resolves from the monorepo; that version is not required to exist on CocoaPods trunk until **Release – Publish** pushes the mirrored pods.
+
+**Periphery** (`.periphery.yml`) sets `exclude_tests: true` and excludes the **`RoktUXHelper`** / **`RoktPaymentExtension`** SPM targets (and their test targets). The Example app builds those packages but does not reference most of their symbols, which would otherwise produce false positives; the scan stays focused on **`Rokt_Widget`** (and the app) via the existing baseline.
 
 1. **Draft**: [Release – Draft](.github/workflows/release-draft.yml) — bump type only. Opens a PR that bumps the ecosystem version everywhere above and updates the root `CHANGELOG.md` (with `kits-path: Packages` for scoped entries).
 2. **Publish**: [Release – Publish](.github/workflows/release-publish.yml) runs when **`VERSION`** (root) or root **`CHANGELOG.md`** changes on `main` / `maintenance/*`.
