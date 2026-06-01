@@ -49,9 +49,11 @@ class V2EventsClientPactSpec: XCTestCase {
                         "type": "msdk",
                         "sdk_version": Matcher.SomethingLike("5.2.2")
                     ],
+                    // instance_id must be a canonical 36-character, non-nil UUID;
+                    // the API rejects other forms, so the example uses a valid one.
                     "events": Matcher.EachLike([
                         "event_type": Matcher.SomethingLike("impression"),
-                        "instance_id": Matcher.SomethingLike("instance-001"),
+                        "instance_id": Matcher.SomethingLike("00000000-0000-0000-0000-000000000001"),
                         "timestamp": Matcher.SomethingLike(1_774_474_053_000),
                         "data": [
                             "source_message_id": Matcher.SomethingLike("source-message-001")
@@ -59,23 +61,27 @@ class V2EventsClientPactSpec: XCTestCase {
                     ], min: 1)
                 ]
             )
+            // Assert only the minimal success shape: session_token and event_ids.
+            // errors and warnings are present in the response but not asserted, so
+            // the contract stays minimal and tolerant of their contents.
             .willRespondWith(
                 status: 202,
-                headers: ["Content-Type": "application/json"],
+                headers: ["Content-Type": Matcher.RegexLike("application/json; charset=utf-8", term: #"application/json(;.*)?"#)],
                 body: [
                     "session_token": [
                         "token": Matcher.SomethingLike("next-session-token"),
                         "expires_at": Matcher.SomethingLike(1_774_474_053_000)
                     ],
-                    "event_ids": Matcher.EachLike(Matcher.SomethingLike("event-001"), min: 1),
-                    "errors": [],
-                    "warnings": []
+                    "event_ids": Matcher.EachLike(Matcher.SomethingLike("event-001"), min: 1)
                 ]
             )
 
         let expectation = expectation(description: "v2 events request completes")
 
-        Self.mockService.run(timeout: 5) { baseURL, done in
+        // Timeout sized for CI cold-start: first PactSwift mock-service spin-up +
+        // simulator Network.framework init can take 5+ seconds before the request
+        // even begins. Once warm, the actual round trip is <100ms.
+        Self.mockService.run(timeout: 30) { baseURL, done in
             Task {
                 defer { done() }
                 do {
@@ -88,7 +94,7 @@ class V2EventsClientPactSpec: XCTestCase {
                     )
                     let event = V2Event(
                         eventType: "impression",
-                        instanceId: "instance-001",
+                        instanceId: "00000000-0000-0000-0000-000000000001",
                         timestamp: 1_774_474_053_000,
                         data: ["source_message_id": "source-message-001"]
                     )
@@ -101,6 +107,6 @@ class V2EventsClientPactSpec: XCTestCase {
             }
         }
 
-        wait(for: [expectation], timeout: 6)
+        wait(for: [expectation], timeout: 35)
     }
 }
