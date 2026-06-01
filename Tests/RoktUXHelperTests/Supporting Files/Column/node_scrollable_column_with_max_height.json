@@ -1,0 +1,40 @@
+{
+    "styles": {
+        "elements": {
+            "own": [
+                {
+                    "default": {
+                        "dimension": {
+                            "maxHeight": 200
+                        },
+                        "background": {
+                            "backgroundColor": {
+                                "light": "#F5C1C4"
+                            }
+                        },
+                        "spacing": {
+                            "padding": "18 24 0 24"
+                        },
+                        "container": {
+                            "justifyContent": "center",
+                            "alignItems": "center"
+                        },
+                        "flexChild": {
+                            "alignSelf": "center",
+                            "weight": 1
+                        }
+                    }
+                }
+            ]
+        }
+    },
+    "children": [
+        {
+            "type": "BasicText",
+            "node": {
+                "value": "Test text"
+            }
+        }
+    ]
+}
+

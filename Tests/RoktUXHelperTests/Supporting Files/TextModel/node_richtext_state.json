@@ -1,0 +1,37 @@
+{
+    "value":"%^STATE.IndicatorPosition^% <strong><em><u>ORDER</u> <s>Number</s>:</em></strong>",
+    "styles":{
+        "elements":{
+            "own":[
+                {
+                    "default":{
+                        "text":{
+                            "fontFamily":"arial",
+                            "fontSize":20,
+                            "textTransform":"none",
+                            "textColor": {
+                                "light": "#AABBCC"
+                            }
+                        },
+                        "spacing":{
+                            "padding":"1 0 1 8",
+                            "margin":"0 0 16 0"
+                        },
+                        "dimension": {
+                            "minWidth": 10,
+                            "maxWidth": 100,
+                            "minHeight": 15,
+                            "maxHeight": 150
+                        },
+                        "background": {
+                            "backgroundColor": {
+                                "light": "#F5C1C4",
+                                "dark": "#F5C1C4"
+                            }
+                        }
+                    }
+                }
+            ]
+        }
+    }
+}

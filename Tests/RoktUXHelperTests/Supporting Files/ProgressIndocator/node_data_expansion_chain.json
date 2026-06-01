@@ -1,0 +1,10 @@
+{
+    "indicator": "%^STATE.InitialWrongValue | STATE.IndicatorPosition^%",
+    "styles": {
+        "elements": {
+            "own": [],
+            "indicator": [],
+            "activeIndicator": []
+        }
+    }
+}

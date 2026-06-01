@@ -1,0 +1,89 @@
+{
+    "direction": "Forward",
+    "styles": {
+        "elements": {
+            "own": [
+                {
+                    "default": {
+                        "spacing": {
+                            "margin": "0 10 8 20",
+                            "padding": "5"
+                        },
+                        "border": {
+                            "borderWidth": "1",
+                            "borderStyle": "solid",
+                            "borderRadius": 20,
+                            "borderColor": {
+                                "light": "#000000"
+                            }
+                        },
+                        "container": {
+                            "justifyContent": "center"
+                        },
+                        "dimension": {
+                            "height": {
+                                "type": "fixed",
+                                "value": 50
+                            }
+                        }
+                    },
+                    "pressed": {
+                        "border": {
+                            "borderWidth": "0.5",
+                            "borderStyle": "solid",
+                            "borderRadius": 20,
+                            "borderColor": {
+                                "light": "#000000"
+                            }
+                        },
+                        "background": {
+                            "backgroundColor": {
+                                "light": "#00a8e1",
+                                "dark": "#00a8e1"
+                            }
+                        }
+                    }
+                }
+            ]
+        }
+    },
+    "children": [
+        {
+            "type": "BasicText",
+            "node": {
+                "styles": {
+                    "elements": {
+                        "own": [
+                            {
+                                "default": {
+                                    "text": {
+                                        "textColor": {
+                                            "light": "#000000"
+                                        },
+                                        "fontSize": 16,
+                                        "fontWeight": "700",
+                                        "fontFamily": "GorditaBold"
+                                    },
+                                    "flexChild": {
+                                        "alignSelf": "center"
+                                    }
+                                }
+                            }
+                            ,{
+                                "default": {
+                                    "background": {
+                                        "backgroundColor": {
+                                            "light": "#666666",
+                                            "dark": "#666666"
+                                        }
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                },
+                "value": "Forward"
+            }
+        }
+    ]
+}

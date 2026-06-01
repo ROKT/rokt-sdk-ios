@@ -1,0 +1,31 @@
+{
+  "provider": "ApplePay",
+  "children": [],
+  "styles": {
+      "elements": {
+          "own": [
+              {
+                  "default": {
+                      "container": {
+                          "alignItems": "center",
+                          "justifyContent": "center"
+                      },
+                      "dimension": {
+                          "width": {
+                              "type": "fit",
+                              "value": "fit-width"
+                          },
+                          "height": {
+                              "type": "fixed",
+                              "value": 54
+                          }
+                      },
+                      "spacing": {
+                          "margin": "16 0 0 0"
+                      }
+                  }
+              }
+          ]
+      }
+  }
+}

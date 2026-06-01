@@ -1,0 +1,28 @@
+name: Utility – Create Workstation
+
+on:
+  workflow_dispatch: # checkov:skip=CKV_GHA_7
+    inputs:
+      branch_name:
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  create-workstation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Validate branch name
+        run: |
+          if [[ ! ${{ inputs.branch_name }} =~ ^[a-zA-Z0-9_-]+$ ]]; then
+            echo "Invalid branch name. Branch name must contain only letters, numbers, underscores, and hyphens."
+            exit 1
+          fi
+
+      - name: Create branch
+        run: |
+          git checkout -b workstation-${{ inputs.branch_name }}
+          git push --set-upstream origin workstation-${{ inputs.branch_name }}

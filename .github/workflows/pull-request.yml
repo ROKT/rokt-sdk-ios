@@ -1,0 +1,70 @@
+# This workflow will build a Swift project
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-swift
+
+name: Pull Request
+
+permissions:
+  contents: read
+  pull-requests: read
+  id-token: write
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  trunk-check:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Trunk Check
+        uses: trunk-io/trunk-action@04ba50e7658c81db7356da96657e6e77f220bfa3 # v1.3.1
+        with:
+          check-mode: all
+
+  podspec-lint:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Lint podspec
+        run: pod lib lint RoktUXHelper.podspec --allow-warnings --verbose
+
+  unit-test:
+    runs-on: macos-15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Resolve Packages
+        run: swift package resolve --verbose
+
+      - name: Install xcbeautify
+        run: |
+          brew list xcbeautify || brew install xcbeautify
+
+      - name: Run unit tests
+        uses: ./.github/composite_actions/run_xcodebuild_tests
+        timeout-minutes: 15
+        with:
+          codecov-token: ${{ secrets.CODECOV_TOKEN }}
+
+  pr-notify:
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.draft == false
+    needs: [trunk-check, unit-test, podspec-lint]
+    name: Notify GChat
+    uses: ROKT/rokt-workflows/.github/workflows/oss_pr_opened_notification.yml@1859338d7c2c2b873233505c751acbf09fb218d5 # main
+    secrets:
+      gchat_webhook: ${{ secrets.GCHAT_PRS_MOBILE_INTEGRATION_CHANNEL_WEBHOOK }}

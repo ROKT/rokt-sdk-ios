@@ -1,0 +1,104 @@
+{
+       "type": "CreativeResponse",
+       "node": {
+         "responseKey": "negative",
+         "styles": {
+           "elements": {
+             "own": [
+               {
+                 "default": {
+                   "spacing": {
+                     "margin": "10 0 0 0",
+                     "padding": "10 10 10 10"
+                   },
+                   "border": {
+                     "borderRadius": 0,
+                     "borderWidth": "2",
+                     "borderColor": {
+                       "light": "#000000",
+                       "dark": "#000000"
+                     }
+                   },
+                   "container": {
+                     "justifyContent": "center"
+                   },
+                   "dimension": {
+                     "width": {
+                       "type": "fit",
+                       "value": "fit-width"
+                     }
+                   }
+                 }
+               },
+               {
+                 "default": {
+                   "dimension": {
+                     "height": {
+                       "type": "fit",
+                       "value": "fit-height"
+                     }
+                   }
+                 },
+                 "pressed": {
+                     "border": {
+                       "borderRadius": 10,
+                       "borderWidth": "4"
+                     }
+                 },
+                 
+               }
+             ]
+           }
+         },
+         "children": [
+           {
+             "type": "BasicText",
+             "node": {
+               "styles": {
+                 "elements": {
+                   "own": [
+                     {
+                       "default": {
+                         "text": {
+                           "fontSize": 12,
+                           "fontWeight": "500",
+                           "lineHeight": 14,
+                           "fontFamily":"Arial"
+                         }
+                       },
+                       "pressed": {
+                         "text": {
+                           "fontSize": 20,
+                           "fontWeight": "500",
+                           "lineHeight": 14,
+                           "fontFamily":"Arial"
+                         },
+                         "background": {
+                           "backgroundColor": {
+                             "light": "#d51a1a"
+                           }
+                         }
+                       },
+                       "focussed": {
+                         "text": {
+                           "fontSize": 20,
+                           "fontWeight": "500",
+                           "lineHeight": 14,
+                           "fontFamily":"Arial"
+                         },
+                         "background": {
+                           "backgroundColor": {
+                             "light": "#d51a1a"
+                           }
+                         }
+                       }
+                     }
+                   ]
+                 }
+               },
+               "value": "%^DATA.creativeResponse.shortLabel^%"
+             }
+           }
+         ]
+       }
+     }

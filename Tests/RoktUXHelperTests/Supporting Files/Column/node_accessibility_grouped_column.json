@@ -1,0 +1,47 @@
+{
+    "child": {
+        "type": "Column",
+        "node": {
+            "children": [],
+            "styles": {
+                "elements": {
+                    "own": [
+                        {
+                            "default": {
+                                "background": {
+                                    "backgroundColor": {
+                                        "light": "#F5C1C4",
+                                        "dark": "#F5C1C4"
+                                    }
+                                },
+                                "spacing": {
+                                    "padding": "18 24 0 24",
+                                    "margin": "0 0 0 0",
+                                },
+                                "container": {
+                                    "justifyContent": "center",
+                                    "alignItems": "center"
+                                },
+                                "flexChild": {
+                                    "alignSelf": "center",
+                                    "weight": 1
+                                }
+                            }
+                        },
+                        {
+                            "default": {
+                                "background": {
+                                    "backgroundColor": {
+                                        "light": "#999999",
+                                        "dark": "#000000"
+                                    }
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+    }
+}
+

@@ -1,0 +1,28 @@
+#checkov:skip=CKV_OPENAPI_4:Not required to have auth schema defs
+openapi: 3.0.0
+info:
+  title: Rokt UX Helper iOS
+  x-cortex-tag: rokt-ux-helper-ios
+  x-cortex-type: service
+  description: |
+    Native iOS UX helper and example app.
+  x-cortex-git:
+    github:
+      repository: ROKT/rokt-ux-helper-iOS
+
+  x-cortex-owners:
+    - type: group
+      name: sdk-engineering
+      provider: CORTEX
+  x-cortex-groups:
+    - lang-swift
+
+  x-cortex-oncall:
+    opsgenie:
+      type: SCHEDULE
+      id: Mobile Integrations_schedule
+
+  x-cortex-ci-cd:
+    buildkite:
+      pipelines:
+        - slug: ux-helper-ios-build

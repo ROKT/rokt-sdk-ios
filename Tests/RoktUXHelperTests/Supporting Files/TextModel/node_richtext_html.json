@@ -1,0 +1,31 @@
+{
+    "value":"<strong><em><u>ORDER</u> <s>Number</s>: Uk171359906</em></strong>",
+    "styles":{
+        "elements":{
+            "own":[
+                {
+                    "default":{
+                        "text":{
+                            "fontFamily":"arial",
+                            "fontSize":20,
+                            "textTransform":"none",
+                            "textColor": {
+                                "light": "#AABBCC"
+                            }
+                        },
+                        "spacing":{
+                            "padding":"1 0 1 8",
+                            "margin":"0 0 16 0"
+                        },
+                        "background": {
+                            "backgroundColor": {
+                                "light": "#F5C1C4",
+                                "dark": "#F5C1C4"
+                            }
+                        }
+                    }
+                }
+            ]
+        }
+    }
+}

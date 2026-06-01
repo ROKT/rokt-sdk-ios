@@ -1,0 +1,71 @@
+{
+    "customStateKey": "stateKey",
+    "styles": {
+        "elements": {
+            "own": [
+                {
+                    "default": {
+                        "background": {
+                            "backgroundColor": {
+                                "light": "#E8F0FE",
+                                "dark": "#1A237E"
+                            }
+                        },
+                        "dimension": {
+                            "width": {
+                                "type": "fixed",
+                                "value": 200
+                            },
+                            "height": {
+                                "type": "fixed",
+                                "value": 48
+                            }
+                        },
+                        "spacing": {
+                            "padding": "8 16 8 16"
+                        },
+                        "container": {
+                            "justifyContent": "center",
+                            "alignItems": "center"
+                        }
+                    },
+                    "pressed": {
+                        "background": {
+                            "backgroundColor": {
+                                "light": "#C6DAFC",
+                                "dark": "#283593"
+                            }
+                        }
+                    }
+                }
+            ]
+        }
+    },
+    "children": [
+        {
+            "type": "BasicText",
+            "node": {
+                "styles": {
+                    "elements": {
+                        "own": [
+                            {
+                                "default": {
+                                    "text": {
+                                        "textColor": {
+                                            "light": "#1A73E8",
+                                            "dark": "#82B1FF"
+                                        },
+                                        "fontSize": 14,
+                                        "fontWeight": "600",
+                                        "fontFamily": "Arial"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                },
+                "value": "Subscribe"
+            }
+        }
+    ]
+}

@@ -1,0 +1,70 @@
+---
+description: "Build, test, and development workflow commands for RoktUXHelper iOS project"
+globs: ["**/*.swift", "**/*.xcodeproj", "**/*.xcodeproj/**"]
+alwaysApply: false
+---
+
+# Build, Test, and Lint Commands
+
+When working with this iOS project, always use these commands for building, testing, and linting:
+
+## Building and Testing
+```bash
+# Build the package
+xcodebuild -scheme RoktUXHelper -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.6' build
+
+# Run all tests
+xcodebuild -scheme RoktUXHelper -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.6' -enableCodeCoverage YES test
+
+# Clean the build
+xcodebuild -scheme RoktUXHelper clean
+```
+
+## Running the example app
+```bash
+# Navigate to Example directory
+cd Example
+
+# Build the example app (includes RoktUXHelper library)
+xcodebuild -project Example.xcodeproj -scheme Example -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.6' build
+
+# Boot simulator if not running (silent fail if already booted)
+xcrun simctl boot "iPhone 16 Pro" 2>/dev/null || true
+
+# Install the built app (use the specific derived data path from build output)
+# Look for the path like: /Users/jamesnewman/Library/Developer/Xcode/DerivedData/Example-XXXXXXXXXX
+xcrun simctl install "iPhone 16 Pro" "~/Library/Developer/Xcode/DerivedData/Example-XXXXXXXXXX/Build/Products/Debug-iphonesimulator/Example.app"
+
+# Launch the app
+xcrun simctl launch "iPhone 16 Pro" com.rokt.roktuxhelperdemo.Example
+
+# Alternative: Open in Xcode for debugging
+open Example.xcodeproj
+```
+
+## Linting and Formatting with Trunk
+```bash
+# Check all files for linting issues
+trunk check --all
+
+# Format all files
+trunk fmt --all
+
+# Check specific files
+trunk check Sources/RoktUXHelper/
+
+# Format specific files
+trunk fmt Sources/RoktUXHelper/
+```
+
+## Pre-commit Checks
+Always run these commands before committing:
+1. Ensure project builds
+2. Ensure all tests pass
+3. Ensure trunk check all passes
+
+## Troubleshooting
+- If build fails, try cleaning and `swift package reset`
+- For Xcode issues, clean derived data: `xcodebuild clean`
+- For simulator issues, reset simulator: `xcrun simctl erase "iPhone 16 Pro"`
+- For derived data issues, clean: `rm -rf ~/Library/Developer/Xcode/DerivedData/Example-*`

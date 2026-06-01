@@ -1,0 +1,14 @@
+{
+    "type": "DataImageCarousel",
+    "imageKey": "creativeCarouselImageVertical",
+    "duration": 3000,
+    "style": {
+        "elements": {
+            "own": {},
+            "indicator": {},
+            "activeIndicator": {},
+            "seenIndicator": {},
+            "progressIndicatorContainer": {}
+        }
+    }
+}

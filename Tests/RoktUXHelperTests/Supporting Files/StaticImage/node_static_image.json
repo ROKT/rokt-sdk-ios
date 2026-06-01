@@ -1,0 +1,48 @@
+{
+    "url": {"light": "https://docs.rokt.com/assets/images/embedded-placement-1-5ab04a718fe7dda94ac24aa7b89aac92.png"},
+    "styles": {
+        "elements": {
+            "own": [
+                {
+                    "default": {
+                        "dimension": {
+                            "height": {
+                                "type": "fixed",
+                                "value": 100
+                            }
+                        },
+                        "background": {
+                            "backgroundColor": {
+                                "light": "#F5C1C4",
+                                "dark": "#F5C1C4"
+                            }
+                        },
+                        "spacing": {
+                            "padding": "18 24 0 24",
+                            "margin": "0 0 0 0",
+                        }
+                    }
+                },
+                {
+                    "default": {
+                        "dimension": {
+                            "height": {
+                                "type": "fixed",
+                                "value": 200
+                            }
+                        }
+                    },
+                    "pressed": {
+                        "dimension": {
+                            "width": {
+                                "type": "fixed",
+                                "value": 150
+                            }
+                        }
+                    }
+                }
+            ]
+        }
+    }
+}
+
