@@ -140,11 +140,10 @@ jobs:
     needs: [publish]
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    # Advisory: the published pacts are forward-looking V2 contracts the SDK
-    # does not consume yet, so there is no `stage` deployment to verify
-    # against — the step reports the broker's answer but never fails the job.
-    # When the SDK starts consuming the V2 APIs, make this a blocking gate
-    # (remove the advisory wrapper in the step below) and re-validate end-to-end.
+    # Advisory — never fails the job. Forward-looking pacts: the SDK doesn't consume
+    # V2 yet and no deploy environment is wired up, so `--to-environment stage` is a
+    # deliberate no-op (`stage` is a placeholder). When the SDK consumes V2, make it
+    # blocking against the environment a released SDK calls (likely production).
     environment: pact-publish
     steps:
       - name: Check provider verification
