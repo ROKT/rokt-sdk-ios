@@ -7,6 +7,7 @@ on:
       - maintenance/*
     paths:
       - VERSION
+      - CHANGELOG.md
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -17,7 +18,49 @@ permissions:
   packages: write
 
 jobs:
+  detect:
+    name: Detect ecosystem release
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.diff.outputs.release }}
+      version: ${{ steps.versions.outputs.version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Diff root VERSION
+        id: diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE=false
+          BASE="${{ github.event.before }}"
+          if [[ -z "$BASE" || "$BASE" == "0000000000000000000000000000000000000000" ]]; then
+            BASE=$(git rev-parse HEAD^ 2>/dev/null || true)
+          fi
+          if [[ -n "$BASE" ]]; then
+            FILES=$(git diff --name-only "$BASE" "${{ github.sha }}" || true)
+            echo "$FILES"
+            while IFS= read -r line; do
+              [[ "$line" == "VERSION" ]] && RELEASE=true
+            done <<< "$FILES"
+          fi
+          echo "release=$RELEASE" >> "$GITHUB_OUTPUT"
+
+      - name: Read ecosystem version (single source of truth)
+        id: versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "version=$(head -n 1 VERSION | tr -d '\r\n ')" >> "$GITHUB_OUTPUT"
+
   create-release:
+    name: Create GitHub release (Rokt-Widget)
+    needs: detect
+    if: needs.detect.outputs.release == 'true'
     runs-on: macos-latest
     outputs:
       release_version: ${{ steps.version-file.outputs.release-version }}
@@ -59,7 +102,8 @@ jobs:
           path: ${{ steps.version-file.outputs.release-version }}.md
 
   upload-xcframework:
-    needs: create-release
+    needs: [detect, create-release]
+    if: needs.detect.outputs.release == 'true' && needs.create-release.result == 'success'
     runs-on: macos-latest-xlarge
     steps:
       - name: Checkout repository
@@ -76,8 +120,97 @@ jobs:
           tag_name: ${{ needs.create-release.outputs.release_version }}
           files: vendor/Rokt_Widget.xcframework.zip
 
-  publish-cocoapods:
-    needs: create-release
+  load-matrix:
+    name: Load Packages matrix
+    needs: detect
+    if: needs.detect.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          sparse-checkout: Packages/matrix.json
+          sparse-checkout-cone-mode: false
+      - id: set
+        run: echo "matrix=$(jq -c . Packages/matrix.json)" >> "$GITHUB_OUTPUT"
+
+  # One job per row in Packages/matrix.json (subtree split → push → GitHub release on mirror).
+  mirror-package:
+    name: Mirror ${{ matrix.pkg.name }}
+    needs: [detect, create-release, load-matrix]
+    if: needs.detect.outputs.release == 'true' && needs.create-release.result == 'success'
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        pkg: ${{ fromJson(needs.load-matrix.outputs.matrix) }}
+    steps:
+      - name: Checkout monorepo
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Generate GitHub App token
+        id: generate-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.SDK_RELEASE_GITHUB_APP_ID }}
+          private-key: ${{ secrets.SDK_RELEASE_GITHUB_APP_PRIVATE_KEY }}
+          owner: ${{ matrix.pkg.dest_org }}
+          repositories: ${{ matrix.pkg.dest_repo }}
+          permission-contents: write
+
+      - name: Subtree split and push
+        id: mirror
+        shell: bash
+        env:
+          DEST_ORG: ${{ matrix.pkg.dest_org }}
+          DEST_REPO: ${{ matrix.pkg.dest_repo }}
+          LOCAL_PATH: ${{ matrix.pkg.local_path }}
+          PKG_NAME: ${{ matrix.pkg.name }}
+          TOKEN: ${{ steps.generate-token.outputs.token }}
+          FORCE_PUSH: ${{ matrix.pkg.mirror_force_push_main }}
+        run: |
+          set -euo pipefail
+          SPLIT_BRANCH="split/${PKG_NAME}"
+          git subtree split --prefix "${LOCAL_PATH}" -b "${SPLIT_BRANCH}"
+          DEST_URL="https://x-access-token:${TOKEN}@github.com/${DEST_ORG}/${DEST_REPO}.git"
+          if [[ "${FORCE_PUSH}" == "true" ]]; then
+            git push --force "${DEST_URL}" "${SPLIT_BRANCH}:main"
+          else
+            git push "${DEST_URL}" "${SPLIT_BRANCH}:main"
+          fi
+          echo "sha=$(git rev-parse "${SPLIT_BRANCH}")" >> "$GITHUB_OUTPUT"
+
+      - name: Extract release notes for mirror
+        id: pkg-notes
+        uses: ffurrer2/extract-release-notes@273da39a24fb7db106a35526c8162815faffd31d # v3.1.0
+        with:
+          changelog_file: ${{ matrix.pkg.changelog_file }}
+          release_notes_file: mirror-${{ matrix.pkg.name }}-${{ needs.detect.outputs.version }}.md
+
+      - name: GitHub release on mirror
+        uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1.21.0
+        with:
+          tag: ${{ needs.detect.outputs.version }}
+          commit: ${{ steps.mirror.outputs.sha }}
+          owner: ${{ matrix.pkg.dest_org }}
+          repo: ${{ matrix.pkg.dest_repo }}
+          token: ${{ steps.generate-token.outputs.token }}
+          body: |
+            Rokt iOS ecosystem release **${{ needs.detect.outputs.version }}** (mirrored from [rokt-sdk-ios](https://github.com/ROKT/rokt-sdk-ios)).
+
+            ${{ steps.pkg-notes.outputs.release_notes }}
+
+  publish-mirrored-podspecs:
+    name: Publish mirrored packages to CocoaPods
+    needs: [detect, create-release, load-matrix, mirror-package]
+    if: >
+      needs.detect.outputs.release == 'true' &&
+      needs.create-release.result == 'success' &&
+      needs.mirror-package.result == 'success'
     runs-on: macos-latest
     steps:
       - name: Checkout repository
@@ -88,17 +221,61 @@ jobs:
       - name: Install CocoaPods
         run: sudo gem install cocoapods
 
+      - name: Trunk push (order from matrix)
+        env:
+          COCOAPODS_TRUNK_TOKEN: ${{ secrets.COCOAPODS_TRUNK_TOKEN }}
+        run: |
+          set +e
+          set -uo pipefail
+          . scripts/pod_push.sh
+          while IFS= read -r row; do
+            spec=$(echo "$row" | jq -r .podspec)
+            echo "Publishing ${spec}..."
+            trunk_push_with_retries "$spec" || exit 1
+          done < <(jq -c 'sort_by(.cocoapods_publish_order)[]' Packages/matrix.json)
+
+  publish-cocoapods-rokt-widget:
+    name: Publish Rokt-Widget to CocoaPods
+    needs: [detect, create-release, publish-mirrored-podspecs]
+    if: >
+      needs.detect.outputs.release == 'true' &&
+      needs.create-release.result == 'success' &&
+      needs.publish-mirrored-podspecs.result == 'success'
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install CocoaPods
+        run: sudo gem install cocoapods
+
+      - name: Wait for mirrored pods on trunk (matrix order)
+        run: |
+          set -euo pipefail
+          V=$(head -n 1 VERSION | tr -d '\r\n ')
+          . scripts/pod_push.sh
+          while IFS= read -r row; do
+            pod=$(echo "$row" | jq -r .pod_trunk_name)
+            wait_for_pod_version_on_trunk "$pod" "$V" 60
+          done < <(jq -c 'sort_by(.cocoapods_publish_order)[]' Packages/matrix.json)
+
       - name: Validate Podspec
         run: pod spec lint Rokt-Widget.podspec --allow-warnings --verbose
 
       - name: Publish to CocoaPods
-        run: pod trunk push Rokt-Widget.podspec --allow-warnings
         env:
           COCOAPODS_TRUNK_TOKEN: ${{ secrets.COCOAPODS_TRUNK_TOKEN }}
+        run: |
+          set +e
+          set -uo pipefail
+          . scripts/pod_push.sh
+          trunk_push_with_retries Rokt-Widget.podspec || exit 1
 
   upload-release-notes:
-    needs: create-release
-    if: github.ref_name == 'main'
+    needs: [detect, create-release]
+    if: github.ref_name == 'main' && needs.detect.outputs.release == 'true' && needs.create-release.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Generate token
@@ -147,8 +324,12 @@ jobs:
             chore
 
   trigger-demo-app-release:
-    needs: [create-release, publish-cocoapods]
-    if: github.ref_name == 'main'
+    needs: [detect, create-release, publish-cocoapods-rokt-widget]
+    if: >
+      github.ref_name == 'main' &&
+      needs.detect.outputs.release == 'true' &&
+      needs.create-release.result == 'success' &&
+      needs.publish-cocoapods-rokt-widget.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Generate token

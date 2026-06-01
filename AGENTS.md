@@ -52,10 +52,14 @@ You are a senior iOS SDK engineer specializing in stable, lightweight client lib
 - Rokt iOS SDK written in Swift.
 - Core SDK code lives in `Sources/Rokt_Widget/`.
 - Primary public API entry point is `Rokt.swift`.
+- **Monorepo**: `Packages/rokt-ux-helper-ios` and `Packages/rokt-payment-extension-ios` are subtree copies mirrored on release; they share the **same `VERSION` as root** (`rokt-sdk-ios`). See `MONOREPO.md`.
 
 ## Key paths
 
 - `Sources/Rokt_Widget/`: SDK source code.
+- `Packages/rokt-ux-helper-ios/`, `Packages/rokt-payment-extension-ios/`: subtree packages (mirrored + versioned independently).
+- `Packages/matrix.json`: mirrored packages + **Release – Publish** matrix (paths, CocoaPods order, trunk names).
+- `MONOREPO.md`: subtree layout, release order, GitHub App requirements.
 - `Package.swift`: SPM config and dependency pins.
 - `Rokt-Widget.podspec`: CocoaPods spec for source distribution.
 - `Sources/Rokt_Widget/PrivacyInfo.xcprivacy`: privacy manifest.
@@ -72,7 +76,8 @@ You are a senior iOS SDK engineer specializing in stable, lightweight client lib
 - **Lint & format tools**:
   - SwiftFormat: configured in `.swiftformat` (run `swiftformat .` to format).
   - SwiftLint: configured in `.swiftlint.yml`.
-  - **Primary enforcement tool**: `trunk check` (via Trunk.io) — assumes Trunk is installed and configured (e.g., `.trunk/trunk.yaml` wraps SwiftFormat + SwiftLint + others). If Trunk unavailable, fall back to `swiftformat .` && `swiftlint`.
+  - **Primary enforcement tool**: `trunk check` (via Trunk.io) — assumes Trunk is installed and configured (e.g., `.trunk/trunk.yaml` wraps SwiftFormat + SwiftLint + others). If Trunk unavailable, fall back to `swiftformat .` && `swiftlint` from the repo root **without** `swiftlint --config …`, so nested configs under `Packages/*/Tests/` still merge with `.swiftlint.yml`.
+  - **`Packages/**`**: Subtree packages are first-party code in this repo; run the same `trunk check`/ SwiftFormat / SwiftLint / objc-prop-check as for`Sources/`, `Example/`, and `Tests/`. Package unit tests merge `Packages/<package>/Tests/.swiftlint.yml`with the repo root (SwiftLint nested configs; see`.trunk/trunk.yaml`for why`trunk check`does not pass`--config`to SwiftLint). That overlay relaxes a small set of test-only rules (force try in fixtures, long generated lines, XCTest closure style). Checkov is skipped for known-safe JSON fixtures (test JSON under`Packages/\*\*/Tests/`and selected widget/size JSON paths) via`.trunk/trunk.yaml`because Trunk invokes Checkov with`-f`, where `skip-path` in a Checkov config file does not apply.
   - Keep code consistent by running these before any commit/PR.
   - Important: Only add comments if absolutely necessary.
   - If you're adding comments review why the code is hard to reason with and rewrite that first

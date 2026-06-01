@@ -1,0 +1,41 @@
+{
+  "value": "ORDER Number: Uk171359906",
+  "styles": {
+    "elements": {
+      "own": [
+        {
+          "default": {
+            "text": {
+              "fontFamily": "arial",
+              "fontSize": 20,
+              "textTransform": "none",
+              "textColor": {
+                "light": "#AABBCC",
+                "dark": "#000000"
+              }
+            },
+            "spacing": {
+              "padding": "10 5 1 10",
+              "margin": "0 0 16 0"
+            },
+            "dimension": {
+              "height": {
+                "type": "fixed",
+                "value": 48
+              }
+            },
+            "background": {
+              "backgroundColor": {
+                "light": "#F5C1C4",
+                "dark": "#FFFFFF"
+              }
+            },
+            "flexChild": {
+              "alignSelf": "center"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

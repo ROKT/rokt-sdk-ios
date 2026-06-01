@@ -34,7 +34,7 @@ jobs:
         with:
           xcode-version: "26.2"
 
-      - name: Get current version
+      - name: Get current ecosystem version
         id: version-file
         run: |
           version_from_file=$(head -n 1 VERSION)
@@ -47,24 +47,33 @@ jobs:
           current_version: ${{ steps.version-file.outputs.release-version }}
           level: ${{ github.event.inputs.bump-type || 'patch' }}
 
-      - name: Update VERSION file
-        run: echo "${{ steps.bump-version.outputs.new_version }}" > VERSION
+      - name: Write VERSION (root and mirrored packages)
+        run: |
+          version="${{ steps.bump-version.outputs.new_version }}"
+          echo "$version" > VERSION
+          echo "$version" > Packages/rokt-ux-helper-ios/VERSION
+          echo "$version" > Packages/rokt-payment-extension-ios/VERSION
 
       - name: Update library version in source
         run: |
           version="${{ steps.bump-version.outputs.new_version }}"
           sed -i '' "s/libraryVersion = \".*\"/libraryVersion = \"${version}\"/" ./Sources/Rokt_Widget/Constants/Constants.swift
 
-      - name: Update podspec version
+      - name: Update all podspec versions
         run: |
           version="${{ steps.bump-version.outputs.new_version }}"
-          sed -i '' "s/s\.version[[:space:]]*=[[:space:]]*'[0-9.]*'/s.version          = '${version}'/" Rokt-Widget.podspec
+          for podspec in Rokt-Widget.podspec Packages/rokt-ux-helper-ios/RoktUXHelper.podspec Packages/rokt-payment-extension-ios/RoktPaymentExtension.podspec; do
+            sed -i '' "s/s\.version[[:space:]]*=[[:space:]]*'[0-9.]*'/s.version          = '${version}'/" "$podspec"
+            sed -i '' "s/s\.version[[:space:]]*=[[:space:]]*\"[0-9.]*\"/s.version          = \"${version}\"/" "$podspec"
+          done
 
       - name: Generate changelog from git history
         id: changelog
         uses: ROKT/rokt-workflows/actions/generate-changelog@main
         with:
           version: ${{ steps.bump-version.outputs.new_version }}
+          changelog-path: CHANGELOG.md
+          kits-path: Packages
 
       - name: Create release PR
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
@@ -74,8 +83,7 @@ jobs:
           title: "Release ${{ steps.bump-version.outputs.new_version }}"
           base: ${{ github.ref_name }}
           body: |
-            Preparing for release ${{ steps.bump-version.outputs.new_version }}
-            - Bumped version to ${{ steps.bump-version.outputs.new_version }}
-            - Updated changelog
+            Ecosystem release **${{ steps.bump-version.outputs.new_version }}** — same version for `Rokt-Widget`, `RoktUXHelper`, and `RoktPaymentExtension` (root `VERSION`, mirrored package `VERSION` files, and all podspecs).
+
             ## Changelog
             ${{ steps.changelog.outputs.release-notes }}

@@ -9,6 +9,12 @@ disabled_rules:
   - cyclomatic_complexity
   - function_body_length
 
+type_name:
+  min_length: 3
+  max_length: 40
+  excluded:
+    - T
+
 line_length:
   warning: 130
   error: 160
@@ -20,3 +26,4 @@ included:
   - Example/rokt
   - Example/Tests
   - Tests
+  - Packages

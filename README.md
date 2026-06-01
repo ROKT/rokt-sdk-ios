@@ -25,6 +25,7 @@ For more information on Swift Package Manager, open [Swift official documentatio
 
 - `Package.swift` — main package manifest for Swift Package Manager
 - `Sources/Rokt_Widget/` — SDK source (source-based distribution via SPM)
+- `Packages/` — monorepo copies of UX Helper and Payment Extension (see `MONOREPO.md`)
 - `Example/` — sample app demonstrating SDK integration
 
 ## How to install

@@ -17,7 +17,9 @@ fi
 if grep -q "@objc public class" "${file}"; then
 	class_name=$(grep "@objc public class" "${file}" | awk '{print $4}' | cut -d ':' -f 1)
 
-	unannotated_props=$(grep -E "^\s*public (let|var)" "${file}" | grep -v "@objc" | grep -v "override" || true)
+	# Optional-typed properties often cannot be @objc (e.g. Int?, Swift-only map types); require @objc
+	# only for non-optional stored properties on @objc public classes.
+	unannotated_props=$(grep -E "^\s*public (let|var)" "${file}" | grep -v "@objc" | grep -v "override" | grep -vE ':\s*.+\?\s*(//.*)?$' || true)
 
 	if [[ -n ${unannotated_props} ]]; then
 		echo "❌ Found public properties without @objc in class '${class_name}' (${file}):"

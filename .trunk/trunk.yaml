@@ -25,10 +25,21 @@ lint:
           run: sh ${workspace}/.trunk/scripts/trunk-objc-check.sh ${target}
           output: pass_fail
           success_codes: [0, 1]
+    # SwiftLint merges nested `.swiftlint.yml` (e.g. under `Packages/*/Tests/`) only when no
+    # `--config` is passed. Omit `direct_configs` so Trunk invokes SwiftLint from the repo root and
+    # nested test relaxations apply alongside the root config.
+    - name: swiftlint
+      direct_configs: []
   ignore:
     - linters: [ALL]
       paths:
         - Example/rokt.xcodeproj/**
+    - linters: [checkov]
+      paths:
+        - Packages/**/Tests/**/*.json
+        - Tests/Rokt_WidgetTests/**/*.json
+        - Tests/SizeReport/**/Assets.xcassets/**/*.json
+        - periphery-baseline.json
   enabled:
     - objc-prop-check
     - actionlint@1.7.12

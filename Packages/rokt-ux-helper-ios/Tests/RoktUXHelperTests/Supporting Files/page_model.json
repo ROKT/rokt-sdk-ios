@@ -1,0 +1,123 @@
+{
+  "pageDetectionTime": "2023-03-05T23:44:13.7049799+00:00",
+  "sessionId": "afbc0187-2d0f-4ac2-b852-a60a1e02b1a0",
+  "token": "topmost-token",
+  "pageContext": {
+    "pageId": "edecb4b2-91a5-4fd7-859f-82347b6e79fd",
+    "roktTagId": "",
+    "pageInstanceGuid": "afbc0187-2d0f-4ad4-be6b-7545f9273565",
+    "token": "placement-context-token"
+  },
+  "plugins": [
+    {
+      "plugin": {
+        "id": "2732370593714667533",
+        "token": "plugin-token",
+        "name": "test layout",
+        "targetElementSelector": "Location1",
+        "config": {
+          "instanceGuid": "21b61e93-24bd-4735-995a-2f14d0673ec2",
+          "token": "plugin-config-token",
+          "outerLayoutSchema": "{ \"breakpoints\": { \"Landscape\": 500, \"Portrait\": 560 }, \"layout\": { \"type\": \"Overlay\", \"node\": { \"allowBackdropToClose\": true, \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"border\": { \"borderRadius\": 0 }, \"spacing\": { \"margin\": \"10 10 10 10\" }, \"background\": { \"backgroundColor\": { \"light\": \"#FFFFFFFF\", \"dark\": \"#FFFFFFFF\" } } } } ], \"wrapper\": [ { \"default\": { \"background\": { \"backgroundColor\": { \"light\": \"#520E0A13\", \"dark\": \"#520E0A13\" } } } } ] } }, \"children\": [ { \"type\": \"Column\", \"node\": { \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"margin\": \"18 24 0 24\" } } } ] } }, \"children\": [] } }, { \"type\": \"OneByOneDistribution\", \"node\": { \"transition\": { \"type\": \"FadeInOut\", \"settings\": { \"duration\": 500 } } } } ] } } }",
+          "slots": [
+            {
+              "instanceGuid": "slotInstanceGuid",
+              "token": "slot-token",
+              "offer": {
+                "id": "OfferIdOne",
+                "creative": {
+                  "referralCreativeId": "HELLO THERE, OVERLAY EXPANSION",
+                  "token": "creative-token",
+                  "instanceGuid": "CreativeInstanceGuidOne",
+                  "copy": {
+                    "title": "My Offer Title",
+                    "subtitle": "Test Subtitle",
+                    "description": "Offer description goes here",
+                    "creative.termsAndConditions.link": "my_t_and_cs_link"
+                  },
+                  "responseOptionsMap": {
+                    "positive": {
+                      "id": "2732356166940819464",
+                      "action": "Url",
+                      "instanceGuid": "549a346b-cd76-4f04-bccd-a1168c870e97",
+                      "signalType": "SignalResponse",
+                      "shortLabel": "YES PLEASE,,",
+                      "longLabel": "Yes",
+                      "shortSuccessLabel": "Short Success Label!",
+                      "isPositive": true,
+                      "url": "https://www.rokt.com",
+                      "token": "positive-token"
+                    }
+                  },
+                  "links": {
+                    "privacyPolicy": {
+                      "url": "https://rokt.com",
+                      "title": "Privacy Policy Link"
+                    },
+                    "termsAndConditions": {
+                      "url": "https://rokt.com",
+                      "title": "Terms And Conditions"
+                    }
+                  },
+                  "images": {
+                    "creativeCarouselImageHorizontal.1": {
+                      "light": "",
+                      "dark": "",
+                      "alt": "horizontal alt 1",
+                      "title": "horizontal title 1"
+                    },
+                    "creativeCarouselImageHorizontal.2": {
+                      "light": "",
+                      "dark": "",
+                      "alt": "horizontal alt 2",
+                      "title": "horizontal title 2"
+                    },
+                    "creativeCarouselImageHorizontal.3": {
+                      "light": "",
+                      "dark": "",
+                      "alt": "horizontal alt 3",
+                      "title": "horizontal title 3"
+                    },
+                    "creativeCarouselImageVertical.1": {
+                      "light": "",
+                      "dark": "",
+                      "alt": "vertical alt 1",
+                      "title": "vertical title 1"
+                    },
+                    "creativeCarouselImageVertical.2": {
+                      "light": "",
+                      "dark": "",
+                      "alt": "vertical alt 2",
+                      "title": "vertical title 2"
+                    },
+                    "creativeCarouselImageVertical.2": {
+                      "light": "",
+                      "dark": "",
+                      "alt": "vertical alt 2",
+                      "title": "vertical title 2"
+                    },
+                    "creativeImage": {
+                      "light": "",
+                      "dark": "",
+                      "alt": "alt",
+                      "title": "title"
+                    }
+                  }
+                }
+              },
+              "layoutVariant": {
+                "layoutVariantId": "layout_variant_id",
+                "moduleName": "",
+                "layoutVariantSchema": "{\"type\":\"Column\",\"node\":{\"children\":[{\"type\":\"BasicText\",\"node\":{\"value\":\"%^DATA.creativeCopy.creative.termsAndConditions.link^% \",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":12,\"fontWeight\":\"700\",\"fontFamily\":\"Arial\",\"lineHeight\":14}}}]}}}},{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.title^%%^DATA.creativeCopy.description^%%^DATA.creativeCopy.creative.termsAndConditions.link^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":12,\"fontWeight\":\"700\",\"fontFamily\":\"Arial\",\"lineHeight\":14}}}]}}}},{\"type\":\"RichText\",\"node\":{\"value\":\"<b>%^DATA.creativeCopy.title^%</b>\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":12,\"fontWeight\":\"700\",\"fontFamily\":\"Arial\",\"lineHeight\":14}}}]}}}},{\"type\":\"RichText\",\"node\":{\"value\":\"<u>%^DATA.creativeCopy.title^%</u>\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":12,\"fontWeight\":\"700\",\"fontFamily\":\"Arial\",\"lineHeight\":14}}}]}}}},{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.nonexistent | DATA.creativeCopy.title^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":12,\"fontWeight\":\"700\",\"fontFamily\":\"Arial\",\"lineHeight\":14}}}]}}}},{\"type\":\"RichText\",\"node\":{\"value\":\"This is my sentence with %^DATA.creativeCopy.title^% and %^DATA.creativeCopy.subtitle^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":12,\"fontWeight\":\"700\",\"fontFamily\":\"Arial\",\"lineHeight\":14}}}]}}}},{\"type\":\"RichText\",\"node\":{\"value\":\"No data expansion\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":12,\"fontWeight\":\"700\",\"fontFamily\":\"Arial\",\"lineHeight\":14}}}]}}}},{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.nonexistent | my default value^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":12,\"fontWeight\":\"700\",\"fontFamily\":\"Arial\",\"lineHeight\":14}}}]}}}},{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.title | my default value^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":12,\"fontWeight\":\"700\",\"fontFamily\":\"Arial\",\"lineHeight\":14}}}]}}}},{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.title | DATA.creativeCopy.subtitle^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":12,\"fontWeight\":\"700\",\"fontFamily\":\"Arial\",\"lineHeight\":14}}}]}}}},{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.nonexistent^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":12,\"fontWeight\":\"700\",\"fontFamily\":\"Arial\",\"lineHeight\":14}}}]}}}},{\"type\":\"BasicText\",\"node\":{\"value\":\"%^DATA.creativeCopy.nonexistent | DATA.creativeCopy.creative.termsAndConditions.link^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":12,\"fontWeight\":\"700\",\"fontFamily\":\"Arial\",\"lineHeight\":14}}}]}}}},{\"type\":\"BasicText\",\"node\":{\"value\":\"%^DATA.creativeCopy.nonexistent | my default^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":12,\"fontWeight\":\"700\",\"fontFamily\":\"Arial\",\"lineHeight\":14}}}]}}}},{\"type\":\"BasicText\",\"node\":{\"value\":\"%^DATA.creativeCopy.creative.termsAndConditions.link^% this is my sentence %^DATA.creativeCopy.creative.termsAndConditions.link^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":12,\"fontWeight\":\"700\",\"fontFamily\":\"Arial\",\"lineHeight\":14}}}]}}}},{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.nonexistent | DATA.creativeCopy.nonexistentv2 | my default value after 2 invalids^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":12,\"fontWeight\":\"700\",\"fontFamily\":\"Arial\",\"lineHeight\":14}}}]}}}},{\"type\":\"RichText\",\"node\":{\"value\":\"This is <b>%^DATA.creativeLink.privacyPolicy^%</b> and that is <u>%^DATA.creativeLink.termsAndConditions^%</u>\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":12,\"fontWeight\":\"700\",\"fontFamily\":\"Arial\",\"lineHeight\":14}}}]}}}},{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.nonexistent |^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":12,\"fontWeight\":\"700\",\"fontFamily\":\"Arial\",\"lineHeight\":14}}}]}}}},{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.title |^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":12,\"fontWeight\":\"700\",\"fontFamily\":\"Arial\",\"lineHeight\":14}}}]}}}},{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.nonexistent | DATA.creativeCopy.nonexistentv2 |^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":12,\"fontWeight\":\"700\",\"fontFamily\":\"Arial\",\"lineHeight\":14}}}]}}}},{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.nonexistent | DATA.creativeCopy.title |^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":12,\"fontWeight\":\"700\",\"fontFamily\":\"Arial\",\"lineHeight\":14}}}]}}}},{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.nonexistent |^% is my sentence\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":12,\"fontWeight\":\"700\",\"fontFamily\":\"Arial\",\"lineHeight\":14}}}]}}}},{\"type\":\"RichText\",\"node\":{\"value\":\"Sentence with %^DATA.creativeCopy.nonexistent^% and %^DATA.creativeCopy.title|^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":12,\"fontWeight\":\"700\",\"fontFamily\":\"Arial\",\"lineHeight\":14}}}]}}}},{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeLink.nonexistent^% and %^DATA.creativeLink.privacyPolicy|^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":12,\"fontWeight\":\"700\",\"fontFamily\":\"Arial\",\"lineHeight\":14}}}]}}}},{\"type\":\"BasicText\",\"node\":{\"value\":\"%^DATA.creativeImage.creativeImage.title^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":12,\"fontWeight\":\"700\",\"fontFamily\":\"Arial\",\"lineHeight\":14}}}]}}}},{\"type\":\"BasicText\",\"node\":{\"value\":\"%^DATA.creativeImage.creativeCarouselImageHorizontal.1.title^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":12,\"fontWeight\":\"700\",\"fontFamily\":\"Arial\",\"lineHeight\":14}}}]}}}},{\"type\":\"BasicText\",\"node\":{\"value\":\"%^DATA.creativeImage.creativeCarouselImageHorizontal.3.title^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":12,\"fontWeight\":\"700\",\"fontFamily\":\"Arial\",\"lineHeight\":14}}}]}}}},{\"type\":\"BasicText\",\"node\":{\"value\":\"%^DATA.creativeImage.creativeCarouselImageVertical.2.alt^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":12,\"fontWeight\":\"700\",\"fontFamily\":\"Arial\",\"lineHeight\":14}}}]}}}}]}}"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "success": true,
+  "privacyControl": {
+    "limitedUse": true
+  }
+}
