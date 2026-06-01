@@ -1,0 +1,75 @@
+{
+    "styles": {
+        "elements": {
+            "own": [
+                {
+                    "default": {
+                        "dimension": {
+                            "height": {
+                                "type": "fixed",
+                                "value": 24
+                            },
+                            "width": {
+                                "type": "fixed",
+                                "value": 4
+                            },
+                            "rotateZ": 10
+                        },
+                        "background": {
+                            "backgroundColor": {
+                                "light": "#F5C1C4",
+                                "dark": "#F5C1C4"
+                            }
+                        },
+                        "spacing": {
+                            "padding": "18 24 0 24",
+                            "margin": "0 0 0 0",
+                            "offset": "30 20"
+                        },
+                        "container": {
+                            "justifyContent": "center",
+                            "alignItems": "center",
+                            "overflow":"visible",
+                            "blur": 5
+                        },
+                        "flexChild": {
+                            "alignSelf": "center"
+                        },
+                        "border": {
+                            "borderRadius": 10,
+                            "borderWidth": "2 1 2 1",
+                            "borderColor": {
+                                "light": "#000000",
+                                "dark": "#000000"
+                            }
+                        }
+                    }
+                }
+            ]
+        }
+    },
+    "children": [
+        {
+            "type": "BasicText",
+            "node": {
+                "value": "Jenny, thank you for your purchase:",
+                "styles": {
+                    "elements": {
+                        "own": [
+                            {
+                                "default": {
+                                    "text": {
+                                        "fontSize": 12,
+                                        "fontWeight": "700",
+                                        "fontFamily": "Arial",
+                                        "lineHeight": 14
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    ]
+}

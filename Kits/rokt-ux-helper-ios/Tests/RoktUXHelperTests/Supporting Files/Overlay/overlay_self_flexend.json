@@ -1,0 +1,71 @@
+{
+    "allowBackdropToClose": false,
+    "styles": {
+        "elements": {
+            "own": [
+                {
+                    "default": {
+                        "spacing": {
+                            "margin": "0 0 0 0"
+                        },
+                        "border":{
+                           "borderWidth":"2",
+                           "borderColor":{
+                              "light":"#FF0000"
+                           }
+                        },
+                        "dimension": {
+                            "height": {
+                                "type": "percentage",
+                                "value": 40
+                            }
+                        },
+                        "flexChild": {
+                            "alignSelf": "flex-end"
+                        }
+                    }
+                }
+            ],
+            "wrapper": [
+                {
+                    "default": {
+                        "background": {
+                            "backgroundColor": {
+                                "light": "#520E0A13",
+                                "dark": "#520E0A13"
+                            }
+                        }
+                    }
+                }
+            ]
+        }
+    },
+    "children": [
+        {
+            "value":"Order Number: Uk171359906",
+            "styles":{
+                "elements":{
+                    "own":[
+                        {
+                            "default":{
+                                "text":{
+                                    "fontFamily":"arial",
+                                    "fontSize":20,
+                                    "textTransform":"uppercase",
+                                    "textColor": {
+                                        "light": "#000000"
+                                    }
+                                },
+                                "spacing":{
+                                    "padding":"1 0 1 8",
+                                    "margin":"0 0 16 0"
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+    ]
+}
+

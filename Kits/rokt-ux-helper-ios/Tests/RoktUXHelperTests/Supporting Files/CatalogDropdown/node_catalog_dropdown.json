@@ -1,0 +1,247 @@
+{
+    "a11yLabel": "Select variant",
+    "placeholderValue": "Please select",
+    "unavailableValue": "Out of stock",
+    "styles": {
+        "elements": {
+            "own": [
+                {
+                    "default": {
+                        "flexChild": {
+                            "alignSelf": "center"
+                        },
+                        "text": {
+                            "fontSize": 14,
+                            "textColor": {
+                                "light": "#262626"
+                            },
+                            "lineHeight": 20
+                        }
+                    }
+                }
+            ],
+            "head": [
+                {
+                    "default": {
+                        "background": {
+                            "backgroundColor": {
+                                "light": "#F5F5F5"
+                            }
+                        },
+                        "border": {
+                            "borderColor": {
+                                "light": "#D0D5DD"
+                            },
+                            "borderRadius": 8,
+                            "borderStyle": "solid",
+                            "borderWidth": "1"
+                        },
+                        "spacing": {
+                            "padding": "12 16"
+                        },
+                        "dimension": {
+                            "width": {
+                                "type": "percentage",
+                                "value": 100
+                            },
+                            "height": {
+                                "type": "fixed",
+                                "value": 44
+                            }
+                        },
+                        "text": {
+                            "fontSize": 14,
+                            "textColor": {
+                                "light": "#262626"
+                            },
+                            "lineHeight": 20
+                        },
+                        "container": {
+                            "alignItems": "center",
+                            "justifyContent": "center"
+                        }
+                    },
+                    "hovered": {
+                        "border": {
+                            "borderColor": {
+                                "light": "#98A2B3"
+                            }
+                        }
+                    },
+                    "focussed": {
+                        "border": {
+                            "borderColor": {
+                                "light": "#667085"
+                            }
+                        }
+                    },
+                    "errored": {
+                        "border": {
+                            "borderColor": {
+                                "light": "#F04438"
+                            }
+                        }
+                    }
+                }
+            ],
+            "icon": [
+                {
+                    "default": {
+                        "text": {
+                            "fontSize": 12,
+                            "textColor": {
+                                "light": "#666666"
+                            }
+                        },
+                        "dimension": {
+                            "width": {
+                                "type": "fixed",
+                                "value": 20
+                            }
+                        }
+                    }
+                }
+            ],
+            "optionList": [
+                {
+                    "default": {
+                        "border": {
+                            "borderColor": {
+                                "light": "#D0D5DD"
+                            },
+                            "borderRadius": 8,
+                            "borderStyle": "solid",
+                            "borderWidth": "1"
+                        },
+                        "dimension": {
+                            "width": {
+                                "type": "percentage",
+                                "value": 100
+                            },
+                            "height": {
+                                "type": "fit",
+                                "value": "wrap-content"
+                            }
+                        },
+                        "spacing": {
+                            "margin": "0 4"
+                        },
+                        "container": {
+                            "overflow": "visible"
+                        }
+                    }
+                }
+            ],
+            "option": [
+                {
+                    "default": {
+                        "background": {
+                            "backgroundColor": {
+                                "light": "#FFFFFF"
+                            }
+                        },
+                        "border": {
+                            "borderColor": {
+                                "light": "#CFCFCF"
+                            },
+                            "borderStyle": "solid",
+                            "borderWidth": "0 0 1 0"
+                        },
+                        "spacing": {
+                            "padding": "12 12"
+                        },
+                        "dimension": {
+                            "height": {
+                                "type": "fixed",
+                                "value": 44
+                            }
+                        },
+                        "container": {
+                            "alignItems": "center",
+                            "justifyContent": "flex-start",
+                            "gap": 8
+                        },
+                        "text": {
+                            "fontSize": 14,
+                            "textColor": {
+                                "light": "#262626"
+                            },
+                            "lineHeight": 20
+                        }
+                    },
+                    "selected": {
+                        "dimension": {
+                            "height": {
+                                "type": "fixed",
+                                "value": 44
+                            }
+                        },
+                        "background": {
+                            "backgroundColor": {
+                                "light": "#CFCFCF"
+                            }
+                        },
+                        "spacing": {
+                            "padding": "12 12"
+                        }
+                    },
+                    "disabled": {
+                        "background": {
+                            "backgroundColor": {
+                                "light": "#FFFFFF"
+                            }
+                        },
+                        "border": {
+                            "borderColor": {
+                                "light": "#CFCFCF"
+                            },
+                            "borderStyle": "solid",
+                            "borderWidth": "0 0 1 0"
+                        },
+                        "spacing": {
+                            "padding": "12 12"
+                        },
+                        "dimension": {
+                            "height": {
+                                "type": "fixed",
+                                "value": 44
+                            }
+                        },
+                        "container": {
+                            "alignItems": "center",
+                            "justifyContent": "flex-start",
+                            "gap": 8
+                        }
+                    }
+                }
+            ],
+            "error": [
+                {
+                    "default": {
+                        "text": {
+                            "fontSize": 12,
+                            "textColor": {
+                                "light": "#FF0000"
+                            }
+                        },
+                        "spacing": {
+                            "padding": "4 0 0 0"
+                        }
+                    }
+                }
+            ]
+        }
+    },
+    "validatorFieldConfig": {
+        "validationFieldKey": "dropDownSelection",
+        "validators": [
+            {
+                "type": "Required",
+                "value": {
+                    "message": "Please select an option"
+                }
+            }
+        ],
+        "validateOnChange": true
+    }
+}

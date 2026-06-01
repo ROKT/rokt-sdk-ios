@@ -1,0 +1,59 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+# Code Review and Architectural Decision Guidelines
+
+## Before Making Architectural Changes
+
+**ALWAYS review the existing codebase thoroughly before proposing architectural changes.** This project has established patterns and conventions that must be understood and respected.
+
+## Required Review Steps
+
+### 1. Understand Existing Architecture
+- **Review the entire `Sources/RoktUXHelper/` directory structure**
+- **Examine existing patterns** in similar components
+- **Understand the current MVVM implementation** and service layer architecture
+- **Review test patterns** in `Tests/RoktUXHelperTests/`
+
+### 2. Analyze Related Components
+- **Look for similar implementations** before creating new patterns
+- **Check existing services** in the Services directory
+- **Review UI components** in the Components directory
+- **Understand data models** and their relationships
+
+### 3. Check for Existing Solutions
+- **Search for similar functionality** that might already exist
+- **Review utility extensions** in the Utils directory
+- **Check for existing protocols** or base classes
+- **Look for configuration patterns** already established
+
+### 4. Consider Impact
+- **Evaluate backward compatibility** (iOS 12.0+ requirement)
+- **Assess test coverage** impact
+- **Consider performance implications** for mobile devices
+- **Review dependency impact** on Package.swift
+
+## Architectural Principles
+
+- **Follow existing patterns** rather than introducing new ones
+- **Maintain consistency** with current codebase style
+- **Preserve separation of concerns** (Data, Domain, UI layers)
+- **Respect existing abstractions** and interfaces
+- **Consider the Example app** usage patterns
+
+## When Proposing Changes
+
+1. **Document existing patterns** you found during review
+2. **Explain why existing solutions** don't meet the need
+3. **Show how your proposal** aligns with current architecture
+4. **Provide examples** of similar implementations in the codebase
+5. **Consider the impact** on existing functionality
+
+## Red Flags
+
+- **Don't propose changes** without reviewing related code
+- **Don't introduce new patterns** without understanding existing ones
+- **Don't break established conventions** without strong justification
+- **Don't ignore existing utility functions** or extensions

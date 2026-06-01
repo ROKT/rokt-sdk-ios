@@ -1,0 +1,28 @@
+{
+    "type": "GroupedDistribution",
+    "node": {
+        "viewableItems": [2, 1],
+        "transition": {
+            "type": "FadeInOut",
+            "settings": {
+                "duration": 300
+            }
+        },
+        "styles": {
+            "elements": {
+                "own": [
+                    {
+                        "default": {
+                            "spacing": {
+                                "padding": "3 4 5 6"
+                            },
+                            "flexChild": {
+                                "weight": 1
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    }
+}

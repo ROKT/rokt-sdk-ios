@@ -1,0 +1,46 @@
+{
+    "type": "OneByOneDistribution",
+    "node": {
+        "transition":{
+            "type":"FadeInOut",
+            "settings":{
+                "duration":10
+            }
+        },
+        "styles": {
+            "elements": {
+                "own": [
+                    {
+                        "default": {
+                            "spacing": {
+                                "padding": "3 4 5 6"
+                            },
+                            "background": {
+                                "backgroundColor": {
+                                    "light": "#000000"
+                                }
+                            },
+                            "dimension": {
+                                "width": {
+                                    "type": "fit",
+                                    "value": "fit-width"
+                                }
+                            },
+                            "container": {
+                                "justifyContent": "center"
+                            }
+                        }
+                    },
+                    {
+                        "default": {
+                            "spacing": {
+                                "padding": "5 5 5 5",
+                                "margin": "10"
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    }
+}

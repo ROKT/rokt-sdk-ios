@@ -1,0 +1,29 @@
+{
+    "imageKey": "creativeImage",
+    "styles": {
+        "elements": {
+            "own": [
+                {
+                    "default": {
+                        "dimension": {
+                            "height": {
+                                "type": "fixed",
+                                "value": 100
+                            }
+                        },
+                        "background": {
+                            "backgroundColor": {
+                                "light": "#F5C1C4",
+                                "dark": "#F5C1C4"
+                            }
+                        },
+                        "spacing": {
+                            "padding": "18 24 0 24",
+                            "margin": "0 0 0 0",
+                        }
+                    }
+                }
+            ]
+        }
+    }
+}

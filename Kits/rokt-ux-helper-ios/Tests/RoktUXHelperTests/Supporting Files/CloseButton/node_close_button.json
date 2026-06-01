@@ -1,0 +1,64 @@
+{
+    "styles": {
+        "elements": {
+            "own": [
+                {
+                    "default": {
+                        "dimension": {
+                            "width": {
+                                "value": 30,
+                                "type": "fixed"
+                            },
+                            "height": {
+                                "value": 30,
+                                "type": "fixed"
+                            }
+                        },
+                        "spacing": {
+                            "padding": "10 10 10 10"
+                        },
+                        "background": {
+                            "backgroundColor": {
+                                "light": "#ffffff"
+                            }
+                        }
+                    },
+                    "pressed": {
+                        "background": {
+                            "backgroundColor": {
+                                "light": "#d51a1a"
+                            }
+                        }
+                    }
+                }
+            ]
+        }
+    },
+    "children": [
+        {
+            "type": "BasicText",
+            "node": {
+                "value": "X",
+                "styles": {
+                    "elements": {
+                        "own": [
+                            {
+                                "default": {
+                                    "text": {
+                                        "fontFamily": "arial",
+                                        "fontSize": 12,
+                                        "fontWeight": "500",
+                                        "lineHeight": 14,
+                                        "textColor": {
+                                            "light": "#000000"
+                                        }
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    ]
+}

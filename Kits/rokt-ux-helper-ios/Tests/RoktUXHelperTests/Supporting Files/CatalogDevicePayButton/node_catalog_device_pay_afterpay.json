@@ -1,0 +1,71 @@
+{
+  "provider": "Afterpay",
+  "children": [
+      {
+          "type": "BasicText",
+          "node": {
+              "value": "Afterpay",
+              "styles": {
+                  "elements": {
+                      "own": [
+                          {
+                              "default": {
+                                  "text": {
+                                      "fontSize": 16,
+                                      "fontWeight": "600",
+                                      "textColor": {
+                                          "light": "#FFFFFF"
+                                      }
+                                  },
+                                  "flexChild": {
+                                      "alignSelf": "center"
+                                  },
+                                  "container": {
+                                      "alignItems": "center",
+                                      "justifyContent": "center"
+                                  }
+                              }
+                          }
+                      ]
+                  }
+              }
+          }
+      }
+  ],
+  "styles": {
+      "elements": {
+          "own": [
+              {
+                  "default": {
+                      "container": {
+                          "alignItems": "center",
+                          "justifyContent": "center"
+                      },
+                      "dimension": {
+                          "width": {
+                              "type": "fit",
+                              "value": "fit-width"
+                          },
+                          "height": {
+                              "type": "fixed",
+                              "value": 54
+                          }
+                      },
+                      "border": {
+                          "borderRadius": 6
+                      },
+                      "background": {
+                          "backgroundColor": {
+                              "light": "#000000"
+                          }
+                      },
+                      "spacing": {
+                          "padding": "5",
+                          "margin": "16 0 0 0"
+                      }
+                  }
+              }
+          ]
+      }
+  }
+}

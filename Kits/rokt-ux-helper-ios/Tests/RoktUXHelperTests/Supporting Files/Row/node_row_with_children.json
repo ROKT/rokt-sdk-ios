@@ -1,0 +1,126 @@
+{
+    "styles": {
+        "elements": {
+            "own": [
+                {
+                    "default": {
+                        "background": {
+                            "backgroundColor": {
+                                "light": "#F5C1C4",
+                                "dark": "#F5C1C4"
+                            }
+                        },
+                        "spacing": {
+                            "padding": "18 24 0 24",
+                            "margin": "0 0 0 0",
+                        },
+                        "container": {
+                            "justifyContent": "center",
+                            "alignItems": "center"
+                        },
+                        "flexChild": {
+                            "alignSelf": "center"
+                        }
+                    }
+                },
+                {
+                    "default": {
+                        "spacing": {
+                            "padding": "10 10 10 10",
+                            "margin": "0 0 0 0",
+                        }
+                    }
+                }
+            ]
+        }
+    },
+    "children": [
+        {
+            "type": "BasicText",
+            "node": {
+                "value": "Jenny, thank you for your purchase:",
+                "styles": {
+                    "elements": {
+                        "own": [
+                            {
+                                "default": {
+                                    "text": {
+                                        "fontSize": 12,
+                                        "fontWeight": "700",
+                                        "fontFamily": "Arial",
+                                        "lineHeight": 14
+                                    },
+                                    "flexChild": {
+                                        "alignSelf": "center"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        },
+        {
+            "type": "RichText",
+            "node": {
+                "value": "Thanks! Your order # is",
+                "styles": {
+                    "elements": {
+                        "own": [
+                            {
+                                "default": {
+                                    "text": {
+                                        "fontSize": 15,
+                                        "fontFamily": "GorditaBold",
+                                        "textColor": {
+                                            "light": "#000000",
+                                            "dark": "#ffffff"
+                                        }
+                                    },
+                                    "spacing": {
+                                        "margin": "0 8 0 8"
+                                    },
+                                    "flexChild": {
+                                        "weight": 1
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        },
+        {
+            "type": "CloseButton",
+            "node": {
+                "children": [
+                    {
+                        "type": "BasicText",
+                        "node": {
+                            "value": "X",
+                            "styles": {
+                                "elements": {
+                                    "own": [
+                                        {
+                                            "default": {
+                                                "text": {
+                                                    "fontFamily": "arial",
+                                                    "fontSize": 12,
+                                                    "fontWeight": "500",
+                                                    "lineHeight": 14,
+                                                    "textColor": {
+                                                        "light": "#000000"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    ]
+}

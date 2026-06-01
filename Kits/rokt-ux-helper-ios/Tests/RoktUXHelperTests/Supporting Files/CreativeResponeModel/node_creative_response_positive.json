@@ -1,0 +1,61 @@
+{
+  "type": "CreativeResponse",
+  "node": {
+    "responseKey": "positive",
+    "styles": {
+      "elements": {
+        "own": [
+          {
+            "default": {
+              "spacing": {
+                "padding": "10 10 10 10"
+              },
+              "background": {
+                "backgroundColor": {
+                  "light": "#000000"
+                }
+              },
+              "dimension": {
+                "width": {
+                  "type": "fit",
+                  "value": "fit-width"
+                }
+              },
+              "container": {
+                "justifyContent": "center"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "children": [
+      {
+        "type": "BasicText",
+        "node": {
+          "styles": {
+            "elements": {
+              "own": [
+                {
+                  "default": {
+ 
+                    "text": {
+                      "textColor": {
+                        "light": "#FFFFFF"
+                      },
+                      "fontSize": 12,
+                      "fontWeight": "500",
+                      "lineHeight": 5,
+                      "fontFamily":"Arial"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "value": "%^DATA.creativeResponse.shortLabel^%"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,61 @@
+{
+    "children": [
+        {
+            "type": "BasicText",
+            "node": {
+                "value": "Add to order",
+                "styles": {
+                    "elements": {
+                        "own": [
+                            {
+                                "default": {
+                                    "text": {
+                                        "fontSize": 12,
+                                        "fontWeight": "600",
+                                        "textColor": {
+                                            "light": "#FFFFFF"
+                                        }
+                                    },
+                                    "flexChild": {
+                                        "alignSelf": "center"
+                                    },
+                                    "container": {
+                                        "alignItems": "center",
+                                        "justifyContent": "center"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    ],
+    "styles": {
+        "elements": {
+            "own": [
+                {
+                    "default": {
+                        "container": {
+                            "alignItems": "flex-start",
+                            "justifyContent": "center"
+                        },
+                        "border": {
+                            "borderRadius": 4
+                        },
+                        "background": {
+                            "backgroundColor": {
+                                "light": "#CC0000"
+                            }
+                        },
+                        "spacing": {
+                            "padding": "5",
+                            "margin": "24 0"
+                        }
+                    }
+                }
+            ]
+        }
+    }
+}
+

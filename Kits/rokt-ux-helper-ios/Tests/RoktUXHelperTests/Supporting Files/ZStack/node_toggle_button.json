@@ -1,0 +1,39 @@
+{
+    "customStateKey": "stateKey",
+    "styles": {
+        "elements": {
+            "own": [
+                {
+                    "default": {
+                        "background": {
+                            "backgroundColor": {
+                                "light": "#FFFFFF",
+                                "dark": "#000000"
+                            }
+                        },
+                        "container": {
+                            "justifyContent": "center"
+                        }
+                    },
+                    "pressed": {
+                        "background": {
+                            "backgroundColor": {
+                                "light": "#F5C1C4"
+                            }
+                        }
+                    }
+                },
+                {
+                    "default": {
+                        "background": {
+                            "backgroundColor": {
+                                "light": "#F2A7AB"
+                            }
+                        }
+                    }
+                }
+            ]
+        }
+    },
+    "children": []
+}

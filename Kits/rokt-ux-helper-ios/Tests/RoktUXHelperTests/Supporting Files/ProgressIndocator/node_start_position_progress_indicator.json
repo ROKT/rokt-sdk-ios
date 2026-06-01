@@ -1,0 +1,73 @@
+{
+    "indicator": "%^STATE.IndicatorPosition^%",
+    "startPosition": 2,
+    "styles": {
+        "elements": {
+            "own": [
+                {
+                    "default": {
+                        "container": {
+                            "justifyContent": "center"
+                        },
+                        "spacing": {
+                            "padding": "10 10 10 10"
+                        },
+                        "flexChild": {
+                            "alignSelf": "center"
+                        }
+                    }
+                }
+            ],
+            "indicator": [
+                {
+                    "default": {
+                        "container": {
+                            "alignItems": "center",
+                            "justifyContent": "center"
+                        },
+                        "border": {
+                            "borderRadius": 10
+                        },
+                        "background": {
+                            "backgroundColor": {
+                                "light": "#ff0000",
+                                "dark": "#ff0000"
+                            }
+                        },
+                        "dimension": {
+                            "width": {
+                                "type": "fixed",
+                                "value": 20
+                            },
+                            "height": {
+                                "type": "fixed",
+                                "value": 20
+                            }
+                        },
+                        "text": {
+                            "textColor": {
+                                "light": "#000000",
+                                "dark": "#000000"
+                            },
+                            "horizontalTextAlign": "center",
+                            "fontSize": 8,
+                            "fontFamily": "arial"
+                        }
+                    }
+                }
+            ],
+            "activeIndicator": [
+                {
+                    "default": {
+                        "background": {
+                            "backgroundColor": {
+                                "light": "#F5C1C4",
+                                "dark": "#F5C1C4"
+                            }
+                        }
+                    }
+                }
+            ]
+        }
+    }
+}
