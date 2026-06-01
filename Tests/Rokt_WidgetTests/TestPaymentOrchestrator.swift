@@ -450,7 +450,7 @@ class TestPaymentOrchestrator: XCTestCase {
         }
 
         wait(for: [expectation], timeout: 1.0)
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "APPLE_PAY")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethodType, "ApplePay")
         XCTAssertNil(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider)
     }
 
@@ -555,7 +555,7 @@ class TestPaymentOrchestrator: XCTestCase {
         }
 
         wait(for: [expectation], timeout: 1.0)
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "APPLE_PAY")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethodType, "ApplePay")
         XCTAssertNil(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider)
     }
 
@@ -607,10 +607,10 @@ class TestPaymentOrchestrator: XCTestCase {
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.initializePurchaseCallCount, 1)
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchaseReturnURL, "myapp://paypal/success")
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchaseCancelURL, "myapp://paypal/cancel")
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "PAYPAL")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethodType, "Paypal")
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "PayPal")
         // Tripwire against re-introducing the legacy lowercase tokens.
-        XCTAssertNotEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "paypal")
+        XCTAssertNotEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethodType, "paypal")
         XCTAssertNotEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "paypal")
         XCTAssertEqual(payPalPresenter.presentCallCount, 1)
         XCTAssertEqual(payPalPresenter.lastApprovalURL?.absoluteString, "https://www.paypal.com/checkoutnow?token=MOCK")
@@ -648,7 +648,7 @@ class TestPaymentOrchestrator: XCTestCase {
         wait(for: [expectation], timeout: 1.0)
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchaseReturnURL, "myapp://paypal/success")
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchaseCancelURL, "myapp://paypal/cancel")
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "PAYPAL")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethodType, "Paypal")
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "PayPal")
     }
 
@@ -682,7 +682,7 @@ class TestPaymentOrchestrator: XCTestCase {
         }
         _ = sut.presentPendingBuiltInPayPalForForwardPayment { _ in }
         wait(for: [paypalExpectation], timeout: 1.0)
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "PAYPAL")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethodType, "Paypal")
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "PayPal")
         XCTAssertEqual(ext.presentPaymentSheetCallCount, 0, "PayPal must not use PaymentExtension.presentPaymentSheet")
 
@@ -777,7 +777,7 @@ class TestPaymentOrchestrator: XCTestCase {
         }
 
         wait(for: [expectation], timeout: 1.0)
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "APPLE_PAY")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethodType, "ApplePay")
         XCTAssertNil(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider)
     }
 
@@ -814,7 +814,7 @@ class TestPaymentOrchestrator: XCTestCase {
 
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.initializePurchaseCallCount, 1)
         // Built-in card forwarding passes `CARD` / `Card` as the cart wire values.
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "CARD")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethodType, "Card")
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "Card")
         XCTAssertNil(PaymentOrchestratorAPIHelperSpy.lastInitializePurchaseReturnURL)
         XCTAssertNil(PaymentOrchestratorAPIHelperSpy.lastInitializePurchaseCancelURL)
@@ -1054,15 +1054,17 @@ class TestPaymentOrchestrator: XCTestCase {
 
     // MARK: - cart wire-value helpers
 
-    func test_cartPaymentMethodWireValue_returnsUppercaseTokensForAllMethods() {
-        // Matches LayoutPaymentMethodType (web SDK) and PaymentMethod.MethodType rawValues
-        // decoded from backend transactionData.
-        XCTAssertEqual(PaymentOrchestrator.cartPaymentMethodWireValue(for: .applePay), "APPLE_PAY")
-        XCTAssertEqual(PaymentOrchestrator.cartPaymentMethodWireValue(for: .card), "CARD")
-        XCTAssertEqual(PaymentOrchestrator.cartPaymentMethodWireValue(for: .paypal), "PAYPAL")
-        // Cart wire (`AFTERPAY`) intentionally diverges from `PaymentMethodType.wireValue`
+    func test_cartPaymentMethodTypeWireValue_returnsPascalCaseMemberNamesForAllMethods() {
+        // PascalCase cart-api `PaymentMethodType` member names — the same vocabulary DCUI
+        // returns in `paymentProvider`, accepted by cart-api (Newtonsoft matches member names
+        // case-insensitively). Note `.applePay` is `"ApplePay"`, NOT the `TransactionData.type`
+        // token `"APPLE_PAY"`, which would not deserialize into the cart-api enum.
+        XCTAssertEqual(PaymentOrchestrator.cartPaymentMethodTypeWireValue(for: .applePay), "ApplePay")
+        XCTAssertEqual(PaymentOrchestrator.cartPaymentMethodTypeWireValue(for: .card), "Card")
+        XCTAssertEqual(PaymentOrchestrator.cartPaymentMethodTypeWireValue(for: .paypal), "Paypal")
+        // Cart wire (`Afterpay`) intentionally diverges from `PaymentMethodType.wireValue`
         // (`afterpay_clearpay`, used for extension matching).
-        XCTAssertEqual(PaymentOrchestrator.cartPaymentMethodWireValue(for: .afterpay), "AFTERPAY")
+        XCTAssertEqual(PaymentOrchestrator.cartPaymentMethodTypeWireValue(for: .afterpay), "Afterpay")
         XCTAssertEqual(PaymentMethodType.afterpay.wireValue, "afterpay_clearpay")
     }
 
@@ -1107,7 +1109,7 @@ class TestPaymentOrchestrator: XCTestCase {
         preparePayment(address) { _, _ in expectation.fulfill() }
         wait(for: [expectation], timeout: 1.0)
 
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "APPLE_PAY")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethodType, "ApplePay")
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "Stripe")
     }
 
@@ -1142,7 +1144,7 @@ class TestPaymentOrchestrator: XCTestCase {
         preparePayment(address) { _, _ in expectation.fulfill() }
         wait(for: [expectation], timeout: 1.0)
 
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "CARD")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethodType, "Card")
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "Stripe")
     }
 
@@ -1176,8 +1178,8 @@ class TestPaymentOrchestrator: XCTestCase {
         preparePayment(address) { _, _ in expectation.fulfill() }
         wait(for: [expectation], timeout: 1.0)
 
-        // Cart wire is "AFTERPAY", not the extension-matching "afterpay_clearpay".
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "AFTERPAY")
+        // Cart wire is "Afterpay" (cart-api member name), not the extension-matching "afterpay_clearpay".
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethodType, "Afterpay")
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "Afterpay")
     }
 
@@ -1211,7 +1213,7 @@ class TestPaymentOrchestrator: XCTestCase {
         preparePayment(address) { _, _ in expectation.fulfill() }
         wait(for: [expectation], timeout: 1.0)
 
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "APPLE_PAY")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethodType, "ApplePay")
         XCTAssertNil(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider)
     }
 
@@ -1235,7 +1237,7 @@ class TestPaymentOrchestrator: XCTestCase {
             builtInPayPalDevicePaySession: paypalDeviceSessionForTests()
         ) { _ in }
 
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "PAYPAL")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethodType, "Paypal")
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "PayPal")
     }
 
@@ -1266,7 +1268,7 @@ class TestPaymentOrchestrator: XCTestCase {
 
         wait(for: [confirmationExpectation], timeout: 1.0)
 
-        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethod, "CARD")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethodType, "Card")
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "Card")
     }
 }
@@ -1276,7 +1278,7 @@ class PaymentOrchestratorAPIHelperSpy: RoktAPIHelper {
     static var initializePurchaseCallCount = 0
     static var lastInitializePurchaseReturnURL: String?
     static var lastInitializePurchaseCancelURL: String?
-    static var lastInitializePurchasePaymentMethod: String?
+    static var lastInitializePurchasePaymentMethodType: String?
     static var lastInitializePurchasePaymentProvider: String?
     static var lastInitializePurchaseShippingAttributes: ShippingAttributes?
     static var sendDiagnosticsCallCount = 0
@@ -1290,7 +1292,7 @@ class PaymentOrchestratorAPIHelperSpy: RoktAPIHelper {
         initializePurchaseCallCount = 0
         lastInitializePurchaseReturnURL = nil
         lastInitializePurchaseCancelURL = nil
-        lastInitializePurchasePaymentMethod = nil
+        lastInitializePurchasePaymentMethodType = nil
         lastInitializePurchasePaymentProvider = nil
         lastInitializePurchaseShippingAttributes = nil
         sendDiagnosticsCallCount = 0
@@ -1305,7 +1307,7 @@ class PaymentOrchestratorAPIHelperSpy: RoktAPIHelper {
         shippingAttributes: ShippingAttributes,
         returnURL: String? = nil,
         cancelURL: String? = nil,
-        paymentMethod: String? = nil,
+        paymentMethodType: String? = nil,
         paymentProvider: String? = nil,
         success: ((InitializePurchaseResponse) -> Void)?,
         failure: ((Error, Int?, String) -> Void)?
@@ -1313,7 +1315,7 @@ class PaymentOrchestratorAPIHelperSpy: RoktAPIHelper {
         initializePurchaseCallCount += 1
         lastInitializePurchaseReturnURL = returnURL
         lastInitializePurchaseCancelURL = cancelURL
-        lastInitializePurchasePaymentMethod = paymentMethod
+        lastInitializePurchasePaymentMethodType = paymentMethodType
         lastInitializePurchasePaymentProvider = paymentProvider
         lastInitializePurchaseShippingAttributes = shippingAttributes
         if let initializePurchaseResponse {

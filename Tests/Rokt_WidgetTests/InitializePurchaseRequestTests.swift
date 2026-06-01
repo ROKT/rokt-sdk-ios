@@ -2,7 +2,7 @@ import XCTest
 @testable import Rokt_Widget
 
 final class InitializePurchaseRequestTests: XCTestCase {
-    func test_toDictionary_omitsPaymentMethodAndProviderWhenNil() {
+    func test_toDictionary_omitsPaymentMethodTypeAndProviderWhenNil() {
         let upsell = UpsellItem(
             cartItemId: "c1",
             catalogItemId: "cat1",
@@ -18,17 +18,17 @@ final class InitializePurchaseRequestTests: XCTestCase {
             fulfillmentDetails: nil,
             returnURL: nil,
             cancelURL: nil,
-            paymentMethod: nil,
+            paymentMethodType: nil,
             paymentProvider: nil
         )
 
         let dict = request.toDictionary()
 
-        XCTAssertNil(dict["paymentMethod"] as? String)
+        XCTAssertNil(dict["paymentMethodType"] as? String)
         XCTAssertNil(dict["paymentProvider"] as? String)
     }
 
-    func test_toDictionary_includesPaymentMethodAndProviderWhenSet() {
+    func test_toDictionary_includesPaymentMethodTypeAndProviderWhenSet() {
         let upsell = UpsellItem(
             cartItemId: "c1",
             catalogItemId: "cat1",
@@ -44,13 +44,13 @@ final class InitializePurchaseRequestTests: XCTestCase {
             fulfillmentDetails: nil,
             returnURL: nil,
             cancelURL: nil,
-            paymentMethod: "APPLE_PAY",
+            paymentMethodType: "ApplePay",
             paymentProvider: "Stripe"
         )
 
         let dict = request.toDictionary()
 
-        XCTAssertEqual(dict["paymentMethod"] as? String, "APPLE_PAY")
+        XCTAssertEqual(dict["paymentMethodType"] as? String, "ApplePay")
         XCTAssertEqual(dict["paymentProvider"] as? String, "Stripe")
     }
 }
