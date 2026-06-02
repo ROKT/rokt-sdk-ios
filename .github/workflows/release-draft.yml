@@ -51,7 +51,6 @@ jobs:
         run: |
           version="${{ steps.bump-version.outputs.new_version }}"
           echo "$version" > VERSION
-          echo "$version" > Packages/rokt-ux-helper-ios/VERSION
           echo "$version" > Packages/rokt-payment-extension-ios/VERSION
 
       - name: Update library version in source
@@ -62,7 +61,7 @@ jobs:
       - name: Update all podspec versions
         run: |
           version="${{ steps.bump-version.outputs.new_version }}"
-          for podspec in Rokt-Widget.podspec Packages/rokt-ux-helper-ios/RoktUXHelper.podspec Packages/rokt-payment-extension-ios/RoktPaymentExtension.podspec; do
+          for podspec in Rokt-Widget.podspec Packages/rokt-payment-extension-ios/RoktPaymentExtension.podspec; do
             sed -i '' "s/s\.version[[:space:]]*=[[:space:]]*'[0-9.]*'/s.version          = '${version}'/" "$podspec"
             sed -i '' "s/s\.version[[:space:]]*=[[:space:]]*\"[0-9.]*\"/s.version          = \"${version}\"/" "$podspec"
           done
@@ -83,7 +82,7 @@ jobs:
           title: "Release ${{ steps.bump-version.outputs.new_version }}"
           base: ${{ github.ref_name }}
           body: |
-            Ecosystem release **${{ steps.bump-version.outputs.new_version }}** — same version for `Rokt-Widget`, `RoktUXHelper`, and `RoktPaymentExtension` (root `VERSION`, mirrored package `VERSION` files, and all podspecs).
+            Ecosystem release **${{ steps.bump-version.outputs.new_version }}** — same version for `Rokt-Widget` and `RoktPaymentExtension` (root `VERSION`, mirrored package `VERSION`, and podspecs).
 
             ## Changelog
             ${{ steps.changelog.outputs.release-notes }}

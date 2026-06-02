@@ -1,11 +1,12 @@
 # Monorepo layout
 
-This repository is the **canonical** home for the Rokt iOS SDK (`Rokt-Widget`) and includes **git subtree** copies of:
+This repository is the **canonical** home for the Rokt iOS SDK (`Rokt-Widget`) and includes a **git subtree** copy of:
 
-- [`Packages/rokt-ux-helper-ios/`](Packages/rokt-ux-helper-ios/) → mirrored to [ROKT/rokt-ux-helper-ios](https://github.com/ROKT/rokt-ux-helper-ios)
 - [`Packages/rokt-payment-extension-ios/`](Packages/rokt-payment-extension-ios/) → mirrored to [ROKT/rokt-payment-extension-ios](https://github.com/ROKT/rokt-payment-extension-ios)
 
-[`Packages/matrix.json`](Packages/matrix.json) drives **Release – Publish** mirror and CocoaPods steps (same idea as mParticle’s `Kits/matrix.json`). Add a new object to the array to onboard another subtree mirror; use `cocoapods_publish_order` so trunk pushes stay in the right order before `Rokt-Widget`.
+The SDK depends on **RoktUXHelper** via [`rokt-ux-helper-ios`](https://github.com/ROKT/rokt-ux-helper-ios): see [`Package.swift`](Package.swift) and `Rokt-Widget.podspec`.
+
+[`Packages/matrix.json`](Packages/matrix.json) drives **Release – Publish** mirror and CocoaPods steps for the payment extension only (same idea as mParticle’s `Kits/matrix.json`). Add a new object to the array to onboard another subtree mirror; use `cocoapods_publish_order` so trunk pushes stay in the right order before `Rokt-Widget`.
 
 ## Matrix fields
 
@@ -27,24 +28,26 @@ The matrix must stay a **non-empty** JSON array so the mirror matrix job has at 
 **Root `VERSION` is the single source of truth.** On every release, the same semver is written to:
 
 - `VERSION` (Rokt-Widget)
-- `Packages/rokt-ux-helper-ios/VERSION` and `Packages/rokt-payment-extension-ios/VERSION`
-- `Rokt-Widget.podspec`, `RoktUXHelper.podspec`, and `RoktPaymentExtension.podspec` (`s.version`)
+- `Packages/rokt-payment-extension-ios/VERSION`
+- `Rokt-Widget.podspec` and `RoktPaymentExtension.podspec` (`s.version` for the widget and payment extension)
 
-Mirrors and CocoaPods tags for the standalone repos use **that same version** as `rokt-sdk-ios`.
+`Rokt-Widget.podspec` declares **`RoktUXHelper`** for CocoaPods (see podspec); that library is released from [`rokt-ux-helper-ios`](https://github.com/ROKT/rokt-ux-helper-ios).
 
-Partners who previously consumed **RoktUXHelper** on an independent **0.x** line must move to **the same major/minor/patch as the Rokt iOS SDK** (update SPM or CocoaPods constraints accordingly).
+Mirrors and CocoaPods tags for the payment extension use **that same version** as `rokt-sdk-ios`.
 
 ## Swift Package Manager
 
-Root [`Package.swift`](Package.swift) depends on UX Helper via a **local** package path (`Packages/rokt-ux-helper-ios`). Partners consuming UX Helper or the payment extension from GitHub still use the standalone URLs; those repos receive subtree mirrors and tags aligned with this monorepo’s `VERSION`.
+Partners consume **RoktUXHelper** from [`github.com/ROKT/rokt-ux-helper-ios`](https://github.com/ROKT/rokt-ux-helper-ios) (SPM or CocoaPods). This repo resolves it as a **remote** Swift package dependency (`Package.swift`).
 
 ## Pull request checks
 
-[Pull Request](.github/workflows/pull-request.yml) runs **`xcodebuild test`** from the root of each [`Packages/matrix.json`](Packages/matrix.json) `local_path` (same pattern as [mParticle kit SPM tests](https://github.com/mParticle/mparticle-apple-sdk/blob/main/.github/workflows/build-kits.yml)): resolve SwiftPM dependencies, derive the Xcode scheme from `Package.swift` (single-library packages use the package `name` as the scheme), then run that package’s unit tests on the iOS Simulator alongside the root `Rokt-Widget` SPM tests and Example scheme tests.
+[Pull Request](.github/workflows/pull-request.yml) runs **`xcodebuild test`** from the root of each [`Packages/matrix.json`](Packages/matrix.json) `local_path` for mirrored packages (same pattern as [mParticle kit SPM tests](https://github.com/mParticle/mparticle-apple-sdk/blob/main/.github/workflows/build-kits.yml)), alongside the root `Rokt-Widget` SPM tests and Example scheme tests.
 
-**Podspec lint** runs `pod lib lint Rokt-Widget.podspec` with `--include-podspecs=Packages/rokt-ux-helper-ios/RoktUXHelper.podspec` so `RoktUXHelper (= VERSION)` resolves from the monorepo; that version is not required to exist on CocoaPods trunk until **Release – Publish** pushes the mirrored pods.
+**Podspec lint** runs `pod lib lint Rokt-Widget.podspec` against CocoaPods trunk; **`RoktUXHelper`** must satisfy the range declared in `Rokt-Widget.podspec` (see podspec).
 
-**Periphery** (`.periphery.yml`) sets `exclude_tests: true` and excludes the **`RoktUXHelper`** / **`RoktPaymentExtension`** SPM targets (and their test targets). The Example app builds those packages but does not reference most of their symbols, which would otherwise produce false positives; the scan stays focused on **`Rokt_Widget`** (and the app) via the existing baseline.
+**Periphery** (`.periphery.yml`) sets `exclude_tests: true` and excludes **`RoktPaymentExtension`** (and its test target) so the Example app does not produce false positives for that vendored kit.
+
+## Release flow
 
 1. **Draft**: [Release – Draft](.github/workflows/release-draft.yml) — bump type only. Opens a PR that bumps the ecosystem version everywhere above and updates the root `CHANGELOG.md` (with `kits-path: Packages` for scoped entries).
 2. **Publish**: [Release – Publish](.github/workflows/release-publish.yml) runs when **`VERSION`** (root) or root **`CHANGELOG.md`** changes on `main` / `maintenance/*`.
@@ -52,26 +55,26 @@ Root [`Package.swift`](Package.swift) depends on UX Helper via a **local** packa
 **Release – Publish** (same commit / same version):
 
 - GitHub release + XCFramework on **this** repo (`rokt-sdk-ios`).
-- **`Packages/matrix.json`** is loaded once; each row runs a **parallel** mirror job (subtree split → push → GitHub release on that mirror, tag = root `VERSION`). Release notes come from each row’s `changelog_file` (typically root `CHANGELOG.md`).
+- **`Packages/matrix.json`** is loaded once; each row runs a **parallel** mirror job (subtree split → push → GitHub release on that mirror, tag = root `VERSION`).
 - One **sequential** job runs `pod trunk push` for each row’s `podspec`, ordered by `cocoapods_publish_order`.
-- **Rokt-Widget** publishes last; before that, the workflow waits on trunk for each row’s `pod_trunk_name` at the ecosystem version (`Rokt-Widget.podspec` pins `RoktUXHelper` with `s.version.to_s`).
+- **Rokt-Widget** publishes last; the workflow waits on trunk for each matrix `pod_trunk_name` at the ecosystem version, then validates and pushes `Rokt-Widget.podspec` (which must resolve **`RoktUXHelper`** on trunk within the declared range).
 
 ### GitHub App access
 
-The release GitHub App (`SDK_RELEASE_GITHUB_APP_ID` / `SDK_RELEASE_GITHUB_APP_PRIVATE_KEY`) must have **contents: write** on `rokt-ux-helper-ios` and `rokt-payment-extension-ios` under **ROKT**, plus any existing repos (e.g. `rokt-docs`, `rokt-demo-ios`).
+The release GitHub App (`SDK_RELEASE_GITHUB_APP_ID` / `SDK_RELEASE_GITHUB_APP_PRIVATE_KEY`) must have **contents: write** on `rokt-payment-extension-ios` under **ROKT** for subtree mirroring, plus any existing repos (e.g. `rokt-docs`, `rokt-demo-ios`).
 
 ### First-time subtree mirror
 
 If a mirror’s `main` is not subtree-compatible, a **one-time** force-push may be required. Prefer an empty mirror or subtree-only history for the first automated push.
 
-## Updating a subtree from upstream
+## Updating the payment subtree from upstream
 
 ```bash
-git subtree pull --prefix=Packages/rokt-ux-helper-ios https://github.com/ROKT/rokt-ux-helper-ios.git main --squash
+git subtree pull --prefix=Packages/rokt-payment-extension-ios https://github.com/ROKT/rokt-payment-extension-ios.git main --squash
 ```
 
-Use the same pattern for `Packages/rokt-payment-extension-ios`. Resolve conflicts, align versions with root `VERSION` if needed, then merge.
+Resolve conflicts, align versions with root `VERSION` if needed, then merge.
 
 ## Related pattern
 
-Similar in spirit to [mParticle’s Apple SDK monorepo](https://github.com/mParticle/mparticle-apple-sdk) (subtree split, mirrors, ordered CocoaPods), with **one shared semver** for the Rokt iOS SDK and its mirrored packages.
+Similar in spirit to [mParticle’s Apple SDK monorepo](https://github.com/mParticle/mparticle-apple-sdk) (subtree split, mirrors, ordered CocoaPods), with **one shared semver** for the Rokt iOS SDK and its mirrored payment extension.

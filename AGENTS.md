@@ -52,12 +52,12 @@ You are a senior iOS SDK engineer specializing in stable, lightweight client lib
 - Rokt iOS SDK written in Swift.
 - Core SDK code lives in `Sources/Rokt_Widget/`.
 - Primary public API entry point is `Rokt.swift`.
-- **Monorepo**: `Packages/rokt-ux-helper-ios` and `Packages/rokt-payment-extension-ios` are subtree copies mirrored on release; they share the **same `VERSION` as root** (`rokt-sdk-ios`). See `MONOREPO.md`.
+- **Monorepo**: `Packages/rokt-payment-extension-ios` is a subtree copy mirrored on release. **RoktUXHelper** is pulled in as an SPM/CocoaPods dependency from [rokt-ux-helper-ios](https://github.com/ROKT/rokt-ux-helper-ios). See `MONOREPO.md`.
 
 ## Key paths
 
 - `Sources/Rokt_Widget/`: SDK source code.
-- `Packages/rokt-ux-helper-ios/`, `Packages/rokt-payment-extension-ios/`: subtree packages (mirrored + versioned independently).
+- `Packages/rokt-payment-extension-ios/`: subtree package (mirrored on release; same `VERSION` as root).
 - `Packages/matrix.json`: mirrored packages + **Release – Publish** matrix (paths, CocoaPods order, trunk names).
 - `MONOREPO.md`: subtree layout, release order, GitHub App requirements.
 - `Package.swift`: SPM config and dependency pins.

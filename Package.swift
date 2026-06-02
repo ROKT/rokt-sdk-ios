@@ -21,7 +21,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/ROKT/rokt-contracts-apple.git", .upToNextMajor(from: "2.0.2")),
-        .package(path: "Packages/rokt-ux-helper-ios"),
+        .package(url: "https://github.com/ROKT/rokt-ux-helper-ios.git", from: "0.10.12"),
         .package(url: "https://github.com/WeTransfer/Mocker.git", .upToNextMajor(from: "2.0.0")),
         .package(url: "https://github.com/surpher/PactSwift.git", .upToNextMajor(from: "1.2.0"))
     ],
@@ -39,7 +39,11 @@ let package = Package(
         ),
         .testTarget(
             name: "Rokt_WidgetTests",
-            dependencies: ["Rokt_Widget", "Mocker"],
+            dependencies: [
+                "Rokt_Widget",
+                "Mocker",
+                .product(name: "RoktUXHelper", package: "rokt-ux-helper-ios")
+            ],
             path: "Tests/Rokt_WidgetTests",
             resources: [
                 .process("Resource")

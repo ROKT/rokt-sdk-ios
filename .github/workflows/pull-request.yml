@@ -67,11 +67,7 @@ jobs:
         run: sudo gem install cocoapods
 
       - name: Lint podspec
-        run: |
-          pod lib lint Rokt-Widget.podspec \
-            --include-podspecs=Packages/rokt-ux-helper-ios/RoktUXHelper.podspec \
-            --allow-warnings \
-            --verbose
+        run: pod lib lint Rokt-Widget.podspec --allow-warnings --verbose
 
   unit-test:
     name: SPM Unit Tests
