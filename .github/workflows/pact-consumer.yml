@@ -34,6 +34,7 @@ jobs:
             contract:
               - 'Sources/Rokt_Widget/Networking/V2OffersClient.swift'
               - 'Sources/Rokt_Widget/Networking/V2EventsClient.swift'
+              - 'Sources/Rokt_Widget/Networking/V2SessionsInitClient.swift'
               - 'Tests/ContractTests/**'
               - 'Package.swift'
               - '.github/workflows/pact-consumer.yml'
