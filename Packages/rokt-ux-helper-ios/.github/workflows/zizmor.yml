@@ -1,0 +1,39 @@
+name: Zizmor Security Scan
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/**
+      - .github/actions/**
+      - .github/composite_actions/**
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/**
+      - .github/actions/**
+      - .github/composite_actions/**
+
+permissions:
+  contents: read
+
+jobs:
+  zizmor:
+    name: Scan GitHub Actions workflows
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Install zizmor
+        run: pipx install zizmor==1.23.1
+      # continue-on-error: true until pre-existing findings are resolved.
+      # Once triaged, remove this flag to make zizmor a hard blocker.
+      - name: Run zizmor
+        continue-on-error: true
+        run: zizmor --format plain .
+        env:
+          GH_TOKEN: ${{ github.token }}

@@ -1,0 +1,109 @@
+{
+  "sessionId": "",
+  "pageContext": {
+    "pageInstanceGuid": "",
+    "pageId": "",
+    "language": "en",
+    "isPageDetected": true,
+    "pageVariantName": "",
+    "token": ""
+  },
+  "plugins": [
+    {
+      "plugin": {
+        "id": "2732370593714667533",
+        "token": "plugin-token",
+        "name": "test layout",
+        "targetElementSelector": "Location1",
+        "config": {
+          "instanceGuid": "21b61e93-24bd-4735-995a-2f14d0673ec2",
+          "token": "plugin-config-token",
+          "outerLayoutSchema": "{\"breakpoints\":{\"Landscape\":500,\"Portrait\":560},\"layout\":{\"type\":\"Column\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"border\":{\"borderRadius\":0},\"background\":{\"backgroundColor\":{\"light\":\"#ECEEE9\",\"dark\":\"#ECEEE9\"}}}}]}},\"children\":[{\"type\":\"Column\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"border\":{\"borderRadius\":0},\"spacing\":{\"margin\":\"10 10 10 10\"},\"background\":{\"backgroundColor\":{\"light\":\"#FFFFFFFF\",\"dark\":\"#FFFFFFFF\"}}}}]}},\"children\":[{\"type\":\"OneByOneDistribution\",\"node\":{\"transition\":{\"type\":\"FadeInOut\",\"settings\":{\"duration\":10}}}}]}},{\"type\":\"RichText\",\"node\":{\"value\":\"Powered by <a href=\\\"https://www.rokt.com/privacy-policy\\\">Rokt - Privacy Policy</a>\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"text\":{\"fontSize\":12,\"textColor\":{\"light\":\"#7E7E7E\"}},\"spacing\":{\"margin\":\"8 10 8 0\"},\"flexChild\":{\"alignSelf\":\"flex-end\"}}}],\"link\":[{\"default\":{\"text\":{\"textColor\":{\"light\":\"#7E7E7E\",\"dark\":\"#7E7E7E\"},\"textDecoration\":\"underline\"}}}]}}}}]}}}",
+          "slots": [
+            {
+              "instanceGuid": "f0620e60-279e-475f-8e68-1b3816c0691c",
+              "token": "slot-token",
+              "layoutVariant": {
+                "layoutVariantId": "layout_variant_id",
+                "moduleName": "",
+                "layoutVariantSchema": "{ \"type\": \"Column\", \"node\": { \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"margin\": \"18 8 0 8\" } } } ] } }, \"children\": [ { \"type\": \"Row\", \"node\": { \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"dimension\": { \"width\": { \"type\": \"fit\", \"value\": \"fit-width\" } }, \"spacing\": { \"margin\": \"0 0 0 0\" }, \"container\": { \"alignItems\": \"center\", \"justifyContent\": \"flex-start\" } } } ] } }, \"children\": [ { \"type\": \"DataImage\", \"node\": { \"imageKey\": \"creativeImage\", \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"margin\": \"0 10 0 0\" }, \"dimension\": { \"width\": { \"type\": \"fixed\", \"value\": 76 }, \"height\": { \"type\": \"fixed\", \"value\": 48 } } } } ] } } } }, { \"type\": \"RichText\", \"node\": { \"value\": \"%^DATA.creativeCopy.creative.title^%\", \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"margin\": \"0 0 0 0\" }, \"text\": { \"fontSize\": 16, \"fontWeight\": \"600\", \"lineHeight\": 14 } } } ] } } } } ] } }, { \"type\": \"RichText\", \"node\": { \"value\": \"%^DATA.creativeCopy.creative.copy^%\", \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"margin\": \"16 0 0 0\" }, \"text\": { \"fontSize\": 14, \"fontWeight\": \"400\", \"lineHeight\": 14 } } } ] } } } }, { \"type\": \"CreativeResponse\", \"node\": { \"responseKey\": \"positive\", \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"margin\": \"10 0 0 0\" }, \"border\": { \"borderRadius\": 4, \"borderWidth\": \"1\", \"borderColor\": { \"light\": \"#000000\", \"dark\": \"#000000\" } }, \"text\": { \"fontSize\": 16, \"fontFamily\": \"arial\" }, \"container\": { \"justifyContent\": \"center\", \"alignItems\": \"center\" }, \"dimension\": { \"width\": { \"type\": \"fit\", \"value\": \"fit-width\" }, \"minHeight\": 40 } } } ] } }, \"children\": [ { \"type\": \"BasicText\", \"node\": { \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"spacing\": { \"margin\": \"0\" }, \"text\": { \"fontSize\": 12, \"fontWeight\": \"500\", \"lineHeight\": 12, \"fontFamily\": \"Arial\" } } } ] } }, \"value\": \"%^DATA.creativeResponse.shortLabel^%\" } } ] } }, { \"type\": \"RichText\", \"node\": { \"value\": \"%^DATA.creativeCopy.creative.disclaimer^%\", \"styles\": { \"elements\": { \"own\": [ { \"default\": { \"text\": { \"fontSize\": 12, \"fontWeight\": \"300\", \"lineHeight\": 12 }, \"spacing\": { \"margin\": \"8 0 16 0\" } } } ] } } } } ] } }"
+              },
+              "offer": {
+                "campaignId": "2732344566234284034",
+                "creativeId": "2732356166940819466",
+                "creative": {
+                  "referralCreativeId": "2732356166940819466",
+                  "token": "creative-token",
+                  "instanceGuid": "f5987bb9-f7ba-4a89-91e7-80a446c5d29c",
+                  "responseOptionsMap": {
+                    "positive": {
+                      "id": "2732356166940819464",
+                      "action": "CaptureOnly",
+                      "instanceGuid": "549a346b-cd76-4f04-bccd-a1168c870e97",
+                      "signalType": "SignalResponse",
+                      "shortLabel": "Apply Now",
+                      "longLabel": "Yes",
+                      "shortSuccessLabel": "Subscribed",
+                      "isPositive": true,
+                      "url": "",
+                      "token": "positive-token"
+                    },
+                    "negative": {
+                      "id": "2732356166940819465",
+                      "action": "CaptureOnly",
+                      "instanceGuid": "c94a4aab-8e73-47f1-ad5b-a07bf00703ec",
+                      "signalType": "SignalResponse",
+                      "shortLabel": "NO THANKS",
+                      "longLabel": "No thanks",
+                      "shortSuccessLabel": "",
+                      "isPositive": false,
+                      "url": "",
+                      "token": "negative-token"
+                    }
+                  },
+                  "copy": {
+                    "creative.copy": "This is the creative body here. It typically goes to about 2 or 3 lines depending on the advertiser content. 3 lines example here.",
+                    "creative.title": "This is the title, it is middle aligned with the image.",
+                    "creative.disclaimer": "This is a disclaimer here. Not all advertisers have one.",
+                    "creative.termsAndConditions.link": "/LegalTerms/TermsAndConditions",
+                    "creative.termsAndConditions.close.copy": "Close",
+                    "creative.termsAndConditions.title": "Terms of Use",
+                    "creative.privacyPolicy.link": "/LegalTerms/PrivacyPolicy",
+                    "creative.privacyPolicy.close.copy": "Close",
+                    "creative.privacyPolicy.title": "Privacy Policy",
+                    "creative.confirmation.message": "Details will go to",
+                    "creative.success.title": "Success",
+                    "creative.success.copy": "We have sent a confirmation to"
+                  },
+                  "data-elements": {},
+                  "images": {
+                    "creativeImage": {
+                      "alt": "Test",
+                      "dark": "",
+                      "light": "",
+                      "title": "Test"
+                    }
+                  },
+                  "links": {
+                    "privacyPolicy": {
+                      "url": "https://www.rokt.com/privacy-policy/",
+                      "title": "Privacy Policy"
+                    },
+                    "termsCondition": {
+                      "url": "https://www.rokt.com/privacy-policy/",
+                      "title": "Terms and Condition"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "options": {
+    "useDiagnosticEvents": false
+  },
+  "success": true
+}

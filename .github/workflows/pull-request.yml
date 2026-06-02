@@ -16,6 +16,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  load-package-matrix:
+    name: Load Packages matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          sparse-checkout: Packages/matrix.json
+          sparse-checkout-cone-mode: false
+
+      - name: Set matrix output
+        id: set
+        run: |
+          echo "matrix=$(jq -c '[.[] | {path: .local_path}]' Packages/matrix.json)" >> "$GITHUB_OUTPUT"
+
   trunk-check:
     name: Trunk Check
     runs-on: macos-latest
@@ -49,7 +67,11 @@ jobs:
         run: sudo gem install cocoapods
 
       - name: Lint podspec
-        run: pod lib lint Rokt-Widget.podspec --allow-warnings --verbose
+        run: |
+          pod lib lint Rokt-Widget.podspec \
+            --include-podspecs=Packages/rokt-ux-helper-ios/RoktUXHelper.podspec \
+            --allow-warnings \
+            --verbose
 
   unit-test:
     name: SPM Unit Tests
@@ -103,6 +125,70 @@ jobs:
         with:
           name: TestResult.xcresult
           path: TestResult.xcresult
+
+  package-unit-tests:
+    name: Package SPM Tests (${{ matrix.package.path }})
+    runs-on: macos-latest-xlarge
+    needs: [trunk-check, load-package-matrix]
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJson(needs.load-package-matrix.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
+        with:
+          xcode-version: "26.3"
+
+      - name: Resolve SPM dependencies
+        run: swift package resolve --package-path "${{ matrix.package.path }}"
+
+      - name: Run package unit tests
+        run: |
+          set -euo pipefail
+          PKG_ROOT="${GITHUB_WORKSPACE}/${{ matrix.package.path }}"
+          cd "$PKG_ROOT"
+
+          PACKAGE=$(grep -E '^\s*name:' Package.swift | head -1 | sed 's/.*"\([^"]*\)".*/\1/')
+          LIB_COUNT=$(grep -c '\.library' Package.swift || true)
+          if [ "${LIB_COUNT:-0}" -gt 1 ]; then
+            SCHEME="${PACKAGE}-Package"
+          else
+            SCHEME="$PACKAGE"
+          fi
+          echo "Testing scheme: ${SCHEME} in ${PKG_ROOT}"
+
+          if compgen -G ./*.xcodeproj > /dev/null 2>&1; then
+            for xc in ./*.xcodeproj; do
+              [ -d "$xc" ] && mv "$xc" "${xc}.bak"
+            done
+            restore_xcodeproj() {
+              for xc in ./*.xcodeproj.bak; do
+                [ -d "$xc" ] && mv "$xc" "${xc%.bak}"
+              done
+            }
+            trap restore_xcodeproj EXIT
+          fi
+
+          DERIVED="${GITHUB_WORKSPACE}/.derived-data-$(echo "${{ matrix.package.path }}" | tr / -)"
+          rm -rf "$DERIVED"
+          mkdir -p "$DERIVED"
+
+          xcodebuild test \
+            -scheme "$SCHEME" \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest' \
+            -derivedDataPath "$DERIVED" \
+            -skipPackagePluginValidation \
+            -retry-tests-on-failure \
+            CODE_SIGN_IDENTITY= \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
 
   ui-test:
     name: UI Tests
@@ -193,7 +279,7 @@ jobs:
       github.event_name == 'pull_request' &&
       github.event.pull_request.draft == false
     name: Notify GChat
-    needs: [unit-test, ui-test, periphery-scan]
+    needs: [unit-test, ui-test, package-unit-tests, periphery-scan]
     uses: ROKT/rokt-workflows/.github/workflows/oss_pr_opened_notification.yml@93d6833818312c13d472e69050e2f0560b31076e # main
     permissions:
       contents: read

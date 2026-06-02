@@ -1,0 +1,27 @@
+---
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+    patch:
+      default:
+        target: auto
+        threshold: 1%
+
+ignore:
+  - Tests/**
+  - .github/**
+  - DerivedData/**
+  - .swiftpm/**
+  - "*.md"
+  - "*.yml"
+  - "*.yaml"
+  - "*.lock"
+  - Package.resolved
+  - VERSION
+  - LICENSE.md
+  - SECURITY.md
+  - README.md
+  - CHANGELOG.md

@@ -1,0 +1,11 @@
+disabled_rules:
+  - comment_spacing
+  - force_try
+  - line_length
+  - mark
+  - multiple_closures_with_trailing_closure
+  - nesting
+  - non_optional_string_data_conversion
+  - opening_brace
+  - type_name
+  - xctfail_message

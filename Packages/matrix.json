@@ -1,0 +1,24 @@
+[
+  {
+    "name": "rokt-ux-helper-ios",
+    "local_path": "Packages/rokt-ux-helper-ios",
+    "dest_org": "ROKT",
+    "dest_repo": "rokt-ux-helper-ios",
+    "podspec": "Packages/rokt-ux-helper-ios/RoktUXHelper.podspec",
+    "changelog_file": "CHANGELOG.md",
+    "cocoapods_publish_order": 1,
+    "pod_trunk_name": "RoktUXHelper",
+    "mirror_force_push_main": false
+  },
+  {
+    "name": "rokt-payment-extension-ios",
+    "local_path": "Packages/rokt-payment-extension-ios",
+    "dest_org": "ROKT",
+    "dest_repo": "rokt-payment-extension-ios",
+    "podspec": "Packages/rokt-payment-extension-ios/RoktPaymentExtension.podspec",
+    "changelog_file": "CHANGELOG.md",
+    "cocoapods_publish_order": 2,
+    "pod_trunk_name": "RoktPaymentExtension",
+    "mirror_force_push_main": false
+  }
+]

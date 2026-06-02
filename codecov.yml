@@ -10,3 +10,4 @@ coverage:
     - Example/Tests
     - Tests/Rokt_WidgetTests
     - Tests/SizeReport
+    - Packages/
