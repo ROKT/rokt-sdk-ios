@@ -35,17 +35,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 - Add V2EventsClient + consumer pact for /v2/sessions/events ([#171](https://github.com/ROKT/rokt-sdk-ios/pull/171))
 - Scaffold consumer-driven contracts against transactions-api v2 ([#169](https://github.com/ROKT/rokt-sdk-ios/pull/169))
 
-### Kits
+### Extensions
 
-#### Kits
+#### Extensions
 
 ##### Added
 
 - Convert to Monorepo ([#182](https://github.com/ROKT/rokt-sdk-ios/pull/182))
-
-##### Fixed
-
-- Remove rokt-ux-helper-ios from Monorepo ([#184](https://github.com/ROKT/rokt-sdk-ios/pull/184))
 
 ## [5.2.2] - 2026-05-19
 
