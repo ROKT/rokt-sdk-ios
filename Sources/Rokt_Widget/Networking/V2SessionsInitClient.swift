@@ -46,8 +46,6 @@ internal struct V2SessionsInitClient {
         let headers: RoktHTTPHeaders = [
             "rokt-account-id": accountId,
             "Authorization": authToken,
-            "rokt-platform-type": "iOS",
-            "rokt-integration-type": "msdk-ios",
             "x-request-id": UUID().uuidString,
             "Content-Type": "application/json"
         ]

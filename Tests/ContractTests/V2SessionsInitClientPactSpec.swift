@@ -31,8 +31,6 @@ class V2SessionsInitClientPactSpec: XCTestCase {
                 headers: [
                     "rokt-account-id": Matcher.RegexLike("account-456", term: #".+"#),
                     "Authorization": Matcher.RegexLike("Bearer session-token-abc", term: #".+"#),
-                    "rokt-platform-type": "iOS",
-                    "rokt-integration-type": "msdk-ios",
                     "x-request-id": Matcher.RegexLike("request-id-123", term: #".+"#),
                     "Content-Type": "application/json"
                 ],

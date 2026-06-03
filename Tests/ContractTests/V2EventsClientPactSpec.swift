@@ -7,8 +7,7 @@ import PactSwift
 /// Drives `V2EventsClient.recordEvents(events:)` — the test never constructs
 /// request headers or body directly, only domain inputs. Wire-shape
 /// construction lives entirely in `V2EventsClient`, so any drift there
-/// (e.g. switching `rokt-integration-type` from `"msdk-ios"` to
-/// `"ios-mobile"`) gets rejected by the pact mock service.
+/// (e.g. changing the `channel.type` body field) gets rejected by the pact mock service.
 ///
 /// Mirrors V2OffersClientPactSpec — see that file's docstring for the
 /// matcher policy (exact-match for hardcoded constants, `SomethingLike`
@@ -40,8 +39,6 @@ class V2EventsClientPactSpec: XCTestCase {
                 headers: [
                     "rokt-account-id": Matcher.SomethingLike("account-456"),
                     "Authorization": Matcher.SomethingLike("Bearer session-token-abc"),
-                    "rokt-platform-type": "iOS",
-                    "rokt-integration-type": "msdk-ios",
                     "Content-Type": "application/json"
                 ],
                 body: [

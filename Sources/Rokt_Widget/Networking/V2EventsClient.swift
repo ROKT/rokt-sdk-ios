@@ -41,8 +41,6 @@ internal struct V2EventsClient {
         let headers: RoktHTTPHeaders = [
             "rokt-account-id": accountId,
             "Authorization": authToken,
-            "rokt-platform-type": "iOS",
-            "rokt-integration-type": "msdk-ios",
             "Content-Type": "application/json"
         ]
 

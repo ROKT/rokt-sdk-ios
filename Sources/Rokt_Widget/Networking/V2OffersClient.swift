@@ -59,8 +59,6 @@ internal struct V2OffersClient {
         let headers: RoktHTTPHeaders = [
             "rokt-account-id": accountId,
             "Authorization": authToken,
-            "rokt-platform-type": "iOS",
-            "rokt-integration-type": "msdk-ios",
             "x-request-id": input.requestId,
             "rokt-page-instance-guid": pageInstanceGuid,
             "Content-Type": "application/json"
