@@ -9,9 +9,7 @@ relative_results: true
 strict: true
 exclude_tests: true
 exclude_targets:
-  # Local SPM packages: Example does not exercise most of their surface; Periphery
-  # would otherwise report the whole dependency tree as unused/redundant.
-  - RoktUXHelper
-  - RoktUXHelperTests
+  # Local SPM package: Example does not exercise most of its surface; Periphery
+  # would otherwise report the dependency tree as unused/redundant.
   - RoktPaymentExtension
   - RoktPaymentExtensionTests
