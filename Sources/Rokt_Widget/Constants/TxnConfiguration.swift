@@ -9,8 +9,8 @@ internal enum TxnEnvironment: Equatable {
 
     var gatewayBaseURL: String {
         switch self {
-        case .stage: return "https://api.stage.rokt.com"
-        case .prod: return "https://api.rokt.com"
+        case .stage: return "https://apps.stage.rokt.com"
+        case .prod: return "https://apps.rokt.com"
         case .local: return "http://localhost:9011"
         case .custom(let baseURL): return baseURL
         }

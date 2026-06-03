@@ -6,11 +6,11 @@ final class TestTxnConfiguration: XCTestCase {
     // MARK: - Gateway base URLs
 
     func test_gatewayBaseURL_stage() {
-        XCTAssertEqual(TxnEnvironment.stage.gatewayBaseURL, "https://api.stage.rokt.com")
+        XCTAssertEqual(TxnEnvironment.stage.gatewayBaseURL, "https://apps.stage.rokt.com")
     }
 
     func test_gatewayBaseURL_prod() {
-        XCTAssertEqual(TxnEnvironment.prod.gatewayBaseURL, "https://api.rokt.com")
+        XCTAssertEqual(TxnEnvironment.prod.gatewayBaseURL, "https://apps.rokt.com")
     }
 
     func test_gatewayBaseURL_local() {
