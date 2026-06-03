@@ -8,19 +8,19 @@ import PactSwift
 /// domain inputs (page identifier, customer email, attributes, request-scoped
 /// ids) and internally builds the wire request. The pact matchers below
 /// describe the EXPECTED wire shape; if `V2OffersClient` ever drifts from
-/// those expectations (e.g., sends `rokt-platform-type: "ios-mobile"` instead
-/// of `"iOS"`), the pact mock service rejects the request and this test fails.
+/// those expectations (e.g., changes the `channel.type` body field or drops the
+/// `x-request-id` header), the pact mock service rejects the request and this test fails.
 ///
 /// The test never constructs request headers or body directly, only domain
 /// inputs. Wire-shape construction lives entirely in `V2OffersClient`.
 ///
-/// Matcher policy: fixed-value strings hardcoded in `V2OffersClient`
-/// (`"iOS"`, `"msdk-ios"`, `"msdk"`) are pinned as exact strings rather
-/// than `SomethingLike`. `SomethingLike` only matches by type, which
-/// would let the client drift to `"ios-mobile"` without failing the
-/// consumer test. Per-runtime values (account id, auth token, request id,
-/// session ids, page identifier, etc.) stay as `SomethingLike` because
-/// they legitimately vary per call.
+/// Matcher policy: the fixed-value string hardcoded in `V2OffersClient`
+/// (`channel.type` = `"msdk"`) is pinned as an exact string rather than
+/// `SomethingLike`. `SomethingLike` only matches by type, which would let
+/// the client drift to `"ios-mobile"` without failing the consumer test.
+/// Per-runtime values (account id, auth token, request id, session ids,
+/// page identifier, etc.) stay as `SomethingLike` because they legitimately
+/// vary per call.
 class V2OffersClientPactSpec: XCTestCase {
     static var mockService: MockService!
 
@@ -50,8 +50,6 @@ class V2OffersClientPactSpec: XCTestCase {
                 headers: [
                     "rokt-account-id": Matcher.SomethingLike("account-456"),
                     "Authorization": Matcher.SomethingLike("Bearer session-token-abc"),
-                    "rokt-platform-type": "iOS",
-                    "rokt-integration-type": "msdk-ios",
                     "x-request-id": Matcher.SomethingLike("request-id-123"),
                     "rokt-page-instance-guid": Matcher.SomethingLike("page-instance-guid-123"),
                     "Content-Type": "application/json"
