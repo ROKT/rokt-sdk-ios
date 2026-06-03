@@ -1,11 +1,11 @@
 // periphery:ignore:all - net-new v2 init response models, not yet wired into the live path
 import Foundation
 
-internal struct V2InitResponse: Decodable, Equatable {
+internal struct TxnInitResponse: Decodable, Equatable {
     let sessionId: String
-    let sessionToken: V2SessionToken
-    let featureFlags: V2FeatureFlags
-    let fonts: [V2FontItem]
+    let sessionToken: TxnSessionToken
+    let featureFlags: TxnFeatureFlags
+    let fonts: [TxnFontItem]
 
     enum CodingKeys: String, CodingKey {
         case sessionId = "session_id"
@@ -16,9 +16,9 @@ internal struct V2InitResponse: Decodable, Equatable {
 
     init(
         sessionId: String,
-        sessionToken: V2SessionToken,
-        featureFlags: V2FeatureFlags,
-        fonts: [V2FontItem]
+        sessionToken: TxnSessionToken,
+        featureFlags: TxnFeatureFlags,
+        fonts: [TxnFontItem]
     ) {
         self.sessionId = sessionId
         self.sessionToken = sessionToken
@@ -29,15 +29,15 @@ internal struct V2InitResponse: Decodable, Equatable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         sessionId = try container.decode(String.self, forKey: .sessionId)
-        sessionToken = try container.decode(V2SessionToken.self, forKey: .sessionToken)
+        sessionToken = try container.decode(TxnSessionToken.self, forKey: .sessionToken)
         // Tolerate absent feature_flags/fonts so a missing block doesn't fail init.
-        featureFlags = try container.decodeIfPresent(V2FeatureFlags.self, forKey: .featureFlags)
-            ?? V2FeatureFlags(flags: [:])
-        fonts = try container.decodeIfPresent([V2FontItem].self, forKey: .fonts) ?? []
+        featureFlags = try container.decodeIfPresent(TxnFeatureFlags.self, forKey: .featureFlags)
+            ?? TxnFeatureFlags(flags: [:])
+        fonts = try container.decodeIfPresent([TxnFontItem].self, forKey: .fonts) ?? []
     }
 }
 
-internal struct V2SessionToken: Decodable, Equatable {
+internal struct TxnSessionToken: Decodable, Equatable {
     let token: String
     let expiresAt: Int64 // Unix epoch milliseconds
 
@@ -51,7 +51,7 @@ internal struct V2SessionToken: Decodable, Equatable {
     }
 }
 
-internal struct V2FontItem: Decodable, Equatable {
+internal struct TxnFontItem: Decodable, Equatable {
     let fontName: String
     let fontURL: String
     let fontStyle: String?
@@ -67,7 +67,7 @@ internal struct V2FontItem: Decodable, Equatable {
     }
 }
 
-internal enum V2FeatureFlagValue: Decodable, Equatable {
+internal enum TxnFeatureFlagValue: Decodable, Equatable {
     case bool(Bool)
     case int(Int)
     case double(Double)
@@ -93,16 +93,16 @@ internal enum V2FeatureFlagValue: Decodable, Equatable {
     }
 }
 
-internal struct V2FeatureFlags: Decodable, Equatable {
-    let flags: [String: V2FeatureFlagValue]
+internal struct TxnFeatureFlags: Decodable, Equatable {
+    let flags: [String: TxnFeatureFlagValue]
 
-    init(flags: [String: V2FeatureFlagValue]) {
+    init(flags: [String: TxnFeatureFlagValue]) {
         self.flags = flags
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
-        flags = try container.decode([String: V2FeatureFlagValue].self)
+        flags = try container.decode([String: TxnFeatureFlagValue].self)
     }
 
     func bool(forKey key: String) -> Bool? {
@@ -121,7 +121,7 @@ internal struct V2FeatureFlags: Decodable, Equatable {
     }
 }
 
-extension V2FeatureFlags {
+extension TxnFeatureFlags {
     // minimum-post-purchase-schema is server-gated: a non-empty version string means
     // the schema requirement is met, so string flags map to match = !isEmpty.
     func toInitFeatureFlags() -> InitFeatureFlags {

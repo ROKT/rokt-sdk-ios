@@ -1,15 +1,15 @@
 import XCTest
 @testable import Rokt_Widget
 
-final class TestTransactionsSessionManager: XCTestCase {
+final class TestTxnSessionManager: XCTestCase {
 
     private var now: Date!
-    private var manager: TransactionsSessionManager!
+    private var manager: TxnSessionManager!
 
     override func setUp() {
         super.setUp()
         now = Date(timeIntervalSince1970: 1_000_000)
-        manager = TransactionsSessionManager(clock: { self.now })
+        manager = TxnSessionManager(clock: { self.now })
     }
 
     override func tearDown() {
@@ -18,9 +18,9 @@ final class TestTransactionsSessionManager: XCTestCase {
         super.tearDown()
     }
 
-    private func token(_ value: String, expiresInSeconds seconds: TimeInterval) -> V2SessionToken {
+    private func token(_ value: String, expiresInSeconds seconds: TimeInterval) -> TxnSessionToken {
         let expiryMs = Int64(now.addingTimeInterval(seconds).timeIntervalSince1970 * 1000)
-        return V2SessionToken(token: value, expiresAt: expiryMs)
+        return TxnSessionToken(token: value, expiresAt: expiryMs)
     }
 
     func test_initialState_hasNoSession() {

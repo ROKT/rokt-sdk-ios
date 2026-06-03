@@ -1,7 +1,7 @@
 // periphery:ignore:all - net-new v2 session store, not yet wired into the live path
 import Foundation
 
-internal final class TransactionsSessionManager {
+internal final class TxnSessionManager {
     private let clock: () -> Date
     private let lock = NSLock()
 
@@ -34,7 +34,7 @@ internal final class TransactionsSessionManager {
         return "Bearer \(token)"
     }
 
-    func update(sessionId: String, sessionToken: V2SessionToken) {
+    func update(sessionId: String, sessionToken: TxnSessionToken) {
         lock.lock()
         defer { lock.unlock() }
         self.sessionId = sessionId
@@ -43,7 +43,7 @@ internal final class TransactionsSessionManager {
     }
 
     // Token-only refresh for offers/events responses, keeping the session id.
-    func update(sessionToken: V2SessionToken) {
+    func update(sessionToken: TxnSessionToken) {
         lock.lock()
         defer { lock.unlock() }
         token = sessionToken.token

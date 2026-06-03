@@ -1,11 +1,11 @@
 import XCTest
 @testable import Rokt_Widget
 
-final class TestV2InitResponse: XCTestCase {
+final class TestTxnInitResponse: XCTestCase {
 
-    private func decode(_ json: String) throws -> V2InitResponse {
+    private func decode(_ json: String) throws -> TxnInitResponse {
         let data = Data(json.utf8)
-        return try JSONDecoder().decode(V2InitResponse.self, from: data)
+        return try JSONDecoder().decode(TxnInitResponse.self, from: data)
     }
 
     // Mirrors the happy-path body in V2SessionsInitClientPactSpec.
@@ -40,10 +40,20 @@ final class TestV2InitResponse: XCTestCase {
         XCTAssertEqual(response.fonts, [])
     }
 
+    func test_init_memberwise_setsAllFields() {
+        let token = TxnSessionToken(token: "t", expiresAt: 1_774_474_053_000)
+        let flags = TxnFeatureFlags(flags: ["rokt-tracking-status": .bool(true)])
+        let response = TxnInitResponse(sessionId: "sid", sessionToken: token, featureFlags: flags, fonts: [])
+        XCTAssertEqual(response.sessionId, "sid")
+        XCTAssertEqual(response.sessionToken, token)
+        XCTAssertEqual(response.featureFlags, flags)
+        XCTAssertEqual(response.fonts, [])
+    }
+
     // MARK: - Session token
 
     func test_sessionToken_expiresAtDate_convertsFromMilliseconds() {
-        let token = V2SessionToken(token: "t", expiresAt: 1_774_474_053_000)
+        let token = TxnSessionToken(token: "t", expiresAt: 1_774_474_053_000)
         XCTAssertEqual(token.expiresAtDate, Date(timeIntervalSince1970: 1_774_474_053))
     }
 
@@ -63,6 +73,29 @@ final class TestV2InitResponse: XCTestCase {
         XCTAssertNil(flags.int(forKey: "rokt-tracking-status"))
         XCTAssertNil(flags.string(forKey: "is-post-purchase-enabled"))
         XCTAssertNil(flags.bool(forKey: "does-not-exist"))
+    }
+
+    func test_featureFlagValue_decodesFractionalNumberAsDouble() throws {
+        let json = """
+        {
+            "session_id": "s",
+            "session_token": { "token": "t", "expires_at": 1 },
+            "feature_flags": { "some-ratio": 1.5 }
+        }
+        """
+        let flags = try decode(json).featureFlags
+        XCTAssertEqual(flags.flags["some-ratio"], .double(1.5))
+    }
+
+    func test_featureFlagValue_unsupportedType_throws() {
+        let json = """
+        {
+            "session_id": "s",
+            "session_token": { "token": "t", "expires_at": 1 },
+            "feature_flags": { "weird": { "nested": 1 } }
+        }
+        """
+        XCTAssertThrowsError(try decode(json))
     }
 
     // MARK: - Fonts
@@ -136,7 +169,7 @@ final class TestV2InitResponse: XCTestCase {
     }
 
     func test_toInitFeatureFlags_emptySchemaString_mapsToMatchFalse() {
-        let flags = V2FeatureFlags(flags: [
+        let flags = TxnFeatureFlags(flags: [
             "is-post-purchase-enabled": .bool(true),
             "minimum-post-purchase-schema": .string("")
         ]).toInitFeatureFlags()
@@ -145,7 +178,7 @@ final class TestV2InitResponse: XCTestCase {
     }
 
     func test_toInitFeatureFlags_absentRoktTrackingStatus_defaultsToTrue() {
-        let flags = V2FeatureFlags(flags: [:]).toInitFeatureFlags()
+        let flags = TxnFeatureFlags(flags: [:]).toInitFeatureFlags()
         XCTAssertTrue(flags.isEnabled(.roktTrackingStatus))
     }
 }

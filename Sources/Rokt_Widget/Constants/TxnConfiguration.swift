@@ -1,7 +1,7 @@
 // periphery:ignore:all - net-new v2 init configuration, not yet wired into the live path
 import Foundation
 
-internal enum TransactionsEnvironment: Equatable {
+internal enum TxnEnvironment: Equatable {
     case stage
     case prod
     case local
@@ -17,8 +17,8 @@ internal enum TransactionsEnvironment: Equatable {
     }
 }
 
-internal struct TransactionsConfiguration {
-    lazy var environment: TransactionsEnvironment = {
+internal struct TxnConfiguration {
+    lazy var environment: TxnEnvironment = {
         if let configuration = Bundle.main.object(forInfoDictionaryKey: "Configuration") as? String,
            configuration.contains("STAGE") {
             return .stage
@@ -27,7 +27,7 @@ internal struct TransactionsConfiguration {
     }()
 
     // No v2 mock or demo host: ProdDemo and unspecified fall back to prod.
-    static func getEnvironment(_ environment: RoktEnvironment?) -> TransactionsEnvironment {
+    static func getEnvironment(_ environment: RoktEnvironment?) -> TxnEnvironment {
         switch environment {
         case .Stage: return .stage
         case .Prod: return .prod
