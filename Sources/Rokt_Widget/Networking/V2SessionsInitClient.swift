@@ -5,14 +5,14 @@ import Foundation
 internal struct V2SessionsInitClient {
     let baseURL: URL
     let accountId: String
-    let authToken: String
+    let authToken: String?
     let sdkVersion: String
     let httpClient: HTTPClientAdapter
 
     init(
         baseURL: URL,
         accountId: String,
-        authToken: String,
+        authToken: String? = nil,
         sdkVersion: String,
         httpClient: HTTPClientAdapter = RoktHTTPClient()
     ) {
@@ -43,12 +43,15 @@ internal struct V2SessionsInitClient {
             throw V2SessionsInitClientError.bodyEncodingFailed
         }
 
-        let headers: RoktHTTPHeaders = [
+        var headers: RoktHTTPHeaders = [
             "rokt-account-id": accountId,
-            "Authorization": authToken,
             "x-request-id": UUID().uuidString,
             "Content-Type": "application/json"
         ]
+        // Authorization is optional: with no stored token the server mints a fresh session.
+        if let authToken, !authToken.isEmpty {
+            headers["Authorization"] = authToken
+        }
 
         return try await withCheckedThrowingContinuation { continuation in
             httpClient.startRequestWith(
