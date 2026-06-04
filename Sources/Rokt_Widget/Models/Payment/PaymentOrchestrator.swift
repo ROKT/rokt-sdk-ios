@@ -370,6 +370,11 @@ final class PaymentOrchestrator {
     /// backend webhook finalizes the purchase from the PayPal redirect; the SDK only needs
     /// to surface success/cancel/failure to the UXHelper.
     ///
+    /// If the buyer cancels the hosted step (Safari dismissed or cancel deep link), the SDK
+    /// does **not** invoke `onCompletion` or the deferred Step-1 `completion`; it re-queues the
+    /// same pending checkout so the confirmation UI can stay up and ``presentPendingBuiltInPayPalForForwardPayment``
+    /// can run again.
+    ///
     /// - Parameter onCompletion: called on the main queue with the coordinator outcome.
     /// - Returns: `true` when a pending PayPal checkout existed and was presented; `false`
     ///   when the caller should fall through to the non-PayPal `/v1/cart/purchase` flow.
@@ -410,6 +415,18 @@ final class PaymentOrchestrator {
                 cancelURLString: snapshot.cancelURLString,
                 completion: { [weak self] result in
                     self?.activePayPalCheckout = nil
+                    if result.outcome == .canceled {
+                        if let self {
+                            Self.requeuePendingBuiltInPayPalAfterForwardPaymentCancel(
+                                snapshot: snapshot,
+                                owner: self
+                            )
+                        } else {
+                            snapshot.completion(result)
+                            onCompletion(result)
+                        }
+                        return
+                    }
                     snapshot.completion(result)
                     onCompletion(result)
                 }
@@ -422,6 +439,23 @@ final class PaymentOrchestrator {
             )
         }
         return true
+    }
+
+    private static func requeuePendingBuiltInPayPalAfterForwardPaymentCancel(
+        snapshot: PendingBuiltInPayPalWebCheckout,
+        owner: PaymentOrchestrator
+    ) {
+        let restored = PendingBuiltInPayPalWebCheckout(
+            owner: owner,
+            approvalURL: snapshot.approvalURL,
+            returnURLString: snapshot.returnURLString,
+            cancelURLString: snapshot.cancelURLString,
+            presentingViewController: snapshot.presentingViewController,
+            completion: snapshot.completion
+        )
+        pendingBuiltInTwoStepLock.lock()
+        pendingBuiltInTwoStepCheckout = .paypal(restored)
+        pendingBuiltInTwoStepLock.unlock()
     }
 
     /// Called when forward-payment fails or cannot run, so a deferred two-step session does not leak.

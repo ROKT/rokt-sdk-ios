@@ -95,8 +95,11 @@ final class MockPayPalApprovalPresenter: PayPalApprovalPresenting {
     ) {
         presentCallCount += 1
         lastApprovalURL = approvalURL
+        // Capture when the presenter is called so later changes to `sheetResult` (e.g. a retry
+        // test switching to `.succeeded`) cannot affect an already-scheduled completion.
+        let resultToDeliver = sheetResult
         DispatchQueue.main.async {
-            checkoutCoordinator.completeFromUserDismissal(self.sheetResult)
+            checkoutCoordinator.completeFromUserDismissal(resultToDeliver)
         }
     }
 }
@@ -650,6 +653,67 @@ class TestPaymentOrchestrator: XCTestCase {
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchaseCancelURL, "myapp://paypal/cancel")
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethodType, "Paypal")
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "PayPal")
+    }
+
+    func test_presentPendingBuiltInPayPal_canceledRestoresPendingAndDefersStep1Completion() {
+        let payPalPresenter = MockPayPalApprovalPresenter()
+        payPalPresenter.sheetResult = .canceled
+        sut = PaymentOrchestrator(
+            apiHelper: PaymentOrchestratorAPIHelperSpy.self,
+            payPalApprovalPresenter: payPalPresenter
+        )
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = Self.validPayPalInitializePurchaseResponse()
+
+        // ``PendingBuiltInPayPalWebCheckout/presentingViewController`` is weak; keep a strong ref
+        // so ``presentPendingBuiltInPayPalForForwardPayment`` does not fall through to the
+        // no-view-controller failure path before the mock can run.
+        let presentingViewController = UIViewController()
+
+        var step1Result: PaymentSheetResult?
+        let billing = ContactAddress(name: "Bo", email: "b@o.com")
+        sut.processPayment(
+            method: .paypal,
+            item: PaymentItem(id: "p1", name: "P", amount: 1, currency: "USD"),
+            context: PaymentContext(
+                billingAddress: billing,
+                returnURL: "myapp://paypal/success",
+                cancelURL: "myapp://paypal/cancel"
+            ),
+            cartItemId: "v1:cart:1",
+            from: presentingViewController,
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests()
+        ) { result in
+            step1Result = result
+        }
+
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment { _ in
+            XCTFail("onCompletion must not run when hosted PayPal approval is canceled")
+        })
+
+        // ``presentPendingBuiltInPayPalForForwardPayment`` pops pending synchronously; the mock
+        // presenter and ``PayPalCheckoutCoordinator`` each hop to the main queue before the
+        // cancel path re-queues. One extra async is not enough — drain several turns so requeue
+        // finishes before we assert or call ``presentPending`` again.
+        for _ in 0..<8 {
+            let flush = expectation(description: "main queue flush")
+            DispatchQueue.main.async { flush.fulfill() }
+            wait(for: [flush], timeout: 1.0)
+        }
+        XCTAssertNil(step1Result, "Deferred Step-1 completion must not run on hosted cancel")
+
+        payPalPresenter.sheetResult = .succeeded(transactionId: "retry_ok")
+        var forwardObserverResult: PaymentSheetResult?
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment { result in
+            forwardObserverResult = result
+        })
+        for _ in 0..<8 {
+            let flush = expectation(description: "main queue flush after success")
+            DispatchQueue.main.async { flush.fulfill() }
+            wait(for: [flush], timeout: 1.0)
+        }
+        XCTAssertEqual(step1Result?.outcome, .succeeded)
+        XCTAssertEqual(step1Result?.transactionId, "retry_ok")
+        XCTAssertEqual(forwardObserverResult?.outcome, .succeeded)
     }
 
     func test_processPayment_payPal_ignoresRegisteredExtensionSupportingPayPal() {
