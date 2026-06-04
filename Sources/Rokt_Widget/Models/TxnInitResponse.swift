@@ -101,8 +101,29 @@ internal struct TxnFeatureFlags: Decodable, Equatable {
     }
 
     init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        flags = try container.decode([String: TxnFeatureFlagValue].self)
+        // Decode per-key and skip values whose type isn't modeled, so a single
+        // unknown/extensible server flag can't fail the whole init response.
+        let container = try decoder.container(keyedBy: DynamicCodingKey.self)
+        var decoded: [String: TxnFeatureFlagValue] = [:]
+        for key in container.allKeys {
+            if let value = try? container.decode(TxnFeatureFlagValue.self, forKey: key) {
+                decoded[key.stringValue] = value
+            }
+        }
+        flags = decoded
+    }
+
+    private struct DynamicCodingKey: CodingKey {
+        let stringValue: String
+        let intValue: Int? = nil
+
+        init(stringValue: String) {
+            self.stringValue = stringValue
+        }
+
+        init?(intValue: Int) {
+            return nil
+        }
     }
 
     func bool(forKey key: String) -> Bool? {

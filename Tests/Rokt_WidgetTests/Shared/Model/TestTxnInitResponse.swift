@@ -87,7 +87,7 @@ final class TestTxnInitResponse: XCTestCase {
         XCTAssertEqual(flags.flags["some-ratio"], .double(1.5))
     }
 
-    func test_featureFlagValue_unsupportedType_throws() {
+    func test_featureFlagValue_unsupportedType_isSkipped() throws {
         let json = """
         {
             "session_id": "s",
@@ -95,7 +95,31 @@ final class TestTxnInitResponse: XCTestCase {
             "feature_flags": { "weird": { "nested": 1 } }
         }
         """
-        XCTAssertThrowsError(try decode(json))
+        let flags = try decode(json).featureFlags
+        XCTAssertTrue(flags.flags.isEmpty)
+    }
+
+    func test_featureFlags_unsupportedValue_keepsKnownFlags() throws {
+        let json = """
+        {
+            "session_id": "s",
+            "session_token": { "token": "t", "expires_at": 1 },
+            "feature_flags": {
+                "rokt-tracking-status": true,
+                "client-timeout-ms": 30000,
+                "future-array-flag": [1, 2, 3],
+                "future-object-flag": { "nested": true },
+                "future-null-flag": null
+            }
+        }
+        """
+        let flags = try decode(json).featureFlags
+        XCTAssertEqual(flags.bool(forKey: "rokt-tracking-status"), true)
+        XCTAssertEqual(flags.int(forKey: "client-timeout-ms"), 30000)
+        XCTAssertNil(flags.flags["future-array-flag"])
+        XCTAssertNil(flags.flags["future-object-flag"])
+        XCTAssertNil(flags.flags["future-null-flag"])
+        XCTAssertEqual(flags.flags.count, 2)
     }
 
     // MARK: - Fonts
