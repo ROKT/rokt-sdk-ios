@@ -1,0 +1,16 @@
+{
+  "session_id": "mock-session-00000000-0000-7000-8000-000000000000",
+  "session_token": {
+    "token": "mock-session-token",
+    "expires_at": 32503680000000
+  },
+  "feature_flags": {
+    "client-timeout-ms": 8000,
+    "rokt-tracking-status": true,
+    "mobile-sdk-use-bounding-box": true,
+    "mobile-sdk-use-sdk-cache": true,
+    "is-post-purchase-enabled": true,
+    "minimum-post-purchase-schema": "2.3.0"
+  },
+  "fonts": []
+}

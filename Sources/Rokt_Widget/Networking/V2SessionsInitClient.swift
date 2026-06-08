@@ -1,4 +1,4 @@
-// periphery:ignore:all - referenced from Tests/ContractTests/V2SessionsInitClientPactSpec.swift
+// periphery:ignore:all - v2 init client; the redundant sdkVersion mirror is retained for the pact-tested wire shape
 
 import Foundation
 

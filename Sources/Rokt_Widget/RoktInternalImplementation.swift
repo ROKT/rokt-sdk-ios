@@ -45,6 +45,20 @@ class RoktInternalImplementation {
     var stateManager: StateBagManaging = StateBagManager()
     private var clientTimeoutMilliseconds: Double = RoktInternalImplementation.defaultTimeout
     private var defaultLaunchDelayMilliseconds: Double = RoktInternalImplementation.defaultDelay
+
+    // MARK: - v2 Transactions init (isolated)
+
+    // Single rollback switch: set to false to restore the legacy init path verbatim.
+    private static let useV2Init = true
+    // Layout schema version sent to the v2 init endpoint, matching the legacy header.
+    private static var txnLayoutSchemaVersion: String {
+        RoktUX.integrationInfo.integration.layoutSchemaVersion
+            .split(separator: ".").prefix(2).joined(separator: ".")
+    }
+    // Long-lived session/token store for the v2 path, bound to the current tag id.
+    private var txnSessionManager: TxnSessionManager?
+    // Injectable coordinator factory for tests; nil uses the real builder.
+    var makeTxnInitService: ((String) -> TxnInitService)?
     private var loadingFonts = false
     private var pendingPayload: ExecutePayload?
     private var isExecuting = false
@@ -841,47 +855,111 @@ class RoktInternalImplementation {
         setupFontObservers()
 
         RoktLogger.shared.debug("Starting API initialization request")
-        RoktAPIHelper.initialize(roktTagId: roktTagId,
-                                 success: { (initResponse) in
-            RoktLogger.shared.info("API initialization succeeded")
-            self.isInitialized = true
-            self.initFeatureFlags = initResponse.featureFlags
+        performInit(roktTagId: roktTagId, initStartTime: initStartTime)
+    }
 
-            self.processedTimingsRequests = TimingsRequestProcessor()
-            self.processedTimingsRequests?.setInitStartTime(initStartTime)
+    // Routes init through the v2 Transactions path (default) or the legacy path.
+    // `useV2Init` is the single rollback switch; the legacy path is otherwise untouched.
+    private func performInit(roktTagId: String, initStartTime: Date) {
+        guard Self.useV2Init else {
+            RoktAPIHelper.initialize(
+                roktTagId: roktTagId,
+                success: { self.handleInitSuccess($0, initStartTime: initStartTime) },
+                failure: { self.handleInitFailure(error: $0, statusCode: $1, response: $2) }
+            )
+            return
+        }
 
-            self.clientTimeoutMilliseconds = initResponse.timeout != 0 ?
-            initResponse.timeout : self.clientTimeoutMilliseconds
-            self.defaultLaunchDelayMilliseconds = initResponse.delay != 0 ?
-            initResponse.delay : self.defaultLaunchDelayMilliseconds
-            if let clientSessionTimeoutMilliseconds = initResponse.clientSessionTimeout {
-                self.sessionManager.currentSessionDurationSeconds = clientSessionTimeoutMilliseconds/1000
-            }
-            NetworkingHelper.updateTimeout(timeout: self.clientTimeoutMilliseconds/1000)
-
-            let initFonts = initResponse.fonts
-            RoktLogger.shared.debug("Downloading \(initFonts.count) font(s)")
-            FontManager.removeUnusedFonts(fonts: initFonts)
-            RoktAPIHelper.downloadFonts(initFonts) {
-                let success = self.isInitialized && !self.isInitFailedForFont
-                RoktLogger.shared.info("Initialization complete - success: \(success)")
-                if let eventListener = self.roktEventMap[Self.defaultRoktInitEvent] {
-                    eventListener?(RoktEvent.InitComplete(success: success))
+        let service = makeTxnInitService?(roktTagId) ?? defaultTxnInitService(roktTagId: roktTagId)
+        Task {
+            do {
+                let result = try await service.initSession()
+                let initResponse = result.response.toInitRespose(featureFlags: result.featureFlags)
+                DispatchQueue.main.async {
+                    self.handleInitSuccess(initResponse, initStartTime: initStartTime)
+                }
+            } catch {
+                let statusCode = Self.statusCode(from: error)
+                DispatchQueue.main.async {
+                    self.handleInitFailure(error: error, statusCode: statusCode, response: "")
                 }
             }
-        }, failure: { (error, statusCode, response) in
-            RoktLogger.shared.error("Initialization failed - statusCode: \(statusCode ?? -1), " +
-                                    "error: \(error.localizedDescription)")
-            self.isInitialized = false
-            self.processedTimingsRequests?.setInitEndTime()
-            // Don't report diagnostics for 429 (Too Many Requests) status code
-            if let code = statusCode, code != 429 {
-                self.sendDiagnostics(Self.initDiagnosticCode, error: error, statusCode: statusCode, response: response)
-            }
+        }
+    }
+
+    private func handleInitSuccess(_ initResponse: InitRespose, initStartTime: Date) {
+        RoktLogger.shared.info("API initialization succeeded")
+        self.isInitialized = true
+        self.initFeatureFlags = initResponse.featureFlags
+
+        self.processedTimingsRequests = TimingsRequestProcessor()
+        self.processedTimingsRequests?.setInitStartTime(initStartTime)
+
+        self.clientTimeoutMilliseconds = initResponse.timeout != 0 ?
+        initResponse.timeout : self.clientTimeoutMilliseconds
+        self.defaultLaunchDelayMilliseconds = initResponse.delay != 0 ?
+        initResponse.delay : self.defaultLaunchDelayMilliseconds
+        if let clientSessionTimeoutMilliseconds = initResponse.clientSessionTimeout {
+            self.sessionManager.currentSessionDurationSeconds = clientSessionTimeoutMilliseconds/1000
+        }
+        NetworkingHelper.updateTimeout(timeout: self.clientTimeoutMilliseconds/1000)
+
+        let initFonts = initResponse.fonts
+        RoktLogger.shared.debug("Downloading \(initFonts.count) font(s)")
+        FontManager.removeUnusedFonts(fonts: initFonts)
+        RoktAPIHelper.downloadFonts(initFonts) {
+            let success = self.isInitialized && !self.isInitFailedForFont
+            RoktLogger.shared.info("Initialization complete - success: \(success)")
             if let eventListener = self.roktEventMap[Self.defaultRoktInitEvent] {
-                eventListener?(RoktEvent.InitComplete(success: false))
+                eventListener?(RoktEvent.InitComplete(success: success))
             }
-        })
+        }
+    }
+
+    private func handleInitFailure(error: Error, statusCode: Int?, response: String) {
+        RoktLogger.shared.error("Initialization failed - statusCode: \(statusCode ?? -1), " +
+                                "error: \(error.localizedDescription)")
+        self.isInitialized = false
+        self.processedTimingsRequests?.setInitEndTime()
+        // Don't report diagnostics for 429 (Too Many Requests) status code
+        if let code = statusCode, code != 429 {
+            self.sendDiagnostics(Self.initDiagnosticCode, error: error, statusCode: statusCode, response: response)
+        }
+        if let eventListener = self.roktEventMap[Self.defaultRoktInitEvent] {
+            eventListener?(RoktEvent.InitComplete(success: false))
+        }
+    }
+
+    private func defaultTxnInitService(roktTagId: String) -> TxnInitService {
+        let httpClient: HTTPClientAdapter = config.environment == .Mock
+            ? MockTxnInitHTTPClient()
+            : RoktHTTPClient()
+        return TxnInitService(
+            environment: config.environment,
+            accountId: roktTagId,
+            sdkVersion: libraryVersion,
+            layoutSchemaVersion: Self.txnLayoutSchemaVersion,
+            sessionManager: resolveTxnSessionManager(roktTagId: roktTagId),
+            httpClient: httpClient
+        )
+    }
+
+    // Reuse a single session manager per tag id so the minted bearer token is
+    // available to subsequent v2 calls (and is restored from storage on launch).
+    private func resolveTxnSessionManager(roktTagId: String) -> TxnSessionManager {
+        if let existing = txnSessionManager, existing.boundTagId == roktTagId {
+            return existing
+        }
+        let manager = TxnSessionManager(roktTagId: roktTagId)
+        txnSessionManager = manager
+        return manager
+    }
+
+    private static func statusCode(from error: Error) -> Int? {
+        if case TxnInitService.TxnInitError.unexpectedStatusCode(let code) = error {
+            return code
+        }
+        return nil
     }
 
     /// Rokt developer facing execute
