@@ -860,8 +860,9 @@ class RoktInternalImplementation {
 
     // Routes init through the v2 Transactions path (default) or the legacy path.
     // `useV2Init` is the single rollback switch; the legacy path is otherwise untouched.
+    // ProdDemo has no v2 gateway, so it stays on the legacy path (which targets the demo host).
     private func performInit(roktTagId: String, initStartTime: Date) {
-        guard Self.useV2Init else {
+        guard Self.useV2Init, config.environment != .ProdDemo else {
             RoktAPIHelper.initialize(
                 roktTagId: roktTagId,
                 success: { self.handleInitSuccess($0, initStartTime: initStartTime) },

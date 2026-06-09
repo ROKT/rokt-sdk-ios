@@ -9,7 +9,7 @@ let invalidInitFilename = "InvalidInit"
 
 // Derived from the same environment as the live path so the mock URL matches the request.
 var txnInitResourceURL: String {
-    TxnConfiguration.getEnvironment(config.environment).gatewayBaseURL + "/v2/sessions/init"
+    config.environment.gatewayBaseURL + "/v2/sessions/init"
 }
 
 // Reshapes a legacy init fixture into the v2 response so existing fixtures still drive init.

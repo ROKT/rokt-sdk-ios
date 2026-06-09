@@ -67,12 +67,15 @@ final class TestMockTxnInitHTTPClient: XCTestCase {
         XCTAssertEqual(decoded.featureFlags.int(forKey: "client-timeout-ms"), 8000)
     }
 
-    func test_missingFixture_returnsError() throws {
+    func test_missingFixture_servesEmbeddedDefaultAs200() throws {
         let bundle = try XCTUnwrap(Bundle(url: tempDir))
 
         let result = performRequest(bundle: bundle)
 
-        XCTAssertNil(result?.responseData)
-        XCTAssertNotNil(result?.responseError)
+        XCTAssertEqual(result?.httpURLResponse?.statusCode, 200)
+        XCTAssertNil(result?.responseError)
+        let data = try XCTUnwrap(result?.responseData)
+        let decoded = try JSONDecoder().decode(TxnInitResponse.self, from: data)
+        XCTAssertEqual(decoded.featureFlags.int(forKey: "client-timeout-ms"), 8000)
     }
 }
