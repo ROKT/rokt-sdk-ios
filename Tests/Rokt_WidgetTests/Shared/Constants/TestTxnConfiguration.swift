@@ -22,7 +22,7 @@ final class TestTxnConfiguration: XCTestCase {
         XCTAssertEqual(custom.gatewayBaseURL, "https://example.test")
     }
 
-    // MARK: - RoktEnvironment mapping
+    // MARK: - Environment mapping
 
     func test_getEnvironment_stage() {
         XCTAssertEqual(TxnConfiguration.getEnvironment(.Stage), .stage)
@@ -40,16 +40,14 @@ final class TestTxnConfiguration: XCTestCase {
         XCTAssertEqual(TxnConfiguration.getEnvironment(.ProdDemo), .prod)
     }
 
-    func test_getEnvironment_nil_fallsBackToProd() {
-        XCTAssertEqual(TxnConfiguration.getEnvironment(nil), .prod)
+    func test_getEnvironment_mock_fallsBackToProd() {
+        XCTAssertEqual(TxnConfiguration.getEnvironment(.Mock), .prod)
     }
 
-    // MARK: - Build-configuration resolution
-
-    func test_environment_resolvesFromBuildConfiguration() {
-        var configuration = TxnConfiguration()
-        // Resolved from the host's build configuration, which can only be stage or prod.
-        let resolved = configuration.environment
-        XCTAssertTrue(resolved == .prod || resolved == .stage)
+    func test_getEnvironment_custom_preservesBaseURL() {
+        XCTAssertEqual(
+            TxnConfiguration.getEnvironment(.custom(baseURL: "https://example.test")),
+            .custom(baseURL: "https://example.test")
+        )
     }
 }

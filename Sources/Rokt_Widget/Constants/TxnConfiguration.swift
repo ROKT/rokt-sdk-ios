@@ -18,22 +18,14 @@ internal enum TxnEnvironment: Equatable {
 }
 
 internal struct TxnConfiguration {
-    lazy var environment: TxnEnvironment = {
-        if let configuration = Bundle.main.object(forInfoDictionaryKey: "Configuration") as? String,
-           configuration.contains("STAGE") {
-            return .stage
-        }
-        return .prod
-    }()
-
-    // No v2 mock or demo host: ProdDemo and unspecified fall back to prod.
-    static func getEnvironment(_ environment: RoktEnvironment?) -> TxnEnvironment {
+    // Maps the live config.environment onto the v2 gateway. Mock reuses prod (the mock
+    // path swaps the transport, not the host); ProdDemo has no v2 host and reuses prod.
+    static func getEnvironment(_ environment: Environment) -> TxnEnvironment {
         switch environment {
         case .Stage: return .stage
-        case .Prod: return .prod
+        case .Prod, .ProdDemo, .Mock: return .prod
         case .Local: return .local
-        case .ProdDemo: return .prod
-        default: return .prod
+        case .custom(let baseURL): return .custom(baseURL: baseURL)
         }
     }
 }
