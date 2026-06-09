@@ -79,23 +79,25 @@ final class TestTxnSessionManager: XCTestCase {
 
     // MARK: - Persistence
 
-    private func makeDefaults() -> UserDefaults {
-        let suite = "txn.session.tests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
-        return defaults
+    // Shared in-memory backing store so two managers see the same persisted state,
+    // without touching the real Keychain during tests.
+    private final class InMemoryStore: TxnSessionStore {
+        private var values: [String: String] = [:]
+        func string(forKey key: String) -> String? { values[key] }
+        func setString(_ value: String, forKey key: String) { values[key] = value }
+        func removeValue(forKey key: String) { values[key] = nil }
     }
 
-    private func persistentManager(tagId: String, defaults: UserDefaults) -> TxnSessionManager {
-        TxnSessionManager(roktTagId: tagId, userDefaults: defaults, clock: { self.now })
+    private func persistentManager(tagId: String, store: TxnSessionStore) -> TxnSessionManager {
+        TxnSessionManager(roktTagId: tagId, store: store, clock: { self.now })
     }
 
     func test_persistence_restoresValidSessionForSameTagId() {
-        let defaults = makeDefaults()
-        persistentManager(tagId: "tag-1", defaults: defaults)
+        let store = InMemoryStore()
+        persistentManager(tagId: "tag-1", store: store)
             .update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 1800))
 
-        let restored = persistentManager(tagId: "tag-1", defaults: defaults)
+        let restored = persistentManager(tagId: "tag-1", store: store)
 
         XCTAssertEqual(restored.currentSessionId, "sid")
         XCTAssertEqual(restored.authorizationHeader, "Bearer jwt")
@@ -103,23 +105,23 @@ final class TestTxnSessionManager: XCTestCase {
     }
 
     func test_persistence_clearsWhenTagIdDiffers() {
-        let defaults = makeDefaults()
-        persistentManager(tagId: "tag-1", defaults: defaults)
+        let store = InMemoryStore()
+        persistentManager(tagId: "tag-1", store: store)
             .update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 1800))
 
-        let other = persistentManager(tagId: "tag-2", defaults: defaults)
+        let other = persistentManager(tagId: "tag-2", store: store)
 
         XCTAssertNil(other.currentSessionId)
         XCTAssertNil(other.authorizationHeader)
     }
 
     func test_persistence_dropsExpiredTokenOnLoad() {
-        let defaults = makeDefaults()
-        persistentManager(tagId: "tag-1", defaults: defaults)
+        let store = InMemoryStore()
+        persistentManager(tagId: "tag-1", store: store)
             .update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 60))
         now = now.addingTimeInterval(61)
 
-        let restored = persistentManager(tagId: "tag-1", defaults: defaults)
+        let restored = persistentManager(tagId: "tag-1", store: store)
 
         XCTAssertNil(restored.currentSessionId)
         XCTAssertNil(restored.authorizationHeader)
@@ -127,36 +129,36 @@ final class TestTxnSessionManager: XCTestCase {
     }
 
     func test_persistence_tokenOnlyRefreshDoesNotLoseSessionIdAcrossLoads() {
-        let defaults = makeDefaults()
-        let manager = persistentManager(tagId: "tag-1", defaults: defaults)
+        let store = InMemoryStore()
+        let manager = persistentManager(tagId: "tag-1", store: store)
         manager.update(sessionId: "sid", sessionToken: token("old", expiresInSeconds: 60))
         manager.update(sessionToken: token("new", expiresInSeconds: 1800))
 
-        let restored = persistentManager(tagId: "tag-1", defaults: defaults)
+        let restored = persistentManager(tagId: "tag-1", store: store)
 
         XCTAssertEqual(restored.currentSessionId, "sid")
         XCTAssertEqual(restored.authorizationHeader, "Bearer new")
     }
 
     func test_persistence_clearRemovesPersistedSession() {
-        let defaults = makeDefaults()
-        let manager = persistentManager(tagId: "tag-1", defaults: defaults)
+        let store = InMemoryStore()
+        let manager = persistentManager(tagId: "tag-1", store: store)
         manager.update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 1800))
 
         manager.clear()
-        let restored = persistentManager(tagId: "tag-1", defaults: defaults)
+        let restored = persistentManager(tagId: "tag-1", store: store)
 
         XCTAssertNil(restored.currentSessionId)
         XCTAssertNil(restored.authorizationHeader)
     }
 
     func test_inMemoryManager_doesNotPersist() {
-        // The clock-only initializer is in-memory; nothing should leak to UserDefaults.
-        let defaults = makeDefaults()
+        // The clock-only initializer is in-memory; nothing should leak to the store.
+        let store = InMemoryStore()
         let inMemory = TxnSessionManager(clock: { self.now })
         inMemory.update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 1800))
 
-        let persistent = persistentManager(tagId: "tag-1", defaults: defaults)
+        let persistent = persistentManager(tagId: "tag-1", store: store)
         XCTAssertNil(persistent.currentSessionId)
     }
 }

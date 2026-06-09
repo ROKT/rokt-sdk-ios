@@ -15,7 +15,7 @@ internal final class TxnSessionManager {
 
     // nil disables persistence (in-memory only), preserving the lightweight test setup.
     private let roktTagId: String?
-    private let userDefaults: UserDefaults?
+    private let store: TxnSessionStore?
 
     private(set) var boundTagId: String?
     private var sessionId: String?
@@ -25,18 +25,18 @@ internal final class TxnSessionManager {
     init(clock: @escaping () -> Date = Date.init) {
         self.clock = clock
         self.roktTagId = nil
-        self.userDefaults = nil
+        self.store = nil
         self.boundTagId = nil
     }
 
     init(
         roktTagId: String,
-        userDefaults: UserDefaults = .standard,
+        store: TxnSessionStore = KeychainTxnSessionStore(),
         clock: @escaping () -> Date = Date.init
     ) {
         self.clock = clock
         self.roktTagId = roktTagId
-        self.userDefaults = userDefaults
+        self.store = store
         self.boundTagId = roktTagId
         restoreFromStore()
     }
@@ -86,11 +86,11 @@ internal final class TxnSessionManager {
         sessionId = nil
         token = nil
         expiresAt = nil
-        guard let userDefaults else { return }
-        userDefaults.removeObject(forKey: Keys.tagId)
-        userDefaults.removeObject(forKey: Keys.sessionId)
-        userDefaults.removeObject(forKey: Keys.token)
-        userDefaults.removeObject(forKey: Keys.expiresAt)
+        guard let store else { return }
+        store.removeValue(forKey: Keys.tagId)
+        store.removeValue(forKey: Keys.sessionId)
+        store.removeValue(forKey: Keys.token)
+        store.removeValue(forKey: Keys.expiresAt)
     }
 
     private var isExpiredLocked: Bool {
@@ -99,16 +99,17 @@ internal final class TxnSessionManager {
     }
 
     private func restoreFromStore() {
-        guard let userDefaults, let roktTagId else { return }
+        guard let store, let roktTagId else { return }
         // Only restore a session bound to the current tag id; otherwise start clean.
-        guard userDefaults.string(forKey: Keys.tagId) == roktTagId else {
+        guard store.string(forKey: Keys.tagId) == roktTagId else {
             clear()
             return
         }
-        sessionId = userDefaults.string(forKey: Keys.sessionId)
-        token = userDefaults.string(forKey: Keys.token)
-        let storedExpiry = userDefaults.double(forKey: Keys.expiresAt)
-        expiresAt = storedExpiry > 0 ? Date(timeIntervalSince1970: storedExpiry/1000) : nil
+        sessionId = store.string(forKey: Keys.sessionId)
+        token = store.string(forKey: Keys.token)
+        expiresAt = store.string(forKey: Keys.expiresAt)
+            .flatMap(Double.init)
+            .map { Date(timeIntervalSince1970: $0/1000) }
         // Drop a persisted-but-expired token so we never start with stale state;
         // an expired JWT is dead server-side and a fresh session is minted at init.
         if isExpiredLocked {
@@ -117,14 +118,18 @@ internal final class TxnSessionManager {
     }
 
     private func persist(includeSessionId: Bool) {
-        guard let userDefaults, let roktTagId else { return }
+        guard let store, let roktTagId else { return }
         if includeSessionId {
-            userDefaults.set(roktTagId, forKey: Keys.tagId)
-            userDefaults.set(sessionId, forKey: Keys.sessionId)
+            store.setString(roktTagId, forKey: Keys.tagId)
+            if let sessionId {
+                store.setString(sessionId, forKey: Keys.sessionId)
+            }
         }
-        userDefaults.set(token, forKey: Keys.token)
+        if let token {
+            store.setString(token, forKey: Keys.token)
+        }
         if let expiresAt {
-            userDefaults.set(expiresAt.timeIntervalSince1970 * 1000, forKey: Keys.expiresAt)
+            store.setString(String(expiresAt.timeIntervalSince1970 * 1000), forKey: Keys.expiresAt)
         }
     }
 }
