@@ -271,7 +271,7 @@ class RoktInternalImplementation {
         if let swiftUiExecuteLayout {
             uxHelper.loadLayout(
                 startDate: startDate,
-                experienceResponse: layoutPage.page,
+                pageModel: layoutPage.pageModel,
                 layoutPluginViewStates: layoutPage.cacheProperties?.pluginViewStates,
                 defaultLayoutLoader: swiftUiExecuteLayout,
                 config: roktConfig.getUXConfig(),
@@ -296,7 +296,7 @@ class RoktInternalImplementation {
         } else {
             uxHelper.loadLayout(
                 startDate: startDate,
-                experienceResponse: layoutPage.page,
+                pageModel: layoutPage.pageModel,
                 layoutPluginViewStates: layoutPage.cacheProperties?.pluginViewStates,
                 layoutLoaders: placements,
                 config: roktConfig.getUXConfig(),
@@ -1080,12 +1080,20 @@ class RoktInternalImplementation {
             return nil
         }
 
-        guard let pageDecodedData = try? decodeOnSeparateThread(RoktUXExperienceResponse.self, pageData) else {
+        // Single parse: the UX helper decodes the experience response once and reports
+        // the parse window; the resulting page model is reused for rendering.
+        guard let parseResult = RoktUX.parseExperience(page) else {
             return nil
         }
-        sessionManager.updateSessionId(newSessionId: pageDecodedData.sessionId)
+        sessionManager.updateSessionId(newSessionId: parseResult.sessionId)
 
-        guard let pageModel = pageDecodedData.getPageModel() else {
+        processedTimingsRequests?.setExperienceJsonParseTimes(
+            selectionId: selectionId,
+            start: parseResult.parseStart,
+            end: parseResult.parseEnd
+        )
+
+        guard let pageModel = parseResult.pageModel else {
             return nil
         }
         let events = try? decodeOnSeparateThread(UntriggeredEventsContainer.self, pageData)
@@ -1095,7 +1103,7 @@ class RoktInternalImplementation {
 
         processedTimingsRequests?.setPageProperties(
             selectionId: selectionId,
-            sessionId: pageDecodedData.sessionId,
+            sessionId: parseResult.sessionId,
             pageId: pageModel.pageId,
             pageInstanceGuid: pageModel.pageInstanceGuid
         )
@@ -1126,10 +1134,10 @@ class RoktInternalImplementation {
                 pluginViewStates: pluginViewStates,
                 onPluginViewStateChange: onPluginViewStateChange
             )
-            return LayoutPageExecutePayload(page: page,
+            return LayoutPageExecutePayload(pageModel: pageModel,
                                             cacheProperties: cacheProperties)
         } else {
-            return LayoutPageExecutePayload(page: page,
+            return LayoutPageExecutePayload(pageModel: pageModel,
                                             cacheProperties: nil)
         }
     }
@@ -1340,7 +1348,9 @@ struct ExecutePayload {
 }
 
 struct LayoutPageExecutePayload {
-    let page: String
+    /// Pre-parsed experience page model; rendering reuses it so the
+    /// experience response is decoded exactly once.
+    let pageModel: RoktUXPageModel
     let cacheProperties: LayoutPageCacheProperties?
 }
 

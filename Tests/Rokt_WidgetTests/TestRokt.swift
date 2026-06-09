@@ -148,6 +148,43 @@ class TestRokt: XCTestCase {
         )
     }
 
+    func testProcessLayoutPageExecutePayload_recordsExperienceJsonParseTimes() {
+        // Arrange
+        let roktInternalImplementation = RoktInternalImplementation()
+        let timingsProcessor = TimingsRequestProcessor(apiHelper: RoktAPIHelperSpy.self)
+        roktInternalImplementation.processedTimingsRequests = timingsProcessor
+        RoktAPIHelperSpy.reset()
+        let selectionId = UUID().uuidString
+        let response = """
+            {
+              "sessionId": "test-session-id",
+              "placementContext": {
+                "roktTagId": "123",
+                "pageInstanceGuid": "test-guid",
+                "token": "test-token"
+              },
+              "placements": [],
+              "plugins": [],
+              "token": ""
+            }
+            """
+
+        // Act - parse times are recorded even when the response has no renderable layouts
+        _ = roktInternalImplementation.processLayoutPageExecutePayload(
+            response, selectionId: selectionId, viewName: "test", attributes: [:]
+        )
+
+        // Assert - the parse window flows into the timing events request
+        timingsProcessor.setExperiencesRequestStartTime(selectionId: selectionId)
+        timingsProcessor.setPlacementInteractiveTime(selectionId: selectionId)
+        timingsProcessor.processTimingsRequest(selectionId: selectionId)
+        let eventsRequest = RoktAPIHelperSpy.lastTimingEventsRequest
+        XCTAssertNotNil(eventsRequest)
+        XCTAssertTrue(eventsRequest!.timings.contains { $0.name == .experienceJsonParseStart })
+        XCTAssertTrue(eventsRequest!.timings.contains { $0.name == .experienceJsonParseEnd })
+        RoktAPIHelperSpy.reset()
+    }
+
     // MARK: - setSessionId Tests
 
     func test_setSessionId_updatesSessionManager() {

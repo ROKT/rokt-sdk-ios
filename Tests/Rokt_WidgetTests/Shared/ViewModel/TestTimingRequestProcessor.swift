@@ -320,6 +320,113 @@ class TestTimingsRequestProcessor: XCTestCase {
         XCTAssertEqual(RoktAPIHelperSpy.lastTimingsRequest?.pluginId, pluginId)
     }
 
+    // MARK: - Tests for timing events (performance metrics)
+
+    func testProcessTimingsRequest_SendsTimingEventsWithPerformanceMetrics() {
+        // Arrange
+        let parseStart = fixedDate!
+        let parseEnd = Date(timeIntervalSince1970: fixedDate.timeIntervalSince1970 + 1)
+        sut.setExperiencesRequestStartTime(selectionId: testSelectionId)
+        sut.setExperiencesRequestEndTime(selectionId: testSelectionId)
+        sut.setExperienceJsonParseTimes(selectionId: testSelectionId, start: parseStart, end: parseEnd)
+        sut.setPlacementInteractiveTime(selectionId: testSelectionId)
+
+        // Act
+        sut.processTimingsRequest(selectionId: testSelectionId)
+
+        // Assert
+        XCTAssertEqual(RoktAPIHelperSpy.sendTimingEventsCallCount, 1)
+        let eventsRequest = RoktAPIHelperSpy.lastTimingEventsRequest!
+        XCTAssertEqual(eventsRequest.timings.count, 4)
+        XCTAssertTrue(containsTimingMetric(eventsRequest.timings, name: .experiencesRequestStart, value: fixedDate))
+        XCTAssertTrue(containsTimingMetric(eventsRequest.timings, name: .experiencesRequestEnd, value: fixedDate))
+        XCTAssertTrue(containsTimingMetric(eventsRequest.timings, name: .experienceJsonParseStart, value: parseStart))
+        XCTAssertTrue(containsTimingMetric(eventsRequest.timings, name: .experienceJsonParseEnd, value: parseEnd))
+        XCTAssertFalse(eventsRequest.isCached)
+        XCTAssertEqual(eventsRequest.expectedTti, 0)
+    }
+
+    func testProcessTimingsRequest_TimingEventsUseFunctionTimingNames() {
+        // Arrange
+        sut.setExperiencesRequestStartTime(selectionId: testSelectionId)
+        sut.setExperienceJsonParseTimes(selectionId: testSelectionId, start: fixedDate, end: fixedDate)
+        sut.setPlacementInteractiveTime(selectionId: testSelectionId)
+
+        // Act
+        sut.processTimingsRequest(selectionId: testSelectionId)
+
+        // Assert - parse metrics serialize with the fn:<name>:start|end convention
+        let eventsRequest = RoktAPIHelperSpy.lastTimingEventsRequest!
+        let metricNames = eventsRequest.timings.map { $0.toDictionary()["name"] }
+        XCTAssertTrue(metricNames.contains("fn:experienceJsonParse:start"))
+        XCTAssertTrue(metricNames.contains("fn:experienceJsonParse:end"))
+    }
+
+    func testProcessTimingsRequest_CachedExperience_DoesNotSendTimingEvents() {
+        // Arrange - no experiencesRequestStart (cache hit scenario)
+        sut.setExperienceJsonParseTimes(selectionId: testSelectionId, start: fixedDate, end: fixedDate)
+        sut.setPlacementInteractiveTime(selectionId: testSelectionId)
+
+        // Act
+        sut.processTimingsRequest(selectionId: testSelectionId)
+
+        // Assert
+        XCTAssertEqual(RoktAPIHelperSpy.sendTimingEventsCallCount, 0)
+        XCTAssertNil(RoktAPIHelperSpy.lastTimingEventsRequest)
+    }
+
+    func testProcessTimingsRequest_DuplicateRequest_DoesNotResendTimingEvents() {
+        // Arrange
+        sut.setExperiencesRequestStartTime(selectionId: testSelectionId)
+        sut.setExperienceJsonParseTimes(selectionId: testSelectionId, start: fixedDate, end: fixedDate)
+        sut.setPlacementInteractiveTime(selectionId: testSelectionId)
+
+        // Act
+        sut.processTimingsRequest(selectionId: testSelectionId)
+        sut.processTimingsRequest(selectionId: testSelectionId)
+
+        // Assert - shares the uniqueness gate with the timings request
+        XCTAssertEqual(RoktAPIHelperSpy.sendTimingEventsCallCount, 1)
+    }
+
+    func testProcessTimingsRequest_TimingEventsCarryPageAndPluginProperties() {
+        // Arrange
+        sut.setPageProperties(selectionId: testSelectionId, sessionId: "session1", pageId: "page1",
+                              pageInstanceGuid: "guid1")
+        sut.setPluginAttributes(selectionId: testSelectionId, pluginId: "plugin1", pluginName: "pluginName1")
+        sut.setExperiencesRequestStartTime(selectionId: testSelectionId)
+        sut.setPlacementInteractiveTime(selectionId: testSelectionId)
+
+        // Act
+        sut.processTimingsRequest(selectionId: testSelectionId)
+
+        // Assert
+        let eventsRequest = RoktAPIHelperSpy.lastTimingEventsRequest!
+        XCTAssertEqual(eventsRequest.pageId, "page1")
+        XCTAssertEqual(eventsRequest.pageInstanceGuid, "guid1")
+        XCTAssertEqual(eventsRequest.pluginId, "plugin1")
+        XCTAssertEqual(eventsRequest.pluginName, "pluginName1")
+    }
+
+    func testSetExperienceJsonParseTimes_ResetWithPageTimings() {
+        // Arrange
+        sut.setExperienceJsonParseTimes(selectionId: testSelectionId, start: fixedDate, end: fixedDate)
+        sut.resetPageTimings(selectionId: testSelectionId)
+
+        sut.setExperiencesRequestStartTime(selectionId: testSelectionId)
+        sut.setPlacementInteractiveTime(selectionId: testSelectionId)
+
+        // Act
+        sut.processTimingsRequest(selectionId: testSelectionId)
+
+        // Assert - parse metrics are not included after reset
+        let eventsRequest = RoktAPIHelperSpy.lastTimingEventsRequest!
+        let hasParseMetric = eventsRequest.timings.contains {
+            $0.name == .experienceJsonParseStart || $0.name == .experienceJsonParseEnd
+        }
+        XCTAssertFalse(hasParseMetric)
+    }
+
     // MARK: - Tests for isUniqueTimingsRequest
 
     func testIsUniqueTimingsRequest_UniqueRequest() {
@@ -497,6 +604,8 @@ class RoktAPIHelperSpy: RoktAPIHelper {
     static var lastTimingsRequest: TimingsRequest?
     static var lastSessionId: String?
     static var lastSelectionId: String?
+    static var sendTimingEventsCallCount = 0
+    static var lastTimingEventsRequest: TimingEventsRequest?
 
     override static func sendTimings(_ timingsRequest: TimingsRequest, sessionId: String?, selectionId: String) {
         sendTimingsCallCount += 1
@@ -505,10 +614,19 @@ class RoktAPIHelperSpy: RoktAPIHelper {
         lastSelectionId = selectionId
     }
 
+    override static func sendTimingEvents(_ timingEventsRequest: TimingEventsRequest,
+                                          sessionId: String?,
+                                          selectionId: String) {
+        sendTimingEventsCallCount += 1
+        lastTimingEventsRequest = timingEventsRequest
+    }
+
     static func reset() {
         sendTimingsCallCount = 0
         lastTimingsRequest = nil
         lastSessionId = nil
         lastSelectionId = nil
+        sendTimingEventsCallCount = 0
+        lastTimingEventsRequest = nil
     }
 }

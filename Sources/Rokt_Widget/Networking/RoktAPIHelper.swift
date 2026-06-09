@@ -297,4 +297,24 @@ internal class RoktAPIHelper {
             RoktNetWorkAPI.sendTimings(timingsRequest: timingsRequest, sessionId: sessionId, selectionId: selectionId)
         }
     }
+
+    /// Rokt timing events collection API call (performance metrics)
+    ///
+    /// - Parameters:
+    ///   - timingEventsRequest: TimingEventsRequest object containing metadata and collected timing metrics
+    ///   - sessionId: Session identifier for the request
+    ///   - selectionId: Selection identifier (UUID) to be sent as x-rokt-trace-id header
+    class func sendTimingEvents(_ timingEventsRequest: TimingEventsRequest,
+                                sessionId: String?,
+                                selectionId: String) {
+        guard Rokt.shared.roktImplementation.roktTagId != nil else { return }
+
+        if isMock() {
+            RoktMockAPI.sendTimingEvents(timingEventsRequest: timingEventsRequest, selectionId: selectionId)
+        } else {
+            RoktNetWorkAPI.sendTimingEvents(timingEventsRequest: timingEventsRequest,
+                                            sessionId: sessionId,
+                                            selectionId: selectionId)
+        }
+    }
 }
