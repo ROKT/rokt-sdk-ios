@@ -933,7 +933,7 @@ class RoktInternalImplementation {
     private func defaultTxnInitService(roktTagId: String) -> TxnInitService {
         let httpClient: HTTPClientAdapter = config.environment == .Mock
             ? MockTxnInitHTTPClient()
-            : RoktHTTPClient()
+            : NetworkingHelper.shared.httpClient
         return TxnInitService(
             environment: config.environment,
             accountId: roktTagId,

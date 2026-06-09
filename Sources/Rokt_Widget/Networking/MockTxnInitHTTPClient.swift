@@ -54,6 +54,7 @@ internal final class MockTxnInitHTTPClient: HTTPClientAdapter {
         return nil
     }
 
+    // periphery:ignore - required by HTTPClientAdapter; v2 init never downloads files
     func downloadFile(
         source urlAddress: String,
         destinationURL: URL,

@@ -7,12 +7,57 @@ import Mocker
 let validInitFilename = "validInit"
 let invalidInitFilename = "InvalidInit"
 
+// Derived from the same environment as the live path so the mock URL matches the request.
+var txnInitResourceURL: String {
+    TxnConfiguration.getEnvironment(config.environment).gatewayBaseURL + "/v2/sessions/init"
+}
+
+// Reshapes a legacy init fixture into the v2 response so existing fixtures still drive init.
+func makeTxnInitData(fromLegacy legacyData: Data) -> Data? {
+    guard let legacy = try? JSONSerialization.jsonObject(with: legacyData) as? [String: Any] else {
+        return nil
+    }
+
+    var featureFlags: [String: Any] = [:]
+    if let legacyFlags = legacy["featureFlags"] as? [String: Any] {
+        for (key, value) in legacyFlags {
+            if let flag = value as? [String: Any], let match = flag["match"] as? Bool {
+                featureFlags[key] = match
+            }
+        }
+    }
+    featureFlags["rokt-tracking-status"] = (legacy["roktTrackingStatus"] as? Bool) ?? true
+    if let clientTimeout = legacy["clientTimeoutMilliseconds"] as? Int {
+        featureFlags["client-timeout-ms"] = clientTimeout
+    }
+
+    let fonts: [[String: Any]] = (legacy["fonts"] as? [[String: Any]] ?? []).compactMap { font in
+        guard let name = font["fontName"] as? String, let url = font["fontUrl"] as? String else { return nil }
+        return ["font_name": name, "font_url": url]
+    }
+
+    let v2Response: [String: Any] = [
+        "session_id": "mock-session-00000000-0000-7000-8000-000000000000",
+        "session_token": ["token": "mock-session-token", "expires_at": 32_503_680_000_000],
+        "feature_flags": featureFlags,
+        "fonts": fonts
+    ]
+    return try? JSONSerialization.data(withJSONObject: v2Response)
+}
+
 // Protocol to share stub methods between QuickSpec and XCTestCase
 protocol StubMethodsProvider: AnyObject {
     var testBundle: Bundle { get }
 }
 
 extension StubMethodsProvider {
+
+    // Stubs the v2 endpoint alongside the legacy one; nil legacyData yields a body-less error.
+    func registerTxnInitStub(legacyData: Data?, statusCode: Int) {
+        guard let url = URL(string: txnInitResourceURL) else { return }
+        let v2Data = legacyData.flatMap(makeTxnInitData(fromLegacy:)) ?? Data()
+        Mock(url: url, dataType: .json, statusCode: statusCode, data: [.post: v2Data]).register()
+    }
 
     func stubInit(fileName: String = validInitFilename) {
         let configuration = URLSessionConfiguration.default
@@ -24,6 +69,7 @@ extension StubMethodsProvider {
                 .get: Data()
             ])
             mock.register()
+            registerTxnInitStub(legacyData: nil, statusCode: 500)
         } else {
             let initPath = testBundle.path(forResource: fileName, ofType: "json")!
             let initData = NSData(contentsOfFile: initPath)!
@@ -32,6 +78,7 @@ extension StubMethodsProvider {
                 .get: initData as Data // Data containing the JSON response
             ])
             mock.register()
+            registerTxnInitStub(legacyData: initData as Data, statusCode: 200)
         }
     }
 
@@ -47,6 +94,7 @@ extension StubMethodsProvider {
             .get: initData as Data // Data containing the JSON response
         ])
         mock.register()
+        registerTxnInitStub(legacyData: initData as Data, statusCode: 200)
     }
 
     func stubExecute(_ widgetFileName: String,
@@ -206,6 +254,7 @@ extension XCTestCase: StubMethodsProvider {
                 .get: Data()
             ])
             mock.register()
+            registerTxnInitStub(legacyData: nil, statusCode: 500)
         } else {
             let initPath = Bundle(for: type(of: self))
                 .path(forResource: fileName, ofType: "json")!
@@ -215,6 +264,7 @@ extension XCTestCase: StubMethodsProvider {
                 .get: initData as Data // Data containing the JSON response
             ])
             mock.register()
+            registerTxnInitStub(legacyData: initData as Data, statusCode: 200)
         }
     }
 
@@ -231,6 +281,7 @@ extension XCTestCase: StubMethodsProvider {
             .get: initData as Data // Data containing the JSON response
         ])
         mock.register()
+        registerTxnInitStub(legacyData: initData as Data, statusCode: 200)
     }
 
     func stubExecute(_ widgetFileName: String,
