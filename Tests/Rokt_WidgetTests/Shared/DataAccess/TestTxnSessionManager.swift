@@ -115,6 +115,19 @@ final class TestTxnSessionManager: XCTestCase {
         XCTAssertNil(other.authorizationHeader)
     }
 
+    func test_persistence_switchingTagIdWipesPreviousAccountSession() {
+        let store = InMemoryStore()
+        persistentManager(tagId: "tag-1", store: store)
+            .update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 1800))
+
+        _ = persistentManager(tagId: "tag-2", store: store)
+
+        // Verify the data was wiped, not just skipped on restore.
+        let backToTag1 = persistentManager(tagId: "tag-1", store: store)
+        XCTAssertNil(backToTag1.currentSessionId)
+        XCTAssertNil(backToTag1.authorizationHeader)
+    }
+
     func test_persistence_dropsExpiredTokenOnLoad() {
         let store = InMemoryStore()
         persistentManager(tagId: "tag-1", store: store)

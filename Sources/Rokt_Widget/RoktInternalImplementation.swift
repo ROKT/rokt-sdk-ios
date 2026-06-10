@@ -950,8 +950,8 @@ class RoktInternalImplementation {
         )
     }
 
-    // Reuse a single session manager per tag id so the minted bearer token is
-    // available to subsequent v2 calls (and is restored from storage on launch).
+    // Reuse the manager for the same tag so the minted token survives across calls;
+    // a new tag triggers a fresh manager, which clears any stored session not bound to it.
     private func resolveTxnSessionManager(roktTagId: String) -> TxnSessionManager {
         if let existing = txnSessionManager, existing.boundTagId == roktTagId {
             return existing
