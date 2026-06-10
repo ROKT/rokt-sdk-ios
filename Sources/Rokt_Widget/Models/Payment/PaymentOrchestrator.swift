@@ -79,7 +79,10 @@ final class PaymentOrchestrator {
 
     private enum PendingBuiltInTwoStepCheckout {
         case paypal(PendingBuiltInPayPalWebCheckout)
+        /// Card confirm is shown; buyer has not yet started `/v1/cart/purchase` for this session.
         case card(PendingBuiltInCardCheckout)
+        /// Built-in card forward POST is in flight; same snapshot as ``card`` until terminal or retryable restore.
+        case cardInFlight(PendingBuiltInCardCheckout)
     }
 
     private static var pendingBuiltInTwoStepCheckout: PendingBuiltInTwoStepCheckout?
@@ -383,7 +386,7 @@ final class PaymentOrchestrator {
         onCompletion: @escaping (PaymentSheetResult) -> Void
     ) -> Bool {
         Self.pendingBuiltInTwoStepLock.lock()
-        // Only consume PayPal entries; leave a card entry intact for ``popPendingBuiltInCardCompletion``.
+        // Only consume PayPal entries; leave built-in card entries (``card`` / ``cardInFlight``) intact.
         guard case let .paypal(snapshot) = Self.pendingBuiltInTwoStepCheckout,
               snapshot.owner === self
         else {
@@ -470,7 +473,7 @@ final class PaymentOrchestrator {
             switch snapshot {
             case .paypal(let pending):
                 pending.completion(.failed(error: "PayPal checkout was canceled."))
-            case .card(let pending):
+            case .card(let pending), .cardInFlight(let pending):
                 pending.completion(.failed(error: "Card checkout was canceled."))
             }
         }
@@ -519,16 +522,13 @@ final class PaymentOrchestrator {
         }
     }
 
-    /// Card-only forward-payment hook: pop the cached Step-1 completion so the caller can
-    /// fire it after `/v1/cart/purchase` resolves.
+    /// Begins a built-in card forward-payment attempt: moves ``card`` → ``cardInFlight`` and returns
+    /// the Step-1 completion to invoke only after a **terminal** `/v1/cart/purchase` outcome.
     ///
-    /// Card has no orchestrator-driven Step-2 (no WebView). ``handleForwardPayment`` runs the
-    /// standard `/v1/cart/purchase` path; this method just hands back the deferred completion
-    /// so device-pay finalization can chain off the same response.
-    ///
-    /// - Returns: the cached completion when the pending checkout was a card flow owned by
-    ///   this orchestrator; `nil` otherwise (so PayPal entries are left intact).
-    func popPendingBuiltInCardCompletion() -> ((PaymentSheetResult) -> Void)? {
+    /// - Returns: the deferred Step-1 completion when state was ``card`` for this orchestrator;
+    ///   `nil` if there is no card session, PayPal is cached instead, or a card attempt is already
+    ///   ``cardInFlight`` for this owner (avoid duplicate POSTs).
+    func beginBuiltInCardForwardPaymentIfReady() -> ((PaymentSheetResult) -> Void)? {
         Self.pendingBuiltInTwoStepLock.lock()
         defer { Self.pendingBuiltInTwoStepLock.unlock() }
         guard case let .card(snapshot) = Self.pendingBuiltInTwoStepCheckout,
@@ -536,8 +536,48 @@ final class PaymentOrchestrator {
         else {
             return nil
         }
-        Self.pendingBuiltInTwoStepCheckout = nil
+        Self.pendingBuiltInTwoStepCheckout = .cardInFlight(snapshot)
         return snapshot.completion
+    }
+
+    /// `true` when built-in card forward-payment has begun (``cardInFlight``) for this orchestrator.
+    func isBuiltInCardForwardPaymentInFlight() -> Bool {
+        Self.pendingBuiltInTwoStepLock.lock()
+        defer { Self.pendingBuiltInTwoStepLock.unlock() }
+        guard case let .cardInFlight(snapshot) = Self.pendingBuiltInTwoStepCheckout else {
+            return false
+        }
+        return snapshot.owner === self
+    }
+
+    /// After a **retryable** `/v1/cart/purchase` failure, move ``cardInFlight`` back to ``card`` so the
+    /// buyer can tap confirm again without re-running Step-1 ``initializePurchase``.
+    func restoreBuiltInCardForwardPaymentAfterRetryableFailure() {
+        Self.pendingBuiltInTwoStepLock.lock()
+        defer { Self.pendingBuiltInTwoStepLock.unlock() }
+        guard case let .cardInFlight(snapshot) = Self.pendingBuiltInTwoStepCheckout,
+              snapshot.owner === self
+        else {
+            return
+        }
+        Self.pendingBuiltInTwoStepCheckout = .card(snapshot)
+    }
+
+    /// Ends a built-in card forward attempt: clears ``cardInFlight`` and delivers ``result`` to the
+    /// Step-1 ``processPayment`` completion on the main queue.
+    func finishBuiltInCardForwardPaymentAttempt(result: PaymentSheetResult) {
+        var completion: ((PaymentSheetResult) -> Void)?
+        Self.pendingBuiltInTwoStepLock.lock()
+        if case let .cardInFlight(snapshot) = Self.pendingBuiltInTwoStepCheckout,
+           snapshot.owner === self {
+            completion = snapshot.completion
+            Self.pendingBuiltInTwoStepCheckout = nil
+        }
+        Self.pendingBuiltInTwoStepLock.unlock()
+        guard let completion else { return }
+        DispatchQueue.main.async {
+            completion(result)
+        }
     }
 
     // Clears static deferred state without invoking a completion (unit tests).

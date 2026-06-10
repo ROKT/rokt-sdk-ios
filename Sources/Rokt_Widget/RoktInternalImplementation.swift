@@ -682,6 +682,48 @@ class RoktInternalImplementation {
         return (false, failureReason)
     }
 
+    /// Conservative client-side policy for when the buyer may retry built-in card forward-payment
+    /// without leaving the confirm step (HTTP 200 with ``PurchaseResponse/success`` == `false`).
+    private static func isRetryableForwardPaymentBusinessFailure(failureReason: String?) -> Bool {
+        let normalized = failureReason?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased() ?? ""
+        if normalized.isEmpty { return false }
+        let hints = [
+            "timeout",
+            "timed out",
+            "try again",
+            "temporarily unavailable",
+            "service unavailable",
+            "too many requests",
+            "throttle",
+            "unavailable"
+        ]
+        return hints.contains { normalized.contains($0) }
+    }
+
+    /// Conservative client-side policy for transport failures where a retry may succeed.
+    private static func isRetryableForwardPaymentTransportFailure(error: Error, statusCode: Int?) -> Bool {
+        if let code = statusCode {
+            if (500...599).contains(code) { return true }
+            if code == 408 || code == 429 { return true }
+            return false
+        }
+        let nsError = error as NSError
+        guard nsError.domain == NSURLErrorDomain else { return false }
+        switch nsError.code {
+        case NSURLErrorTimedOut,
+             NSURLErrorNetworkConnectionLost,
+             NSURLErrorNotConnectedToInternet,
+             NSURLErrorCannotFindHost,
+             NSURLErrorCannotConnectToHost,
+             NSURLErrorDNSLookupFailed:
+            return true
+        default:
+            return false
+        }
+    }
+
     func handleForwardPayment(executeId: String,
                               event: RoktUXEvent.CartItemForwardPayment) {
         let presentedPayPal = paymentOrchestrator.presentPendingBuiltInPayPalForForwardPayment { [weak self] result in
@@ -725,9 +767,15 @@ class RoktInternalImplementation {
             return
         }
 
-        // Built-in card forwarding caches its Step-1 completion in PaymentOrchestrator;
-        // pop it here so device-pay finalization can chain off the same `/v1/cart/purchase` outcome.
-        let cardStepOneCompletion = paymentOrchestrator.popPendingBuiltInCardCompletion()
+        if paymentOrchestrator.isBuiltInCardForwardPaymentInFlight() {
+            RoktLogger.shared.warning(
+                "Built-in card forward-payment ignored while a purchase request is already in flight."
+            )
+            return
+        }
+
+        let cardStepOneCompletion = paymentOrchestrator.beginBuiltInCardForwardPaymentIfReady()
+        let builtInCardForwardFlowActive = cardStepOneCompletion != nil
 
         let fulfillmentDetails = event.transactionData?.shippingAddress.map {
             FulfillmentDetails(shippingAttributes: ShippingAttributes(from: $0))
@@ -739,8 +787,12 @@ class RoktInternalImplementation {
             RoktLogger.shared.warning(
                 "Forward-payment event missing price or has non-positive quantity"
             )
+            if builtInCardForwardFlowActive {
+                paymentOrchestrator.finishBuiltInCardForwardPaymentAttempt(
+                    result: .failed(error: Self.missingForwardPaymentPriceReason)
+                )
+            }
             paymentOrchestrator.cancelPendingBuiltInTwoStepIfNeeded()
-            cardStepOneCompletion?(.failed(error: Self.missingForwardPaymentPriceReason))
             forwardPaymentFinalized(
                 executeId: executeId,
                 layoutId: event.layoutId,
@@ -759,33 +811,84 @@ class RoktInternalImplementation {
                 guard let self else { return }
                 self.callOnRoktEvent(executeId, event: RoktEvent.HideLoadingIndicator())
                 let finalization = Self.resolveForwardPaymentFinalization(from: response)
-                if finalization.success {
-                    cardStepOneCompletion?(.succeeded(transactionId: ""))
+                if builtInCardForwardFlowActive {
+                    if finalization.success {
+                        self.paymentOrchestrator.finishBuiltInCardForwardPaymentAttempt(
+                            result: .succeeded(transactionId: "")
+                        )
+                        self.forwardPaymentFinalized(
+                            executeId: executeId,
+                            layoutId: event.layoutId,
+                            catalogItemId: event.catalogItemId,
+                            success: true,
+                            failureReason: nil
+                        )
+                    } else if Self.isRetryableForwardPaymentBusinessFailure(
+                        failureReason: finalization.failureReason
+                    ) {
+                        self.paymentOrchestrator.restoreBuiltInCardForwardPaymentAfterRetryableFailure()
+                    } else {
+                        self.paymentOrchestrator.finishBuiltInCardForwardPaymentAttempt(
+                            result: .failed(error: finalization.failureReason ?? Self.unknownForwardPaymentFailureReason)
+                        )
+                        self.forwardPaymentFinalized(
+                            executeId: executeId,
+                            layoutId: event.layoutId,
+                            catalogItemId: event.catalogItemId,
+                            success: false,
+                            failureReason: finalization.failureReason
+                        )
+                    }
                 } else {
-                    cardStepOneCompletion?(.failed(error: finalization.failureReason ?? Self.unknownForwardPaymentFailureReason))
+                    if finalization.success {
+                        cardStepOneCompletion?(.succeeded(transactionId: ""))
+                    } else {
+                        cardStepOneCompletion?(
+                            .failed(error: finalization.failureReason ?? Self.unknownForwardPaymentFailureReason)
+                        )
+                    }
+                    self.forwardPaymentFinalized(
+                        executeId: executeId,
+                        layoutId: event.layoutId,
+                        catalogItemId: event.catalogItemId,
+                        success: finalization.success,
+                        failureReason: finalization.failureReason
+                    )
                 }
-                self.forwardPaymentFinalized(
-                    executeId: executeId,
-                    layoutId: event.layoutId,
-                    catalogItemId: event.catalogItemId,
-                    success: finalization.success,
-                    failureReason: finalization.failureReason
-                )
             },
-            failure: { [weak self] _, _, message in
+            failure: { [weak self] error, statusCode, message in
                 guard let self else { return }
                 self.callOnRoktEvent(executeId, event: RoktEvent.HideLoadingIndicator())
                 let finalization = Self.resolveForwardPaymentFinalization(
                     fromFailureMessage: message
                 )
-                cardStepOneCompletion?(.failed(error: finalization.failureReason ?? Self.unknownForwardPaymentFailureReason))
-                self.forwardPaymentFinalized(
-                    executeId: executeId,
-                    layoutId: event.layoutId,
-                    catalogItemId: event.catalogItemId,
-                    success: finalization.success,
-                    failureReason: finalization.failureReason
-                )
+                if builtInCardForwardFlowActive {
+                    if Self.isRetryableForwardPaymentTransportFailure(error: error, statusCode: statusCode) {
+                        self.paymentOrchestrator.restoreBuiltInCardForwardPaymentAfterRetryableFailure()
+                    } else {
+                        self.paymentOrchestrator.finishBuiltInCardForwardPaymentAttempt(
+                            result: .failed(error: finalization.failureReason ?? Self.unknownForwardPaymentFailureReason)
+                        )
+                        self.forwardPaymentFinalized(
+                            executeId: executeId,
+                            layoutId: event.layoutId,
+                            catalogItemId: event.catalogItemId,
+                            success: false,
+                            failureReason: finalization.failureReason
+                        )
+                    }
+                } else {
+                    cardStepOneCompletion?(
+                        .failed(error: finalization.failureReason ?? Self.unknownForwardPaymentFailureReason)
+                    )
+                    self.forwardPaymentFinalized(
+                        executeId: executeId,
+                        layoutId: event.layoutId,
+                        catalogItemId: event.catalogItemId,
+                        success: false,
+                        failureReason: finalization.failureReason
+                    )
+                }
             }
         )
     }
