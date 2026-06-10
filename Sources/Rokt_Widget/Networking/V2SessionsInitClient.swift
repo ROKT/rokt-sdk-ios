@@ -76,6 +76,7 @@ internal enum V2SessionsInitClientError: Error {
     case bodyEncodingFailed
 }
 
+// periphery:ignore - encode-only request DTO; properties are read by the synthesized Encodable, not by code
 internal struct V2SessionsInitRequest: Encodable {
     let operatingSystem: String
     let sdkVersion: String
