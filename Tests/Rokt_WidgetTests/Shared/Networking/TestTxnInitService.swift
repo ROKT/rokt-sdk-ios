@@ -84,13 +84,13 @@ final class TestTxnInitService: XCTestCase {
         XCTAssertNil(httpClient.capturedHeaders.first?["Authorization"])
     }
 
-    func test_initSession_retriesOnTransient500_thenSucceeds() async throws {
-        httpClient.results = [.status(500), .status(503), .success(data: successJSON())]
+    func test_initSession_retriesOnTransient5xx_thenSucceeds() async throws {
+        httpClient.results = [.status(500), .status(503), .status(504), .success(data: successJSON())]
 
         let result = try await makeService().initSession()
 
         XCTAssertEqual(result.response.sessionId, "sess-123")
-        XCTAssertEqual(httpClient.callCount, 3)
+        XCTAssertEqual(httpClient.callCount, 4)
     }
 
     func test_initSession_retriesOnTimeout_thenSucceeds() async throws {

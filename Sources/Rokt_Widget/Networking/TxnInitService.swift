@@ -70,7 +70,6 @@ internal struct TxnInitService {
             do {
                 let (data, response) = try await client.initSession(
                     operating_system: "ios",
-                    sdk_version: sdkVersion,
                     layout_schema_version: layoutSchemaVersion
                 )
                 let statusCode = response?.statusCode ?? 0
@@ -100,7 +99,7 @@ internal struct TxnInitService {
     }
 
     private func isRetryable(statusCode: Int) -> Bool {
-        [500, 502, 503].contains(statusCode)
+        [500, 502, 503, 504].contains(statusCode)
     }
 
     // Transient transport failures only; a hard-offline device fails fast.

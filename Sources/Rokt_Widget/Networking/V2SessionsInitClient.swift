@@ -25,7 +25,6 @@ internal struct V2SessionsInitClient {
 
     func initSession(
         operating_system: String,
-        sdk_version: String,
         layout_schema_version: String
     ) async throws -> (Data?, HTTPURLResponse?) {
         let url = baseURL
@@ -35,7 +34,7 @@ internal struct V2SessionsInitClient {
 
         let requestBody = V2SessionsInitRequest(
             operatingSystem: operating_system,
-            sdkVersion: sdk_version,
+            sdkVersion: sdkVersion,
             layoutSchemaVersion: layout_schema_version
         )
         let bodyData = try JSONEncoder().encode(requestBody)
