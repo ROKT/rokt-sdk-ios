@@ -28,6 +28,8 @@ class RoktInternalImplementation {
     private var fontLoadObservers: [NSObjectProtocol] = []
 
     var roktTagId: String?
+    // Identifies the latest init request so a superseded init's async completion is ignored.
+    private var initGeneration = 0
     let sessionManager: SessionManager
     var attributes = [String: String]()
     var isInitialized = false
@@ -872,16 +874,20 @@ class RoktInternalImplementation {
         }
 
         let service = makeTxnInitService?(roktTagId) ?? defaultTxnInitService(roktTagId: roktTagId)
+        initGeneration += 1
+        let generation = initGeneration
         Task {
             do {
                 let result = try await service.initSession()
                 let initResponse = result.response.toInitRespose(featureFlags: result.featureFlags)
                 DispatchQueue.main.async {
+                    guard self.initGeneration == generation else { return }
                     self.handleInitSuccess(initResponse, initStartTime: initStartTime)
                 }
             } catch {
                 let statusCode = Self.statusCode(from: error)
                 DispatchQueue.main.async {
+                    guard self.initGeneration == generation else { return }
                     self.handleInitFailure(error: error, statusCode: statusCode, response: "")
                 }
             }
