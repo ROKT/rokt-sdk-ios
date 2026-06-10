@@ -76,10 +76,12 @@ internal enum V2SessionsInitClientError: Error {
     case bodyEncodingFailed
 }
 
-// periphery:ignore:all - encode-only request DTO; properties are consumed by the synthesized Encodable, not by code
 internal struct V2SessionsInitRequest: Encodable {
+    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
     let operatingSystem: String
+    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
     let sdkVersion: String
+    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
     let layoutSchemaVersion: String
 
     enum CodingKeys: String, CodingKey {
