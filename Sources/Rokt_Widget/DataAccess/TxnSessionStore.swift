@@ -42,7 +42,7 @@ internal final class KeychainTxnSessionStore: TxnSessionStore {
             kSecAttrService: service,
             kSecAttrAccount: key,
             kSecValueData: data,
-            kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+            kSecAttrAccessible: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         ]
         SecItemAdd(attributes as CFDictionary, nil)
     }
