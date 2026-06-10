@@ -85,7 +85,6 @@ class V2SessionsInitClientPactSpec: XCTestCase {
                     )
                     let (_, httpResponse) = try await client.initSession(
                         operating_system: "ios",
-                        sdk_version: "5.2.2",
                         layout_schema_version: "2.1.0"
                     )
                     XCTAssertEqual(httpResponse?.statusCode, 200)
