@@ -926,6 +926,7 @@ class RoktInternalImplementation {
                                 "error: \(error.localizedDescription)")
         self.isInitialized = false
         self.processedTimingsRequests?.setInitEndTime()
+        NetworkingHelper.updateTimeout(timeout: self.clientTimeoutMilliseconds/1000)
         // Don't report diagnostics for 429 (Too Many Requests) status code
         if let code = statusCode, code != 429 {
             self.sendDiagnostics(Self.initDiagnosticCode, error: error, statusCode: statusCode, response: response)
