@@ -160,8 +160,6 @@ extension TxnFeatureFlags {
 
         return InitFeatureFlags(
             roktTrackingStatus: bool(forKey: "rokt-tracking-status") ?? true,
-            shouldLogFontHappyPath: bool(forKey: "ios-sdk-log-font-happy-path") ?? false,
-            shouldUseFontRegisterWithUrl: bool(forKey: "ios-sdk-use-font-register-with-url") ?? false,
             featureFlags: items
         )
     }

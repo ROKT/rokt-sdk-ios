@@ -21,7 +21,7 @@ final class TestTxnInitService: XCTestCase {
         super.tearDown()
     }
 
-    private func makeService(environment: TxnEnvironment = .prod, maxRetries: Int = 3) -> TxnInitService {
+    private func makeService(environment: Environment = .Prod, maxRetries: Int = 3) -> TxnInitService {
         TxnInitService(
             environment: environment,
             accountId: "account-1",

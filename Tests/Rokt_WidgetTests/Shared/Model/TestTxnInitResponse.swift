@@ -175,7 +175,12 @@ final class TestTxnInitResponse: XCTestCase {
     func test_toInitFeatureFlags_mapsDirectBooleans() throws {
         let flags = try decode(happyPathJSON).featureFlags.toInitFeatureFlags()
         XCTAssertTrue(flags.isEnabled(.roktTrackingStatus))
-        XCTAssertTrue(flags.isEnabled(.shouldLogFontHappyPath))
+    }
+
+    // Font flags are intentionally excluded from the v2 mapping even when the server sends them.
+    func test_toInitFeatureFlags_doesNotCarryFontFlags() throws {
+        let flags = try decode(happyPathJSON).featureFlags.toInitFeatureFlags()
+        XCTAssertFalse(flags.isEnabled(.shouldLogFontHappyPath))
         XCTAssertFalse(flags.isEnabled(.shouldUseFontRegisterWithUrl))
     }
 

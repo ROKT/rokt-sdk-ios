@@ -13,7 +13,7 @@ internal struct TxnInitService {
         let featureFlags: InitFeatureFlags
     }
 
-    let environment: TxnEnvironment
+    let environment: Environment
     let accountId: String
     let sdkVersion: String
     let layoutSchemaVersion: String
@@ -25,7 +25,7 @@ internal struct TxnInitService {
     let sleep: (TimeInterval) async throws -> Void
 
     init(
-        environment: TxnEnvironment,
+        environment: Environment,
         accountId: String,
         sdkVersion: String,
         layoutSchemaVersion: String,
