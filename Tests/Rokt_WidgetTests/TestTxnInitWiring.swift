@@ -21,7 +21,7 @@ final class TestTxnInitWiring: XCTestCase {
     private func injectService() {
         impl.makeTxnInitService = { [stub] tagId in
             TxnInitService(
-                environment: .prod,
+                environment: .Prod,
                 accountId: tagId,
                 sdkVersion: "5.2.2",
                 layoutSchemaVersion: "1.0",

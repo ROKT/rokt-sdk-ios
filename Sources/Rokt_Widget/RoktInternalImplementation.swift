@@ -50,7 +50,7 @@ class RoktInternalImplementation {
 
     // MARK: - v2 Transactions init (isolated)
 
-    // Single rollback switch: set to false to restore the legacy init path verbatim.
+    // v2 is the only active init path; v1 is retained but inactive
     private static let useV2Init = true
     // Layout schema version sent to the v2 init endpoint, matching the legacy header.
     private static var txnLayoutSchemaVersion: String {
@@ -860,11 +860,9 @@ class RoktInternalImplementation {
         performInit(roktTagId: roktTagId, initStartTime: initStartTime)
     }
 
-    // Routes init through the v2 Transactions path (default) or the legacy path.
-    // `useV2Init` is the single rollback switch; the legacy path is otherwise untouched.
-    // ProdDemo has no v2 gateway, so it stays on the legacy path (which targets the demo host).
+    // v2 is the only active init path; the legacy `else` is retained but inactive until v1 is removed.
     private func performInit(roktTagId: String, initStartTime: Date) {
-        guard Self.useV2Init, config.environment != .ProdDemo else {
+        guard Self.useV2Init else {
             RoktAPIHelper.initialize(
                 roktTagId: roktTagId,
                 success: { self.handleInitSuccess($0, initStartTime: initStartTime) },
