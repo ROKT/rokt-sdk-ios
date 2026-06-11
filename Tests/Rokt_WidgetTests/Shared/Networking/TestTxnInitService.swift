@@ -57,10 +57,12 @@ final class TestTxnInitService: XCTestCase {
         httpClient.results = [.success(data: successJSON())]
         let result = try await makeService().initSession()
 
+        let storedSessionId = await sessionManager.currentSessionId
+        let storedHeader = await sessionManager.authorizationHeader
         XCTAssertEqual(result.response.sessionId, "sess-123")
         XCTAssertEqual(result.response.sessionToken.token, "minted-jwt")
-        XCTAssertEqual(sessionManager.currentSessionId, "sess-123")
-        XCTAssertEqual(sessionManager.authorizationHeader, "Bearer minted-jwt")
+        XCTAssertEqual(storedSessionId, "sess-123")
+        XCTAssertEqual(storedHeader, "Bearer minted-jwt")
         XCTAssertTrue(result.featureFlags.isEnabled(.roktTrackingStatus))
         XCTAssertTrue(result.featureFlags.isEnabled(.minimumPostPurchaseSchema))
         XCTAssertEqual(httpClient.capturedHeaders.count, 1)
@@ -68,7 +70,10 @@ final class TestTxnInitService: XCTestCase {
 
     func test_initSession_withValidStoredToken_sendsAuthorizationHeader() async throws {
         let expiryMs = Int64(now.addingTimeInterval(1800).timeIntervalSince1970 * 1000)
-        sessionManager.update(sessionId: "existing", sessionToken: TxnSessionToken(token: "stored-jwt", expiresAt: expiryMs))
+        await sessionManager.update(
+            sessionId: "existing",
+            sessionToken: TxnSessionToken(token: "stored-jwt", expiresAt: expiryMs)
+        )
         httpClient.results = [.success(data: successJSON())]
 
         _ = try await makeService().initSession()
