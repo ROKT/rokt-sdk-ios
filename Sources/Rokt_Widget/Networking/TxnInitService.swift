@@ -56,10 +56,11 @@ internal struct TxnInitService {
 
         httpClient.updateTimeout(timeout: requestTimeout)
 
+        let authToken = await sessionManager.authorizationHeader
         let client = V2SessionsInitClient(
             baseURL: baseURL,
             accountId: accountId,
-            authToken: sessionManager.authorizationHeader,
+            authToken: authToken,
             sdkVersion: sdkVersion,
             httpClient: httpClient
         )
@@ -87,7 +88,7 @@ internal struct TxnInitService {
                 }
 
                 let decoded = try JSONDecoder().decode(TxnInitResponse.self, from: data)
-                sessionManager.update(sessionId: decoded.sessionId, sessionToken: decoded.sessionToken)
+                await sessionManager.update(sessionId: decoded.sessionId, sessionToken: decoded.sessionToken)
                 return InitResult(response: decoded, featureFlags: decoded.featureFlags.toInitFeatureFlags())
             } catch let error where isRetryable(error: error) && attempt < maxRetries {
                 try await sleep(backoffDelay(attempt: attempt))
