@@ -342,8 +342,14 @@ class TestTimingsRequestProcessor: XCTestCase {
         XCTAssertTrue(containsTimingMetric(eventsRequest.timings, name: .experiencesRequestEnd, value: fixedDate))
         XCTAssertTrue(containsTimingMetric(eventsRequest.timings, name: .experienceJsonParseStart, value: parseStart))
         XCTAssertTrue(containsTimingMetric(eventsRequest.timings, name: .experienceJsonParseEnd, value: parseEnd))
-        XCTAssertFalse(eventsRequest.isCached)
-        XCTAssertEqual(eventsRequest.expectedTti, 0)
+
+        // Minimal mobile payload: only timingMetrics (+ optional plugin attrs) is sent.
+        // WSDK-only / server-overwritten fields must NOT appear in the body.
+        let body = eventsRequest.toDictionary()
+        XCTAssertNotNil(body[TimingEventsRequest.timingMetricsKey])
+        XCTAssertNil(body["isCached"])
+        XCTAssertNil(body["expectedTti"])
+        XCTAssertNil(body["eventTime"])
     }
 
     func testProcessTimingsRequest_TimingEventsUseFunctionTimingNames() {

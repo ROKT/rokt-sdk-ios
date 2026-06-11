@@ -2,31 +2,33 @@ import Foundation
 
 /// Request payload for the `v1/timings/events` endpoint, carrying performance
 /// metrics (experiences request latency and experience JSON parse duration).
+///
+/// The mobile SDK sends only the fields the backend actually consumes for an
+/// `msdk` event: the `timingMetrics` array (the sole required body field) plus the
+/// optional plugin attributes used for downstream segmentation. Fields that the
+/// endpoint exposes purely for the web SDK — or that the backend overwrites — are
+/// intentionally omitted to keep the payload minimal:
+///   - `eventTime`   — overwritten server-side with the receive time, body value dropped.
+///   - `isCached`    — a WSDK concept (browser static-asset cache); always false here
+///                     since cache hits never reach this endpoint.
+///   - `expectedTti` — a WSDK time-to-interactive metric; not applicable to mobile.
+///
+/// `pageId` / `pageInstanceGuid` are carried on the model only to populate request
+/// headers (`rokt-page-id` / `rokt-page-instance-guid`); they are not part of the body.
 class TimingEventsRequest: Codable {
     static let timingMetricsKey = "timingMetrics"
-    private static let isCachedKey = "isCached"
-    private static let expectedTtiKey = "expectedTti"
 
-    let eventTime: Date
-    let isCached: Bool
-    let expectedTti: Int64
     let pageId: String?
     let pageInstanceGuid: String?
     let pluginId: String?
     let pluginName: String?
     let timings: [TimingMetric]
 
-    init(eventTime: Date = RoktSDKDateHandler.currentDate(),
-         isCached: Bool = false,
-         expectedTti: Int64 = 0,
-         pageId: String? = nil,
+    init(pageId: String? = nil,
          pageInstanceGuid: String? = nil,
          pluginId: String? = nil,
          pluginName: String? = nil,
          timings: [TimingMetric]) {
-        self.eventTime = eventTime
-        self.isCached = isCached
-        self.expectedTti = expectedTti
         self.pageId = pageId
         self.pageInstanceGuid = pageInstanceGuid
         self.pluginId = pluginId
@@ -36,9 +38,6 @@ class TimingEventsRequest: Codable {
 
     internal func toDictionary() -> [String: Any] {
         var dict: [String: Any] = [
-            timingsEventTimeKey: EventDateFormatter.getDateString(self.eventTime),
-            Self.isCachedKey: isCached,
-            Self.expectedTtiKey: expectedTti,
             Self.timingMetricsKey: timings.map { $0.toDictionary() }
         ]
 
