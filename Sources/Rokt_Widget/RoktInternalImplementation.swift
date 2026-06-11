@@ -275,8 +275,6 @@ class RoktInternalImplementation {
                 layoutPluginViewStates: layoutPage.cacheProperties?.pluginViewStates,
                 defaultLayoutLoader: swiftUiExecuteLayout,
                 config: roktConfig.getUXConfig(),
-                onLoad: {[weak self] in self?.callOnLoad(selectionId)},
-                onUnload: {[weak self] in self?.callOnUnLoad(selectionId)},
                 onEmbeddedSizeChange: {[weak self] selectedPlacementName, widgetHeight in
                     self?.callOnEmbeddedSizeChange(selectionId,
                                                    selectedPlacementName: selectedPlacementName,
@@ -300,8 +298,6 @@ class RoktInternalImplementation {
                 layoutPluginViewStates: layoutPage.cacheProperties?.pluginViewStates,
                 layoutLoaders: placements,
                 config: roktConfig.getUXConfig(),
-                onLoad: {[weak self] in self?.callOnLoad(selectionId)},
-                onUnload: {[weak self] in self?.callOnUnLoad(selectionId)},
                 onEmbeddedSizeChange: {[weak self] selectedPlacementName, widgetHeight in
                     self?.callOnEmbeddedSizeChange(selectionId,
                                                    selectedPlacementName: selectedPlacementName,
@@ -393,8 +389,8 @@ class RoktInternalImplementation {
                                       execute: workItem)
     }
 
-    private func callOnRoktUXEvent(_ executeId: String,
-                                   uxEvent: RoktUXEvent) {
+    func callOnRoktUXEvent(_ executeId: String,
+                           uxEvent: RoktUXEvent) {
         if uxEvent is RoktUXEvent.FirstPositiveEngagement {
             callOnRoktEvent(executeId, event: uxEvent.mapToRoktEvent)
         } else if let event = uxEvent as? RoktUXEvent.OpenUrl {
@@ -414,6 +410,21 @@ class RoktInternalImplementation {
             callOnUnLoad(executeId)
             placements = nil
             _swiftUiExecuteLayout = nil
+        } else if (uxEvent as? RoktUXEvent.LayoutInteractive) != nil {
+            // Placement load bookkeeping — replaces the former onLoad view-lifecycle closure
+            // (the SDK-only loadLayout(pageModel:) overload no longer takes one). LayoutInteractive
+            // fires once per placement when it becomes interactable, keeping the loaded-placement
+            // count balanced against the unload events below.
+            callOnLoad(executeId)
+            callOnRoktEvent(executeId, event: uxEvent.mapToRoktEvent)
+        } else if (uxEvent as? RoktUXEvent.LayoutClosed) != nil
+                    || (uxEvent as? RoktUXEvent.LayoutCompleted) != nil {
+            // Placement unload bookkeeping — replaces the former onUnload view-lifecycle closure.
+            // Exactly one of LayoutClosed / LayoutCompleted fires per placement at dismissal
+            // (mirrors how LayoutFailure already drives callOnUnLoad above), so clearCallBacks
+            // still runs once the last placement is gone.
+            callOnRoktEvent(executeId, event: uxEvent.mapToRoktEvent)
+            callOnUnLoad(executeId)
         } else if let event = uxEvent as? RoktUXEvent.CartItemInstantPurchase {
             callOnRoktEvent(executeId, event: RoktEvent.CartItemInstantPurchaseInitiated(
                 identifier: event.layoutId,
