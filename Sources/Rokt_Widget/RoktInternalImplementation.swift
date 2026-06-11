@@ -950,18 +950,6 @@ class RoktInternalImplementation {
         )
     }
 
-    // Reuse the manager for the same tag so the minted token survives across calls;
-    // a new tag triggers a fresh manager, which clears any stored session not bound to it.
-    private func resolveTxnSessionManager(roktTagId: String) -> TxnSessionManager {
-        if let existing = txnSessionManager, existing.boundTagId == roktTagId {
-            return existing
-        }
-        let manager = TxnSessionManager(roktTagId: roktTagId)
-        txnSessionManager = manager
-        return manager
-    }
-
-
     private static func statusCode(from error: Error) -> Int? {
         if case TxnInitService.TxnInitError.unexpectedStatusCode(let code) = error {
             return code
