@@ -51,16 +51,16 @@ class RoktInternalImplementation {
     // MARK: - v2 Transactions init (isolated)
 
     // v2 is the only active init path; v1 is retained but inactive
+    // swiftlint:disable:next todo
+    // TODO: Remove once v2 is fully rolled out.
     private static let useV2Init = true
     // Layout schema version sent to the v2 init endpoint, matching the legacy header.
     private static var txnLayoutSchemaVersion: String {
         RoktUX.integrationInfo.integration.layoutSchemaVersion
             .split(separator: ".").prefix(2).joined(separator: ".")
     }
-    // Long-lived session/token store for the v2 path, bound to the current tag id.
-    private var txnSessionManager: TxnSessionManager?
-    // Injectable coordinator factory for tests; nil uses the real builder.
-    var makeTxnInitService: ((String) -> TxnInitService)?
+    // Test-only override for the init service factory; nil uses the real builder.
+    var makeTxnInitServiceOverride: ((String) -> TxnInitService)?
     private var loadingFonts = false
     private var pendingPayload: ExecutePayload?
     private var isExecuting = false
@@ -871,7 +871,7 @@ class RoktInternalImplementation {
             return
         }
 
-        let service = makeTxnInitService?(roktTagId) ?? defaultTxnInitService(roktTagId: roktTagId)
+        let service = makeTxnInitServiceOverride?(roktTagId) ?? defaultTxnInitService(roktTagId: roktTagId)
         initGeneration += 1
         let generation = initGeneration
         Task {
@@ -945,20 +945,9 @@ class RoktInternalImplementation {
             accountId: roktTagId,
             sdkVersion: libraryVersion,
             layoutSchemaVersion: Self.txnLayoutSchemaVersion,
-            sessionManager: resolveTxnSessionManager(roktTagId: roktTagId),
+            sessionManager: TxnSessionManager(roktTagId: roktTagId),
             httpClient: httpClient
         )
-    }
-
-    // Reuse the manager for the same tag so the minted token survives across calls;
-    // a new tag triggers a fresh manager, which clears any stored session not bound to it.
-    private func resolveTxnSessionManager(roktTagId: String) -> TxnSessionManager {
-        if let existing = txnSessionManager, existing.boundTagId == roktTagId {
-            return existing
-        }
-        let manager = TxnSessionManager(roktTagId: roktTagId)
-        txnSessionManager = manager
-        return manager
     }
 
     private static func statusCode(from error: Error) -> Int? {
