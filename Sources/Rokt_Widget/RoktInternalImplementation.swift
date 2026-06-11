@@ -411,18 +411,12 @@ class RoktInternalImplementation {
             placements = nil
             _swiftUiExecuteLayout = nil
         } else if (uxEvent as? RoktUXEvent.LayoutInteractive) != nil {
-            // Placement load bookkeeping — replaces the former onLoad view-lifecycle closure
-            // (the SDK-only loadLayout(pageModel:) overload no longer takes one). LayoutInteractive
-            // fires once per placement when it becomes interactable, keeping the loaded-placement
-            // count balanced against the unload events below.
+            // Track placement load (count gates clearCallBacks).
             callOnLoad(executeId)
             callOnRoktEvent(executeId, event: uxEvent.mapToRoktEvent)
         } else if (uxEvent as? RoktUXEvent.LayoutClosed) != nil
                     || (uxEvent as? RoktUXEvent.LayoutCompleted) != nil {
-            // Placement unload bookkeeping — replaces the former onUnload view-lifecycle closure.
-            // Exactly one of LayoutClosed / LayoutCompleted fires per placement at dismissal
-            // (mirrors how LayoutFailure already drives callOnUnLoad above), so clearCallBacks
-            // still runs once the last placement is gone.
+            // Track placement unload.
             callOnRoktEvent(executeId, event: uxEvent.mapToRoktEvent)
             callOnUnLoad(executeId)
         } else if let event = uxEvent as? RoktUXEvent.CartItemInstantPurchase {

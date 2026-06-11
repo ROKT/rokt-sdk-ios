@@ -2,20 +2,12 @@ import XCTest
 @testable import Rokt_Widget
 @testable internal import RoktUXHelper
 
-/// The SDK-only `loadLayout(pageModel:)` overload no longer takes `onLoad`/`onUnload`
-/// view-lifecycle closures. The loaded-placement count that drives `clearCallBacks`
-/// (state-bag teardown) is now derived from the RoktUXEvent lifecycle stream in
-/// `callOnRoktUXEvent`. These tests pin that wiring:
-///   - load   ← `LayoutInteractive`            (increments once per placement)
-///   - unload ← `LayoutClosed` / `LayoutCompleted` (decrements once per placement)
-/// so the count stays balanced and the state bag is removed exactly when the last
-/// placement goes (the `StateBagManager` removes the bag when the count hits 0).
+/// The loaded-placement count that gates `clearCallBacks` is derived from the RoktUXEvent
+/// lifecycle (LayoutInteractive loads; LayoutClosed/LayoutCompleted unload). These pin the balance.
 final class TestRoktUXEventPlacementCount: XCTestCase {
 
     private let executeId = "test-execute-id"
 
-    /// Seeds a fresh implementation with a state bag whose `loadedPlacements` is 0
-    /// (the default for a newly-created `ExecuteStateBag`).
     private func makeImplementation() -> (RoktInternalImplementation, ExecuteStateBag) {
         let impl = RoktInternalImplementation()
         let bag = ExecuteStateBag(uxHelper: nil, onRoktEvent: nil)
