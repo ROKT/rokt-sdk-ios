@@ -31,7 +31,7 @@ internal final class TxnSessionManager {
 
     init(
         roktTagId: String,
-        store: TxnSessionStore = KeychainTxnSessionStore(),
+        store: TxnSessionStore = UserDefaultsTxnSessionStore(),
         clock: @escaping () -> Date = Date.init
     ) {
         self.clock = clock
