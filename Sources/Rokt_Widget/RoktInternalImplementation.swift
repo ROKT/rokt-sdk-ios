@@ -271,12 +271,10 @@ class RoktInternalImplementation {
         if let swiftUiExecuteLayout {
             uxHelper.loadLayout(
                 startDate: startDate,
-                experienceResponse: layoutPage.page,
+                pageModel: layoutPage.pageModel,
                 layoutPluginViewStates: layoutPage.cacheProperties?.pluginViewStates,
                 defaultLayoutLoader: swiftUiExecuteLayout,
                 config: roktConfig.getUXConfig(),
-                onLoad: {[weak self] in self?.callOnLoad(selectionId)},
-                onUnload: {[weak self] in self?.callOnUnLoad(selectionId)},
                 onEmbeddedSizeChange: {[weak self] selectedPlacementName, widgetHeight in
                     self?.callOnEmbeddedSizeChange(selectionId,
                                                    selectedPlacementName: selectedPlacementName,
@@ -296,12 +294,10 @@ class RoktInternalImplementation {
         } else {
             uxHelper.loadLayout(
                 startDate: startDate,
-                experienceResponse: layoutPage.page,
+                pageModel: layoutPage.pageModel,
                 layoutPluginViewStates: layoutPage.cacheProperties?.pluginViewStates,
                 layoutLoaders: placements,
                 config: roktConfig.getUXConfig(),
-                onLoad: {[weak self] in self?.callOnLoad(selectionId)},
-                onUnload: {[weak self] in self?.callOnUnLoad(selectionId)},
                 onEmbeddedSizeChange: {[weak self] selectedPlacementName, widgetHeight in
                     self?.callOnEmbeddedSizeChange(selectionId,
                                                    selectedPlacementName: selectedPlacementName,
@@ -393,8 +389,8 @@ class RoktInternalImplementation {
                                       execute: workItem)
     }
 
-    private func callOnRoktUXEvent(_ executeId: String,
-                                   uxEvent: RoktUXEvent) {
+    func callOnRoktUXEvent(_ executeId: String,
+                           uxEvent: RoktUXEvent) {
         if uxEvent is RoktUXEvent.FirstPositiveEngagement {
             callOnRoktEvent(executeId, event: uxEvent.mapToRoktEvent)
         } else if let event = uxEvent as? RoktUXEvent.OpenUrl {
@@ -414,6 +410,15 @@ class RoktInternalImplementation {
             callOnUnLoad(executeId)
             placements = nil
             _swiftUiExecuteLayout = nil
+        } else if (uxEvent as? RoktUXEvent.LayoutInteractive) != nil {
+            // Track placement load (count gates clearCallBacks).
+            callOnLoad(executeId)
+            callOnRoktEvent(executeId, event: uxEvent.mapToRoktEvent)
+        } else if (uxEvent as? RoktUXEvent.LayoutClosed) != nil
+                    || (uxEvent as? RoktUXEvent.LayoutCompleted) != nil {
+            // Track placement unload.
+            callOnRoktEvent(executeId, event: uxEvent.mapToRoktEvent)
+            callOnUnLoad(executeId)
         } else if let event = uxEvent as? RoktUXEvent.CartItemInstantPurchase {
             callOnRoktEvent(executeId, event: RoktEvent.CartItemInstantPurchaseInitiated(
                 identifier: event.layoutId,
@@ -1080,12 +1085,20 @@ class RoktInternalImplementation {
             return nil
         }
 
-        guard let pageDecodedData = try? decodeOnSeparateThread(RoktUXExperienceResponse.self, pageData) else {
+        // Single parse: the UX helper decodes the experience response once and reports
+        // the parse window; the resulting page model is reused for rendering.
+        guard let parseResult = RoktUX.parseExperience(page) else {
             return nil
         }
-        sessionManager.updateSessionId(newSessionId: pageDecodedData.sessionId)
+        sessionManager.updateSessionId(newSessionId: parseResult.sessionId)
 
-        guard let pageModel = pageDecodedData.getPageModel() else {
+        processedTimingsRequests?.setExperienceJsonParseTimes(
+            selectionId: selectionId,
+            start: parseResult.parseStart,
+            end: parseResult.parseEnd
+        )
+
+        guard let pageModel = parseResult.pageModel else {
             return nil
         }
         let events = try? decodeOnSeparateThread(UntriggeredEventsContainer.self, pageData)
@@ -1095,7 +1108,7 @@ class RoktInternalImplementation {
 
         processedTimingsRequests?.setPageProperties(
             selectionId: selectionId,
-            sessionId: pageDecodedData.sessionId,
+            sessionId: parseResult.sessionId,
             pageId: pageModel.pageId,
             pageInstanceGuid: pageModel.pageInstanceGuid
         )
@@ -1126,10 +1139,10 @@ class RoktInternalImplementation {
                 pluginViewStates: pluginViewStates,
                 onPluginViewStateChange: onPluginViewStateChange
             )
-            return LayoutPageExecutePayload(page: page,
+            return LayoutPageExecutePayload(pageModel: pageModel,
                                             cacheProperties: cacheProperties)
         } else {
-            return LayoutPageExecutePayload(page: page,
+            return LayoutPageExecutePayload(pageModel: pageModel,
                                             cacheProperties: nil)
         }
     }
@@ -1340,7 +1353,9 @@ struct ExecutePayload {
 }
 
 struct LayoutPageExecutePayload {
-    let page: String
+    /// Pre-parsed experience page model; rendering reuses it so the
+    /// experience response is decoded exactly once.
+    let pageModel: RoktUXPageModel
     let cacheProperties: LayoutPageCacheProperties?
 }
 
