@@ -23,58 +23,78 @@ final class TestTxnSessionManager: XCTestCase {
         return TxnSessionToken(token: value, expiresAt: expiryMs)
     }
 
-    func test_initialState_hasNoSession() {
-        XCTAssertNil(manager.currentSessionId)
-        XCTAssertNil(manager.authorizationHeader)
-        XCTAssertTrue(manager.isExpired)
+    func test_initialState_hasNoSession() async {
+        let sessionId = await manager.currentSessionId
+        let header = await manager.authorizationHeader
+        let isExpired = await manager.isExpired
+        XCTAssertNil(sessionId)
+        XCTAssertNil(header)
+        XCTAssertTrue(isExpired)
     }
 
-    func test_update_storesSessionIdAndAuthorizationHeader() {
-        manager.update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 1800))
-        XCTAssertEqual(manager.currentSessionId, "sid")
-        XCTAssertEqual(manager.authorizationHeader, "Bearer jwt")
-        XCTAssertFalse(manager.isExpired)
+    func test_update_storesSessionIdAndAuthorizationHeader() async {
+        await manager.update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 1800))
+        let sessionId = await manager.currentSessionId
+        let header = await manager.authorizationHeader
+        let isExpired = await manager.isExpired
+        XCTAssertEqual(sessionId, "sid")
+        XCTAssertEqual(header, "Bearer jwt")
+        XCTAssertFalse(isExpired)
     }
 
-    func test_expiredToken_dropsAuthorizationHeader_butRetainsSessionId() {
-        manager.update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 60))
+    func test_expiredToken_dropsAuthorizationHeader_butRetainsSessionId() async {
+        await manager.update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 60))
         now = now.addingTimeInterval(61)
-        XCTAssertNil(manager.authorizationHeader)
-        XCTAssertTrue(manager.isExpired)
-        XCTAssertEqual(manager.currentSessionId, "sid")
+        let header = await manager.authorizationHeader
+        let isExpired = await manager.isExpired
+        let sessionId = await manager.currentSessionId
+        XCTAssertNil(header)
+        XCTAssertTrue(isExpired)
+        XCTAssertEqual(sessionId, "sid")
     }
 
-    func test_expiryBoundary_isExpiredAtExactExpiry() {
-        manager.update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 60))
+    func test_expiryBoundary_isExpiredAtExactExpiry() async {
+        await manager.update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 60))
         now = now.addingTimeInterval(60)
-        XCTAssertTrue(manager.isExpired)
-        XCTAssertNil(manager.authorizationHeader)
+        let isExpired = await manager.isExpired
+        let header = await manager.authorizationHeader
+        XCTAssertTrue(isExpired)
+        XCTAssertNil(header)
     }
 
-    func test_tokenOnlyUpdate_keepsSessionId_andRefreshesToken() {
-        manager.update(sessionId: "sid", sessionToken: token("old", expiresInSeconds: 10))
-        manager.update(sessionToken: token("new", expiresInSeconds: 1800))
-        XCTAssertEqual(manager.currentSessionId, "sid")
-        XCTAssertEqual(manager.authorizationHeader, "Bearer new")
-        XCTAssertFalse(manager.isExpired)
+    func test_tokenOnlyUpdate_keepsSessionId_andRefreshesToken() async {
+        await manager.update(sessionId: "sid", sessionToken: token("old", expiresInSeconds: 10))
+        await manager.update(sessionToken: token("new", expiresInSeconds: 1800))
+        let sessionId = await manager.currentSessionId
+        let header = await manager.authorizationHeader
+        let isExpired = await manager.isExpired
+        XCTAssertEqual(sessionId, "sid")
+        XCTAssertEqual(header, "Bearer new")
+        XCTAssertFalse(isExpired)
     }
 
-    func test_refresh_extendsExpiryOnAnExpiredSession() {
-        manager.update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 60))
+    func test_refresh_extendsExpiryOnAnExpiredSession() async {
+        await manager.update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 60))
         now = now.addingTimeInterval(61)
-        XCTAssertTrue(manager.isExpired)
+        let expiredBeforeRefresh = await manager.isExpired
+        XCTAssertTrue(expiredBeforeRefresh)
 
-        manager.update(sessionToken: token("jwt2", expiresInSeconds: 1800))
-        XCTAssertFalse(manager.isExpired)
-        XCTAssertEqual(manager.authorizationHeader, "Bearer jwt2")
+        await manager.update(sessionToken: token("jwt2", expiresInSeconds: 1800))
+        let isExpired = await manager.isExpired
+        let header = await manager.authorizationHeader
+        XCTAssertFalse(isExpired)
+        XCTAssertEqual(header, "Bearer jwt2")
     }
 
-    func test_clear_resetsAllState() {
-        manager.update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 1800))
-        manager.clear()
-        XCTAssertNil(manager.currentSessionId)
-        XCTAssertNil(manager.authorizationHeader)
-        XCTAssertTrue(manager.isExpired)
+    func test_clear_resetsAllState() async {
+        await manager.update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 1800))
+        await manager.clear()
+        let sessionId = await manager.currentSessionId
+        let header = await manager.authorizationHeader
+        let isExpired = await manager.isExpired
+        XCTAssertNil(sessionId)
+        XCTAssertNil(header)
+        XCTAssertTrue(isExpired)
     }
 
     // MARK: - Persistence
@@ -92,86 +112,100 @@ final class TestTxnSessionManager: XCTestCase {
         TxnSessionManager(roktTagId: tagId, store: store, clock: { self.now })
     }
 
-    func test_persistence_restoresValidSessionForSameTagId() {
+    func test_persistence_restoresValidSessionForSameTagId() async {
         let store = InMemoryStore()
-        persistentManager(tagId: "tag-1", store: store)
+        await persistentManager(tagId: "tag-1", store: store)
             .update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 1800))
 
         let restored = persistentManager(tagId: "tag-1", store: store)
 
-        XCTAssertEqual(restored.currentSessionId, "sid")
-        XCTAssertEqual(restored.authorizationHeader, "Bearer jwt")
+        let sessionId = await restored.currentSessionId
+        let header = await restored.authorizationHeader
+        XCTAssertEqual(sessionId, "sid")
+        XCTAssertEqual(header, "Bearer jwt")
         XCTAssertEqual(restored.boundTagId, "tag-1")
     }
 
-    func test_persistence_clearsWhenTagIdDiffers() {
+    func test_persistence_clearsWhenTagIdDiffers() async {
         let store = InMemoryStore()
-        persistentManager(tagId: "tag-1", store: store)
+        await persistentManager(tagId: "tag-1", store: store)
             .update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 1800))
 
         let other = persistentManager(tagId: "tag-2", store: store)
 
-        XCTAssertNil(other.currentSessionId)
-        XCTAssertNil(other.authorizationHeader)
+        let sessionId = await other.currentSessionId
+        let header = await other.authorizationHeader
+        XCTAssertNil(sessionId)
+        XCTAssertNil(header)
     }
 
-    func test_persistence_switchingTagIdWipesPreviousAccountSession() {
+    func test_persistence_switchingTagIdWipesPreviousAccountSession() async {
         let store = InMemoryStore()
-        persistentManager(tagId: "tag-1", store: store)
+        await persistentManager(tagId: "tag-1", store: store)
             .update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 1800))
 
         _ = persistentManager(tagId: "tag-2", store: store)
 
         // Verify the data was wiped, not just skipped on restore.
         let backToTag1 = persistentManager(tagId: "tag-1", store: store)
-        XCTAssertNil(backToTag1.currentSessionId)
-        XCTAssertNil(backToTag1.authorizationHeader)
+        let sessionId = await backToTag1.currentSessionId
+        let header = await backToTag1.authorizationHeader
+        XCTAssertNil(sessionId)
+        XCTAssertNil(header)
     }
 
-    func test_persistence_dropsExpiredTokenOnLoad() {
+    func test_persistence_dropsExpiredTokenOnLoad() async {
         let store = InMemoryStore()
-        persistentManager(tagId: "tag-1", store: store)
+        await persistentManager(tagId: "tag-1", store: store)
             .update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 60))
         now = now.addingTimeInterval(61)
 
         let restored = persistentManager(tagId: "tag-1", store: store)
 
-        XCTAssertNil(restored.currentSessionId)
-        XCTAssertNil(restored.authorizationHeader)
-        XCTAssertTrue(restored.isExpired)
+        let sessionId = await restored.currentSessionId
+        let header = await restored.authorizationHeader
+        let isExpired = await restored.isExpired
+        XCTAssertNil(sessionId)
+        XCTAssertNil(header)
+        XCTAssertTrue(isExpired)
     }
 
-    func test_persistence_tokenOnlyRefreshDoesNotLoseSessionIdAcrossLoads() {
+    func test_persistence_tokenOnlyRefreshDoesNotLoseSessionIdAcrossLoads() async {
         let store = InMemoryStore()
         let manager = persistentManager(tagId: "tag-1", store: store)
-        manager.update(sessionId: "sid", sessionToken: token("old", expiresInSeconds: 60))
-        manager.update(sessionToken: token("new", expiresInSeconds: 1800))
+        await manager.update(sessionId: "sid", sessionToken: token("old", expiresInSeconds: 60))
+        await manager.update(sessionToken: token("new", expiresInSeconds: 1800))
 
         let restored = persistentManager(tagId: "tag-1", store: store)
 
-        XCTAssertEqual(restored.currentSessionId, "sid")
-        XCTAssertEqual(restored.authorizationHeader, "Bearer new")
+        let sessionId = await restored.currentSessionId
+        let header = await restored.authorizationHeader
+        XCTAssertEqual(sessionId, "sid")
+        XCTAssertEqual(header, "Bearer new")
     }
 
-    func test_persistence_clearRemovesPersistedSession() {
+    func test_persistence_clearRemovesPersistedSession() async {
         let store = InMemoryStore()
         let manager = persistentManager(tagId: "tag-1", store: store)
-        manager.update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 1800))
+        await manager.update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 1800))
 
-        manager.clear()
+        await manager.clear()
         let restored = persistentManager(tagId: "tag-1", store: store)
 
-        XCTAssertNil(restored.currentSessionId)
-        XCTAssertNil(restored.authorizationHeader)
+        let sessionId = await restored.currentSessionId
+        let header = await restored.authorizationHeader
+        XCTAssertNil(sessionId)
+        XCTAssertNil(header)
     }
 
-    func test_inMemoryManager_doesNotPersist() {
+    func test_inMemoryManager_doesNotPersist() async {
         // The clock-only initializer is in-memory; nothing should leak to the store.
         let store = InMemoryStore()
         let inMemory = TxnSessionManager(clock: { self.now })
-        inMemory.update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 1800))
+        await inMemory.update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 1800))
 
         let persistent = persistentManager(tagId: "tag-1", store: store)
-        XCTAssertNil(persistent.currentSessionId)
+        let sessionId = await persistent.currentSessionId
+        XCTAssertNil(sessionId)
     }
 }
