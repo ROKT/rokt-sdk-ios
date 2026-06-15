@@ -1,5 +1,3 @@
-// periphery:ignore:all - referenced from Tests/ContractTests/V2SessionsInitClientPactSpec.swift
-
 import Foundation
 
 internal struct V2SessionsInitClient {
@@ -79,8 +77,11 @@ internal enum V2SessionsInitClientError: Error {
 }
 
 internal struct V2SessionsInitRequest: Encodable {
+    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
     let operatingSystem: String
+    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
     let sdkVersion: String
+    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
     let layoutSchemaVersion: String
 
     enum CodingKeys: String, CodingKey {

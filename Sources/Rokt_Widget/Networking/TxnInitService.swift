@@ -1,4 +1,3 @@
-// periphery:ignore:all - net-new v2 init coordinator, not yet wired into the live path
 import Foundation
 
 internal struct TxnInitService {
