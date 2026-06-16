@@ -174,4 +174,68 @@ final class TestTxnSessionManager: XCTestCase {
         let persistent = persistentManager(tagId: "tag-1", store: store)
         XCTAssertNil(persistent.currentSessionId)
     }
+
+    // MARK: - Shared session (cross-integration handoff)
+
+    func test_sharedSession_isNilWithoutASession() {
+        XCTAssertNil(manager.sharedSession)
+    }
+
+    func test_sharedSession_exportsLiveSession() {
+        manager.update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 1800))
+        let shared = manager.sharedSession
+        XCTAssertEqual(shared?.sessionId, "sid")
+        XCTAssertEqual(shared?.token, "jwt")
+    }
+
+    func test_sharedSession_isNilWhenExpired() {
+        manager.update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 60))
+        now = now.addingTimeInterval(61)
+        XCTAssertNil(manager.sharedSession)
+    }
+
+    func test_seed_adoptsSessionSoItIsExportableAndAuthorized() {
+        let shared = TxnSharedSession(
+            sessionId: "web-sid",
+            token: "web-jwt",
+            expiresAtDate: now.addingTimeInterval(1800)
+        )
+        manager.seed(sharedSession: shared)
+        XCTAssertEqual(manager.currentSessionId, "web-sid")
+        XCTAssertEqual(manager.authorizationHeader, "Bearer web-jwt")
+        XCTAssertFalse(manager.isExpired)
+    }
+
+    func test_seed_roundTripsThroughExport() {
+        let shared = TxnSharedSession(
+            sessionId: "web-sid",
+            token: "web-jwt",
+            expiresAtDate: now.addingTimeInterval(1800)
+        )
+        manager.seed(sharedSession: shared)
+        XCTAssertEqual(manager.sharedSession, shared)
+    }
+
+    func test_seed_ignoresExpiredBundle() {
+        let expired = TxnSharedSession(
+            sessionId: "web-sid",
+            token: "web-jwt",
+            expiresAtDate: now.addingTimeInterval(-1)
+        )
+        manager.seed(sharedSession: expired)
+        XCTAssertNil(manager.currentSessionId)
+        XCTAssertNil(manager.authorizationHeader)
+    }
+
+    func test_seed_expiredBundleDoesNotClobberLiveSession() {
+        manager.update(sessionId: "native-sid", sessionToken: token("native-jwt", expiresInSeconds: 1800))
+        let expired = TxnSharedSession(
+            sessionId: "web-sid",
+            token: "web-jwt",
+            expiresAtDate: now.addingTimeInterval(-1)
+        )
+        manager.seed(sharedSession: expired)
+        XCTAssertEqual(manager.currentSessionId, "native-sid")
+        XCTAssertEqual(manager.authorizationHeader, "Bearer native-jwt")
+    }
 }

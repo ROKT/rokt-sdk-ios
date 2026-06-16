@@ -269,4 +269,28 @@ internal import RoktUXHelper
     public static func getSessionId() -> String? {
         shared.roktImplementation.getSessionId()
     }
+
+    /// Adopt a session shared from another integration (e.g. a WebView-hosted
+    /// web integration) so the native SDK continues the *same* session.
+    ///
+    /// Prefer this over ``setSessionId(sessionId:)`` for v2 integrations: it
+    /// carries the session token, which is what lets the gateway continue the
+    /// shared session rather than minting a new one. The token is applied on the
+    /// next initialization, so call this before ``initWith(roktTagId:)`` when
+    /// adopting a session established elsewhere.
+    ///
+    /// - Note: An expired session is ignored and will not replace the current one.
+    ///
+    /// - Parameters:
+    ///   - sharedSession: The session to adopt.
+    public static func setSharedSession(_ sharedSession: RoktSharedSession) {
+        shared.roktImplementation.setSharedSession(sharedSession)
+    }
+
+    /// Get the current session to share with a non-native integration e.g. WebView.
+    ///
+    /// - Returns: The shared session, or nil if there is no live (non-expired) session.
+    public static func getSharedSession() -> RoktSharedSession? {
+        shared.roktImplementation.getSharedSession()
+    }
 }

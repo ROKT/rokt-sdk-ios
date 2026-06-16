@@ -31,6 +31,13 @@ class RoktInternalImplementation {
     // Identifies the latest init request so a superseded init's async completion is ignored.
     private var initGeneration = 0
     let sessionManager: SessionManager
+    // A v2 Shared Session adopted via setSharedSession before init runs. Seeded
+    // into the init service's TxnSessionManager so /v2/sessions/init sends its
+    // bearer token and the gateway continues that session. Consumed once at init.
+    private var pendingSharedSession: TxnSharedSession?
+    // The live v2 session manager, captured when init builds its service. Backs
+    // Shared Session export and post-init import. nil until the first init.
+    private var txnSessionManager: TxnSessionManager?
     var attributes = [String: String]()
     var isInitialized = false
     var isInitFailedForFont = false
@@ -872,6 +879,14 @@ class RoktInternalImplementation {
         }
 
         let service = makeTxnInitServiceOverride?(roktTagId) ?? defaultTxnInitService(roktTagId: roktTagId)
+        // Capture the live manager so Shared Session export/import reach the same
+        // session init uses. Seed any pending Shared Session before init runs so
+        // its bearer token rides /v2/sessions/init and the gateway continues it.
+        txnSessionManager = service.sessionManager
+        if let pending = pendingSharedSession {
+            service.sessionManager.seed(sharedSession: pending)
+            pendingSharedSession = nil
+        }
         initGeneration += 1
         let generation = initGeneration
         Task {
@@ -1268,6 +1283,33 @@ class RoktInternalImplementation {
 
     func getSessionId() -> String? {
         return sessionManager.getCurrentSessionIdWithoutExpiring()
+    }
+
+    // v2 token-aware session sharing. Unlike the legacy id-only bridge above,
+    // these carry the bearer token so the receiving integration continues the
+    // SAME authenticated session on the Transactions Gateway.
+    func setSharedSession(_ sharedSession: RoktSharedSession) {
+        let shared = TxnSharedSession(
+            sessionId: sharedSession.sessionId,
+            token: sharedSession.token,
+            expiresAtDate: sharedSession.expiresAt
+        )
+        // After init the live manager exists, so adopt immediately; before init
+        // hold it pending so the next /v2/sessions/init seeds and continues it.
+        if let txnSessionManager {
+            txnSessionManager.seed(sharedSession: shared)
+        } else {
+            pendingSharedSession = shared
+        }
+    }
+
+    func getSharedSession() -> RoktSharedSession? {
+        guard let shared = txnSessionManager?.sharedSession else { return nil }
+        return RoktSharedSession(
+            sessionId: shared.sessionId,
+            token: shared.token,
+            expiresAt: shared.expiresAtDate
+        )
     }
 
     private func setupFontObservers() {

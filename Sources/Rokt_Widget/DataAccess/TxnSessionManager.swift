@@ -80,6 +80,33 @@ internal final class TxnSessionManager {
         persist(includeSessionId: false)
     }
 
+    // Export the current session as a shareable bundle for a non-native
+    // integration (e.g. a WSDK WebView). nil when there is no live session or
+    // the token has expired — a stale token is useless to the other side and
+    // would only cause it to re-init.
+    var sharedSession: TxnSharedSession? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let sessionId, let token, let expiresAt, !isExpiredLocked else { return nil }
+        return TxnSharedSession(sessionId: sessionId, token: token, expiresAtDate: expiresAt)
+    }
+
+    // Adopt a session minted by another integration so the next /v2/sessions/init
+    // sends this token and the gateway continues the SAME session rather than
+    // minting a new one. Seeding an already-expired bundle is a no-op: it would
+    // be dropped at init anyway, and clearing here would silently discard a live
+    // native session in favour of a dead one. Persists like any other session so
+    // it survives a relaunch before init runs.
+    func seed(sharedSession shared: TxnSharedSession) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard clock() < shared.expiresAtDate else { return }
+        sessionId = shared.sessionId
+        token = shared.token
+        expiresAt = shared.expiresAtDate
+        persist(includeSessionId: true)
+    }
+
     func clear() {
         lock.lock()
         defer { lock.unlock() }
