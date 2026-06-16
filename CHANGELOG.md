@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [5.2.4] - 2026-06-16
+
+### Core
+
+#### Added
+
+- Add Card Forwarding Retry Support ([#194](https://github.com/ROKT/rokt-sdk-ios/pull/194))
+- Parse experience once and report performance metrics ([#195](https://github.com/ROKT/rokt-sdk-ios/pull/195))
+- Offer Retry on PayPal Cancel or Payment Failure ([#191](https://github.com/ROKT/rokt-sdk-ios/pull/191))
+
+#### Changed
+
+- Bump codecov/codecov-action from 6.0.1 to 7.0.0 ([#193](https://github.com/ROKT/rokt-sdk-ios/pull/193))
+- Bump actions/checkout from 6.0.2 to 6.0.3 ([#190](https://github.com/ROKT/rokt-sdk-ios/pull/190))
+
+### Kits
+
+#### Kits
+
+##### Fixed
+
+- Correct Rokt-Payment-Extension-iOS history ([#199](https://github.com/ROKT/rokt-sdk-ios/pull/199))
+
 ## [5.2.3] - 2026-06-03
 
 ### Core
@@ -419,7 +442,8 @@ For a complete migration walkthrough with before/after code examples, see the [v
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.3...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.4...HEAD
+[5.2.4]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.3...5.2.4
 [5.2.3]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.2...5.2.3
 [5.2.2]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.1...5.2.2
 [5.2.1]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.0...5.2.1
