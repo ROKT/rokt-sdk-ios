@@ -16,14 +16,14 @@ import Foundation
 @objc public class RoktSharedSession: NSObject {
     /// The session id. Identifies the session for correlation; it does not by
     /// itself authenticate the session.
-    public let sessionId: String
+    @objc public let sessionId: String
 
     /// The session token, sent as `Authorization: Bearer <token>`. This is what
     /// lets the receiving integration continue the same session.
-    public let token: String
+    @objc public let token: String
 
     /// Absolute expiry of the token. After this the session must be re-established.
-    public let expiresAt: Date
+    @objc public let expiresAt: Date
 
     public init(sessionId: String, token: String, expiresAt: Date) {
         self.sessionId = sessionId
