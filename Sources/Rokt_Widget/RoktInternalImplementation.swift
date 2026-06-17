@@ -735,7 +735,7 @@ class RoktInternalImplementation {
             return
         }
 
-        let cardForwardingPurchase = BuiltInCardForwardingPurchaseCoordinator(
+        let forwardPaymentCartPurchase = ForwardPaymentCartPurchaseCoordinator(
             paymentOrchestrator: paymentOrchestrator,
             unknownFailureReason: Self.unknownForwardPaymentFailureReason,
             missingPriceFailureReason: Self.missingForwardPaymentPriceReason,
@@ -755,7 +755,7 @@ class RoktInternalImplementation {
                 )
             }
         )
-        cardForwardingPurchase.performCardForwardingCartPurchase(
+        forwardPaymentCartPurchase.performForwardPaymentCartPurchase(
             executeId: executeId,
             event: event
         )

@@ -2,9 +2,10 @@ import Foundation
 import RoktContracts
 internal import RoktUXHelper
 
-/// Runs built-in card forwarding after device-pay confirm: begin session, POST `/v1/cart/purchase`,
-/// apply card forwarding retry policy, and notify the host for loading / UX finalization.
-final class BuiltInCardForwardingPurchaseCoordinator {
+/// Runs forward-payment cart purchase (`/v1/cart/purchase`): built-in two-step card (device pay),
+/// or extension-routed card (e.g. Stripe) when there is no deferred built-in session. Applies the same
+/// retry heuristics for both so retryable failures can skip finalization until a terminal outcome.
+final class ForwardPaymentCartPurchaseCoordinator {
     private let paymentOrchestrator: PaymentOrchestrator
     private let unknownFailureReason: String
     private let missingPriceFailureReason: String
@@ -31,21 +32,21 @@ final class BuiltInCardForwardingPurchaseCoordinator {
         self.finalizeForwardPayment = finalizeForwardPayment
     }
 
-    /// Runs the forward-payment cart purchase (`/v1/cart/purchase`) for card forwarding:
-    /// in-flight guard, request build, API call, retry handling, and host callbacks.
-    func performCardForwardingCartPurchase(
+    /// Runs the forward-payment cart purchase (`/v1/cart/purchase`): in-flight guard (built-in two-step path),
+    /// request build, API call, and retry-aware finalization for built-in and extension-routed card.
+    func performForwardPaymentCartPurchase(
         executeId: String,
         event: RoktUXEvent.CartItemForwardPayment
     ) {
         if paymentOrchestrator.isBuiltInCardForwardPaymentInFlight() {
             RoktLogger.shared.warning(
-                "Card forwarding ignored while a cart purchase request is already in flight."
+                "Forward payment cart purchase ignored while a request is already in flight."
             )
             return
         }
 
         let cardStepOneCompletion = paymentOrchestrator.beginBuiltInCardForwardPaymentIfReady()
-        let cardForwardingFlowActive = cardStepOneCompletion != nil
+        let builtInDeferredTwoStepActive = cardStepOneCompletion != nil
 
         let fulfillmentDetails = event.transactionData?.shippingAddress.map {
             FulfillmentDetails(shippingAttributes: ShippingAttributes(from: $0))
@@ -55,9 +56,9 @@ final class BuiltInCardForwardingPurchaseCoordinator {
             fulfillmentDetails: fulfillmentDetails
         ) else {
             RoktLogger.shared.warning(
-                "Card forwarding cart purchase skipped: forward-payment event missing price or has non-positive quantity"
+                "Forward payment cart purchase skipped: forward-payment event missing price or has non-positive quantity"
             )
-            if cardForwardingFlowActive {
+            if builtInDeferredTwoStepActive {
                 paymentOrchestrator.finishBuiltInCardForwardPaymentAttempt(
                     result: .failed(error: missingPriceFailureReason)
                 )
@@ -81,7 +82,7 @@ final class BuiltInCardForwardingPurchaseCoordinator {
                 self.emitRoktEvent(executeId, RoktEvent.HideLoadingIndicator())
                 let finalization = self.resolveCartPurchaseFinalization(response)
                 self.handleCartPurchaseHTTP200Response(
-                    cardForwardingFlowActive: cardForwardingFlowActive,
+                    builtInDeferredTwoStepActive: builtInDeferredTwoStepActive,
                     finalization: finalization,
                     executeId: executeId,
                     event: event,
@@ -91,7 +92,7 @@ final class BuiltInCardForwardingPurchaseCoordinator {
             failure: { error, statusCode, message in
                 self.emitRoktEvent(executeId, RoktEvent.HideLoadingIndicator())
                 self.handleCartPurchaseTransportFailure(
-                    cardForwardingFlowActive: cardForwardingFlowActive,
+                    builtInDeferredTwoStepActive: builtInDeferredTwoStepActive,
                     error: error,
                     statusCode: statusCode,
                     message: message,
@@ -104,13 +105,13 @@ final class BuiltInCardForwardingPurchaseCoordinator {
     }
 
     private func handleCartPurchaseHTTP200Response(
-        cardForwardingFlowActive: Bool,
+        builtInDeferredTwoStepActive: Bool,
         finalization: (success: Bool, failureReason: String?),
         executeId: String,
         event: RoktUXEvent.CartItemForwardPayment,
         cardStepOneCompletion: ((PaymentSheetResult) -> Void)?
     ) {
-        if cardForwardingFlowActive {
+        if builtInDeferredTwoStepActive {
             if finalization.success {
                 paymentOrchestrator.finishBuiltInCardForwardPaymentAttempt(
                     result: .succeeded(transactionId: "")
@@ -122,7 +123,9 @@ final class BuiltInCardForwardingPurchaseCoordinator {
                     true,
                     nil
                 )
-            } else if CardForwardingRetryRules.isCardForwardingErrorRetryable(failureReason: finalization.failureReason) {
+            } else if ForwardPaymentRetryRules.isForwardPaymentBusinessFailureRetryable(
+                failureReason: finalization.failureReason
+            ) {
                 paymentOrchestrator.restoreBuiltInCardForwardPaymentAfterRetryableFailure()
             } else {
                 paymentOrchestrator.finishBuiltInCardForwardPaymentAttempt(
@@ -137,25 +140,38 @@ final class BuiltInCardForwardingPurchaseCoordinator {
                 )
             }
         } else {
+            // Extension-routed card (e.g. Stripe `paymentProvider`): no built-in two-step state to restore;
+            // on retryable business failure skip `finalizeForwardPayment` so the buyer can confirm again.
             if finalization.success {
                 cardStepOneCompletion?(.succeeded(transactionId: ""))
+                finalizeForwardPayment(
+                    executeId,
+                    event.layoutId,
+                    event.catalogItemId,
+                    true,
+                    nil
+                )
+            } else if ForwardPaymentRetryRules.isForwardPaymentBusinessFailureRetryable(
+                failureReason: finalization.failureReason
+            ) {
+                return
             } else {
                 cardStepOneCompletion?(
                     .failed(error: finalization.failureReason ?? unknownFailureReason)
                 )
+                finalizeForwardPayment(
+                    executeId,
+                    event.layoutId,
+                    event.catalogItemId,
+                    false,
+                    finalization.failureReason
+                )
             }
-            finalizeForwardPayment(
-                executeId,
-                event.layoutId,
-                event.catalogItemId,
-                finalization.success,
-                finalization.failureReason
-            )
         }
     }
 
     private func handleCartPurchaseTransportFailure(
-        cardForwardingFlowActive: Bool,
+        builtInDeferredTwoStepActive: Bool,
         error: Error,
         statusCode: Int?,
         message: String,
@@ -164,8 +180,8 @@ final class BuiltInCardForwardingPurchaseCoordinator {
         cardStepOneCompletion: ((PaymentSheetResult) -> Void)?
     ) {
         let finalization = resolveTransportFailureFinalization(message)
-        if cardForwardingFlowActive {
-            if CardForwardingRetryRules.isRetryableCardForwardingTransportFailure(error: error, statusCode: statusCode) {
+        if builtInDeferredTwoStepActive {
+            if ForwardPaymentRetryRules.isRetryableForwardPaymentTransportFailure(error: error, statusCode: statusCode) {
                 paymentOrchestrator.restoreBuiltInCardForwardPaymentAfterRetryableFailure()
             } else {
                 paymentOrchestrator.finishBuiltInCardForwardPaymentAttempt(
@@ -180,6 +196,9 @@ final class BuiltInCardForwardingPurchaseCoordinator {
                 )
             }
         } else {
+            if ForwardPaymentRetryRules.isRetryableForwardPaymentTransportFailure(error: error, statusCode: statusCode) {
+                return
+            }
             cardStepOneCompletion?(
                 .failed(error: finalization.failureReason ?? unknownFailureReason)
             )

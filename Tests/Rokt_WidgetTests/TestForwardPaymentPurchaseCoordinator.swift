@@ -3,12 +3,12 @@ import XCTest
 @testable internal import RoktUXHelper
 import Mocker
 
-/// Card forwarding cart purchase coordinator: finalize vs restore when `/v1/cart/purchase` returns,
-/// plus ``RoktInternalImplementation/handleForwardPayment`` instant-purchase flag behavior with card in flight.
-final class TestCardForwardingPurchaseCoordinator: XCTestCase {
+/// Forward-payment cart purchase (`/v1/cart/purchase`): built-in two-step card and extension-routed card (e.g. Stripe),
+/// plus ``RoktInternalImplementation/handleForwardPayment`` instant-purchase flag behavior.
+final class TestForwardPaymentPurchaseCoordinator: XCTestCase {
 
     private let purchaseURL = URL(string: "https://apps.rokt.com/rokt-mobile/v1/cart/purchase")!
-    private let executeId = "card-forwarding-coordinator-test"
+    private let executeId = "forward-payment-purchase-coordinator-test"
 
     private var originalTagId: String?
 
@@ -95,8 +95,8 @@ final class TestCardForwardingPurchaseCoordinator: XCTestCase {
         orch: PaymentOrchestrator,
         finalizeLog: FinalizeInvocationLog,
         hideLoadingExpectation: XCTestExpectation? = nil
-    ) -> BuiltInCardForwardingPurchaseCoordinator {
-        BuiltInCardForwardingPurchaseCoordinator(
+    ) -> ForwardPaymentCartPurchaseCoordinator {
+        ForwardPaymentCartPurchaseCoordinator(
             paymentOrchestrator: orch,
             unknownFailureReason: RoktInternalImplementation.unknownForwardPaymentFailureReason,
             missingPriceFailureReason: RoktInternalImplementation.missingForwardPaymentPriceReason,
@@ -127,7 +127,7 @@ final class TestCardForwardingPurchaseCoordinator: XCTestCase {
 
         let sut = makeCoordinator(orch: orch, finalizeLog: finalizeLog, hideLoadingExpectation: hideExp)
         ensureForwardPaymentTagIdForNetwork()
-        sut.performCardForwardingCartPurchase(executeId: executeId, event: makeForwardPaymentEvent())
+        sut.performForwardPaymentCartPurchase(executeId: executeId, event: makeForwardPaymentEvent())
 
         wait(for: [hideExp], timeout: 3.0)
         XCTAssertTrue(finalizeLog.invocations.isEmpty, "Retryable transport failure must not call forwardPaymentFinalized")
@@ -146,7 +146,7 @@ final class TestCardForwardingPurchaseCoordinator: XCTestCase {
 
         let sut = makeCoordinator(orch: orch, finalizeLog: finalizeLog, hideLoadingExpectation: hideExp)
         ensureForwardPaymentTagIdForNetwork()
-        sut.performCardForwardingCartPurchase(executeId: executeId, event: makeForwardPaymentEvent())
+        sut.performForwardPaymentCartPurchase(executeId: executeId, event: makeForwardPaymentEvent())
 
         wait(for: [hideExp], timeout: 3.0)
         XCTAssertTrue(finalizeLog.invocations.isEmpty)
@@ -165,7 +165,7 @@ final class TestCardForwardingPurchaseCoordinator: XCTestCase {
 
         let sut = makeCoordinator(orch: orch, finalizeLog: finalizeLog, hideLoadingExpectation: hideExp)
         ensureForwardPaymentTagIdForNetwork()
-        sut.performCardForwardingCartPurchase(executeId: executeId, event: makeForwardPaymentEvent())
+        sut.performForwardPaymentCartPurchase(executeId: executeId, event: makeForwardPaymentEvent())
 
         wait(for: [hideExp], timeout: 3.0)
         XCTAssertEqual(finalizeLog.invocations.count, 1)
@@ -186,7 +186,7 @@ final class TestCardForwardingPurchaseCoordinator: XCTestCase {
 
         let sut = makeCoordinator(orch: orch, finalizeLog: finalizeLog, hideLoadingExpectation: hideExp)
         ensureForwardPaymentTagIdForNetwork()
-        sut.performCardForwardingCartPurchase(executeId: executeId, event: makeForwardPaymentEvent())
+        sut.performForwardPaymentCartPurchase(executeId: executeId, event: makeForwardPaymentEvent())
 
         wait(for: [hideExp], timeout: 3.0)
         XCTAssertEqual(finalizeLog.invocations.count, 1)
@@ -206,12 +206,83 @@ final class TestCardForwardingPurchaseCoordinator: XCTestCase {
 
         let sut = makeCoordinator(orch: orch, finalizeLog: finalizeLog, hideLoadingExpectation: hideExp)
         ensureForwardPaymentTagIdForNetwork()
-        sut.performCardForwardingCartPurchase(executeId: executeId, event: makeForwardPaymentEvent())
+        sut.performForwardPaymentCartPurchase(executeId: executeId, event: makeForwardPaymentEvent())
 
         wait(for: [hideExp], timeout: 3.0)
         XCTAssertEqual(finalizeLog.invocations.count, 1)
         XCTAssertEqual(finalizeLog.invocations.first?.success, false)
         XCTAssertFalse(orch.isBuiltInCardForwardPaymentInFlight())
+    }
+
+    // MARK: - Extension-routed forward payment (e.g. Stripe; no deferred built-in two-step card)
+
+    /// No `seedDeferredBuiltInCardForwardPaymentReady` — `beginBuiltInCardForwardPaymentIfReady` is nil, matching
+    /// extension-routed card after device-pay confirm (same `/v1/cart/purchase` coordinator path as built-in card).
+    func test_extensionRouted_retryableTransport_skipsFinalize() {
+        let finalizeLog = FinalizeInvocationLog()
+        let hideExp = expectation(description: "Hide loading")
+        let orch = PaymentOrchestrator()
+
+        registerPurchaseMock(statusCode: 503, body: "{}")
+        installMockingHTTPClient()
+
+        let sut = makeCoordinator(orch: orch, finalizeLog: finalizeLog, hideLoadingExpectation: hideExp)
+        ensureForwardPaymentTagIdForNetwork()
+        sut.performForwardPaymentCartPurchase(executeId: executeId, event: makeForwardPaymentEvent())
+
+        wait(for: [hideExp], timeout: 3.0)
+        XCTAssertTrue(finalizeLog.invocations.isEmpty)
+    }
+
+    func test_extensionRouted_retryableBusiness_skipsFinalize() {
+        let finalizeLog = FinalizeInvocationLog()
+        let hideExp = expectation(description: "Hide loading")
+        let orch = PaymentOrchestrator()
+
+        registerPurchaseMock(statusCode: 200, body: #"{"success":false,"reason":"Upstream timeout"}"#)
+        installMockingHTTPClient()
+
+        let sut = makeCoordinator(orch: orch, finalizeLog: finalizeLog, hideLoadingExpectation: hideExp)
+        ensureForwardPaymentTagIdForNetwork()
+        sut.performForwardPaymentCartPurchase(executeId: executeId, event: makeForwardPaymentEvent())
+
+        wait(for: [hideExp], timeout: 3.0)
+        XCTAssertTrue(finalizeLog.invocations.isEmpty)
+    }
+
+    func test_extensionRouted_terminalBusiness_invokesFinalize() {
+        let finalizeLog = FinalizeInvocationLog()
+        let hideExp = expectation(description: "Hide loading")
+        let orch = PaymentOrchestrator()
+
+        registerPurchaseMock(statusCode: 200, body: #"{"success":false,"reason":"declined"}"#)
+        installMockingHTTPClient()
+
+        let sut = makeCoordinator(orch: orch, finalizeLog: finalizeLog, hideLoadingExpectation: hideExp)
+        ensureForwardPaymentTagIdForNetwork()
+        sut.performForwardPaymentCartPurchase(executeId: executeId, event: makeForwardPaymentEvent())
+
+        wait(for: [hideExp], timeout: 3.0)
+        XCTAssertEqual(finalizeLog.invocations.count, 1)
+        XCTAssertEqual(finalizeLog.invocations.first?.success, false)
+        XCTAssertEqual(finalizeLog.invocations.first?.failureReason, "declined")
+    }
+
+    func test_extensionRouted_terminalTransport_invokesFinalize() {
+        let finalizeLog = FinalizeInvocationLog()
+        let hideExp = expectation(description: "Hide loading")
+        let orch = PaymentOrchestrator()
+
+        registerPurchaseMock(statusCode: 400, body: #"{"error":"bad request"}"#)
+        installMockingHTTPClient()
+
+        let sut = makeCoordinator(orch: orch, finalizeLog: finalizeLog, hideLoadingExpectation: hideExp)
+        ensureForwardPaymentTagIdForNetwork()
+        sut.performForwardPaymentCartPurchase(executeId: executeId, event: makeForwardPaymentEvent())
+
+        wait(for: [hideExp], timeout: 3.0)
+        XCTAssertEqual(finalizeLog.invocations.count, 1)
+        XCTAssertEqual(finalizeLog.invocations.first?.success, false)
     }
 
     // MARK: - RoktInternalImplementation + instant purchase flag
