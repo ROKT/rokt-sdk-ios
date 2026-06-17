@@ -12,7 +12,6 @@ import Foundation
 /// - Important: `token` is a bearer credential. Only move it across a boundary
 ///   you trust (e.g. a WebView you own). Do not log it or persist it outside
 ///   the SDK.
-@objcMembers
 @objc public class RoktSharedSession: NSObject {
     /// The session id. Identifies the session for correlation; it does not by
     /// itself authenticate the session.
@@ -25,7 +24,7 @@ import Foundation
     /// Absolute expiry of the token. After this the session must be re-established.
     @objc public let expiresAt: Date
 
-    public init(sessionId: String, token: String, expiresAt: Date) {
+    @objc public init(sessionId: String, token: String, expiresAt: Date) {
         self.sessionId = sessionId
         self.token = token
         self.expiresAt = expiresAt
