@@ -1,5 +1,5 @@
 import XCTest
-import RoktUXHelper
+internal import RoktUXHelper
 @testable import Rokt_Widget
 
 final class TestTxnEventMapper: XCTestCase {

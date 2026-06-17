@@ -97,9 +97,13 @@ internal struct V2EventsChannel: Encodable {
 }
 
 internal struct V2Event: Encodable, Equatable {
+    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
     let eventType: String
+    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
     let instanceId: String?
+    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
     let timestamp: Int64
+    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
     let data: [String: TxnEventDataValue]?
 
     enum CodingKeys: String, CodingKey {
