@@ -4,24 +4,24 @@ import PactSwift
 
 /// Consumer-driven pact spec for the v2 `/v2/sessions/offers` endpoint.
 ///
-/// Drives `V2OffersClient.fetchOffers(input:)` — a public method that takes
+/// Drives `TxnOffersClient.fetchOffers(input:)` — a public method that takes
 /// domain inputs (page identifier, customer email, attributes, request-scoped
 /// ids) and internally builds the wire request. The pact matchers below
-/// describe the EXPECTED wire shape; if `V2OffersClient` ever drifts from
+/// describe the EXPECTED wire shape; if `TxnOffersClient` ever drifts from
 /// those expectations (e.g., changes the `channel.type` body field or drops the
 /// `x-request-id` header), the pact mock service rejects the request and this test fails.
 ///
 /// The test never constructs request headers or body directly, only domain
-/// inputs. Wire-shape construction lives entirely in `V2OffersClient`.
+/// inputs. Wire-shape construction lives entirely in `TxnOffersClient`.
 ///
-/// Matcher policy: the fixed-value string hardcoded in `V2OffersClient`
+/// Matcher policy: the fixed-value string hardcoded in `TxnOffersClient`
 /// (`channel.type` = `"msdk"`) is pinned as an exact string rather than
 /// `SomethingLike`. `SomethingLike` only matches by type, which would let
 /// the client drift to `"ios-mobile"` without failing the consumer test.
 /// Per-runtime values (account id, auth token, request id, session ids,
 /// page identifier, etc.) stay as `SomethingLike` because they legitimately
 /// vary per call.
-class V2OffersClientPactSpec: XCTestCase {
+class TxnOffersClientPactSpec: XCTestCase {
     static var mockService: MockService!
 
     override class func setUp() {
@@ -80,7 +80,7 @@ class V2OffersClientPactSpec: XCTestCase {
                     ]
                 ]
             )
-            // Assert only the response fields V2OffersClient consumes and that
+            // Assert only the response fields TxnOffersClient consumes and that
             // the v2 API returns for a configured page: session and token data,
             // the resolved page_instance_guid, and a page_context limited to
             // page_instance_guid, page_id, page_type and is_page_detected. Any
@@ -107,13 +107,13 @@ class V2OffersClientPactSpec: XCTestCase {
 
         let expectation = expectation(description: "v2 offers request completes")
 
-        // See V2EventsClientPactSpec for why this is sized for CI cold-start.
+        // See TxnEventsClientPactSpec for why this is sized for CI cold-start.
         Self.mockService.run(timeout: 30) { baseURL, done in
             Task {
                 defer { done() }
                 do {
                     let url = try XCTUnwrap(URL(string: baseURL))
-                    let client = V2OffersClient(
+                    let client = TxnOffersClient(
                         baseURL: url,
                         accountId: "account-456",
                         authToken: "Bearer session-token-abc",
@@ -123,7 +123,7 @@ class V2OffersClientPactSpec: XCTestCase {
                         sdkVersion: "5.2.2",
                         pageInstanceGuid: "page-instance-guid-123"
                     )
-                    let input = V2OffersInput(
+                    let input = TxnOffersInput(
                         requestId: "request-id-123",
                         pageIdentifier: "checkout-page",
                         pageURL: "https://merchant.test/checkout",
@@ -136,7 +136,7 @@ class V2OffersClientPactSpec: XCTestCase {
                     let (_, httpResponse) = try await client.fetchOffers(input: input)
                     XCTAssertEqual(httpResponse?.statusCode, 200)
                 } catch {
-                    XCTFail("V2OffersClient request failed: \(error)")
+                    XCTFail("TxnOffersClient request failed: \(error)")
                 }
                 expectation.fulfill()
             }

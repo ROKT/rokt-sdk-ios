@@ -53,7 +53,7 @@ class RoktInternalImplementation {
     // v2 is the only active init path; v1 is retained but inactive (flag keeps v1 code reachable for periphery)
     // swiftlint:disable:next todo
     // TODO: Remove once v2 is fully rolled out.
-    private static let useV2Init = true
+    private static let useTxnInit = true
     // Layout schema version sent to the v2 init endpoint, matching the legacy header.
     private static var txnLayoutSchemaVersion: String {
         RoktUX.integrationInfo.integration.layoutSchemaVersion
@@ -870,7 +870,7 @@ class RoktInternalImplementation {
 
     // v2 is the only active init path; the legacy `else` is retained but inactive until v1 is removed.
     private func performInit(roktTagId: String, initStartTime: Date) {
-        guard Self.useV2Init else {
+        guard Self.useTxnInit else {
             RoktAPIHelper.initialize(
                 roktTagId: roktTagId,
                 success: { self.handleInitSuccess($0, initStartTime: initStartTime) },
@@ -966,7 +966,7 @@ class RoktInternalImplementation {
     }
 
     // Each batch gets a fresh service instance so it rehydrates the latest persisted token.
-    func dispatchTxnEvents(_ events: [V2Event]) {
+    func dispatchTxnEvents(_ events: [TxnEvent]) {
         guard !events.isEmpty, let roktTagId else { return }
         let service = makeTxnEventServiceOverride?(roktTagId) ?? defaultTxnEventService(roktTagId: roktTagId)
         Task { try? await service.send(events: events) }

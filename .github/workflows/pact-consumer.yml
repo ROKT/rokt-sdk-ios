@@ -32,9 +32,9 @@ jobs:
         with:
           filters: |
             contract:
-              - 'Sources/Rokt_Widget/Networking/V2OffersClient.swift'
-              - 'Sources/Rokt_Widget/Networking/V2EventsClient.swift'
-              - 'Sources/Rokt_Widget/Networking/V2SessionsInitClient.swift'
+              - 'Sources/Rokt_Widget/Networking/TxnOffersClient.swift'
+              - 'Sources/Rokt_Widget/Networking/TxnEventsClient.swift'
+              - 'Sources/Rokt_Widget/Networking/TxnInitClient.swift'
               - 'Tests/ContractTests/**'
               - 'Package.swift'
               - '.github/workflows/pact-consumer.yml'

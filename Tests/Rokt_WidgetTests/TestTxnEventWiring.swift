@@ -45,8 +45,8 @@ final class TestTxnEventWiring: XCTestCase {
         wait(for: [exp], timeout: timeout)
     }
 
-    private func sampleEvent() -> V2Event {
-        V2Event(eventType: "impression", instanceId: "instance-1", timestamp: 1_700_000_000_000, data: ["k": "v"])
+    private func sampleEvent() -> TxnEvent {
+        TxnEvent(eventType: "impression", instanceId: "instance-1", timestamp: 1_700_000_000_000, data: ["k": "v"])
     }
 
     func test_txnEvents_isEnabled() {

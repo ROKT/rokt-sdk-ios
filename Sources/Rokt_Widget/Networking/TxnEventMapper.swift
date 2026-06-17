@@ -17,9 +17,9 @@ internal enum TxnEventMapper {
         }
     }
 
-    static func event(from request: RoktEventRequest) -> V2Event? {
+    static func event(from request: RoktEventRequest) -> TxnEvent? {
         guard let mapped = mappedType(for: request.eventType) else { return nil }
-        return V2Event(
+        return TxnEvent(
             eventType: mapped.eventType,
             instanceId: request.uuid,
             timestamp: epochMilliseconds(from: request.eventTime),
@@ -36,9 +36,9 @@ internal enum TxnEventMapper {
         )
     }
 
-    static func event(from request: EventRequest) -> V2Event? {
+    static func event(from request: EventRequest) -> TxnEvent? {
         guard let mapped = mappedType(for: request.eventType) else { return nil }
-        return V2Event(
+        return TxnEvent(
             eventType: mapped.eventType,
             instanceId: request.uuid,
             timestamp: epochMilliseconds(from: request.eventTime),

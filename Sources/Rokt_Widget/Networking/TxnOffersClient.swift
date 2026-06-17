@@ -1,8 +1,8 @@
-// periphery:ignore:all - referenced from Tests/ContractTests/V2OffersClientPactSpec.swift
+// periphery:ignore:all - referenced from Tests/ContractTests/TxnOffersClientPactSpec.swift
 
 import Foundation
 
-internal struct V2OffersClient {
+internal struct TxnOffersClient {
     let baseURL: URL
     let accountId: String
     let authToken: String
@@ -35,25 +35,25 @@ internal struct V2OffersClient {
         self.httpClient = httpClient
     }
 
-    func fetchOffers(input: V2OffersInput) async throws -> (Data?, HTTPURLResponse?) {
+    func fetchOffers(input: TxnOffersInput) async throws -> (Data?, HTTPURLResponse?) {
         let url = baseURL
             .appendingPathComponent("v2")
             .appendingPathComponent("sessions")
             .appendingPathComponent("offers")
 
-        let requestBody = V2OffersRequest(
+        let requestBody = TxnOffersRequest(
             sessionId: sessionId,
             mpSessionId: mpSessionId,
             mpid: mpid,
-            page: V2OffersPage(pageIdentifier: input.pageIdentifier, url: input.pageURL),
-            privacy: V2OffersPrivacy(doNotTrack: false, gpcEnabled: false, doNotShareOrSell: false),
-            channel: V2OffersChannel(type: "msdk", sdkVersion: sdkVersion),
-            customer: V2OffersCustomer(email: input.customerEmail),
+            page: TxnOffersPage(pageIdentifier: input.pageIdentifier, url: input.pageURL),
+            privacy: TxnOffersPrivacy(doNotTrack: false, gpcEnabled: false, doNotShareOrSell: false),
+            channel: TxnOffersChannel(type: "msdk", sdkVersion: sdkVersion),
+            customer: TxnOffersCustomer(email: input.customerEmail),
             attributes: input.attributes
         )
         let bodyData = try JSONEncoder().encode(requestBody)
         guard let bodyParameters = try JSONSerialization.jsonObject(with: bodyData) as? RoktHTTPParameters else {
-            throw V2OffersClientError.bodyEncodingFailed
+            throw TxnOffersClientError.bodyEncodingFailed
         }
 
         let headers: RoktHTTPHeaders = [
@@ -86,11 +86,11 @@ internal struct V2OffersClient {
     }
 }
 
-internal enum V2OffersClientError: Error {
+internal enum TxnOffersClientError: Error {
     case bodyEncodingFailed
 }
 
-internal struct V2OffersInput {
+internal struct TxnOffersInput {
     let requestId: String
     let pageIdentifier: String
     let pageURL: String
@@ -98,14 +98,14 @@ internal struct V2OffersInput {
     let attributes: [String: String]
 }
 
-internal struct V2OffersRequest: Encodable {
+internal struct TxnOffersRequest: Encodable {
     let sessionId: String
     let mpSessionId: String
     let mpid: String
-    let page: V2OffersPage
-    let privacy: V2OffersPrivacy
-    let channel: V2OffersChannel
-    let customer: V2OffersCustomer
+    let page: TxnOffersPage
+    let privacy: TxnOffersPrivacy
+    let channel: TxnOffersChannel
+    let customer: TxnOffersCustomer
     let attributes: [String: String]
 
     enum CodingKeys: String, CodingKey {
@@ -120,7 +120,7 @@ internal struct V2OffersRequest: Encodable {
     }
 }
 
-internal struct V2OffersPage: Encodable {
+internal struct TxnOffersPage: Encodable {
     let pageIdentifier: String
     let url: String
 
@@ -130,7 +130,7 @@ internal struct V2OffersPage: Encodable {
     }
 }
 
-internal struct V2OffersPrivacy: Encodable {
+internal struct TxnOffersPrivacy: Encodable {
     let doNotTrack: Bool
     let gpcEnabled: Bool
     let doNotShareOrSell: Bool
@@ -142,7 +142,7 @@ internal struct V2OffersPrivacy: Encodable {
     }
 }
 
-internal struct V2OffersChannel: Encodable {
+internal struct TxnOffersChannel: Encodable {
     let type: String
     let sdkVersion: String
 
@@ -152,6 +152,6 @@ internal struct V2OffersChannel: Encodable {
     }
 }
 
-internal struct V2OffersCustomer: Encodable {
+internal struct TxnOffersCustomer: Encodable {
     let email: String
 }

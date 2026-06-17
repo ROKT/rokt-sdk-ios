@@ -43,7 +43,7 @@ internal struct TxnEventService {
         self.sleep = sleep
     }
 
-    func send(events: [V2Event]) async throws {
+    func send(events: [TxnEvent]) async throws {
         guard !events.isEmpty else { return }
         guard let baseURL = URL(string: environment.gatewayBaseURL) else {
             throw TxnEventError.invalidBaseURL
@@ -51,7 +51,7 @@ internal struct TxnEventService {
 
         httpClient.updateTimeout(timeout: requestTimeout)
 
-        let client = V2EventsClient(
+        let client = TxnEventsClient(
             baseURL: baseURL,
             accountId: accountId,
             authToken: sessionManager.authorizationHeader,
