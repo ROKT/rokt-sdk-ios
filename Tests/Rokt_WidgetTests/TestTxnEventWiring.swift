@@ -4,12 +4,12 @@ import XCTest
 final class TestTxnEventWiring: XCTestCase {
 
     private var impl: RoktInternalImplementation!
-    private var stub: StubEventsHTTPClient!
+    private var stub: MockTxnEventsHTTPClient!
 
     override func setUp() {
         super.setUp()
         impl = RoktInternalImplementation()
-        stub = StubEventsHTTPClient()
+        stub = MockTxnEventsHTTPClient()
     }
 
     override func tearDown() {
@@ -30,19 +30,6 @@ final class TestTxnEventWiring: XCTestCase {
                 sleep: { _ in }
             )
         }
-    }
-
-    private func waitUntil(_ condition: @escaping () -> Bool, timeout: TimeInterval = 2) {
-        let exp = expectation(description: "condition met")
-        func check() {
-            if condition() {
-                exp.fulfill()
-            } else {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.02, execute: check)
-            }
-        }
-        check()
-        wait(for: [exp], timeout: timeout)
     }
 
     private func sampleEvent() -> V2Event {
@@ -84,45 +71,4 @@ final class TestTxnEventWiring: XCTestCase {
         wait(for: [settled], timeout: 2)
         XCTAssertEqual(stub.callCount, 0)
     }
-}
-
-private final class StubEventsHTTPClient: HTTPClientAdapter {
-    private(set) var callCount = 0
-
-    func updateTimeout(timeout: Double) {}
-
-    @discardableResult
-    func startRequestWith(
-        urlAddress: String,
-        method: RoktHTTPMethod,
-        parameters: RoktHTTPParameters?,
-        parameterArray: RoktHTTPParameterArray?,
-        headers: RoktHTTPHeaders?,
-        onRequestStart: (() -> Void)?,
-        requestTimeout: TimeInterval?,
-        completionQueue: DispatchQueue,
-        completionHandler: ((RoktHTTPRequestResult) -> Void)?
-    ) -> URLRequest? {
-        callCount += 1
-        let url = URL(string: urlAddress) ?? URL(string: "https://apps.rokt.com")!
-        let result = RoktHTTPRequestResult(
-            httpURLResponse: HTTPURLResponse(url: url, statusCode: 202, httpVersion: nil, headerFields: nil),
-            responseData: Data(#"{ "event_ids": ["event-1"] }"#.utf8),
-            responseError: nil,
-            jsonSerialisedResponseData: .success(NSNull())
-        )
-        completionQueue.async { completionHandler?(result) }
-        return nil
-    }
-
-    func downloadFile(
-        source urlAddress: String,
-        destinationURL: URL,
-        options: [RoktDownloadOptions],
-        parameters: RoktHTTPParameters?,
-        headers: RoktHTTPHeaders?,
-        requestTimeout: TimeInterval?,
-        completionQueue: DispatchQueue,
-        completionHandler: ((RoktDownloadResult) -> Void)?
-    ) {}
 }
