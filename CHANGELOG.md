@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [5.2.5] - 2026-06-18
+
+### Core
+
+#### Fixed
+
+- Keep in-app browser open for internal links on the last offer ([#205](https://github.com/ROKT/rokt-sdk-ios/pull/205))
+
+### Kits
+
+#### Rokt-payment-extension-ios
+
+##### Changed
+
+- Remove mirror-only scaffolding from rokt-payment-extension-ios ([#198](https://github.com/ROKT/rokt-sdk-ios/pull/198))
+
 ## [5.2.4] - 2026-06-16
 
 ### Core
@@ -442,7 +458,8 @@ For a complete migration walkthrough with before/after code examples, see the [v
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.4...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.5...HEAD
+[5.2.5]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.4...5.2.5
 [5.2.4]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.3...5.2.4
 [5.2.3]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.2...5.2.3
 [5.2.2]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.1...5.2.2
