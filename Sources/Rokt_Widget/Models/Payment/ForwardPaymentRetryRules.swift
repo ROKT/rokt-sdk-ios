@@ -1,9 +1,9 @@
 import Foundation
 
-/// Client-side retry hints for built-in card forwarding (`/v1/cart/purchase`).
-enum CardForwardingRetryRules {
-    /// HTTP 200 with `PurchaseResponse.success == false` — conservative substring hints for card forwarding retry.
-    static func isCardForwardingErrorRetryable(failureReason: String?) -> Bool {
+/// Client-side retry hints for `/v1/cart/purchase` forward payment (built-in two-step card and extension-routed card, e.g. Stripe).
+enum ForwardPaymentRetryRules {
+    /// HTTP 200 with `PurchaseResponse.success == false` — conservative substring hints for retryable business outcomes.
+    static func isForwardPaymentBusinessFailureRetryable(failureReason: String?) -> Bool {
         let normalized = failureReason?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased() ?? ""
@@ -21,8 +21,8 @@ enum CardForwardingRetryRules {
         return hints.contains { normalized.contains($0) }
     }
 
-    /// Transport / HTTP failures where card forwarding may succeed on retry.
-    static func isRetryableCardForwardingTransportFailure(error: Error, statusCode: Int?) -> Bool {
+    /// Transport / HTTP failures where the same forward-payment POST may succeed on retry.
+    static func isRetryableForwardPaymentTransportFailure(error: Error, statusCode: Int?) -> Bool {
         if let code = statusCode {
             if (500...599).contains(code) { return true }
             if code == 408 || code == 429 { return true }

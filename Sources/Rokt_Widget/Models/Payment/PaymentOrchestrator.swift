@@ -69,8 +69,8 @@ final class PaymentOrchestrator {
         let completion: (PaymentSheetResult) -> Void
     }
 
-    /// Card Step-1 cache: just the deferred completion. Card forwarding Step-2 (POST `/v1/cart/purchase`)
-    /// runs in ``BuiltInCardForwardingPurchaseCoordinator`` via ``RoktInternalImplementation.handleForwardPayment``;
+    /// Card Step-1 cache: just the deferred completion. Forward-payment cart purchase (POST `/v1/cart/purchase`)
+    /// runs in ``ForwardPaymentCartPurchaseCoordinator`` via ``RoktInternalImplementation.handleForwardPayment``;
     /// the orchestrator only holds the completion so it can fire alongside ``forwardPaymentFinalized``.
     private struct PendingBuiltInCardCheckout {
         weak var owner: PaymentOrchestrator?
@@ -81,7 +81,7 @@ final class PaymentOrchestrator {
         case paypal(PendingBuiltInPayPalWebCheckout)
         /// Card confirm is shown; buyer has not yet started `/v1/cart/purchase` for this session.
         case card(PendingBuiltInCardCheckout)
-        /// Card forwarding cart purchase POST is in flight; same snapshot as ``card`` until terminal or retryable restore.
+        /// Forward-payment cart purchase POST (built-in two-step) is in flight; same snapshot as ``card`` until terminal or retryable restore.
         case cardInFlight(PendingBuiltInCardCheckout)
     }
 
