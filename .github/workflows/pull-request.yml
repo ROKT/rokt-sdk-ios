@@ -176,15 +176,39 @@ jobs:
           rm -rf "$DERIVED"
           mkdir -p "$DERIVED"
 
+          # Expose coverage artifacts to later steps before running tests so the
+          # upload (if: always()) still has them when tests fail.
+          echo "PKG_FLAG=$(basename "${{ matrix.package.path }}")" >> "$GITHUB_ENV"
+          echo "PKG_XCRESULT=${DERIVED}/Tests.xcresult" >> "$GITHUB_ENV"
+
           xcodebuild test \
             -scheme "$SCHEME" \
             -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest' \
             -derivedDataPath "$DERIVED" \
+            -resultBundlePath "${DERIVED}/Tests.xcresult" \
+            -enableCodeCoverage YES \
             -skipPackagePluginValidation \
             -retry-tests-on-failure \
             CODE_SIGN_IDENTITY= \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO
+
+      - name: Install xcresultparser
+        if: always()
+        run: brew install xcresultparser
+
+      - name: Process coverage report
+        if: always()
+        run: |
+          xcresultparser --output-format cobertura "$PKG_XCRESULT" --project-root "$GITHUB_WORKSPACE" > "package-coverage.xml"
+
+      - name: Upload coverage report
+        if: always()
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./package-coverage.xml
+          flags: ${{ env.PKG_FLAG }}
 
   ui-test:
     name: UI Tests
