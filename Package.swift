@@ -1,5 +1,6 @@
-// swift-tools-version:5.3
+// swift-tools-version:5.5
 // The swift-tools-version declares the minimum version of Swift required to build this package.
+// Note: 5.5 is the minimum that supports .iOS(.v15) in PackageDescription.
 
 import PackageDescription
 
