@@ -14,13 +14,18 @@ import PactSwift
 /// The test never constructs request headers or body directly, only domain
 /// inputs. Wire-shape construction lives entirely in `V2OffersClient`.
 ///
+/// Session identity is carried solely by the `Authorization: Bearer <jwt>`
+/// header (the provider reads it from the JWT `sub` claim) — there is
+/// intentionally no `session_id`/`mp_session_id`/`mpid` in the request body.
+/// Privacy consent travels under `privacy_control`; `customer` and `page.url`
+/// are omitted to mirror the Android v2 offers contract.
+///
 /// Matcher policy: the fixed-value string hardcoded in `V2OffersClient`
 /// (`channel.type` = `"msdk"`) is pinned as an exact string rather than
 /// `SomethingLike`. `SomethingLike` only matches by type, which would let
 /// the client drift to `"ios-mobile"` without failing the consumer test.
-/// Per-runtime values (account id, auth token, request id, session ids,
-/// page identifier, etc.) stay as `SomethingLike` because they legitimately
-/// vary per call.
+/// Per-runtime values (account id, auth token, request id, page identifier,
+/// etc.) stay as `SomethingLike` because they legitimately vary per call.
 class V2OffersClientPactSpec: XCTestCase {
     static var mockService: MockService!
 
@@ -55,24 +60,17 @@ class V2OffersClientPactSpec: XCTestCase {
                     "Content-Type": "application/json"
                 ],
                 body: [
-                    "session_id": Matcher.SomethingLike("session-123"),
-                    "mp_session_id": Matcher.SomethingLike("mp-session-123"),
-                    "mpid": Matcher.SomethingLike("mpid-123"),
                     "page": [
-                        "page_identifier": Matcher.SomethingLike("checkout-page"),
-                        "url": Matcher.SomethingLike("https://merchant.test/checkout")
+                        "page_identifier": Matcher.SomethingLike("checkout-page")
                     ],
-                    "privacy": [
-                        "do_not_track": Matcher.SomethingLike(false),
-                        "gpc_enabled": Matcher.SomethingLike(false),
+                    "privacy_control": [
+                        "no_functional": Matcher.SomethingLike(false),
+                        "no_targeting": Matcher.SomethingLike(false),
                         "do_not_share_or_sell": Matcher.SomethingLike(false)
                     ],
                     "channel": [
                         "type": "msdk",
                         "sdk_version": Matcher.SomethingLike("5.2.2")
-                    ],
-                    "customer": [
-                        "email": Matcher.SomethingLike("user@example.com")
                     ],
                     "attributes": [
                         "standalone": Matcher.SomethingLike("notdefined"),
@@ -117,21 +115,21 @@ class V2OffersClientPactSpec: XCTestCase {
                         baseURL: url,
                         accountId: "account-456",
                         authToken: "Bearer session-token-abc",
-                        sessionId: "session-123",
-                        mpSessionId: "mp-session-123",
-                        mpid: "mpid-123",
                         sdkVersion: "5.2.2",
                         pageInstanceGuid: "page-instance-guid-123"
                     )
                     let input = V2OffersInput(
                         requestId: "request-id-123",
                         pageIdentifier: "checkout-page",
-                        pageURL: "https://merchant.test/checkout",
-                        customerEmail: "user@example.com",
                         attributes: [
                             "standalone": "notdefined",
                             "customer.locale": "en-US"
-                        ]
+                        ],
+                        privacyControl: TxnSelectPrivacyControl(
+                            noFunctional: false,
+                            noTargeting: false,
+                            doNotShareOrSell: false
+                        )
                     )
                     let (_, httpResponse) = try await client.fetchOffers(input: input)
                     XCTAssertEqual(httpResponse?.statusCode, 200)

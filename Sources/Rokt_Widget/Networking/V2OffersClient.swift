@@ -6,9 +6,6 @@ internal struct V2OffersClient {
     let baseURL: URL
     let accountId: String
     let authToken: String
-    let sessionId: String
-    let mpSessionId: String
-    let mpid: String
     let sdkVersion: String
     let pageInstanceGuid: String
     let httpClient: HTTPClientAdapter
@@ -17,9 +14,6 @@ internal struct V2OffersClient {
         baseURL: URL,
         accountId: String,
         authToken: String,
-        sessionId: String,
-        mpSessionId: String,
-        mpid: String,
         sdkVersion: String,
         pageInstanceGuid: String,
         httpClient: HTTPClientAdapter = RoktHTTPClient()
@@ -27,9 +21,6 @@ internal struct V2OffersClient {
         self.baseURL = baseURL
         self.accountId = accountId
         self.authToken = authToken
-        self.sessionId = sessionId
-        self.mpSessionId = mpSessionId
-        self.mpid = mpid
         self.sdkVersion = sdkVersion
         self.pageInstanceGuid = pageInstanceGuid
         self.httpClient = httpClient
@@ -41,15 +32,14 @@ internal struct V2OffersClient {
             .appendingPathComponent("sessions")
             .appendingPathComponent("offers")
 
-        let requestBody = V2OffersRequest(
-            sessionId: sessionId,
-            mpSessionId: mpSessionId,
-            mpid: mpid,
-            page: V2OffersPage(pageIdentifier: input.pageIdentifier, url: input.pageURL),
-            privacy: V2OffersPrivacy(doNotTrack: false, gpcEnabled: false, doNotShareOrSell: false),
-            channel: V2OffersChannel(type: "msdk", sdkVersion: sdkVersion),
-            customer: V2OffersCustomer(email: input.customerEmail),
-            attributes: input.attributes
+        // Session identity is the JWT `sub` claim in the Authorization header —
+        // never the body. `customer` and `page.url` are omitted to mirror the
+        // Android v2 offers contract.
+        let requestBody = TxnSelectRequest(
+            page: TxnSelectPage(pageIdentifier: input.pageIdentifier),
+            channel: TxnSelectChannel(sdkVersion: sdkVersion),
+            attributes: input.attributes,
+            privacyControl: input.privacyControl
         )
         let bodyData = try JSONEncoder().encode(requestBody)
         guard let bodyParameters = try JSONSerialization.jsonObject(with: bodyData) as? RoktHTTPParameters else {
@@ -93,65 +83,18 @@ internal enum V2OffersClientError: Error {
 internal struct V2OffersInput {
     let requestId: String
     let pageIdentifier: String
-    let pageURL: String
-    let customerEmail: String
     let attributes: [String: String]
-}
+    let privacyControl: TxnSelectPrivacyControl?
 
-internal struct V2OffersRequest: Encodable {
-    let sessionId: String
-    let mpSessionId: String
-    let mpid: String
-    let page: V2OffersPage
-    let privacy: V2OffersPrivacy
-    let channel: V2OffersChannel
-    let customer: V2OffersCustomer
-    let attributes: [String: String]
-
-    enum CodingKeys: String, CodingKey {
-        case sessionId = "session_id"
-        case mpSessionId = "mp_session_id"
-        case mpid
-        case page
-        case privacy
-        case channel
-        case customer
-        case attributes
+    init(
+        requestId: String,
+        pageIdentifier: String,
+        attributes: [String: String],
+        privacyControl: TxnSelectPrivacyControl? = nil
+    ) {
+        self.requestId = requestId
+        self.pageIdentifier = pageIdentifier
+        self.attributes = attributes
+        self.privacyControl = privacyControl
     }
-}
-
-internal struct V2OffersPage: Encodable {
-    let pageIdentifier: String
-    let url: String
-
-    enum CodingKeys: String, CodingKey {
-        case pageIdentifier = "page_identifier"
-        case url
-    }
-}
-
-internal struct V2OffersPrivacy: Encodable {
-    let doNotTrack: Bool
-    let gpcEnabled: Bool
-    let doNotShareOrSell: Bool
-
-    enum CodingKeys: String, CodingKey {
-        case doNotTrack = "do_not_track"
-        case gpcEnabled = "gpc_enabled"
-        case doNotShareOrSell = "do_not_share_or_sell"
-    }
-}
-
-internal struct V2OffersChannel: Encodable {
-    let type: String
-    let sdkVersion: String
-
-    enum CodingKeys: String, CodingKey {
-        case type
-        case sdkVersion = "sdk_version"
-    }
-}
-
-internal struct V2OffersCustomer: Encodable {
-    let email: String
 }
