@@ -50,7 +50,7 @@ class RoktInternalImplementation {
 
     // MARK: - v2 Transactions init (isolated)
 
-    // v2 is the only active init path; v1 is retained but inactive
+    // v2 is the only active init path; v1 is retained but inactive (flag keeps v1 code reachable for periphery)
     // swiftlint:disable:next todo
     // TODO: Remove once v2 is fully rolled out.
     private static let useV2Init = true
@@ -61,6 +61,14 @@ class RoktInternalImplementation {
     }
     // Test-only override for the init service factory; nil uses the real builder.
     var makeTxnInitServiceOverride: ((String) -> TxnInitService)?
+
+    // v2 events is the only active events path; v1 is retained but inactive (flag keeps v1 code reachable for periphery)
+    // swiftlint:disable:next todo
+    // TODO: Remove once v2 is fully rolled out.
+    private static let useTxnEvents = true
+    var isTxnEventsEnabled: Bool { Self.useTxnEvents }
+    // Test-only override for the events service factory; nil uses the real builder.
+    var makeTxnEventServiceOverride: ((String) -> TxnEventService)?
     private var loadingFonts = false
     private var pendingPayload: ExecutePayload?
     private var isExecuting = false
@@ -955,6 +963,27 @@ class RoktInternalImplementation {
             return code
         }
         return nil
+    }
+
+    // Each batch gets a fresh service instance so it rehydrates the latest persisted token.
+    func dispatchTxnEvents(_ events: [V2Event]) {
+        guard !events.isEmpty, let roktTagId else { return }
+        let service = makeTxnEventServiceOverride?(roktTagId) ?? defaultTxnEventService(roktTagId: roktTagId)
+        Task { try? await service.send(events: events) }
+    }
+
+    private func defaultTxnEventService(roktTagId: String) -> TxnEventService {
+        let httpClient: HTTPClientAdapter = config.environment == .Mock
+            ? MockTxnInitHTTPClient()
+            : NetworkingHelper.shared.httpClient
+        return TxnEventService(
+            environment: config.environment,
+            accountId: roktTagId,
+            sdkVersion: libraryVersion,
+            sessionManager: TxnSessionManager(roktTagId: roktTagId),
+            httpClient: httpClient,
+            deviceHeaders: NetworkingHelper.txnDeviceHeaders()
+        )
     }
 
     /// Rokt developer facing execute
