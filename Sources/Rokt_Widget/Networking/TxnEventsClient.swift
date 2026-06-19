@@ -3,7 +3,6 @@ import Foundation
 internal struct TxnEventsClient {
     let baseURL: URL
     let accountId: String
-    let authToken: String?
     let sdkVersion: String
     let deviceHeaders: [String: String]
     let httpClient: HTTPClientAdapter
@@ -11,20 +10,18 @@ internal struct TxnEventsClient {
     init(
         baseURL: URL,
         accountId: String,
-        authToken: String? = nil,
         sdkVersion: String,
         deviceHeaders: [String: String] = [:],
         httpClient: HTTPClientAdapter = RoktHTTPClient()
     ) {
         self.baseURL = baseURL
         self.accountId = accountId
-        self.authToken = authToken
         self.sdkVersion = sdkVersion
         self.deviceHeaders = deviceHeaders
         self.httpClient = httpClient
     }
 
-    func recordEvents(events: [TxnEvent]) async throws -> (Data?, HTTPURLResponse?) {
+    func recordEvents(events: [TxnEvent], authToken: String?) async throws -> (Data?, HTTPURLResponse?) {
         let url = baseURL
             .appendingPathComponent("v2")
             .appendingPathComponent("sessions")
