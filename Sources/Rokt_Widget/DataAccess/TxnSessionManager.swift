@@ -97,9 +97,21 @@ internal final class TxnSessionManager {
     // be dropped at init anyway, and clearing here would silently discard a live
     // native session in favour of a dead one. Persists like any other session so
     // it survives a relaunch before init runs.
+    //
+    // Provenance note (LO-03): an imported session originates from another
+    // integration but is intentionally persisted under the local `Keys.tagId`
+    // (= roktTagId), becoming a first-class native session for this tag. On
+    // relaunch `restoreFromStore` treats it like any other session for this tag;
+    // the imported origin is deliberately not recorded — by design the bundle
+    // becomes "this app's" session. No behavioural change is needed here.
     func seed(sharedSession shared: TxnSharedSession) {
         lock.lock()
         defer { lock.unlock() }
+        // Reject blank credentials before mutating state, mirroring the legacy
+        // setSessionId `!isEmpty` guard. A blank token would otherwise clobber a
+        // live native session and yield a useless "Bearer " header, forcing a
+        // fresh session — a malformed import must never destroy a good session.
+        guard !shared.token.isEmpty, !shared.sessionId.isEmpty else { return }
         guard clock() < shared.expiresAtDate else { return }
         sessionId = shared.sessionId
         token = shared.token
