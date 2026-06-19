@@ -31,12 +31,22 @@ class RoktInternalImplementation {
     // Identifies the latest init request so a superseded init's async completion is ignored.
     private var initGeneration = 0
     let sessionManager: SessionManager
+    // Serializes the pendingSharedSession + txnSessionManager handshake. The two
+    // fields form one unit: setSharedSession decides between seeding the live
+    // manager and holding a pending seed based on whether txnSessionManager is
+    // set, and performInit captures the manager and consumes the pending seed
+    // together. A host may call setSharedSession from any thread (no main-thread
+    // contract is documented), so without this lock that decision can race
+    // performInit's capture-and-consume and silently drop the seed (HI-01).
+    private let sharedSessionLock = NSLock()
     // A v2 Shared Session adopted via setSharedSession before init runs. Seeded
     // into the init service's TxnSessionManager so /v2/sessions/init sends its
     // bearer token and the gateway continues that session. Consumed once at init.
+    // Guarded by sharedSessionLock.
     private var pendingSharedSession: TxnSharedSession?
     // The live v2 session manager, captured when init builds its service. Backs
     // Shared Session export and post-init import. nil until the first init.
+    // Guarded by sharedSessionLock.
     private var txnSessionManager: TxnSessionManager?
     var attributes = [String: String]()
     var isInitialized = false
@@ -882,10 +892,22 @@ class RoktInternalImplementation {
         // Capture the live manager so Shared Session export/import reach the same
         // session init uses. Seed any pending Shared Session before init runs so
         // its bearer token rides /v2/sessions/init and the gateway continues it.
+        //
+        // Decide what to seed atomically with swapping txnSessionManager, so a
+        // concurrent setSharedSession cannot land its seed in the old manager (or
+        // in pendingSharedSession) after we have already captured-and-consumed
+        // (HI-01). On re-init, if no seed is pending but the outgoing manager
+        // still holds a live session, carry it forward so the adopted session is
+        // not silently dropped and re-minted (ME-02). The actual seed() call runs
+        // outside the lock to keep the critical section minimal.
+        sharedSessionLock.lock()
+        let carriedForward = pendingSharedSession == nil ? txnSessionManager?.sharedSession : nil
+        let seedToApply = pendingSharedSession ?? carriedForward
         txnSessionManager = service.sessionManager
-        if let pending = pendingSharedSession {
-            service.sessionManager.seed(sharedSession: pending)
-            pendingSharedSession = nil
+        pendingSharedSession = nil
+        sharedSessionLock.unlock()
+        if let seedToApply {
+            service.sessionManager.seed(sharedSession: seedToApply)
         }
         initGeneration += 1
         let generation = initGeneration
@@ -1289,6 +1311,11 @@ class RoktInternalImplementation {
     // these carry the bearer token so the receiving integration continues the
     // SAME authenticated session on the Transactions Gateway.
     func setSharedSession(_ sharedSession: RoktSharedSession) {
+        // Reject blank credentials up front (ME-01): a blank token/sessionId can
+        // never continue a session and would only risk clobbering a live one.
+        // The seed layer guards too, but rejecting here also prevents a blank
+        // bundle from being held as a pending seed before init.
+        guard !sharedSession.token.isEmpty, !sharedSession.sessionId.isEmpty else { return }
         let shared = TxnSharedSession(
             sessionId: sharedSession.sessionId,
             token: sharedSession.token,
@@ -1296,15 +1323,30 @@ class RoktInternalImplementation {
         )
         // After init the live manager exists, so adopt immediately; before init
         // hold it pending so the next /v2/sessions/init seeds and continues it.
-        if let txnSessionManager {
-            txnSessionManager.seed(sharedSession: shared)
-        } else {
+        // The decision and the pendingSharedSession write are taken under the
+        // lock so they cannot race performInit's capture-and-consume (HI-01).
+        // seed() on the live manager runs outside the lock (TxnSessionManager is
+        // independently thread-safe) to keep the critical section minimal.
+        sharedSessionLock.lock()
+        let manager = txnSessionManager
+        if manager == nil {
             pendingSharedSession = shared
         }
+        sharedSessionLock.unlock()
+        manager?.seed(sharedSession: shared)
     }
 
     func getSharedSession() -> RoktSharedSession? {
-        guard let shared = txnSessionManager?.sharedSession else { return nil }
+        // Prefer the live manager's session; before init fall back to a still-valid
+        // pending seed so a set-then-get round trip before init does not surprise
+        // the integrator with nil (ME-03). Honour expiry on the pending seed so an
+        // expired pending bundle reports nothing, matching the manager's behaviour.
+        sharedSessionLock.lock()
+        let manager = txnSessionManager
+        let pending = pendingSharedSession
+        sharedSessionLock.unlock()
+        let shared = manager?.sharedSession ?? pending.flatMap { Date() < $0.expiresAtDate ? $0 : nil }
+        guard let shared else { return nil }
         return RoktSharedSession(
             sessionId: shared.sessionId,
             token: shared.token,
