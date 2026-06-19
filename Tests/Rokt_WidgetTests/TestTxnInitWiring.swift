@@ -158,6 +158,163 @@ final class TestTxnInitWiring: XCTestCase {
         XCTAssertEqual(impl.getSharedSession()?.sessionId, "sess-1")
         XCTAssertNotEqual(impl.getSharedSession()?.sessionId, "web-sid")
     }
+
+    // MARK: - Post-init setSharedSession (immediate-adopt branch, ME-04)
+
+    func test_setSharedSession_afterInit_adoptsImmediatelyIntoLiveManager() {
+        // A 400 init leaves the SDK uninitialized but still captures the live
+        // manager (performInit sets txnSessionManager before the async request).
+        // A setSharedSession that follows must take the `if let txnSessionManager`
+        // immediate-adopt branch rather than parking a pending seed.
+        stub.result = .success(data: Data(
+            """
+            {
+              "session_id": "sess-1",
+              "session_token": { "token": "jwt", "expires_at": 32503680000000 },
+              "feature_flags": {},
+              "fonts": []
+            }
+            """.utf8
+        ))
+        injectServiceCapturingManager()
+
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+        waitUntil { self.impl.isInitialized }
+
+        // Manager now live; this set must land directly in it.
+        impl.setSharedSession(RoktSharedSession(
+            sessionId: "web-sid",
+            token: "web-jwt",
+            expiresAt: Date(timeIntervalSinceNow: 1800)
+        ))
+
+        XCTAssertEqual(capturedSessionManager?.currentSessionId, "web-sid")
+        XCTAssertEqual(capturedSessionManager?.authorizationHeader, "Bearer web-jwt")
+        XCTAssertEqual(impl.getSharedSession()?.sessionId, "web-sid")
+        XCTAssertEqual(impl.getSharedSession()?.token, "web-jwt")
+    }
+
+    // MARK: - getSharedSession before init (ME-03)
+
+    func test_getSharedSession_beforeInit_returnsPendingSeed() {
+        // Set-then-get before init must surface the pending bundle, not nil.
+        impl.setSharedSession(RoktSharedSession(
+            sessionId: "web-sid",
+            token: "web-jwt",
+            expiresAt: Date(timeIntervalSinceNow: 1800)
+        ))
+
+        let shared = impl.getSharedSession()
+        XCTAssertEqual(shared?.sessionId, "web-sid")
+        XCTAssertEqual(shared?.token, "web-jwt")
+    }
+
+    func test_getSharedSession_beforeInit_returnsNilForExpiredPendingSeed() {
+        // An expired pending seed must report nothing (honour expiry), matching
+        // the live manager's behaviour.
+        impl.setSharedSession(RoktSharedSession(
+            sessionId: "web-sid",
+            token: "web-jwt",
+            expiresAt: Date(timeIntervalSinceNow: -1)
+        ))
+
+        XCTAssertNil(impl.getSharedSession())
+    }
+
+    // MARK: - Blank credential rejection at the impl layer (ME-01)
+
+    func test_setSharedSession_rejectsBlankToken_soNothingIsPending() {
+        impl.setSharedSession(RoktSharedSession(
+            sessionId: "web-sid",
+            token: "",
+            expiresAt: Date(timeIntervalSinceNow: 1800)
+        ))
+        XCTAssertNil(impl.getSharedSession())
+    }
+
+    func test_setSharedSession_rejectsBlankSessionId_soNothingIsPending() {
+        impl.setSharedSession(RoktSharedSession(
+            sessionId: "",
+            token: "web-jwt",
+            expiresAt: Date(timeIntervalSinceNow: 1800)
+        ))
+        XCTAssertNil(impl.getSharedSession())
+    }
+
+    // MARK: - Re-init carry-forward (ME-02)
+
+    func test_reInit_carriesForwardLiveSessionWhenNoPendingSeed() {
+        // First init mints a live session (sess-1). A re-init with no pending seed
+        // must carry that live session into the new manager instead of dropping it
+        // and re-minting from scratch.
+        stub.result = .success(data: Data(
+            """
+            {
+              "session_id": "sess-1",
+              "session_token": { "token": "jwt", "expires_at": 32503680000000 },
+              "feature_flags": {},
+              "fonts": []
+            }
+            """.utf8
+        ))
+        injectServiceCapturingManager()
+
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+        waitUntil { self.impl.isInitialized }
+        XCTAssertEqual(capturedSessionManager?.currentSessionId, "sess-1")
+
+        // Re-init: a fresh manager is captured. The carry-forward must seed it with
+        // the prior live session before the new init response lands. A 400 on the
+        // re-init keeps the server from overwriting, isolating the carry-forward.
+        stub.result = .status(400)
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+
+        // performInit carries forward synchronously before the async request.
+        XCTAssertEqual(capturedSessionManager?.currentSessionId, "sess-1")
+        XCTAssertEqual(capturedSessionManager?.authorizationHeader, "Bearer jwt")
+        XCTAssertEqual(impl.getSharedSession()?.sessionId, "sess-1")
+    }
+
+    // MARK: - Concurrency smoke test for the set/init handshake (HI-01)
+
+    func test_concurrentSetSharedSessionAndInit_doesNotCrashOrDropSeedIntoNoMansLand() {
+        // Drives setSharedSession and initWith from different threads to exercise
+        // the lock around the pending-seed/manager handshake. The harness cannot
+        // deterministically pin the interleaving, but the lock must keep state
+        // consistent (no crash / torn reads) and the seed must end up either in
+        // the manager or surfaced by getSharedSession — never silently lost.
+        stub.result = .status(400)
+        injectServiceCapturingManager()
+
+        let setExp = expectation(description: "set done")
+        let initStarted = expectation(description: "init issued")
+
+        DispatchQueue.global().async {
+            self.impl.setSharedSession(RoktSharedSession(
+                sessionId: "web-sid",
+                token: "web-jwt",
+                expiresAt: Date(timeIntervalSinceNow: 1800)
+            ))
+            setExp.fulfill()
+        }
+        // initWith touches main-affine state, so issue it on main.
+        DispatchQueue.main.async {
+            self.impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+            initStarted.fulfill()
+        }
+
+        wait(for: [setExp, initStarted], timeout: 2)
+
+        // Let any async work settle, then assert the seed is reachable somewhere.
+        let settled = expectation(description: "settled")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { settled.fulfill() }
+        wait(for: [settled], timeout: 2)
+
+        let managerHasSeed = capturedSessionManager?.currentSessionId == "web-sid"
+        let exportHasSeed = impl.getSharedSession()?.sessionId == "web-sid"
+        XCTAssertTrue(managerHasSeed || exportHasSeed,
+                      "the concurrently-set shared session must not be silently dropped")
+    }
 }
 
 private final class StubInitHTTPClient: HTTPClientAdapter {
