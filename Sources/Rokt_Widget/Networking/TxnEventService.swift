@@ -6,16 +6,12 @@ internal struct TxnEventService {
         case unexpectedStatusCode(Int)
     }
 
-    let environment: Environment
-    let accountId: String
-    let sdkVersion: String
     let sessionManager: TxnSessionManager
-    let httpClient: HTTPClientAdapter
-    let deviceHeaders: [String: String]
     let maxRetries: Int
-    let requestTimeout: TimeInterval
     let baseBackoff: TimeInterval
     let sleep: (TimeInterval) async throws -> Void
+
+    private let client: TxnEventsClient?
 
     init(
         environment: Environment,
@@ -31,39 +27,35 @@ internal struct TxnEventService {
             try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
         }
     ) {
-        self.environment = environment
-        self.accountId = accountId
-        self.sdkVersion = sdkVersion
         self.sessionManager = sessionManager
-        self.httpClient = httpClient
-        self.deviceHeaders = deviceHeaders
         self.maxRetries = maxRetries
-        self.requestTimeout = requestTimeout
         self.baseBackoff = baseBackoff
         self.sleep = sleep
+
+        if let baseURL = URL(string: environment.gatewayBaseURL) {
+            httpClient.updateTimeout(timeout: requestTimeout)
+            self.client = TxnEventsClient(
+                baseURL: baseURL,
+                accountId: accountId,
+                sdkVersion: sdkVersion,
+                deviceHeaders: deviceHeaders,
+                httpClient: httpClient
+            )
+        } else {
+            self.client = nil
+        }
     }
 
     func send(events: [TxnEvent]) async throws {
         guard !events.isEmpty else { return }
-        guard let baseURL = URL(string: environment.gatewayBaseURL) else {
-            throw TxnEventError.invalidBaseURL
-        }
+        guard let client else { throw TxnEventError.invalidBaseURL }
 
-        httpClient.updateTimeout(timeout: requestTimeout)
-
-        let client = TxnEventsClient(
-            baseURL: baseURL,
-            accountId: accountId,
-            authToken: sessionManager.authorizationHeader,
-            sdkVersion: sdkVersion,
-            deviceHeaders: deviceHeaders,
-            httpClient: httpClient
-        )
+        let authToken = sessionManager.authorizationHeader
 
         var attempt = 0
         while true {
             do {
-                let (data, response) = try await client.recordEvents(events: events)
+                let (data, response) = try await client.recordEvents(events: events, authToken: authToken)
                 let statusCode = response?.statusCode ?? 0
 
                 if isRetryable(statusCode: statusCode), attempt < maxRetries {
