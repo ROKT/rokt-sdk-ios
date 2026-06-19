@@ -56,7 +56,7 @@ internal struct TxnInitService {
 
         httpClient.updateTimeout(timeout: requestTimeout)
 
-        let client = V2SessionsInitClient(
+        let client = TxnInitClient(
             baseURL: baseURL,
             accountId: accountId,
             authToken: sessionManager.authorizationHeader,

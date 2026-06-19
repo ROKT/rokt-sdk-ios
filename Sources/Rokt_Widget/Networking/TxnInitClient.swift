@@ -1,6 +1,6 @@
 import Foundation
 
-internal struct V2SessionsInitClient {
+internal struct TxnInitClient {
     let baseURL: URL
     let accountId: String
     let authToken: String?
@@ -30,14 +30,14 @@ internal struct V2SessionsInitClient {
             .appendingPathComponent("sessions")
             .appendingPathComponent("init")
 
-        let requestBody = V2SessionsInitRequest(
+        let requestBody = TxnInitRequest(
             operatingSystem: operating_system,
             sdkVersion: sdkVersion,
             layoutSchemaVersion: layout_schema_version
         )
         let bodyData = try JSONEncoder().encode(requestBody)
         guard let bodyParameters = try JSONSerialization.jsonObject(with: bodyData) as? RoktHTTPParameters else {
-            throw V2SessionsInitClientError.bodyEncodingFailed
+            throw TxnInitClientError.bodyEncodingFailed
         }
 
         var headers: RoktHTTPHeaders = [
@@ -72,11 +72,11 @@ internal struct V2SessionsInitClient {
     }
 }
 
-internal enum V2SessionsInitClientError: Error {
+internal enum TxnInitClientError: Error {
     case bodyEncodingFailed
 }
 
-internal struct V2SessionsInitRequest: Encodable {
+internal struct TxnInitRequest: Encodable {
     // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
     let operatingSystem: String
     // periphery:ignore - encode-only; read by the synthesized Encodable, not by code

@@ -56,8 +56,8 @@ final class TestTxnEventService: XCTestCase {
         )
     }
 
-    private func sampleEvents() -> [V2Event] {
-        [V2Event(eventType: "impression", instanceId: "instance-1", timestamp: 1_700_000_000_000, data: ["k": "v"])]
+    private func sampleEvents() -> [TxnEvent] {
+        [TxnEvent(eventType: "impression", instanceId: "instance-1", timestamp: 1_700_000_000_000, data: ["k": "v"])]
     }
 
     func test_send_success_rotatesSessionToken() async throws {

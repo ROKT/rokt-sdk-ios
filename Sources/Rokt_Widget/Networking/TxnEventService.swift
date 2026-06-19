@@ -11,7 +11,7 @@ internal struct TxnEventService {
     let baseBackoff: TimeInterval
     let sleep: (TimeInterval) async throws -> Void
 
-    private let client: V2EventsClient?
+    private let client: TxnEventsClient?
 
     init(
         environment: Environment,
@@ -34,7 +34,7 @@ internal struct TxnEventService {
 
         if let baseURL = URL(string: environment.gatewayBaseURL) {
             httpClient.updateTimeout(timeout: requestTimeout)
-            self.client = V2EventsClient(
+            self.client = TxnEventsClient(
                 baseURL: baseURL,
                 accountId: accountId,
                 sdkVersion: sdkVersion,
@@ -46,7 +46,7 @@ internal struct TxnEventService {
         }
     }
 
-    func send(events: [V2Event]) async throws {
+    func send(events: [TxnEvent]) async throws {
         guard !events.isEmpty else { return }
         guard let client else { throw TxnEventError.invalidBaseURL }
 

@@ -1,6 +1,6 @@
 import Foundation
 
-internal struct V2EventsClient {
+internal struct TxnEventsClient {
     let baseURL: URL
     let accountId: String
     let sdkVersion: String
@@ -21,19 +21,19 @@ internal struct V2EventsClient {
         self.httpClient = httpClient
     }
 
-    func recordEvents(events: [V2Event], authToken: String?) async throws -> (Data?, HTTPURLResponse?) {
+    func recordEvents(events: [TxnEvent], authToken: String?) async throws -> (Data?, HTTPURLResponse?) {
         let url = baseURL
             .appendingPathComponent("v2")
             .appendingPathComponent("sessions")
             .appendingPathComponent("events")
 
-        let requestBody = V2EventsRequest(
-            channel: V2EventsChannel(type: "msdk", sdkVersion: sdkVersion),
+        let requestBody = TxnEventsRequest(
+            channel: TxnEventsChannel(type: "msdk", sdkVersion: sdkVersion),
             events: events
         )
         let bodyData = try JSONEncoder().encode(requestBody)
         guard let bodyParameters = try JSONSerialization.jsonObject(with: bodyData) as? RoktHTTPParameters else {
-            throw V2EventsClientError.bodyEncodingFailed
+            throw TxnEventsClientError.bodyEncodingFailed
         }
 
         var headers: RoktHTTPHeaders = [
@@ -70,18 +70,18 @@ internal struct V2EventsClient {
     }
 }
 
-internal enum V2EventsClientError: Error {
+internal enum TxnEventsClientError: Error {
     case bodyEncodingFailed
 }
 
-internal struct V2EventsRequest: Encodable {
+internal struct TxnEventsRequest: Encodable {
     // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
-    let channel: V2EventsChannel
+    let channel: TxnEventsChannel
     // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
-    let events: [V2Event]
+    let events: [TxnEvent]
 }
 
-internal struct V2EventsChannel: Encodable {
+internal struct TxnEventsChannel: Encodable {
     // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
     let type: String
     // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
@@ -93,7 +93,7 @@ internal struct V2EventsChannel: Encodable {
     }
 }
 
-internal struct V2Event: Encodable, Equatable {
+internal struct TxnEvent: Encodable, Equatable {
     // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
     let eventType: String
     // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
