@@ -24,6 +24,18 @@ import Foundation
     /// Absolute expiry of the token. After this the session must be re-established.
     @objc public let expiresAt: Date
 
+    /// Creates a shared session bundle.
+    ///
+    /// - Parameters:
+    ///   - sessionId: The session id. Must be non-empty.
+    ///   - token: The bearer session token. Must be non-empty; it is the
+    ///     credential that continues the session and must never be logged.
+    ///   - expiresAt: Absolute expiry of the token.
+    /// - Important: `sessionId` and `token` must both be non-empty and
+    ///   `expiresAt` should be in the future. The initializer does not reject
+    ///   invalid input (it stays a non-failable `@objc` init for a simple public
+    ///   surface), but the SDK silently ignores bundles with a blank credential
+    ///   or a past expiry when importing them via `setSharedSession`.
     @objc public init(sessionId: String, token: String, expiresAt: Date) {
         self.sessionId = sessionId
         self.token = token
