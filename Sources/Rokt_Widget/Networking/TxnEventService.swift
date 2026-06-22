@@ -50,7 +50,7 @@ internal struct TxnEventService {
         guard !events.isEmpty else { return }
         guard let client else { throw TxnEventError.invalidBaseURL }
 
-        let authToken = sessionManager.authorizationHeader
+        let authToken = await sessionManager.authorizationHeader
 
         var attempt = 0
         while true {
@@ -71,7 +71,7 @@ internal struct TxnEventService {
                 if let data,
                    let decoded = try? JSONDecoder().decode(TxnEventsResponse.self, from: data),
                    let sessionToken = decoded.sessionToken {
-                    sessionManager.update(sessionToken: sessionToken)
+                    await sessionManager.update(sessionToken: sessionToken)
                 }
                 return
             } catch let error where isRetryable(error: error) && attempt < maxRetries {
