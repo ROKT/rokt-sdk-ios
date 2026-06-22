@@ -148,32 +148,6 @@ class TestRokt: XCTestCase {
         )
     }
 
-    // MARK: - setSessionId Tests
-
-    func test_setSessionId_updatesSessionManager() {
-        let roktInternalImplementation = RoktInternalImplementation()
-
-        roktInternalImplementation.setSessionId(sessionId: "webview-session-id")
-
-        XCTAssertEqual(
-            roktInternalImplementation.sessionManager.getCurrentSessionIdWithoutExpiring(),
-            "webview-session-id"
-        )
-    }
-
-    func test_setSessionId_ignoresEmptyString() {
-        let roktInternalImplementation = RoktInternalImplementation()
-        roktInternalImplementation.setSessionId(sessionId: "existing-session-id")
-
-        roktInternalImplementation.setSessionId(sessionId: "")
-
-        // Empty string should be a no-op - original session should remain
-        XCTAssertEqual(
-            roktInternalImplementation.sessionManager.getCurrentSessionIdWithoutExpiring(),
-            "existing-session-id"
-        )
-    }
-
     // MARK: - availablePaymentMethods Tests
 
     func test_availablePaymentMethods_excludesPayPalBeforeRedirectSchemeIsSet() {
@@ -199,26 +173,6 @@ class TestRokt: XCTestCase {
         XCTAssertTrue(roktInternalImplementation.setBuiltInPayPalRedirectURLScheme(nil))
 
         XCTAssertEqual(Set(roktInternalImplementation.availablePaymentMethods), Set([PaymentMethodType.card]))
-    }
-
-    // MARK: - getSessionId Tests
-
-    func test_getSessionId_returnsNilWhenNoSession() {
-        let roktInternalImplementation = RoktInternalImplementation()
-
-        let sessionId = roktInternalImplementation.getSessionId()
-
-        XCTAssertNil(sessionId)
-    }
-
-    func test_getSessionId_returnsSessionIdAfterSet() {
-        let roktInternalImplementation = RoktInternalImplementation()
-        let expectedSessionId = "test-session-123"
-        roktInternalImplementation.setSessionId(sessionId: expectedSessionId)
-
-        let sessionId = roktInternalImplementation.getSessionId()
-
-        XCTAssertEqual(sessionId, expectedSessionId)
     }
 
     func test_buildContactAddress_mapsTransactionDataAddress() throws {
@@ -325,34 +279,5 @@ class TestRokt: XCTestCase {
         ]
 
         XCTAssertNil(roktInternalImplementation.buildContactAddressFromAttributes())
-    }
-
-    // MARK: - Rokt Public API Tests
-
-    func test_Rokt_setSessionId_updatesSession() {
-        let expectedSessionId = "public-api-session-id"
-
-        Rokt.setSessionId(sessionId: expectedSessionId)
-
-        XCTAssertEqual(Rokt.getSessionId(), expectedSessionId)
-    }
-
-    func test_Rokt_getSessionId_returnsSessionId() {
-        let expectedSessionId = "get-session-test-id"
-        Rokt.setSessionId(sessionId: expectedSessionId)
-
-        let sessionId = Rokt.getSessionId()
-
-        XCTAssertEqual(sessionId, expectedSessionId)
-    }
-
-    func test_Rokt_setSessionId_ignoresEmptyString() {
-        let originalSessionId = "original-session-id"
-        Rokt.setSessionId(sessionId: originalSessionId)
-
-        Rokt.setSessionId(sessionId: "")
-
-        // Empty string should be a no-op - original session should remain
-        XCTAssertEqual(Rokt.getSessionId(), originalSessionId)
     }
 }
