@@ -110,7 +110,6 @@ final class TestTxnInitWiring: XCTestCase {
         // the SAME session. A 400 keeps the server from overwriting the seed, so
         // the assertion isolates the seeding step.
         impl.setSharedSession(RoktSharedSession(
-            sessionId: "web-sid",
             token: "web-jwt",
             expiresAt: Date(timeIntervalSinceNow: 1800)
         ))
@@ -120,10 +119,9 @@ final class TestTxnInitWiring: XCTestCase {
         impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
 
         // performInit seeds synchronously before the async request, so the manager
-        // and the public export reflect the seeded session immediately.
-        XCTAssertEqual(capturedSessionManager?.currentSessionId, "web-sid")
+        // and the public export reflect the seeded token immediately. The internal
+        // session id stays nil until the gateway's init response populates it.
         XCTAssertEqual(capturedSessionManager?.authorizationHeader, "Bearer web-jwt")
-        XCTAssertEqual(impl.getSharedSession()?.sessionId, "web-sid")
         XCTAssertEqual(impl.getSharedSession()?.token, "web-jwt")
     }
 
@@ -131,7 +129,6 @@ final class TestTxnInitWiring: XCTestCase {
         // An expired bundle is dropped at seeding (a dead token is useless), so the
         // manager has no bearer and init proceeds to mint a brand-new session.
         impl.setSharedSession(RoktSharedSession(
-            sessionId: "web-sid",
             token: "web-jwt",
             expiresAt: Date(timeIntervalSinceNow: -1)
         ))
@@ -152,11 +149,11 @@ final class TestTxnInitWiring: XCTestCase {
         // The expired seed never landed, so before the response there is no session.
         XCTAssertNil(capturedSessionManager?.currentSessionId)
 
-        // Init mints a fresh session; the seeded id is nowhere to be found.
+        // Init mints a fresh session; the expired seed's token never rides it.
         waitUntil { self.impl.isInitialized }
         XCTAssertEqual(capturedSessionManager?.currentSessionId, "sess-1")
-        XCTAssertEqual(impl.getSharedSession()?.sessionId, "sess-1")
-        XCTAssertNotEqual(impl.getSharedSession()?.sessionId, "web-sid")
+        XCTAssertEqual(impl.getSharedSession()?.token, "jwt")
+        XCTAssertNotEqual(impl.getSharedSession()?.token, "web-jwt")
     }
 
     // MARK: - Post-init setSharedSession (immediate-adopt branch, ME-04)
@@ -181,16 +178,14 @@ final class TestTxnInitWiring: XCTestCase {
         impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
         waitUntil { self.impl.isInitialized }
 
-        // Manager now live; this set must land directly in it.
+        // Manager now live; this set must land directly in it, overriding the
+        // session established by init so the new token is used on the offers API.
         impl.setSharedSession(RoktSharedSession(
-            sessionId: "web-sid",
             token: "web-jwt",
             expiresAt: Date(timeIntervalSinceNow: 1800)
         ))
 
-        XCTAssertEqual(capturedSessionManager?.currentSessionId, "web-sid")
         XCTAssertEqual(capturedSessionManager?.authorizationHeader, "Bearer web-jwt")
-        XCTAssertEqual(impl.getSharedSession()?.sessionId, "web-sid")
         XCTAssertEqual(impl.getSharedSession()?.token, "web-jwt")
     }
 
@@ -199,13 +194,11 @@ final class TestTxnInitWiring: XCTestCase {
     func test_getSharedSession_beforeInit_returnsPendingSeed() {
         // Set-then-get before init must surface the pending bundle, not nil.
         impl.setSharedSession(RoktSharedSession(
-            sessionId: "web-sid",
             token: "web-jwt",
             expiresAt: Date(timeIntervalSinceNow: 1800)
         ))
 
         let shared = impl.getSharedSession()
-        XCTAssertEqual(shared?.sessionId, "web-sid")
         XCTAssertEqual(shared?.token, "web-jwt")
     }
 
@@ -213,7 +206,6 @@ final class TestTxnInitWiring: XCTestCase {
         // An expired pending seed must report nothing (honour expiry), matching
         // the live manager's behaviour.
         impl.setSharedSession(RoktSharedSession(
-            sessionId: "web-sid",
             token: "web-jwt",
             expiresAt: Date(timeIntervalSinceNow: -1)
         ))
@@ -225,17 +217,7 @@ final class TestTxnInitWiring: XCTestCase {
 
     func test_setSharedSession_rejectsBlankToken_soNothingIsPending() {
         impl.setSharedSession(RoktSharedSession(
-            sessionId: "web-sid",
             token: "",
-            expiresAt: Date(timeIntervalSinceNow: 1800)
-        ))
-        XCTAssertNil(impl.getSharedSession())
-    }
-
-    func test_setSharedSession_rejectsBlankSessionId_soNothingIsPending() {
-        impl.setSharedSession(RoktSharedSession(
-            sessionId: "",
-            token: "web-jwt",
             expiresAt: Date(timeIntervalSinceNow: 1800)
         ))
         XCTAssertNil(impl.getSharedSession())
@@ -270,9 +252,12 @@ final class TestTxnInitWiring: XCTestCase {
         impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
 
         // performInit carries forward synchronously before the async request.
-        XCTAssertEqual(capturedSessionManager?.currentSessionId, "sess-1")
+        // The carry-forward propagates the bearer token (the continuity
+        // credential); the internal session id rides inside the token's JWT
+        // `sub` and is repopulated by the next gateway init response, so it is
+        // nil here on the 400-isolated re-init.
         XCTAssertEqual(capturedSessionManager?.authorizationHeader, "Bearer jwt")
-        XCTAssertEqual(impl.getSharedSession()?.sessionId, "sess-1")
+        XCTAssertEqual(impl.getSharedSession()?.token, "jwt")
     }
 
     // MARK: - Concurrency smoke test for the set/init handshake (HI-01)
@@ -291,7 +276,6 @@ final class TestTxnInitWiring: XCTestCase {
 
         DispatchQueue.global().async {
             self.impl.setSharedSession(RoktSharedSession(
-                sessionId: "web-sid",
                 token: "web-jwt",
                 expiresAt: Date(timeIntervalSinceNow: 1800)
             ))
@@ -310,8 +294,8 @@ final class TestTxnInitWiring: XCTestCase {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { settled.fulfill() }
         wait(for: [settled], timeout: 2)
 
-        let managerHasSeed = capturedSessionManager?.currentSessionId == "web-sid"
-        let exportHasSeed = impl.getSharedSession()?.sessionId == "web-sid"
+        let managerHasSeed = capturedSessionManager?.authorizationHeader == "Bearer web-jwt"
+        let exportHasSeed = impl.getSharedSession()?.token == "web-jwt"
         XCTAssertTrue(managerHasSeed || exportHasSeed,
                       "the concurrently-set shared session must not be silently dropped")
     }
