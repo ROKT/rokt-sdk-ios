@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [4.16.6] - 2026-06-22
 
+### Changed
+
+- Bump swift tools to 5.5 from 5.3
+
 ## [4.16.5] - 2026-04-16
 
 ### Fixed
