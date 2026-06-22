@@ -157,6 +157,12 @@ internal class RoktAPIHelper {
         else { return }
 
         EventQueue.call(event: eventRequest) { events in
+            let implementation = Rokt.shared.roktImplementation
+            if implementation.isTxnEventsEnabled {
+                implementation.dispatchTxnEvents(events.compactMap { TxnEventMapper.event(from: $0) })
+                return
+            }
+
             var eventsBody = [[String: Any]]()
             for event in events {
                 eventsBody.append(event.getParams)

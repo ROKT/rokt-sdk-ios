@@ -1,18 +1,16 @@
-// periphery:ignore:all - referenced from Tests/ContractTests/V2EventsClientPactSpec.swift
-
 import Foundation
 
-internal struct V2EventsClient {
+internal struct TxnInitClient {
     let baseURL: URL
     let accountId: String
-    let authToken: String
+    let authToken: String?
     let sdkVersion: String
     let httpClient: HTTPClientAdapter
 
     init(
         baseURL: URL,
         accountId: String,
-        authToken: String,
+        authToken: String? = nil,
         sdkVersion: String,
         httpClient: HTTPClientAdapter = RoktHTTPClient()
     ) {
@@ -23,26 +21,34 @@ internal struct V2EventsClient {
         self.httpClient = httpClient
     }
 
-    func recordEvents(events: [V2Event]) async throws -> (Data?, HTTPURLResponse?) {
+    func initSession(
+        operating_system: String,
+        layout_schema_version: String
+    ) async throws -> (Data?, HTTPURLResponse?) {
         let url = baseURL
             .appendingPathComponent("v2")
             .appendingPathComponent("sessions")
-            .appendingPathComponent("events")
+            .appendingPathComponent("init")
 
-        let requestBody = V2EventsRequest(
-            channel: V2EventsChannel(type: "msdk", sdkVersion: sdkVersion),
-            events: events
+        let requestBody = TxnInitRequest(
+            operatingSystem: operating_system,
+            sdkVersion: sdkVersion,
+            layoutSchemaVersion: layout_schema_version
         )
         let bodyData = try JSONEncoder().encode(requestBody)
         guard let bodyParameters = try JSONSerialization.jsonObject(with: bodyData) as? RoktHTTPParameters else {
-            throw V2EventsClientError.bodyEncodingFailed
+            throw TxnInitClientError.bodyEncodingFailed
         }
 
-        let headers: RoktHTTPHeaders = [
+        var headers: RoktHTTPHeaders = [
             "rokt-account-id": accountId,
-            "Authorization": authToken,
+            "x-request-id": UUID().uuidString,
             "Content-Type": "application/json"
         ]
+        // Authorization is optional: with no stored token the server mints a fresh session.
+        if let authToken, !authToken.isEmpty {
+            headers["Authorization"] = authToken
+        }
 
         return try await withCheckedThrowingContinuation { continuation in
             httpClient.startRequestWith(
@@ -66,35 +72,21 @@ internal struct V2EventsClient {
     }
 }
 
-internal enum V2EventsClientError: Error {
+internal enum TxnInitClientError: Error {
     case bodyEncodingFailed
 }
 
-internal struct V2EventsRequest: Encodable {
-    let channel: V2EventsChannel
-    let events: [V2Event]
-}
-
-internal struct V2EventsChannel: Encodable {
-    let type: String
+internal struct TxnInitRequest: Encodable {
+    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
+    let operatingSystem: String
+    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
     let sdkVersion: String
+    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
+    let layoutSchemaVersion: String
 
     enum CodingKeys: String, CodingKey {
-        case type
+        case operatingSystem = "operating_system"
         case sdkVersion = "sdk_version"
-    }
-}
-
-internal struct V2Event: Encodable {
-    let eventType: String
-    let instanceId: String?
-    let timestamp: Int64
-    let data: [String: String]?
-
-    enum CodingKeys: String, CodingKey {
-        case eventType = "event_type"
-        case instanceId = "instance_id"
-        case timestamp
-        case data
+        case layoutSchemaVersion = "layout_schema_version"
     }
 }
