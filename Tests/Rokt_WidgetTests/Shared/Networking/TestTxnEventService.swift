@@ -39,9 +39,9 @@ final class TestTxnEventService: XCTestCase {
         )
     }
 
-    private func storeValidToken(_ token: String = "stored-jwt") {
+    private func storeValidToken(_ token: String = "stored-jwt") async {
         let expiryMs = Int64(now.addingTimeInterval(1800).timeIntervalSince1970 * 1000)
-        sessionManager.update(sessionId: "session-1", sessionToken: TxnSessionToken(token: token, expiresAt: expiryMs))
+        await sessionManager.update(sessionId: "session-1", sessionToken: TxnSessionToken(token: token, expiresAt: expiryMs))
     }
 
     private func rotatedResponse(token: String = "rotated-jwt") -> Data {
@@ -61,17 +61,18 @@ final class TestTxnEventService: XCTestCase {
     }
 
     func test_send_success_rotatesSessionToken() async throws {
-        storeValidToken()
+        await storeValidToken()
         httpClient.results = [.success(status: 202, data: rotatedResponse())]
 
         try await makeService().send(events: sampleEvents())
 
-        XCTAssertEqual(sessionManager.authorizationHeader, "Bearer rotated-jwt")
+        let header = await sessionManager.authorizationHeader
+        XCTAssertEqual(header, "Bearer rotated-jwt")
         XCTAssertEqual(httpClient.callCount, 1)
     }
 
     func test_send_withValidToken_attachesAuthorizationAndDeviceHeaders() async throws {
-        storeValidToken()
+        await storeValidToken()
         httpClient.results = [.success(status: 202, data: rotatedResponse())]
 
         try await makeService().send(events: sampleEvents())
@@ -90,12 +91,13 @@ final class TestTxnEventService: XCTestCase {
     }
 
     func test_send_responseWithoutSessionToken_leavesTokenUnchanged() async throws {
-        storeValidToken("keep-jwt")
+        await storeValidToken("keep-jwt")
         httpClient.results = [.success(status: 202, data: Data(#"{ "event_ids": ["event-1"] }"#.utf8))]
 
         try await makeService().send(events: sampleEvents())
 
-        XCTAssertEqual(sessionManager.authorizationHeader, "Bearer keep-jwt")
+        let header = await sessionManager.authorizationHeader
+        XCTAssertEqual(header, "Bearer keep-jwt")
     }
 
     func test_send_retriesOnTransient5xx_thenSucceeds() async throws {
