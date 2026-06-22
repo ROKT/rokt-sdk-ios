@@ -87,8 +87,8 @@ internal final class TxnSessionManager {
     var sharedSession: TxnSharedSession? {
         lock.lock()
         defer { lock.unlock() }
-        guard let sessionId, let token, let expiresAt, !isExpiredLocked else { return nil }
-        return TxnSharedSession(sessionId: sessionId, token: token, expiresAtDate: expiresAt)
+        guard let token, let expiresAt, !isExpiredLocked else { return nil }
+        return TxnSharedSession(token: token, expiresAtDate: expiresAt)
     }
 
     // Adopt a session minted by another integration so the next /v2/sessions/init
@@ -107,15 +107,18 @@ internal final class TxnSessionManager {
     func seed(sharedSession shared: TxnSharedSession) {
         lock.lock()
         defer { lock.unlock() }
-        // Reject blank credentials before mutating state, mirroring the legacy
-        // setSessionId `!isEmpty` guard. A blank token would otherwise clobber a
-        // live native session and yield a useless "Bearer " header, forcing a
-        // fresh session — a malformed import must never destroy a good session.
-        guard !shared.token.isEmpty, !shared.sessionId.isEmpty else { return }
+        // Reject a blank credential before mutating state. A blank token would
+        // otherwise clobber a live native session and yield a useless "Bearer "
+        // header, forcing a fresh session — a malformed import must never destroy
+        // a good session. The session id is not supplied by the bundle (it lives
+        // in the token's JWT `sub`); the gateway's init response populates the
+        // internal session id via `update(sessionId:sessionToken:)`.
+        guard !shared.token.isEmpty else { return }
         guard clock() < shared.expiresAtDate else { return }
-        sessionId = shared.sessionId
         token = shared.token
         expiresAt = shared.expiresAtDate
+        // persist guards `if let sessionId`, so seeding with a nil internal
+        // session id still persists the tagId binding, token, and expiry.
         persist(includeSessionId: true)
     }
 

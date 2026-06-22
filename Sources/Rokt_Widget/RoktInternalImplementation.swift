@@ -1296,28 +1296,16 @@ class RoktInternalImplementation {
         }
     }
 
-    func setSessionId(sessionId: String) {
-        guard !sessionId.isEmpty else {
-            return
-        }
-        sessionManager.updateSessionId(newSessionId: sessionId)
-    }
-
-    func getSessionId() -> String? {
-        return sessionManager.getCurrentSessionIdWithoutExpiring()
-    }
-
-    // v2 token-aware session sharing. Unlike the legacy id-only bridge above,
-    // these carry the bearer token so the receiving integration continues the
-    // SAME authenticated session on the Transactions Gateway.
+    // v2 token-aware session sharing. These carry the bearer token so the
+    // receiving integration continues the SAME authenticated session on the
+    // Transactions Gateway; the session id rides inside the token's JWT `sub`.
     func setSharedSession(_ sharedSession: RoktSharedSession) {
-        // Reject blank credentials up front (ME-01): a blank token/sessionId can
-        // never continue a session and would only risk clobbering a live one.
-        // The seed layer guards too, but rejecting here also prevents a blank
-        // bundle from being held as a pending seed before init.
-        guard !sharedSession.token.isEmpty, !sharedSession.sessionId.isEmpty else { return }
+        // Reject a blank credential up front (ME-01): a blank token can never
+        // continue a session and would only risk clobbering a live one. The seed
+        // layer guards too, but rejecting here also prevents a blank bundle from
+        // being held as a pending seed before init.
+        guard !sharedSession.token.isEmpty else { return }
         let shared = TxnSharedSession(
-            sessionId: sharedSession.sessionId,
             token: sharedSession.token,
             expiresAtDate: sharedSession.expiresAt
         )
@@ -1348,7 +1336,6 @@ class RoktInternalImplementation {
         let shared = manager?.sharedSession ?? pending.flatMap { Date() < $0.expiresAtDate ? $0 : nil }
         guard let shared else { return nil }
         return RoktSharedSession(
-            sessionId: shared.sessionId,
             token: shared.token,
             expiresAt: shared.expiresAtDate
         )
