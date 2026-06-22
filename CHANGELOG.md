@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [4.16.6] - 2026-06-22
+
+### Changed
+
+- Bump swift tools to 5.5 from 5.3
+
 ## [4.16.5] - 2026-04-16
 
 ### Fixed
@@ -286,7 +292,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.5...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.6...HEAD
+[4.16.6]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.5...4.16.6
 [4.16.5]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.4...4.16.5
 [4.16.4]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.3...4.16.4
 [4.16.3]: https://github.com/ROKT/rokt-sdk-ios/compare/4.16.2...4.16.3
