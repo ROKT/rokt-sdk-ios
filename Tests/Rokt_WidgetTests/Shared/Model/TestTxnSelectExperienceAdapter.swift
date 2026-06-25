@@ -52,8 +52,15 @@ final class TestTxnSelectExperienceAdapter: XCTestCase {
                       "links": { "privacy": { "url": "https://x", "title": "Privacy" } },
                       "icons": { "close": { "name": "x" } },
                       "response_options_map": {
-                        "positive": { "id": "ro-pos", "instance_guid": "ig-pos", "token": "tok-pos", "action": "Url", "signal_type": "SignalResponse", "is_positive": true, "url": "https://accept" },
-                        "negative": { "id": "ro-neg", "instance_guid": "ig-neg", "token": "tok-neg", "action": "CaptureOnly", "is_positive": false }
+                        "positive": {
+                          "id": "ro-pos", "instance_guid": "ig-pos", "token": "tok-pos",
+                          "action": "Url", "signal_type": "SignalResponse",
+                          "is_positive": true, "url": "https://accept"
+                        },
+                        "negative": {
+                          "id": "ro-neg", "instance_guid": "ig-neg", "token": "tok-neg",
+                          "action": "CaptureOnly", "is_positive": false
+                        }
                       }
                     }
                   }
