@@ -169,29 +169,9 @@ final class TestTxnSelectSerialization: XCTestCase {
         XCTAssertEqual(response.sessionId, "session-123")
     }
 
-    func test_response_decodesCatalogItemsButKeepsThemDeferred() throws {
-        // catalog_items is retained on the wire model (shoppable ads) but the
-        // mapper surfacing them is a later PR.
-        let payload = """
-        {
-          "session_id": "session-123",
-          "session_token": { "token": "t", "expires_at": 1 },
-          "plugins": [
-            { "plugin": { "config": { "slots": [
-              { "offer": { "campaign_id": "c1", "catalog_items": [ { "id": "cat-1" } ] } }
-            ] } } }
-          ]
-        }
-        """
-
-        let response = try decode(payload)
-        let offer = try XCTUnwrap(response.plugins?.first?.plugin?.config?.slots.first?.offer)
-        XCTAssertEqual(offer.campaignId, "c1")
-        XCTAssertNotNil(offer.catalogItems)
-    }
-
-    func test_response_catalogItemsRoundTripEveryJSONValueKind() throws {
-        // catalog_items stays opaque, so its decode must round-trip every JSON kind.
+    func test_response_decodesTypedCatalogItems() throws {
+        // catalog_items decodes into the typed model (mapping to render models is
+        // still deferred to the mapper). Unknown wire keys are tolerated.
         let payload = """
         {
           "session_id": "session-123",
@@ -201,11 +181,14 @@ final class TestTxnSelectSerialization: XCTestCase {
               { "offer": { "campaign_id": "c1", "catalog_items": [
                 {
                   "catalog_item_id": "cat-1",
-                  "min_item_count": 1,
+                  "title": "Sample item",
                   "price": 9.99,
+                  "currency": "USD",
+                  "min_item_count": 1,
                   "quantity_must_be_synchronized": true,
-                  "images": ["light", "dark"],
-                  "provider_data": null
+                  "images": { "hero": { "light": "light.png", "dark": "dark.png" } },
+                  "token": "catalog-token",
+                  "unexpected_field": "ignored"
                 }
               ] } }
             ] } } }
@@ -214,17 +197,16 @@ final class TestTxnSelectSerialization: XCTestCase {
         """
 
         let response = try decode(payload)
-        let items = try XCTUnwrap(
-            response.plugins?.first?.plugin?.config?.slots.first?.offer?.catalogItems
+        let item = try XCTUnwrap(
+            response.plugins?.first?.plugin?.config?.slots.first?.offer?.catalogItems?.first
         )
-        XCTAssertEqual(items.count, 1)
-        XCTAssertEqual(items.first, .object([
-            "catalog_item_id": .string("cat-1"),
-            "min_item_count": .int(1),
-            "price": .double(9.99),
-            "quantity_must_be_synchronized": .bool(true),
-            "images": .array([.string("light"), .string("dark")]),
-            "provider_data": .null
-        ]))
+        XCTAssertEqual(item.catalogItemId, "cat-1")
+        XCTAssertEqual(item.title, "Sample item")
+        XCTAssertEqual(item.price, 9.99)
+        XCTAssertEqual(item.currency, "USD")
+        XCTAssertEqual(item.minItemCount, 1)
+        XCTAssertEqual(item.quantityMustBeSynchronized, true)
+        XCTAssertEqual(item.images?["hero"]?.light, "light.png")
+        XCTAssertEqual(item.token, "catalog-token")
     }
 }
