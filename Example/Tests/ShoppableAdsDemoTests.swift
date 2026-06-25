@@ -83,7 +83,6 @@ final class ShoppableAdsDemoTests: XCTestCase {
             didSelectRowAt: IndexPath(row: 4, section: 2)
         )
         XCTAssertEqual(logView.text, "")
-        XCTAssertEqual(roktClient.sessionIDs, [" "])
     }
 
     func testInitializeSetsEnvironmentAndCallsInitWithEditableTag() throws {
@@ -333,7 +332,6 @@ private final class SpyShoppableAdsRoktClient: ShoppableAdsRoktClient {
 
     var environments: [RoktEnvironment] = []
     var initializedTagIDs: [String] = []
-    var sessionIDs: [String] = []
     var selections: [Selection] = []
     var registeredConfigs: [[String: String]] = []
     var globalEventHandler: ((RoktEvent) -> Void)?
@@ -356,10 +354,6 @@ private final class SpyShoppableAdsRoktClient: ShoppableAdsRoktClient {
 
     func selectShoppableAds(identifier: String, attributes: [String: String], onEvent: ((RoktEvent) -> Void)?) {
         selections.append(Selection(identifier: identifier, attributes: attributes))
-    }
-
-    func setSessionId(_ sessionId: String) {
-        sessionIDs.append(sessionId)
     }
 }
 

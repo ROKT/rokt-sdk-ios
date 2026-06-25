@@ -24,7 +24,6 @@ protocol ShoppableAdsRoktClient {
     func initWith(roktTagId: String)
     func registerPaymentExtension(_ paymentExtension: RoktPaymentExtension, config: [String: String])
     func selectShoppableAds(identifier: String, attributes: [String: String], onEvent: ((RoktEvent) -> Void)?)
-    func setSessionId(_ sessionId: String)
 }
 
 private struct LiveShoppableAdsRoktClient: ShoppableAdsRoktClient {
@@ -46,10 +45,6 @@ private struct LiveShoppableAdsRoktClient: ShoppableAdsRoktClient {
 
     func selectShoppableAds(identifier: String, attributes: [String: String], onEvent: ((RoktEvent) -> Void)?) {
         Rokt.selectShoppableAds(identifier: identifier, attributes: attributes, onEvent: onEvent)
-    }
-
-    func setSessionId(_ sessionId: String) {
-        Rokt.setSessionId(sessionId: sessionId)
     }
 }
 
@@ -322,7 +317,6 @@ final class ShoppableAdsDemoViewController: UITableViewController {
     }
 
     private func clearLog() {
-        roktClient.setSessionId(" ")
         logLines.removeAll()
         logView.text = ""
     }

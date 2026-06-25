@@ -71,6 +71,44 @@ internal actor TxnSessionManager {
         persist(includeSessionId: false)
     }
 
+    // Export the current session as a shareable bundle for a non-native
+    // integration (e.g. a WSDK WebView). nil when there is no live session or
+    // the token has expired — a stale token is useless to the other side and
+    // would only cause it to re-init.
+    var sharedSession: TxnSharedSession? {
+        guard let token, let expiresAt, !hasExpired else { return nil }
+        return TxnSharedSession(token: token, expiresAtDate: expiresAt)
+    }
+
+    // Adopt a session minted by another integration so the next /v2/sessions/init
+    // sends this token and the gateway continues the SAME session rather than
+    // minting a new one. Seeding an already-expired bundle is a no-op: it would
+    // be dropped at init anyway, and clearing here would silently discard a live
+    // native session in favour of a dead one. Persists like any other session so
+    // it survives a relaunch before init runs.
+    //
+    // Provenance note (LO-03): an imported session originates from another
+    // integration but is intentionally persisted under the local `Keys.tagId`
+    // (= roktTagId), becoming a first-class native session for this tag. On
+    // relaunch `restoreFromStore` treats it like any other session for this tag;
+    // the imported origin is deliberately not recorded — by design the bundle
+    // becomes "this app's" session. No behavioural change is needed here.
+    func seed(sharedSession shared: TxnSharedSession) {
+        // Reject a blank credential before mutating state. A blank token would
+        // otherwise clobber a live native session and yield a useless "Bearer "
+        // header, forcing a fresh session — a malformed import must never destroy
+        // a good session. The session id is not supplied by the bundle (it lives
+        // in the token's JWT `sub`); the gateway's init response populates the
+        // internal session id via `update(sessionId:sessionToken:)`.
+        guard !shared.token.isEmpty else { return }
+        guard clock() < shared.expiresAtDate else { return }
+        token = shared.token
+        expiresAt = shared.expiresAtDate
+        // persist guards `if let sessionId`, so seeding with a nil internal
+        // session id still persists the tagId binding, token, and expiry.
+        persist(includeSessionId: true)
+    }
+
     func clear() {
         sessionId = nil
         token = nil
