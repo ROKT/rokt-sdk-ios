@@ -225,6 +225,22 @@ class NetworkingHelper {
         return headersDict
     }
 
+    // Subset of common headers for the v2 path; sdk_version travels in the request body instead.
+    class internal func txnDeviceHeaders() -> [String: String] {
+        var headers = [String: String]()
+        headers[RoktHeaderKeys.osType] = "iOS"
+        headers[RoktHeaderKeys.osVersion] = UIDevice.current.systemVersion
+        headers[RoktHeaderKeys.deviceModel] = UIDevice.modelName
+        if let bundleIdentifier = Bundle.main.bundleIdentifier {
+            headers[RoktHeaderKeys.packageName] = bundleIdentifier
+        }
+        headers[RoktHeaderKeys.uiLocale] = Locale.current.identifier
+        if let version = Bundle.main.infoDictionary?[bundleShortVersionKey] as? String {
+            headers[RoktHeaderKeys.packageVersion] = version
+        }
+        return headers
+    }
+
     // Gets the response dictionary from the response and calls the appropiate callback
     class private func processHTTPRequestResult(
         httpResult: RoktHTTPRequestResult,

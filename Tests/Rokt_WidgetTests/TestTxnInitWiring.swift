@@ -57,19 +57,6 @@ final class TestTxnInitWiring: XCTestCase {
         }
     }
 
-    private func waitUntil(_ condition: @escaping () -> Bool, timeout: TimeInterval = 2) {
-        let exp = expectation(description: "condition met")
-        func check() {
-            if condition() {
-                exp.fulfill()
-            } else {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.02, execute: check)
-            }
-        }
-        check()
-        wait(for: [exp], timeout: timeout)
-    }
-
     func test_v2InitSuccess_setsInitializedAndBridgesFeatureFlags() {
         stub.result = .success(data: Data(
             """

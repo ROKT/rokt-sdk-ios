@@ -1,7 +1,7 @@
 // periphery:ignore:all - v2 session store; token-refresh/session-id members are consumed by the upcoming v2 offers/events path
 import Foundation
 
-internal final class TxnSessionManager {
+internal actor TxnSessionManager {
     // Persistence keys for the v2 path, separate from the legacy SessionManager's `rokt.*` keys.
     private enum Keys {
         static let tagId = "ROKT_TXN_TAG_ID"
@@ -11,13 +11,14 @@ internal final class TxnSessionManager {
     }
 
     private let clock: () -> Date
-    private let lock = NSLock()
 
     // nil disables persistence (in-memory only), preserving the lightweight test setup.
     private let roktTagId: String?
     private let store: TxnSessionStore?
 
-    private(set) var boundTagId: String?
+    // Immutable, so it is read synchronously outside the actor in resolveTxnSessionManager.
+    nonisolated let boundTagId: String?
+
     private var sessionId: String?
     private var token: String?
     private var expiresAt: Date?
@@ -42,29 +43,21 @@ internal final class TxnSessionManager {
     }
 
     var currentSessionId: String? {
-        lock.lock()
-        defer { lock.unlock() }
-        return sessionId
+        sessionId
     }
 
     var isExpired: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return isExpiredLocked
+        hasExpired
     }
 
     // nil when there is no token or it has expired; the server then mints a
     // fresh session rather than returning 401.
     var authorizationHeader: String? {
-        lock.lock()
-        defer { lock.unlock() }
-        guard let token, !isExpiredLocked else { return nil }
+        guard let token, !hasExpired else { return nil }
         return "Bearer \(token)"
     }
 
     func update(sessionId: String, sessionToken: TxnSessionToken) {
-        lock.lock()
-        defer { lock.unlock() }
         self.sessionId = sessionId
         token = sessionToken.token
         expiresAt = sessionToken.expiresAtDate
@@ -73,8 +66,6 @@ internal final class TxnSessionManager {
 
     // Token-only refresh for offers/events responses, keeping the session id.
     func update(sessionToken: TxnSessionToken) {
-        lock.lock()
-        defer { lock.unlock() }
         token = sessionToken.token
         expiresAt = sessionToken.expiresAtDate
         persist(includeSessionId: false)
@@ -123,8 +114,6 @@ internal final class TxnSessionManager {
     }
 
     func clear() {
-        lock.lock()
-        defer { lock.unlock() }
         sessionId = nil
         token = nil
         expiresAt = nil
@@ -135,7 +124,7 @@ internal final class TxnSessionManager {
         store.removeValue(forKey: Keys.expiresAt)
     }
 
-    private var isExpiredLocked: Bool {
+    private var hasExpired: Bool {
         guard let expiresAt else { return true }
         return clock() >= expiresAt
     }
@@ -154,7 +143,7 @@ internal final class TxnSessionManager {
             .map { Date(timeIntervalSince1970: $0/1000) }
         // Drop a persisted-but-expired token so we never start with stale state;
         // an expired JWT is dead server-side and a fresh session is minted at init.
-        if isExpiredLocked {
+        if hasExpired {
             clear()
         }
     }
