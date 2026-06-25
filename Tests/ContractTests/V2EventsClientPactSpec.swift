@@ -9,7 +9,7 @@ import PactSwift
 /// construction lives entirely in `V2EventsClient`, so any drift there
 /// (e.g. changing the `channel.type` body field) gets rejected by the pact mock service.
 ///
-/// Mirrors V2OffersClientPactSpec — see that file's docstring for the
+/// Mirrors TxnOffersClientPactSpec — see that file's docstring for the
 /// matcher policy (exact-match for hardcoded constants, `SomethingLike`
 /// for per-runtime values).
 class V2EventsClientPactSpec: XCTestCase {

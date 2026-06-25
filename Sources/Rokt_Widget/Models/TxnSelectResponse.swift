@@ -1,4 +1,4 @@
-// periphery:ignore:all - net-new v2 offers network models, not yet wired into the live path
+// periphery:ignore:all - offers network models, not yet wired into the live path
 import Foundation
 
 // MARK: - Request
@@ -7,11 +7,8 @@ import Foundation
 ///
 /// The session is identified solely by the JWT `sub` claim in the
 /// `Authorization` header — there is intentionally no `session_id` in the body.
-/// Platform/channel context travels in ``channel``; the legacy v1 experiences
-/// call carried these as implicit headers.
-///
-/// Mirrors Android #1039's `SelectRequest`. `customer` and `page.url` are
-/// accepted by the provider but intentionally omitted here to match Android.
+/// Platform/channel context travels in ``channel``. `customer` and `page.url`
+/// are accepted by the provider but intentionally omitted to match Android.
 internal struct TxnSelectRequest: Encodable, Equatable {
     let page: TxnSelectPage
     let channel: TxnSelectChannel
@@ -67,7 +64,7 @@ internal struct TxnSelectChannel: Encodable, Equatable {
 }
 
 /// SDK-side privacy consent signals for offer selection. Mirrors Android's
-/// `privacy_control` block (NOT the legacy `privacy`/`do_not_track` shape).
+/// `privacy_control` block.
 internal struct TxnSelectPrivacyControl: Encodable, Equatable {
     let noFunctional: Bool?
     let noTargeting: Bool?
@@ -90,10 +87,9 @@ internal struct TxnSelectPrivacyControl: Encodable, Equatable {
 
 /// Response body for `POST /v2/sessions/offers` on the Transactions API.
 ///
-/// Mirrors Android #1039's `SelectResponse`. Fields are optional / defaulted
-/// because the provider emits `omitempty` throughout; mapping into the render
-/// models the UX layer consumes is a later PR. `JSONDecoder` ignores unknown
-/// keys by default, so additional provider fields don't fail the decode.
+/// Fields are optional / defaulted because the provider emits `omitempty`
+/// throughout. `JSONDecoder` ignores unknown keys by default, so additional
+/// provider fields don't fail the decode.
 ///
 /// The DCUI schemas (``TxnSelectPluginConfig/outerLayoutSchema``,
 /// ``TxnSelectLayoutVariant/layoutVariantSchema``) arrive as pre-serialized JSON

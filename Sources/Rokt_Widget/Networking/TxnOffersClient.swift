@@ -1,8 +1,8 @@
-// periphery:ignore:all - referenced from Tests/ContractTests/V2OffersClientPactSpec.swift
+// periphery:ignore:all - referenced from Tests/ContractTests/TxnOffersClientPactSpec.swift
 
 import Foundation
 
-internal struct V2OffersClient {
+internal struct TxnOffersClient {
     let baseURL: URL
     let accountId: String
     let authToken: String
@@ -26,7 +26,7 @@ internal struct V2OffersClient {
         self.httpClient = httpClient
     }
 
-    func fetchOffers(input: V2OffersInput) async throws -> (Data?, HTTPURLResponse?) {
+    func fetchOffers(input: TxnOffersInput) async throws -> (Data?, HTTPURLResponse?) {
         let url = baseURL
             .appendingPathComponent("v2")
             .appendingPathComponent("sessions")
@@ -34,7 +34,7 @@ internal struct V2OffersClient {
 
         // Session identity is the JWT `sub` claim in the Authorization header —
         // never the body. `customer` and `page.url` are omitted to mirror the
-        // Android v2 offers contract.
+        // Android offers contract.
         let requestBody = TxnSelectRequest(
             page: TxnSelectPage(pageIdentifier: input.pageIdentifier),
             channel: TxnSelectChannel(sdkVersion: sdkVersion),
@@ -43,7 +43,7 @@ internal struct V2OffersClient {
         )
         let bodyData = try JSONEncoder().encode(requestBody)
         guard let bodyParameters = try JSONSerialization.jsonObject(with: bodyData) as? RoktHTTPParameters else {
-            throw V2OffersClientError.bodyEncodingFailed
+            throw TxnOffersClientError.bodyEncodingFailed
         }
 
         let headers: RoktHTTPHeaders = [
@@ -76,11 +76,11 @@ internal struct V2OffersClient {
     }
 }
 
-internal enum V2OffersClientError: Error {
+internal enum TxnOffersClientError: Error {
     case bodyEncodingFailed
 }
 
-internal struct V2OffersInput {
+internal struct TxnOffersInput {
     let requestId: String
     let pageIdentifier: String
     let attributes: [String: String]
