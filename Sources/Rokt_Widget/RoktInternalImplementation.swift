@@ -950,6 +950,19 @@ class RoktInternalImplementation {
         )
     }
 
+    private func defaultTxnOffersService(roktTagId: String) -> TxnOffersService {
+        let httpClient: HTTPClientAdapter = config.environment == .Mock
+            ? MockTxnOffersHTTPClient()
+            : NetworkingHelper.shared.httpClient
+        return TxnOffersService(
+            environment: config.environment,
+            accountId: roktTagId,
+            sdkVersion: libraryVersion,
+            sessionManager: TxnSessionManager(roktTagId: roktTagId),
+            httpClient: httpClient
+        )
+    }
+
     private static func statusCode(from error: Error) -> Int? {
         if case TxnInitService.TxnInitError.unexpectedStatusCode(let code) = error {
             return code
@@ -1012,7 +1025,6 @@ class RoktInternalImplementation {
             preExecuteFailureHandler()
             return
         }
-        var trackingConsent: UInt?
         if #available(iOS 14.5, *) {
             if !initFeatureFlags.isEnabled(.roktTrackingStatus) &&
                 isPrivacyDenied(ATTrackingManager.trackingAuthorizationStatus) {
@@ -1024,7 +1036,6 @@ class RoktInternalImplementation {
                 preExecuteFailureHandler()
                 return
             }
-            trackingConsent = ATTrackingManager.trackingAuthorizationStatus.rawValue
         }
 
         if attributes[keyAdsExperienceType] == valueAdsExperienceShoppable {
@@ -1077,12 +1088,9 @@ class RoktInternalImplementation {
                                                      selectionId: selectionId)
                         self.show(payload)
                     } else {
-                        RoktAPIHelper.getExperienceData(
+                        self.defaultTxnOffersService(roktTagId: tagId).getExperienceData(
                             viewName: viewName,
                             attributes: attributes,
-                            roktTagId: tagId,
-                            selectionId: selectionId,
-                            trackingConsent: trackingConsent,
                             config: self.roktConfig,
                             onRequestStart: onExperiencesRequestStart,
                             successLayout: { page in
