@@ -43,23 +43,31 @@ internal struct TxnSelectPage: Encodable, Equatable {
     }
 }
 
-/// Channel descriptor. ``type`` is always encoded (`"msdk"`) so the backend
-/// derives the channel source — there are no longer any `rokt-platform-type` /
-/// `rokt-integration-type` headers carrying it.
+/// Channel descriptor. ``type`` (`"msdk"`) tells the backend the channel source
+/// and ``platformType`` (`"iOS"`) the platform; both travel in the body. The
+/// platform refines server-side page detection and targeting.
 internal struct TxnSelectChannel: Encodable, Equatable {
     static let channelTypeMsdk = "msdk"
+    static let platformTypeIOS = "iOS"
 
     let type: String
     let sdkVersion: String
+    let platformType: String
 
     enum CodingKeys: String, CodingKey {
         case type
         case sdkVersion = "sdk_version"
+        case platformType = "rokt_platform_type"
     }
 
-    init(type: String = TxnSelectChannel.channelTypeMsdk, sdkVersion: String) {
+    init(
+        type: String = TxnSelectChannel.channelTypeMsdk,
+        sdkVersion: String,
+        platformType: String = TxnSelectChannel.platformTypeIOS
+    ) {
         self.type = type
         self.sdkVersion = sdkVersion
+        self.platformType = platformType
     }
 }
 

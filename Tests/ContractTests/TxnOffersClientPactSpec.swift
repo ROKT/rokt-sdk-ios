@@ -71,7 +71,8 @@ class TxnOffersClientPactSpec: XCTestCase {
                     ],
                     "channel": [
                         "type": "msdk",
-                        "sdk_version": Matcher.SomethingLike("5.2.2")
+                        "sdk_version": Matcher.SomethingLike("5.2.2"),
+                        "rokt_platform_type": "iOS"
                     ],
                     "attributes": [
                         "standalone": Matcher.SomethingLike("notdefined"),

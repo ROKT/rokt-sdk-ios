@@ -27,7 +27,7 @@ final class TestTxnSelectSerialization: XCTestCase {
         let expectedJSON = """
         {
           "page": { "page_identifier": "checkout" },
-          "channel": { "type": "msdk", "sdk_version": "5.2.2" },
+          "channel": { "type": "msdk", "sdk_version": "5.2.2", "rokt_platform_type": "iOS" },
           "attributes": { "standalone": "notdefined" },
           "privacy_control": { "no_functional": false, "no_targeting": false, "do_not_share_or_sell": false }
         }
