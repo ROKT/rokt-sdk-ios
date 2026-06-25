@@ -86,6 +86,12 @@ class OffersClientPactSpec: XCTestCase {
             // page_instance_guid, page_id, page_type and is_page_detected. Any
             // other page_context keys and the plugins / placements / event_data
             // / privacy_control blocks are not part of this contract.
+            //
+            // is_page_detected is pinned to an exact `true` (not SomethingLike):
+            // it is the signal that page detection succeeded, and detection only
+            // succeeds because this request carries rokt-package-name. A
+            // type-only match would let the provider return false — i.e. the
+            // missing-package-name regression — and still pass.
             .willRespondWith(
                 status: 200,
                 headers: ["Content-Type": Matcher.RegexLike("application/json; charset=utf-8", term: #"application/json(;.*)?"#)],
@@ -99,7 +105,7 @@ class OffersClientPactSpec: XCTestCase {
                         "page_instance_guid": Matcher.SomethingLike("page-instance-guid-123"),
                         "page_id": Matcher.SomethingLike("checkout-page"),
                         "page_type": Matcher.RegexLike("checkout", term: validPageTypes),
-                        "is_page_detected": Matcher.SomethingLike(true)
+                        "is_page_detected": true
                     ],
                     "page_instance_guid": Matcher.SomethingLike("page-instance-guid-123")
                 ]
