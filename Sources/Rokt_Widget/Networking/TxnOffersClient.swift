@@ -51,6 +51,8 @@ internal struct TxnOffersClient {
             "Authorization": authToken,
             "x-request-id": input.requestId,
             "rokt-page-instance-guid": pageInstanceGuid,
+            // The app bundle id scopes server-side page detection for mobile.
+            "rokt-package-name": Bundle.main.bundleIdentifier ?? "",
             "Content-Type": "application/json"
         ]
 

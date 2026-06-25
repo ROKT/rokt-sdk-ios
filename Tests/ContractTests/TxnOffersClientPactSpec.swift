@@ -57,6 +57,7 @@ class TxnOffersClientPactSpec: XCTestCase {
                     "Authorization": Matcher.SomethingLike("Bearer session-token-abc"),
                     "x-request-id": Matcher.SomethingLike("request-id-123"),
                     "rokt-page-instance-guid": Matcher.SomethingLike("page-instance-guid-123"),
+                    "rokt-package-name": Matcher.SomethingLike("com.rokt.example"),
                     "Content-Type": "application/json"
                 ],
                 body: [
