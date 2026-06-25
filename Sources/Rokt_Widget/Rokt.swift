@@ -265,14 +265,14 @@ internal import RoktUXHelper
     ///
     /// - Parameters:
     ///   - sharedSession: The session to adopt.
-    public static func setSharedSession(_ sharedSession: RoktSharedSession) {
-        shared.roktImplementation.setSharedSession(sharedSession)
+    public static func setSharedSession(_ sharedSession: RoktSharedSession) async {
+        await shared.roktImplementation.setSharedSession(sharedSession)
     }
 
     /// Get the current session to share with a non-native integration e.g. WebView.
     ///
     /// - Returns: The shared session, or nil if there is no live (non-expired) session.
-    public static func getSharedSession() -> RoktSharedSession? {
-        shared.roktImplementation.getSharedSession()
+    public static func getSharedSession() async -> RoktSharedSession? {
+        await shared.roktImplementation.getSharedSession()
     }
 }

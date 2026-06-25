@@ -76,9 +76,7 @@ internal actor TxnSessionManager {
     // the token has expired — a stale token is useless to the other side and
     // would only cause it to re-init.
     var sharedSession: TxnSharedSession? {
-        lock.lock()
-        defer { lock.unlock() }
-        guard let token, let expiresAt, !isExpiredLocked else { return nil }
+        guard let token, let expiresAt, !hasExpired else { return nil }
         return TxnSharedSession(token: token, expiresAtDate: expiresAt)
     }
 
@@ -96,8 +94,6 @@ internal actor TxnSessionManager {
     // the imported origin is deliberately not recorded — by design the bundle
     // becomes "this app's" session. No behavioural change is needed here.
     func seed(sharedSession shared: TxnSharedSession) {
-        lock.lock()
-        defer { lock.unlock() }
         // Reject a blank credential before mutating state. A blank token would
         // otherwise clobber a live native session and yield a useless "Bearer "
         // header, forcing a fresh session — a malformed import must never destroy

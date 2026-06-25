@@ -89,14 +89,31 @@ final class TestTxnInitWiring: XCTestCase {
         XCTAssertFalse(impl.isInitialized)
     }
 
+    // Polls an async condition until it holds or the timeout elapses. Needed
+    // because TxnSessionManager is an actor: performInit seeds it from a Task,
+    // so a seed applied during init lands asynchronously rather than before
+    // initWith returns.
+    private func asyncWaitUntil(
+        timeout: TimeInterval = 2,
+        _ condition: @escaping () async -> Bool
+    ) async {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if await condition() { return }
+            try? await Task.sleep(nanoseconds: 20_000_000)
+        }
+        let met = await condition()
+        XCTAssertTrue(met, "condition not met within \(timeout)s")
+    }
+
     // MARK: - Shared session seeding at init
 
-    func test_pendingSharedSession_isSeededIntoInitsSessionManager() {
+    func test_pendingSharedSession_isSeededIntoInitsSessionManager() async {
         // A live bundle set before init must be adopted by the manager init uses,
         // so its bearer token rides /v2/sessions/init and the gateway continues
         // the SAME session. A 400 keeps the server from overwriting the seed, so
         // the assertion isolates the seeding step.
-        impl.setSharedSession(RoktSharedSession(
+        await impl.setSharedSession(RoktSharedSession(
             token: "web-jwt",
             expiresAt: Date(timeIntervalSinceNow: 1800)
         ))
@@ -105,17 +122,18 @@ final class TestTxnInitWiring: XCTestCase {
 
         impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
 
-        // performInit seeds synchronously before the async request, so the manager
-        // and the public export reflect the seeded token immediately. The internal
-        // session id stays nil until the gateway's init response populates it.
-        XCTAssertEqual(capturedSessionManager?.authorizationHeader, "Bearer web-jwt")
-        XCTAssertEqual(impl.getSharedSession()?.token, "web-jwt")
+        // performInit seeds the manager from a Task ahead of the request, so poll
+        // until the seeded bearer lands. The internal session id stays nil until
+        // the gateway's init response populates it.
+        await asyncWaitUntil { await self.capturedSessionManager?.authorizationHeader == "Bearer web-jwt" }
+        let token = await impl.getSharedSession()?.token
+        XCTAssertEqual(token, "web-jwt")
     }
 
-    func test_expiredPendingSharedSession_isIgnored_soInitMintsAFreshSession() {
+    func test_expiredPendingSharedSession_isIgnored_soInitMintsAFreshSession() async {
         // An expired bundle is dropped at seeding (a dead token is useless), so the
         // manager has no bearer and init proceeds to mint a brand-new session.
-        impl.setSharedSession(RoktSharedSession(
+        await impl.setSharedSession(RoktSharedSession(
             token: "web-jwt",
             expiresAt: Date(timeIntervalSinceNow: -1)
         ))
@@ -133,23 +151,22 @@ final class TestTxnInitWiring: XCTestCase {
 
         impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
 
-        // The expired seed never landed, so before the response there is no session.
-        XCTAssertNil(capturedSessionManager?.currentSessionId)
-
         // Init mints a fresh session; the expired seed's token never rides it.
         waitUntil { self.impl.isInitialized }
-        XCTAssertEqual(capturedSessionManager?.currentSessionId, "sess-1")
-        XCTAssertEqual(impl.getSharedSession()?.token, "jwt")
-        XCTAssertNotEqual(impl.getSharedSession()?.token, "web-jwt")
+        let sessionId = await capturedSessionManager?.currentSessionId
+        let token = await impl.getSharedSession()?.token
+        XCTAssertEqual(sessionId, "sess-1")
+        XCTAssertEqual(token, "jwt")
+        XCTAssertNotEqual(token, "web-jwt")
     }
 
     // MARK: - Post-init setSharedSession (immediate-adopt branch, ME-04)
 
-    func test_setSharedSession_afterInit_adoptsImmediatelyIntoLiveManager() {
-        // A 400 init leaves the SDK uninitialized but still captures the live
-        // manager (performInit sets txnSessionManager before the async request).
-        // A setSharedSession that follows must take the `if let txnSessionManager`
-        // immediate-adopt branch rather than parking a pending seed.
+    func test_setSharedSession_afterInit_adoptsImmediatelyIntoLiveManager() async {
+        // Init captures the live manager and mints sess-1/jwt. A setSharedSession
+        // that follows must take the immediate-adopt branch (live manager present)
+        // rather than parking a pending seed, overriding the session init set so
+        // the new token is used on the offers API.
         stub.result = .success(data: Data(
             """
             {
@@ -165,54 +182,57 @@ final class TestTxnInitWiring: XCTestCase {
         impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
         waitUntil { self.impl.isInitialized }
 
-        // Manager now live; this set must land directly in it, overriding the
-        // session established by init so the new token is used on the offers API.
-        impl.setSharedSession(RoktSharedSession(
+        // awaiting set guarantees the seed has landed in the live manager.
+        await impl.setSharedSession(RoktSharedSession(
             token: "web-jwt",
             expiresAt: Date(timeIntervalSinceNow: 1800)
         ))
 
-        XCTAssertEqual(capturedSessionManager?.authorizationHeader, "Bearer web-jwt")
-        XCTAssertEqual(impl.getSharedSession()?.token, "web-jwt")
+        let header = await capturedSessionManager?.authorizationHeader
+        let token = await impl.getSharedSession()?.token
+        XCTAssertEqual(header, "Bearer web-jwt")
+        XCTAssertEqual(token, "web-jwt")
     }
 
     // MARK: - getSharedSession before init (ME-03)
 
-    func test_getSharedSession_beforeInit_returnsPendingSeed() {
+    func test_getSharedSession_beforeInit_returnsPendingSeed() async {
         // Set-then-get before init must surface the pending bundle, not nil.
-        impl.setSharedSession(RoktSharedSession(
+        await impl.setSharedSession(RoktSharedSession(
             token: "web-jwt",
             expiresAt: Date(timeIntervalSinceNow: 1800)
         ))
 
-        let shared = impl.getSharedSession()
+        let shared = await impl.getSharedSession()
         XCTAssertEqual(shared?.token, "web-jwt")
     }
 
-    func test_getSharedSession_beforeInit_returnsNilForExpiredPendingSeed() {
+    func test_getSharedSession_beforeInit_returnsNilForExpiredPendingSeed() async {
         // An expired pending seed must report nothing (honour expiry), matching
         // the live manager's behaviour.
-        impl.setSharedSession(RoktSharedSession(
+        await impl.setSharedSession(RoktSharedSession(
             token: "web-jwt",
             expiresAt: Date(timeIntervalSinceNow: -1)
         ))
 
-        XCTAssertNil(impl.getSharedSession())
+        let shared = await impl.getSharedSession()
+        XCTAssertNil(shared)
     }
 
     // MARK: - Blank credential rejection at the impl layer (ME-01)
 
-    func test_setSharedSession_rejectsBlankToken_soNothingIsPending() {
-        impl.setSharedSession(RoktSharedSession(
+    func test_setSharedSession_rejectsBlankToken_soNothingIsPending() async {
+        await impl.setSharedSession(RoktSharedSession(
             token: "",
             expiresAt: Date(timeIntervalSinceNow: 1800)
         ))
-        XCTAssertNil(impl.getSharedSession())
+        let shared = await impl.getSharedSession()
+        XCTAssertNil(shared)
     }
 
     // MARK: - Re-init carry-forward (ME-02)
 
-    func test_reInit_carriesForwardLiveSessionWhenNoPendingSeed() {
+    func test_reInit_carriesForwardLiveSessionWhenNoPendingSeed() async {
         // First init mints a live session (sess-1). A re-init with no pending seed
         // must carry that live session into the new manager instead of dropping it
         // and re-minting from scratch.
@@ -230,61 +250,50 @@ final class TestTxnInitWiring: XCTestCase {
 
         impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
         waitUntil { self.impl.isInitialized }
-        XCTAssertEqual(capturedSessionManager?.currentSessionId, "sess-1")
+        let firstSessionId = await capturedSessionManager?.currentSessionId
+        XCTAssertEqual(firstSessionId, "sess-1")
 
         // Re-init: a fresh manager is captured. The carry-forward must seed it with
-        // the prior live session before the new init response lands. A 400 on the
-        // re-init keeps the server from overwriting, isolating the carry-forward.
+        // the prior live session. A 400 on the re-init keeps the server from
+        // overwriting, isolating the carry-forward. The carry-forward propagates
+        // the bearer token (the continuity credential); the session id rides inside
+        // the token's JWT `sub` and is repopulated by the next gateway init response.
         stub.result = .status(400)
         impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
 
-        // performInit carries forward synchronously before the async request.
-        // The carry-forward propagates the bearer token (the continuity
-        // credential); the internal session id rides inside the token's JWT
-        // `sub` and is repopulated by the next gateway init response, so it is
-        // nil here on the 400-isolated re-init.
-        XCTAssertEqual(capturedSessionManager?.authorizationHeader, "Bearer jwt")
-        XCTAssertEqual(impl.getSharedSession()?.token, "jwt")
+        await asyncWaitUntil { await self.capturedSessionManager?.authorizationHeader == "Bearer jwt" }
+        let token = await impl.getSharedSession()?.token
+        XCTAssertEqual(token, "jwt")
     }
 
     // MARK: - Concurrency smoke test for the set/init handshake (HI-01)
 
-    func test_concurrentSetSharedSessionAndInit_doesNotCrashOrDropSeedIntoNoMansLand() {
-        // Drives setSharedSession and initWith from different threads to exercise
-        // the lock around the pending-seed/manager handshake. The harness cannot
+    func test_concurrentSetSharedSessionAndInit_doesNotCrashOrDropSeedIntoNoMansLand() async {
+        // Drives setSharedSession and initWith concurrently to exercise the lock
+        // around the pending-seed/manager handshake. The harness cannot
         // deterministically pin the interleaving, but the lock must keep state
         // consistent (no crash / torn reads) and the seed must end up either in
         // the manager or surfaced by getSharedSession — never silently lost.
         stub.result = .status(400)
         injectServiceCapturingManager()
 
-        let setExp = expectation(description: "set done")
-        let initStarted = expectation(description: "init issued")
-
-        DispatchQueue.global().async {
-            self.impl.setSharedSession(RoktSharedSession(
+        let setTask = Task {
+            await self.impl.setSharedSession(RoktSharedSession(
                 token: "web-jwt",
                 expiresAt: Date(timeIntervalSinceNow: 1800)
             ))
-            setExp.fulfill()
         }
         // initWith touches main-affine state, so issue it on main.
-        DispatchQueue.main.async {
+        await MainActor.run {
             self.impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
-            initStarted.fulfill()
         }
+        await setTask.value
 
-        wait(for: [setExp, initStarted], timeout: 2)
-
-        // Let any async work settle, then assert the seed is reachable somewhere.
-        let settled = expectation(description: "settled")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { settled.fulfill() }
-        wait(for: [settled], timeout: 2)
-
-        let managerHasSeed = capturedSessionManager?.authorizationHeader == "Bearer web-jwt"
-        let exportHasSeed = impl.getSharedSession()?.token == "web-jwt"
-        XCTAssertTrue(managerHasSeed || exportHasSeed,
-                      "the concurrently-set shared session must not be silently dropped")
+        await asyncWaitUntil {
+            let header = await self.capturedSessionManager?.authorizationHeader
+            let token = await self.impl.getSharedSession()?.token
+            return header == "Bearer web-jwt" || token == "web-jwt"
+        }
     }
 }
 
