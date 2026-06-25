@@ -1137,6 +1137,18 @@ class RoktInternalImplementation {
                         }
 
                         if Self.useV2Offers {
+                            // pageInit timing travels in attributes; record it here for parity
+                            // with the v1 path, since the offers service doesn't own timing extraction.
+                            if let pageInitAttr = RoktAPIHelper.getPageInitData(attributes: attributes),
+                               let validPageInitTime = self.processedTimingsRequests?.getValidPageInitTime(
+                                   selectionId: selectionId,
+                                   timeAsString: pageInitAttr
+                               ) {
+                                self.processedTimingsRequests?.setPageInitTime(
+                                    selectionId: selectionId,
+                                    time: validPageInitTime
+                                )
+                            }
                             self.defaultOffersService(roktTagId: tagId).getExperienceData(
                                 viewName: viewName,
                                 attributes: attributes,

@@ -137,6 +137,35 @@ final class TestSelectExperienceAdapter: XCTestCase {
         XCTAssertNil(slot["offer"])
     }
 
+    func test_fallbacksWhenPageContextAbsentAndOptionsOmittedWhenEmpty() throws {
+        let lean = """
+        {
+          "session_id": "s",
+          "session_token": { "token": "sess-token", "expires_at": 1 },
+          "page_instance_guid": "top-pig",
+          "plugins": [
+            { "plugin": { "config": {
+              "token": "ptok",
+              "outer_layout_schema": "{\\"layout\\":{}}",
+              "slots": [ { "token": "stok", "offer": { "creative": { "referral_creative_id": "rc" } } } ]
+            } } }
+          ]
+        }
+        """
+        let exp = try adapt(lean)
+
+        // No page_context -> placementContext falls back to the top-level guid + session token.
+        let placementContext = try XCTUnwrap(exp["placementContext"] as? [String: Any])
+        XCTAssertEqual(placementContext["pageInstanceGuid"] as? String, "top-pig")
+        XCTAssertEqual(placementContext["token"] as? String, "sess-token")
+
+        let creative = try XCTUnwrap(creative(in: exp))
+        // No copy on the wire -> empty object; no options/images -> keys omitted.
+        XCTAssertNotNil(creative["copy"])
+        XCTAssertNil(creative["responseOptionsMap"])
+        XCTAssertNil(creative["images"])
+    }
+
     // MARK: - helpers
 
     private func firstSlot(in exp: [String: Any]) -> [String: Any]? {

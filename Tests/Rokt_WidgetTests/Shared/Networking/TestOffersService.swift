@@ -8,18 +8,34 @@ import XCTest
 /// derived privacy control and sanitised attributes.
 final class TestOffersService: XCTestCase {
 
+    /// One stubbed transport outcome: body + status, or a transport-level error.
+    private struct StubResponse {
+        let data: Data?
+        let status: Int
+        let error: Error?
+        init(data: Data?, status: Int, error: Error? = nil) {
+            self.data = data
+            self.status = status
+            self.error = error
+        }
+    }
+
     private final class StubHTTPClient: HTTPClientAdapter {
-        private let responses: [(data: Data?, status: Int)]
+        private let responses: [StubResponse]
         private(set) var requestCount = 0
         private(set) var lastParameters: RoktHTTPParameters?
         private(set) var lastHeaders: RoktHTTPHeaders?
 
         init(responseData: Data?, statusCode: Int) {
-            responses = [(responseData, statusCode)]
+            responses = [StubResponse(data: responseData, status: statusCode)]
         }
 
         init(responses: [(data: Data?, status: Int)]) {
-            self.responses = responses
+            self.responses = responses.map { StubResponse(data: $0.data, status: $0.status) }
+        }
+
+        init(sequence: [StubResponse]) {
+            responses = sequence
         }
 
         func updateTimeout(timeout: Double) {}
@@ -44,7 +60,7 @@ final class TestOffersService: XCTestCase {
             let result = RoktHTTPRequestResult(
                 httpURLResponse: HTTPURLResponse(url: url, statusCode: response.status, httpVersion: nil, headerFields: nil),
                 responseData: response.data,
-                responseError: nil,
+                responseError: response.error,
                 jsonSerialisedResponseData: .success(NSNull())
             )
             completionQueue.async { completionHandler?(result) }
@@ -185,5 +201,41 @@ final class TestOffersService: XCTestCase {
         XCTAssertEqual(attributes?["email"] as? String, "a@b.com")
         // Privacy keys are stripped from the forwarded attributes.
         XCTAssertNil(attributes?["noFunctional"])
+    }
+
+    func test_getExperienceData_retriesTransientTransportErrorThenSucceeds() {
+        let timeout = NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut)
+        let stub = StubHTTPClient(sequence: [
+            StubResponse(data: nil, status: 0, error: timeout),
+            StubResponse(data: Data(offersResponse.utf8), status: 200)
+        ])
+        let service = makeService(stub, maxRetries: 1)
+
+        let completed = expectation(description: "transient transport error retried then succeeded")
+        service.getExperienceData(viewName: "checkout", attributes: [:], config: nil, successLayout: { page in
+            XCTAssertNotNil(page)
+            completed.fulfill()
+        }, failure: { error, _, _ in
+            XCTFail("unexpected failure: \(error)")
+        })
+
+        wait(for: [completed], timeout: 5)
+        XCTAssertEqual(stub.requestCount, 2)
+    }
+
+    func test_getExperienceData_doesNotRetryNonTransportError() {
+        let nonTransport = NSError(domain: "Custom", code: 1)
+        let stub = StubHTTPClient(sequence: [StubResponse(data: nil, status: 0, error: nonTransport)])
+        let service = makeService(stub, maxRetries: 2)
+
+        let failed = expectation(description: "non-transport error fails without retry")
+        service.getExperienceData(viewName: "checkout", attributes: [:], config: nil, successLayout: { _ in
+            XCTFail("unexpected success")
+        }, failure: { _, _, _ in
+            failed.fulfill()
+        })
+
+        wait(for: [failed], timeout: 5)
+        XCTAssertEqual(stub.requestCount, 1)
     }
 }

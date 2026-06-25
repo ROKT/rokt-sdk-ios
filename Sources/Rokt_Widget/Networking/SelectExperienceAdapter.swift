@@ -12,7 +12,11 @@ internal enum SelectExperienceAdapter {
     }
 
     static func experienceJSONString(from response: SelectResponse) throws -> String {
-        let data = try JSONEncoder().encode(RenderExperience(response))
+        let encoder = JSONEncoder()
+        // Deterministic key order so the rendered experience string is stable
+        // (the render layer parses by key; the embedded DCUI schemas are untouched).
+        encoder.outputFormatting = .sortedKeys
+        let data = try encoder.encode(RenderExperience(response))
         guard let string = String(data: data, encoding: .utf8) else {
             throw AdapterError.encodingFailed
         }
