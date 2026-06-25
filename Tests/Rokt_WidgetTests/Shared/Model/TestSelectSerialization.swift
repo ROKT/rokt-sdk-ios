@@ -8,16 +8,16 @@ import XCTest
 /// carried solely by the `Authorization` JWT, never in the body) and that the
 /// response decodes both a realistic payload (pre-serialized DCUI schema strings,
 /// nested creative) and a lean payload.
-final class TestTxnSelectSerialization: XCTestCase {
+final class TestSelectSerialization: XCTestCase {
 
     // MARK: - Request
 
     func test_request_encodesToOffersContractShape() throws {
-        let request = TxnSelectRequest(
-            page: TxnSelectPage(pageIdentifier: "checkout"),
-            channel: TxnSelectChannel(sdkVersion: "5.2.2"),
+        let request = SelectRequest(
+            page: SelectPage(pageIdentifier: "checkout"),
+            channel: SelectChannel(sdkVersion: "5.2.2"),
             attributes: ["standalone": "notdefined"],
-            privacyControl: TxnSelectPrivacyControl(
+            privacyControl: SelectPrivacyControl(
                 noFunctional: false,
                 noTargeting: false,
                 doNotShareOrSell: false
@@ -47,9 +47,9 @@ final class TestTxnSelectSerialization: XCTestCase {
         // No session_id / mp_session_id / mpid in the body — identity is the JWT
         // sub claim in the Authorization header only. privacy_control is omitted
         // entirely when nil rather than encoded as null.
-        let request = TxnSelectRequest(
-            page: TxnSelectPage(pageIdentifier: "checkout"),
-            channel: TxnSelectChannel(sdkVersion: "5.2.2"),
+        let request = SelectRequest(
+            page: SelectPage(pageIdentifier: "checkout"),
+            channel: SelectChannel(sdkVersion: "5.2.2"),
             attributes: [:],
             privacyControl: nil
         )
@@ -66,8 +66,8 @@ final class TestTxnSelectSerialization: XCTestCase {
 
     // MARK: - Response
 
-    private func decode(_ json: String) throws -> TxnSelectResponse {
-        try JSONDecoder().decode(TxnSelectResponse.self, from: Data(json.utf8))
+    private func decode(_ json: String) throws -> SelectResponse {
+        try JSONDecoder().decode(SelectResponse.self, from: Data(json.utf8))
     }
 
     func test_response_decodesRealisticPayloadWithPlugins() throws {

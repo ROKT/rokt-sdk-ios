@@ -6,16 +6,16 @@ internal import RoktUXHelper
 /// carrying real DCUI schema strings, run through the adapter, parses into a
 /// non-nil RoktUX page model — i.e. the renderer's decode contract (including the
 /// pre-serialized layout schemas) is satisfied.
-final class TestTxnOffersRenderCompat: XCTestCase {
+final class TestOffersRenderCompat: XCTestCase {
 
     func test_adaptedExperienceParsesIntoRenderablePageModel() throws {
         let url = try XCTUnwrap(
-            Bundle.module.url(forResource: "txn_offers_render", withExtension: "json"),
-            "txn_offers_render.json missing from the test bundle"
+            Bundle.module.url(forResource: "offers_render", withExtension: "json"),
+            "offers_render.json missing from the test bundle"
         )
-        let response = try JSONDecoder().decode(TxnSelectResponse.self, from: Data(contentsOf: url))
+        let response = try JSONDecoder().decode(SelectResponse.self, from: Data(contentsOf: url))
 
-        let experienceString = try TxnSelectExperienceAdapter.experienceJSONString(from: response)
+        let experienceString = try SelectExperienceAdapter.experienceJSONString(from: response)
 
         let parsed = try XCTUnwrap(
             RoktUX.parseExperience(experienceString),

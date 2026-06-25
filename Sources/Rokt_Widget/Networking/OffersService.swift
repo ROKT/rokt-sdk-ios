@@ -4,8 +4,8 @@ import Foundation
 /// token forward, and adapts the response into the experience string the renderer
 /// consumes. Mirrors ``TxnInitService``'s retry/backoff and reports back through the
 /// same `successLayout`/`failure` callbacks the offers call site already uses.
-internal struct TxnOffersService {
-    enum TxnOffersError: Error, Equatable {
+internal struct OffersService {
+    enum OffersError: Error, Equatable {
         case invalidBaseURL
         case missingResponseData
         case unexpectedStatusCode(Int)
@@ -89,15 +89,15 @@ internal struct TxnOffersService {
     private func fetchExperienceString(
         pageIdentifier: String,
         attributes: [String: String],
-        privacyControl: TxnSelectPrivacyControl?
+        privacyControl: SelectPrivacyControl?
     ) async throws -> String {
         guard let baseURL = URL(string: environment.gatewayBaseURL) else {
-            throw TxnOffersError.invalidBaseURL
+            throw OffersError.invalidBaseURL
         }
 
         httpClient.updateTimeout(timeout: requestTimeout)
 
-        let client = TxnOffersClient(
+        let client = OffersClient(
             baseURL: baseURL,
             accountId: accountId,
             authToken: sessionManager.authorizationHeader ?? "",
@@ -105,7 +105,7 @@ internal struct TxnOffersService {
             pageInstanceGuid: makePageInstanceGuid(),
             httpClient: httpClient
         )
-        let input = TxnOffersInput(
+        let input = OffersInput(
             requestId: makeRequestId(),
             pageIdentifier: pageIdentifier,
             attributes: attributes,
@@ -125,16 +125,16 @@ internal struct TxnOffersService {
                 }
 
                 guard (200..<300).contains(statusCode) else {
-                    throw TxnOffersError.unexpectedStatusCode(statusCode)
+                    throw OffersError.unexpectedStatusCode(statusCode)
                 }
                 guard let data else {
-                    throw TxnOffersError.missingResponseData
+                    throw OffersError.missingResponseData
                 }
 
-                let decoded = try JSONDecoder().decode(TxnSelectResponse.self, from: data)
+                let decoded = try JSONDecoder().decode(SelectResponse.self, from: data)
                 // Roll the refreshed token forward for the next offers/events call.
                 sessionManager.update(sessionToken: decoded.sessionToken)
-                return try TxnSelectExperienceAdapter.experienceJSONString(from: decoded)
+                return try SelectExperienceAdapter.experienceJSONString(from: decoded)
             } catch let error where isRetryable(error: error) && attempt < maxRetries {
                 try await sleep(backoffDelay(attempt: attempt))
                 attempt += 1
@@ -143,10 +143,10 @@ internal struct TxnOffersService {
         }
     }
 
-    private func buildPrivacyControl(from attributes: [String: String]) -> TxnSelectPrivacyControl? {
+    private func buildPrivacyControl(from attributes: [String: String]) -> SelectPrivacyControl? {
         let payload = RoktAPIHelper.getPrivacyControlPayload(attributes: attributes)
         guard !payload.isEmpty else { return nil }
-        return TxnSelectPrivacyControl(
+        return SelectPrivacyControl(
             noFunctional: payload[RoktAPIHelper.noFunctionalKey],
             noTargeting: payload[RoktAPIHelper.noTargetingKey],
             doNotShareOrSell: payload[RoktAPIHelper.doNotShareOrSellKey]
@@ -154,7 +154,7 @@ internal struct TxnOffersService {
     }
 
     static func statusCode(from error: Error) -> Int? {
-        if case TxnOffersError.unexpectedStatusCode(let code) = error {
+        if case OffersError.unexpectedStatusCode(let code) = error {
             return code
         }
         return nil

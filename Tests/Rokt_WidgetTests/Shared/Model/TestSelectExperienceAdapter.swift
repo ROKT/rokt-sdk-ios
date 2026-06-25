@@ -6,11 +6,11 @@ import XCTest
 /// schema passthrough, positive/negative response-option bucketing, the required
 /// placementContext/placements keys, and that icons are dropped. The DCUI
 /// render-compat (the schema strings actually parsing) is proven separately.
-final class TestTxnSelectExperienceAdapter: XCTestCase {
+final class TestSelectExperienceAdapter: XCTestCase {
 
     private func adapt(_ json: String) throws -> [String: Any] {
-        let response = try JSONDecoder().decode(TxnSelectResponse.self, from: Data(json.utf8))
-        let string = try TxnSelectExperienceAdapter.experienceJSONString(from: response)
+        let response = try JSONDecoder().decode(SelectResponse.self, from: Data(json.utf8))
+        let string = try SelectExperienceAdapter.experienceJSONString(from: response)
         return try XCTUnwrap(
             JSONSerialization.jsonObject(with: Data(string.utf8)) as? [String: Any]
         )

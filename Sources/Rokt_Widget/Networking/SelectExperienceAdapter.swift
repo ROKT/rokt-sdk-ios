@@ -1,17 +1,17 @@
-// periphery:ignore:all - offers render adapter, not yet wired into the offers fetch
+// periphery:ignore:all - offers render adapter
 import Foundation
 
-/// Adapts the offers ``TxnSelectResponse`` into the experience JSON string the
+/// Adapts the offers ``SelectResponse`` into the experience JSON string the
 /// renderer decodes (`RoktUXExperienceResponse`). The pre-serialized DCUI
 /// layout-schema strings pass through verbatim; the offer/creative subtree is
 /// re-homed from the response's snake_case to the renderer's camelCase contract.
-internal enum TxnSelectExperienceAdapter {
+internal enum SelectExperienceAdapter {
 
     enum AdapterError: Error {
         case encodingFailed
     }
 
-    static func experienceJSONString(from response: TxnSelectResponse) throws -> String {
+    static func experienceJSONString(from response: SelectResponse) throws -> String {
         let data = try JSONEncoder().encode(RenderExperience(response))
         guard let string = String(data: data, encoding: .utf8) else {
             throw AdapterError.encodingFailed
@@ -30,7 +30,7 @@ private struct RenderExperience: Encodable {
     let placements: [RenderPlacement]
     let plugins: [RenderPluginContainer]?
 
-    init(_ r: TxnSelectResponse) {
+    init(_ r: SelectResponse) {
         sessionId = r.sessionId
         token = r.sessionToken.token
         page = RenderPage(pageId: r.pageContext?.pageId)
@@ -50,7 +50,7 @@ private struct RenderPlacementContext: Encodable {
     let pageInstanceGuid: String
     let token: String
 
-    init(_ r: TxnSelectResponse) {
+    init(_ r: SelectResponse) {
         // Not in the response; required by the decoder but unused when rendering.
         roktTagId = ""
         pageInstanceGuid = r.pageContext?.pageInstanceGuid ?? r.pageInstanceGuid
@@ -64,7 +64,7 @@ private struct RenderPlacement: Encodable {}
 private struct RenderPluginContainer: Encodable {
     let plugin: RenderPlugin
 
-    init(_ p: TxnSelectPlugin) {
+    init(_ p: SelectPlugin) {
         plugin = RenderPlugin(p.plugin)
     }
 }
@@ -75,7 +75,7 @@ private struct RenderPlugin: Encodable {
     let targetElementSelector: String?
     let config: RenderPluginConfig
 
-    init(_ p: TxnSelectPluginLayout?) {
+    init(_ p: SelectPluginLayout?) {
         id = p?.id ?? ""
         name = p?.name
         targetElementSelector = p?.targetElementSelector
@@ -89,7 +89,7 @@ private struct RenderPluginConfig: Encodable {
     let outerLayoutSchema: String
     let slots: [RenderSlot]
 
-    init(_ c: TxnSelectPluginConfig?) {
+    init(_ c: SelectPluginConfig?) {
         instanceGuid = c?.instanceGuid
         token = c?.token ?? ""
         // Pre-serialized DCUI schema — passed through verbatim.
@@ -104,7 +104,7 @@ private struct RenderSlot: Encodable {
     let layoutVariant: RenderLayoutVariant?
     let offer: RenderOffer?
 
-    init(_ s: TxnSelectSlot) {
+    init(_ s: SelectSlot) {
         instanceGuid = s.instanceGuid
         token = s.token ?? ""
         layoutVariant = s.layoutVariant.map(RenderLayoutVariant.init)
@@ -116,7 +116,7 @@ private struct RenderLayoutVariant: Encodable {
     let moduleName: String
     let layoutVariantSchema: String
 
-    init(_ v: TxnSelectLayoutVariant) {
+    init(_ v: SelectLayoutVariant) {
         moduleName = v.moduleName ?? ""
         // Pre-serialized DCUI schema — passed through verbatim (empty -> dropped).
         layoutVariantSchema = v.layoutVariantSchema ?? ""
@@ -128,7 +128,7 @@ private struct RenderOffer: Encodable {
     let creative: RenderCreative
 
     /// Nil when the slot carries no creative — an offer is only renderable with one.
-    init?(_ o: TxnSelectOffer?) {
+    init?(_ o: SelectOffer?) {
         guard let o, let creative = o.creative else { return nil }
         campaignId = o.campaignId
         self.creative = RenderCreative(creative)
@@ -144,7 +144,7 @@ private struct RenderCreative: Encodable {
     let links: [String: RenderLink]?
     let responseOptionsMap: RenderResponseOptionList?
 
-    init(_ c: TxnSelectCreative) {
+    init(_ c: SelectCreative) {
         referralCreativeId = c.referralCreativeId ?? ""
         instanceGuid = c.instanceGuid ?? ""
         token = c.token ?? ""
@@ -162,7 +162,7 @@ private struct RenderImage: Encodable {
     let alt: String?
     let title: String?
 
-    init(_ i: TxnSelectImage) {
+    init(_ i: SelectImage) {
         light = i.light
         dark = i.dark
         alt = i.alt
@@ -174,19 +174,19 @@ private struct RenderLink: Encodable {
     let url: String?
     let title: String?
 
-    init(_ l: TxnSelectLink) {
+    init(_ l: SelectLink) {
         url = l.url
         title = l.title
     }
 }
 
 /// The renderer keys response options positionally as `positive`/`negative`, not by
-/// the response's map key — so options are bucketed on ``TxnSelectResponseOption/isPositive``.
+/// the response's map key — so options are bucketed on ``SelectResponseOption/isPositive``.
 private struct RenderResponseOptionList: Encodable {
     let positive: RenderResponseOption?
     let negative: RenderResponseOption?
 
-    init?(_ map: [String: TxnSelectResponseOption]?) {
+    init?(_ map: [String: SelectResponseOption]?) {
         guard let map else { return nil }
         var positive: RenderResponseOption?
         var negative: RenderResponseOption?
@@ -215,7 +215,7 @@ private struct RenderResponseOption: Encodable {
     let isPositive: Bool
     let url: String?
 
-    init(_ o: TxnSelectResponseOption) {
+    init(_ o: SelectResponseOption) {
         id = o.id ?? ""
         instanceGuid = o.instanceGuid ?? ""
         token = o.token ?? ""

@@ -1,8 +1,8 @@
-// periphery:ignore:all - referenced from Tests/ContractTests/TxnOffersClientPactSpec.swift
+// periphery:ignore:all - offers network client
 
 import Foundation
 
-internal struct TxnOffersClient {
+internal struct OffersClient {
     let baseURL: URL
     let accountId: String
     let authToken: String
@@ -26,7 +26,7 @@ internal struct TxnOffersClient {
         self.httpClient = httpClient
     }
 
-    func fetchOffers(input: TxnOffersInput) async throws -> (Data?, HTTPURLResponse?) {
+    func fetchOffers(input: OffersInput) async throws -> (Data?, HTTPURLResponse?) {
         let url = baseURL
             .appendingPathComponent("v2")
             .appendingPathComponent("sessions")
@@ -35,15 +35,15 @@ internal struct TxnOffersClient {
         // Session identity is the JWT `sub` claim in the Authorization header —
         // never the body. `customer` and `page.url` are omitted to mirror the
         // Android offers contract.
-        let requestBody = TxnSelectRequest(
-            page: TxnSelectPage(pageIdentifier: input.pageIdentifier),
-            channel: TxnSelectChannel(sdkVersion: sdkVersion),
+        let requestBody = SelectRequest(
+            page: SelectPage(pageIdentifier: input.pageIdentifier),
+            channel: SelectChannel(sdkVersion: sdkVersion),
             attributes: input.attributes,
             privacyControl: input.privacyControl
         )
         let bodyData = try JSONEncoder().encode(requestBody)
         guard let bodyParameters = try JSONSerialization.jsonObject(with: bodyData) as? RoktHTTPParameters else {
-            throw TxnOffersClientError.bodyEncodingFailed
+            throw OffersClientError.bodyEncodingFailed
         }
 
         let headers: RoktHTTPHeaders = [
@@ -78,21 +78,21 @@ internal struct TxnOffersClient {
     }
 }
 
-internal enum TxnOffersClientError: Error {
+internal enum OffersClientError: Error {
     case bodyEncodingFailed
 }
 
-internal struct TxnOffersInput {
+internal struct OffersInput {
     let requestId: String
     let pageIdentifier: String
     let attributes: [String: String]
-    let privacyControl: TxnSelectPrivacyControl?
+    let privacyControl: SelectPrivacyControl?
 
     init(
         requestId: String,
         pageIdentifier: String,
         attributes: [String: String],
-        privacyControl: TxnSelectPrivacyControl? = nil
+        privacyControl: SelectPrivacyControl? = nil
     ) {
         self.requestId = requestId
         self.pageIdentifier = pageIdentifier

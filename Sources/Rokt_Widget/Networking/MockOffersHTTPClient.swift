@@ -3,9 +3,9 @@ import Foundation
 // Offline transport for the Mock environment: serves an offers selection response without
 // the network so the SDK still exercises the real decode + adapt + render path. Falls back
 // to a built-in response so Mock offers never depend on a host-bundled fixture (a bundled
-// txn_offers.json overrides the default when present, which the example app uses).
-internal final class MockTxnOffersHTTPClient: HTTPClientAdapter {
-    private static let fixtureName = "txn_offers"
+// offers.json overrides the default when present, which the example app uses).
+internal final class MockOffersHTTPClient: HTTPClientAdapter {
+    private static let fixtureName = "offers"
 
     private static let defaultResponse = Data(
         """

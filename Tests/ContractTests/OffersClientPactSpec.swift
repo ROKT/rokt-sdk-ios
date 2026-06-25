@@ -4,15 +4,15 @@ import PactSwift
 
 /// Consumer-driven pact spec for the `/v2/sessions/offers` endpoint.
 ///
-/// Drives `TxnOffersClient.fetchOffers(input:)` — a public method that takes
+/// Drives `OffersClient.fetchOffers(input:)` — a public method that takes
 /// domain inputs (page identifier, customer email, attributes, request-scoped
 /// ids) and internally builds the wire request. The pact matchers below
-/// describe the EXPECTED wire shape; if `TxnOffersClient` ever drifts from
+/// describe the EXPECTED wire shape; if `OffersClient` ever drifts from
 /// those expectations (e.g., changes the `channel.type` body field or drops the
 /// `x-request-id` header), the pact mock service rejects the request and this test fails.
 ///
 /// The test never constructs request headers or body directly, only domain
-/// inputs. Wire-shape construction lives entirely in `TxnOffersClient`.
+/// inputs. Wire-shape construction lives entirely in `OffersClient`.
 ///
 /// Session identity is carried solely by the `Authorization: Bearer <jwt>`
 /// header (the provider reads it from the JWT `sub` claim) — there is
@@ -20,13 +20,13 @@ import PactSwift
 /// Privacy consent travels under `privacy_control`; `customer` and `page.url`
 /// are omitted to mirror the Android offers contract.
 ///
-/// Matcher policy: the fixed-value string hardcoded in `TxnOffersClient`
+/// Matcher policy: the fixed-value string hardcoded in `OffersClient`
 /// (`channel.type` = `"msdk"`) is pinned as an exact string rather than
 /// `SomethingLike`. `SomethingLike` only matches by type, which would let
 /// the client drift to `"ios-mobile"` without failing the consumer test.
 /// Per-runtime values (account id, auth token, request id, page identifier,
 /// etc.) stay as `SomethingLike` because they legitimately vary per call.
-class TxnOffersClientPactSpec: XCTestCase {
+class OffersClientPactSpec: XCTestCase {
     static var mockService: MockService!
 
     override class func setUp() {
@@ -80,7 +80,7 @@ class TxnOffersClientPactSpec: XCTestCase {
                     ]
                 ]
             )
-            // Assert only the response fields TxnOffersClient consumes and that
+            // Assert only the response fields OffersClient consumes and that
             // the v2 API returns for a configured page: session and token data,
             // the resolved page_instance_guid, and a page_context limited to
             // page_instance_guid, page_id, page_type and is_page_detected. Any
@@ -113,21 +113,21 @@ class TxnOffersClientPactSpec: XCTestCase {
                 defer { done() }
                 do {
                     let url = try XCTUnwrap(URL(string: baseURL))
-                    let client = TxnOffersClient(
+                    let client = OffersClient(
                         baseURL: url,
                         accountId: "account-456",
                         authToken: "Bearer session-token-abc",
                         sdkVersion: "5.2.2",
                         pageInstanceGuid: "page-instance-guid-123"
                     )
-                    let input = TxnOffersInput(
+                    let input = OffersInput(
                         requestId: "request-id-123",
                         pageIdentifier: "checkout-page",
                         attributes: [
                             "standalone": "notdefined",
                             "customer.locale": "en-US"
                         ],
-                        privacyControl: TxnSelectPrivacyControl(
+                        privacyControl: SelectPrivacyControl(
                             noFunctional: false,
                             noTargeting: false,
                             doNotShareOrSell: false
@@ -136,7 +136,7 @@ class TxnOffersClientPactSpec: XCTestCase {
                     let (_, httpResponse) = try await client.fetchOffers(input: input)
                     XCTAssertEqual(httpResponse?.statusCode, 200)
                 } catch {
-                    XCTFail("TxnOffersClient request failed: \(error)")
+                    XCTFail("OffersClient request failed: \(error)")
                 }
                 expectation.fulfill()
             }
