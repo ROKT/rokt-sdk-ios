@@ -189,4 +189,42 @@ final class TestTxnSelectSerialization: XCTestCase {
         XCTAssertEqual(offer.campaignId, "c1")
         XCTAssertNotNil(offer.catalogItems)
     }
+
+    func test_response_catalogItemsRoundTripEveryJSONValueKind() throws {
+        // catalog_items stays opaque, so its decode must round-trip every JSON kind.
+        let payload = """
+        {
+          "session_id": "session-123",
+          "session_token": { "token": "t", "expires_at": 1 },
+          "plugins": [
+            { "plugin": { "config": { "slots": [
+              { "offer": { "campaign_id": "c1", "catalog_items": [
+                {
+                  "catalog_item_id": "cat-1",
+                  "min_item_count": 1,
+                  "price": 9.99,
+                  "quantity_must_be_synchronized": true,
+                  "images": ["light", "dark"],
+                  "provider_data": null
+                }
+              ] } }
+            ] } } }
+          ]
+        }
+        """
+
+        let response = try decode(payload)
+        let items = try XCTUnwrap(
+            response.plugins?.first?.plugin?.config?.slots.first?.offer?.catalogItems
+        )
+        XCTAssertEqual(items.count, 1)
+        XCTAssertEqual(items.first, .object([
+            "catalog_item_id": .string("cat-1"),
+            "min_item_count": .int(1),
+            "price": .double(9.99),
+            "quantity_must_be_synchronized": .bool(true),
+            "images": .array([.string("light"), .string("dark")]),
+            "provider_data": .null
+        ]))
+    }
 }

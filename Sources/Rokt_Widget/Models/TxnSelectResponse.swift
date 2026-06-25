@@ -305,13 +305,24 @@ internal struct TxnSelectIcon: Decodable, Equatable {
 /// Token lookup for a trackable entity, echoed back on `/v2/sessions/events`.
 internal struct TxnSelectEventDataEntry: Decodable, Equatable {
     let token: String
-    let events: [String: TxnJSONValue]?
+    let events: [String: TxnSelectRealTimeEvent]?
 }
 
-/// Opaque JSON value used for fields whose inner shape is deferred
-/// (`catalog_items`, per-entity `events`). Mirrors Android's use of
-/// `JsonObject`/`JsonElement`: decoded so the payload round-trips and is
-/// retained on the wire model, but not interpreted here.
+/// A pre-serialized real-time event payload, keyed by signal type. Mirrors the
+/// provider's typed event shape (and Android's `SelectRealTimeEvent`).
+internal struct TxnSelectRealTimeEvent: Decodable, Equatable {
+    let eventType: String?
+    let payload: String?
+
+    enum CodingKeys: String, CodingKey {
+        case eventType = "event_type"
+        case payload
+    }
+}
+
+/// Opaque JSON value for `catalog_items`, kept un-shaped on purpose: surfacing
+/// shoppable ads is deferred to the mapper in a follow-up. Decoded so the
+/// payload round-trips and is retained on the wire model, but not interpreted here.
 internal enum TxnJSONValue: Decodable, Equatable {
     case null
     case bool(Bool)
