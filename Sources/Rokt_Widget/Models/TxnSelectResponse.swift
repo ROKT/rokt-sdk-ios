@@ -210,14 +210,65 @@ internal struct TxnSelectLayoutVariant: Decodable, Equatable {
 internal struct TxnSelectOffer: Decodable, Equatable {
     let campaignId: String?
     let creative: TxnSelectCreative?
-    // Catalog items (shoppable ads) are kept on the wire model but deferred in
-    // the mapper; surfacing them is a follow-up PR.
-    let catalogItems: [TxnJSONValue]?
+    // Shoppable-ad catalog items; surfacing them to the render models is
+    // deferred to the mapper in a follow-up.
+    let catalogItems: [TxnSelectCatalogItem]?
 
     enum CodingKeys: String, CodingKey {
         case campaignId = "campaign_id"
         case creative
         case catalogItems = "catalog_items"
+    }
+}
+
+/// A shoppable catalog item on an offer. Only the fields the render model
+/// consumes are declared; the lenient decoder skips anything else on the wire.
+/// The `token` is echoed back on purchase events.
+internal struct TxnSelectCatalogItem: Decodable, Equatable {
+    let catalogItemId: String?
+    let instanceGuid: String?
+    let cartItemId: String?
+    let title: String?
+    let description: String?
+    let price: Double?
+    let originalPrice: Double?
+    let priceFormatted: String?
+    let originalPriceFormatted: String?
+    let currency: String?
+    let url: String?
+    let urlBehavior: String?
+    let signalType: String?
+    let minItemCount: Int?
+    let maxItemCount: Int?
+    let preSelectedQuantity: Int?
+    let providerData: String?
+    let linkedProductId: String?
+    let quantityMustBeSynchronized: Bool?
+    let images: [String: TxnSelectImage]?
+    let token: String?
+
+    enum CodingKeys: String, CodingKey {
+        case catalogItemId = "catalog_item_id"
+        case instanceGuid = "instance_guid"
+        case cartItemId = "cart_item_id"
+        case title
+        case description
+        case price
+        case originalPrice = "original_price"
+        case priceFormatted = "price_formatted"
+        case originalPriceFormatted = "original_price_formatted"
+        case currency
+        case url
+        case urlBehavior = "url_behavior"
+        case signalType = "signal_type"
+        case minItemCount = "min_item_count"
+        case maxItemCount = "max_item_count"
+        case preSelectedQuantity = "pre_selected_quantity"
+        case providerData = "provider_data"
+        case linkedProductId = "linked_product_id"
+        case quantityMustBeSynchronized = "quantity_must_be_synchronized"
+        case images
+        case token
     }
 }
 
@@ -305,43 +356,17 @@ internal struct TxnSelectIcon: Decodable, Equatable {
 /// Token lookup for a trackable entity, echoed back on `/v2/sessions/events`.
 internal struct TxnSelectEventDataEntry: Decodable, Equatable {
     let token: String
-    let events: [String: TxnJSONValue]?
+    let events: [String: TxnSelectRealTimeEvent]?
 }
 
-/// Opaque JSON value used for fields whose inner shape is deferred
-/// (`catalog_items`, per-entity `events`). Mirrors Android's use of
-/// `JsonObject`/`JsonElement`: decoded so the payload round-trips and is
-/// retained on the wire model, but not interpreted here.
-internal enum TxnJSONValue: Decodable, Equatable {
-    case null
-    case bool(Bool)
-    case int(Int)
-    case double(Double)
-    case string(String)
-    case array([TxnJSONValue])
-    case object([String: TxnJSONValue])
+/// A pre-serialized real-time event payload, keyed by signal type. Mirrors the
+/// provider's typed event shape (and Android's `SelectRealTimeEvent`).
+internal struct TxnSelectRealTimeEvent: Decodable, Equatable {
+    let eventType: String?
+    let payload: String?
 
-    init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        if container.decodeNil() {
-            self = .null
-        } else if let value = try? container.decode(Bool.self) {
-            self = .bool(value)
-        } else if let value = try? container.decode(Int.self) {
-            self = .int(value)
-        } else if let value = try? container.decode(Double.self) {
-            self = .double(value)
-        } else if let value = try? container.decode(String.self) {
-            self = .string(value)
-        } else if let value = try? container.decode([TxnJSONValue].self) {
-            self = .array(value)
-        } else if let value = try? container.decode([String: TxnJSONValue].self) {
-            self = .object(value)
-        } else {
-            throw DecodingError.dataCorruptedError(
-                in: container,
-                debugDescription: "Unsupported JSON value"
-            )
-        }
+    enum CodingKeys: String, CodingKey {
+        case eventType = "event_type"
+        case payload
     }
 }

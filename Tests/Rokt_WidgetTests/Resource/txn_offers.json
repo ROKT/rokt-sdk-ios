@@ -43,20 +43,20 @@
                   "response_options_map": {
                     "positive": {
                       "id": "mock-response-option-positive",
-                      "action": "url",
+                      "action": "Url",
                       "instance_guid": "mock-response-option-instance-1",
                       "token": "mock-response-option-token",
-                      "signal_type": "signal-response",
+                      "signal_type": "SignalResponse",
                       "short_label": "Yes please",
                       "is_positive": true,
                       "url": "https://example.com/accept"
                     },
                     "negative": {
                       "id": "mock-response-option-negative",
-                      "action": "noFunc",
+                      "action": "CaptureOnly",
                       "instance_guid": "mock-response-option-instance-2",
                       "token": "mock-response-option-token-2",
-                      "signal_type": "signal-response",
+                      "signal_type": "SignalResponse",
                       "short_label": "No thanks",
                       "is_positive": false
                     }
@@ -71,7 +71,13 @@
   ],
   "event_data": {
     "mock-creative-instance-1": {
-      "token": "mock-event-token"
+      "token": "mock-event-token",
+      "events": {
+        "SignalResponse": {
+          "event_type": "SignalResponse",
+          "payload": "{\"metadata\":[]}"
+        }
+      }
     }
   }
 }
