@@ -55,6 +55,8 @@ internal struct OffersClient {
             "rokt-account-id": accountId,
             "x-request-id": input.requestId,
             "rokt-page-instance-guid": pageInstanceGuid,
+            // Live (non-shadow) v2 request.
+            "rokt-txn-shadow": "false",
             "Content-Type": "application/json"
         ]
         // Authorization is optional: with no live token the server mints a fresh session.

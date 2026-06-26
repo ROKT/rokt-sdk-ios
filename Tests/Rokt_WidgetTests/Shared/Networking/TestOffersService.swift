@@ -235,6 +235,8 @@ final class TestOffersService: XCTestCase {
         // Device headers (incl. the load-bearing rokt-package-name) reach the request.
         XCTAssertEqual(stub.lastHeaders?["rokt-os-type"], "iOS")
         XCTAssertEqual(stub.lastHeaders?["rokt-package-name"], "com.rokt.test")
+        // Every v2 request marks itself as live (non-shadow) traffic.
+        XCTAssertEqual(stub.lastHeaders?["rokt-txn-shadow"], "false")
     }
 
     func test_getExperienceData_omitsAuthorizationUntilTokenRolledForward() {
