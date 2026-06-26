@@ -127,8 +127,11 @@ internal struct OffersService {
             deviceHeaders: deviceHeaders,
             httpClient: httpClient
         )
-        // Forward events triggered during the previous placement; read once, before retries.
-        // Only with a live session to attribute them to, matching Android.
+        // Forward events triggered during the previous placement; read once, before retries,
+        // and only with a live session to attribute them to (matching Android). As on the v1
+        // path, triggered events are not cleared after forwarding — they ride subsequent
+        // requests until session invalidation; re-send is expected (the "only adds, no clear"
+        // note elsewhere is about the untriggered response-capture, not this read).
         let forwardedEvents = authToken != nil ? SelectEventMapper.requestEvents(from: triggeredEvents()) : []
         let input = OffersInput(
             requestId: makeRequestId(),

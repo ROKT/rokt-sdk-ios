@@ -14,14 +14,17 @@ internal enum SelectEventMapper {
         triggered.map { event in
             SelectEvent(
                 eventType: event.eventType,
-                timestamp: epochMilliseconds(from: event.eventTime),
+                timestamp: EventDateFormatter.epochMilliseconds(from: event.eventTime),
                 payload: event.payload
             )
         }
     }
 
     /// Response `event_data` → untriggered events for the store, consulted when the
-    /// next placement fires (mirrors ``UntriggeredEventsContainer``'s flattening).
+    /// next placement fires. The flattening parallels ``UntriggeredEventsContainer`` (the
+    /// v1 path), but stays separate because v1 decodes camelCase `eventType` while v2
+    /// decodes snake_case `event_type`. Entries missing required fields are dropped here,
+    /// matching that sibling.
     static func untriggeredEvents(from eventData: [String: SelectEventDataEntry]) -> [UntriggeredRealTimeEvent] {
         var events: [UntriggeredRealTimeEvent] = []
         for (parentGuid, entry) in eventData {
@@ -37,14 +40,6 @@ internal enum SelectEventMapper {
                 )
             }
         }
-        return events
-    }
-
-    // Mirrors TxnEventMapper: parse the stored ISO event time to epoch-ms, falling back to now.
-    private static func epochMilliseconds(from eventTime: String) -> Int64 {
-        if let date = EventDateFormatter.dateFormatter.date(from: eventTime) {
-            return Int64(date.timeIntervalSince1970 * 1000)
-        }
-        return Int64(Date().timeIntervalSince1970 * 1000)
+        return events.filter { $0.isValid() }
     }
 }

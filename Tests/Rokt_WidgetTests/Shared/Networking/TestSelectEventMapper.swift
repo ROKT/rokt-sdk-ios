@@ -71,4 +71,27 @@ final class TestSelectEventMapper: XCTestCase {
 
         XCTAssertTrue(SelectEventMapper.untriggeredEvents(from: eventData).isEmpty)
     }
+
+    func test_untriggeredEvents_dropsEntriesMissingRequiredFields() throws {
+        // A signal missing event_type is invalid and is filtered out (matches UntriggeredEventsContainer).
+        let json = """
+        {
+          "session_id": "s",
+          "session_token": { "token": "t", "expires_at": 32503680000000 },
+          "event_data": {
+            "parent-1": { "token": "tok", "events": {
+              "Valid": { "event_type": "x", "payload": "y" },
+              "MissingType": { "payload": "z" }
+            } }
+          }
+        }
+        """
+        let decoded = try JSONDecoder().decode(SelectResponse.self, from: Data(json.utf8))
+        let eventData = try XCTUnwrap(decoded.eventData)
+
+        let untriggered = SelectEventMapper.untriggeredEvents(from: eventData)
+
+        XCTAssertEqual(untriggered.count, 1)
+        XCTAssertEqual(untriggered.first?.triggerEvent, "Valid")
+    }
 }
