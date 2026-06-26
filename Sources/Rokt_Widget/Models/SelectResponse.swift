@@ -417,7 +417,7 @@ internal struct SelectEventDataEntry: Decodable, Equatable {
 
 /// A pre-serialized real-time event payload, keyed by signal type. Mirrors the
 /// provider's typed event shape (and Android's `SelectRealTimeEvent`).
-internal struct SelectRealTimeEvent: Decodable, Equatable {
+internal struct SelectRealTimeEvent: Decodable, Equatable, RealTimeEventSignal {
     let eventType: String?
     let payload: String?
 

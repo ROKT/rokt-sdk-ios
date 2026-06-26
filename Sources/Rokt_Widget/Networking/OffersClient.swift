@@ -51,18 +51,9 @@ internal struct OffersClient {
             throw OffersClientError.bodyEncodingFailed
         }
 
-        var headers: RoktHTTPHeaders = [
-            "rokt-account-id": accountId,
-            "x-request-id": input.requestId,
-            "rokt-page-instance-guid": pageInstanceGuid,
-            // Live (non-shadow) v2 request.
-            "rokt-txn-shadow": "false",
-            "Content-Type": "application/json"
-        ]
-        // Authorization is optional: with no live token the server mints a fresh session.
-        if let authToken, !authToken.isEmpty {
-            headers["Authorization"] = authToken
-        }
+        var headers = TxnRequestHeaders.common(accountId: accountId, authToken: authToken)
+        headers["x-request-id"] = input.requestId
+        headers["rokt-page-instance-guid"] = pageInstanceGuid
         // Device headers (os, model, locale, app version) and the load-bearing
         // rokt-package-name ride in via NetworkingHelper.txnDeviceHeaders — the
         // gateway's mobile page detection and targeting key off them.

@@ -20,26 +20,11 @@ internal enum SelectEventMapper {
         }
     }
 
-    /// Response `event_data` → untriggered events for the store, consulted when the
-    /// next placement fires. The flattening parallels ``UntriggeredEventsContainer`` (the
-    /// v1 path), but stays separate because v1 decodes camelCase `eventType` while v2
-    /// decodes snake_case `event_type`. Entries missing required fields are dropped here,
-    /// matching that sibling.
+    /// Response `event_data` → untriggered events for the store, consulted when the next
+    /// placement fires. Shares the flatten/validate path with the v1 ``UntriggeredEventsContainer``
+    /// (`UntriggeredRealTimeEvent.flattenedValid`); the two keep separate Decodables only because
+    /// v1 is camelCase `eventType` and v2 is snake_case `event_type`.
     static func untriggeredEvents(from eventData: [String: SelectEventDataEntry]) -> [UntriggeredRealTimeEvent] {
-        var events: [UntriggeredRealTimeEvent] = []
-        for (parentGuid, entry) in eventData {
-            guard let signals = entry.events else { continue }
-            for (signalKey, signal) in signals {
-                events.append(
-                    UntriggeredRealTimeEvent(
-                        triggerGuid: parentGuid,
-                        triggerEvent: signalKey,
-                        eventType: signal.eventType,
-                        payload: signal.payload
-                    )
-                )
-            }
-        }
-        return events.filter { $0.isValid() }
+        UntriggeredRealTimeEvent.flattenedValid(from: eventData.mapValues { $0.events })
     }
 }

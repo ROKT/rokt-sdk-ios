@@ -16,6 +16,9 @@ class RealtimeEventStoreMemory: RealTimeEventStore {
 
     func addUntriggeredEvents(_ events: [UntriggeredRealTimeEvent]) {
         appendDeduped(events, to: &untriggeredEvents)
+        if untriggeredEvents.count > maximumRealTimeEventsToStore {
+            untriggeredEvents = Array(untriggeredEvents.suffix(maximumRealTimeEventsToStore))
+        }
     }
 
     func getTriggeredEvents() -> [TriggeredRealTimeEvent] {
@@ -67,9 +70,19 @@ class RealTimeEventStoreFile: RealTimeEventStore {
 
     func addUntriggeredEvents(_ events: [UntriggeredRealTimeEvent]) {
         guard let untriggeredEventsFilePath else { return }
-        var all = getUntriggeredEvents()
-        appendDeduped(events, to: &all)
-        save(all, to: untriggeredEventsFilePath)
+        // Serialize on the same queue as markAsTriggered's processing: this is a
+        // read-modify-write, so concurrent captures (or a capture racing a trigger-mark)
+        // would otherwise lose updates when the second save overwrites the first.
+        eventProcessingQueue.sync {
+            var all = getUntriggeredEvents()
+            appendDeduped(events, to: &all)
+            // Bound the untriggered file the way triggered events are capped: a long-lived
+            // session whose responses echo distinct event_data must not grow without limit.
+            if all.count > maximumRealTimeEventsToStore {
+                all = Array(all.suffix(maximumRealTimeEventsToStore))
+            }
+            save(all, to: untriggeredEventsFilePath)
+        }
     }
 
     func getTriggeredEvents() -> [TriggeredRealTimeEvent] {

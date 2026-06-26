@@ -494,6 +494,23 @@ class RealTimeEventStoreMemoryTest: XCTestCase {
         XCTAssertEqual(sut.getTriggeredEvents().count, 1, "One trigger should match a single deduped row")
     }
 
+    func test_addUntriggeredEvents_capsStoreToMaximum() {
+        // Distinct events beyond the cap must not accumulate forever; the oldest are evicted.
+        sut.addUntriggeredEvents(createUntriggeredEvents(maximumRealTimeEventsToStore + 10))
+
+        // guid0 (oldest) is evicted by the cap -> no match.
+        sut.markAsTriggered([createRoktEventRequest(parentGuid: "guid0", eventType: .SignalImpression)])
+        XCTAssertTrue(sut.getTriggeredEvents().isEmpty, "Oldest untriggered event should be evicted once the cap is exceeded")
+
+        // A recent event is retained -> still matches.
+        let lastGuid = "guid\(maximumRealTimeEventsToStore + 10 - 1)"
+        sut.markAsTriggered([createRoktEventRequest(parentGuid: lastGuid, eventType: .SignalImpression)])
+        XCTAssertTrue(
+            sut.getTriggeredEvents().contains { $0.parentGuid == lastGuid },
+            "Most recent untriggered events should be retained"
+        )
+    }
+
     // MARK: - Tests for clear
 
     func test_clear_removesAllEvents() {

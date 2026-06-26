@@ -84,8 +84,9 @@ internal struct OffersService {
 
         // Extract privacy KVPs before sanitising, then enrich the remaining attributes.
         // gpc_enabled travels under `privacy`, separate from `privacy_control`, to match Android.
-        let privacyControl = buildPrivacyControl(from: attributes)
-        let privacy = buildPrivacy(from: attributes)
+        let privacyPayload = RoktAPIHelper.getPrivacyControlPayload(attributes: attributes)
+        let privacyControl = buildPrivacyControl(from: privacyPayload)
+        let privacy = buildPrivacy(from: privacyPayload)
         let sanitisedAttributes = RoktAPIHelper.removePrivacyControlAttributes(attributes: attributes)
         let enrichedAttributes = AttributeEnrichment.shared.enrich(attributes: sanitisedAttributes, config: config)
 
@@ -177,8 +178,8 @@ internal struct OffersService {
         }
     }
 
-    private func buildPrivacyControl(from attributes: [String: String]) -> SelectPrivacyControl? {
-        let payload = RoktAPIHelper.getPrivacyControlPayload(attributes: attributes)
+    // Both builders read the same parsed payload; getExperienceData computes it once.
+    private func buildPrivacyControl(from payload: [String: Bool]) -> SelectPrivacyControl? {
         guard payload[RoktAPIHelper.noFunctionalKey] != nil
             || payload[RoktAPIHelper.noTargetingKey] != nil
             || payload[RoktAPIHelper.doNotShareOrSellKey] != nil else { return nil }
@@ -190,8 +191,7 @@ internal struct OffersService {
     }
 
     // gpc_enabled is a sibling of privacy_control (Android parity), omitted when the partner sent none.
-    private func buildPrivacy(from attributes: [String: String]) -> SelectPrivacy? {
-        let payload = RoktAPIHelper.getPrivacyControlPayload(attributes: attributes)
+    private func buildPrivacy(from payload: [String: Bool]) -> SelectPrivacy? {
         guard let gpcEnabled = payload[RoktAPIHelper.gpcEnabledKey] else { return nil }
         return SelectPrivacy(gpcEnabled: gpcEnabled)
     }

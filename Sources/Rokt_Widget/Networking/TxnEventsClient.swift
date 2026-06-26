@@ -36,16 +36,7 @@ internal struct TxnEventsClient {
             throw TxnEventsClientError.bodyEncodingFailed
         }
 
-        var headers: RoktHTTPHeaders = [
-            "rokt-account-id": accountId,
-            // Live (non-shadow) v2 request.
-            "rokt-txn-shadow": "false",
-            "Content-Type": "application/json"
-        ]
-        // Authorization is optional: with no live token the server mints a fresh session.
-        if let authToken, !authToken.isEmpty {
-            headers["Authorization"] = authToken
-        }
+        var headers = TxnRequestHeaders.common(accountId: accountId, authToken: authToken)
         for (key, value) in deviceHeaders {
             headers[key] = value
         }
