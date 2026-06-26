@@ -15,6 +15,9 @@ internal struct SelectRequest: Encodable, Equatable {
     let attributes: [String: String]
     let privacyControl: SelectPrivacyControl?
     let privacy: SelectPrivacy?
+    // Real-time events triggered during the previous placement, forwarded for the next
+    // selection; omitted when none.
+    let events: [SelectEvent]?
 
     enum CodingKeys: String, CodingKey {
         case page
@@ -22,6 +25,7 @@ internal struct SelectRequest: Encodable, Equatable {
         case attributes
         case privacyControl = "privacy_control"
         case privacy
+        case events
     }
 
     init(
@@ -29,13 +33,15 @@ internal struct SelectRequest: Encodable, Equatable {
         channel: SelectChannel,
         attributes: [String: String] = [:],
         privacyControl: SelectPrivacyControl? = nil,
-        privacy: SelectPrivacy? = nil
+        privacy: SelectPrivacy? = nil,
+        events: [SelectEvent]? = nil
     ) {
         self.page = page
         self.channel = channel
         self.attributes = attributes
         self.privacyControl = privacyControl
         self.privacy = privacy
+        self.events = events
     }
 }
 
@@ -107,6 +113,33 @@ internal struct SelectPrivacy: Encodable, Equatable {
 
     init(gpcEnabled: Bool? = nil) {
         self.gpcEnabled = gpcEnabled
+    }
+}
+
+/// A real-time event forwarded on the offers request: the provider's typed event
+/// plus its echoed `payload`, stamped with an epoch-ms `timestamp`. Encodes to the
+/// `/v2/sessions/events` element shape (`event_type`, `timestamp`, `data.payload`).
+internal struct SelectEvent: Encodable, Equatable {
+    let eventType: String
+    let timestamp: Int64
+    let payload: String
+
+    enum CodingKeys: String, CodingKey {
+        case eventType = "event_type"
+        case timestamp
+        case data
+    }
+
+    private enum DataKeys: String, CodingKey {
+        case payload
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(eventType, forKey: .eventType)
+        try container.encode(timestamp, forKey: .timestamp)
+        var data = container.nestedContainer(keyedBy: DataKeys.self, forKey: .data)
+        try data.encode(payload, forKey: .payload)
     }
 }
 

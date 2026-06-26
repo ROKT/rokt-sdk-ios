@@ -43,6 +43,8 @@ internal struct TxnInitClient {
         var headers: RoktHTTPHeaders = [
             "rokt-account-id": accountId,
             "x-request-id": UUID().uuidString,
+            // Live (non-shadow) v2 request.
+            "rokt-txn-shadow": "false",
             "Content-Type": "application/json"
         ]
         // Authorization is optional: with no stored token the server mints a fresh session.

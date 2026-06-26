@@ -38,6 +38,8 @@ internal struct TxnEventsClient {
 
         var headers: RoktHTTPHeaders = [
             "rokt-account-id": accountId,
+            // Live (non-shadow) v2 request.
+            "rokt-txn-shadow": "false",
             "Content-Type": "application/json"
         ]
         // Authorization is optional: with no live token the server mints a fresh session.

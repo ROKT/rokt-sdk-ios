@@ -43,7 +43,8 @@ internal struct OffersClient {
             channel: SelectChannel(sdkVersion: sdkVersion),
             attributes: input.attributes,
             privacyControl: input.privacyControl,
-            privacy: input.privacy
+            privacy: input.privacy,
+            events: input.events
         )
         let bodyData = try JSONEncoder().encode(requestBody)
         guard let bodyParameters = try JSONSerialization.jsonObject(with: bodyData) as? RoktHTTPParameters else {
@@ -54,6 +55,8 @@ internal struct OffersClient {
             "rokt-account-id": accountId,
             "x-request-id": input.requestId,
             "rokt-page-instance-guid": pageInstanceGuid,
+            // Live (non-shadow) v2 request.
+            "rokt-txn-shadow": "false",
             "Content-Type": "application/json"
         ]
         // Authorization is optional: with no live token the server mints a fresh session.
@@ -99,18 +102,21 @@ internal struct OffersInput {
     let attributes: [String: String]
     let privacyControl: SelectPrivacyControl?
     let privacy: SelectPrivacy?
+    let events: [SelectEvent]?
 
     init(
         requestId: String,
         pageIdentifier: String,
         attributes: [String: String],
         privacyControl: SelectPrivacyControl? = nil,
-        privacy: SelectPrivacy? = nil
+        privacy: SelectPrivacy? = nil,
+        events: [SelectEvent]? = nil
     ) {
         self.requestId = requestId
         self.pageIdentifier = pageIdentifier
         self.attributes = attributes
         self.privacyControl = privacyControl
         self.privacy = privacy
+        self.events = events
     }
 }

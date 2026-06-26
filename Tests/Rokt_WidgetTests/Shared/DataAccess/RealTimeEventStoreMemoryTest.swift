@@ -473,6 +473,27 @@ class RealTimeEventStoreMemoryTest: XCTestCase {
         )
     }
 
+    func test_addUntriggeredEvents_deduplicatesIdenticalEvents() {
+        let event = createRoktUXRealTimeEventResponse(
+            triggerGuid: guid1,
+            triggerEvent: signalImpressionRawValue,
+            eventType: finalType1,
+            payload: payload1
+        )
+        // The backend can echo the same event_data across responses; identical rows must not
+        // accumulate, or a single trigger would match each duplicate and multiply the output.
+        sut.addUntriggeredEvents([event])
+        sut.addUntriggeredEvents([event])
+        sut.addUntriggeredEvents([event, event])
+
+        sut.markAsTriggered([createRoktEventRequest(
+            parentGuid: guid1,
+            eventType: RoktUXEventType(rawValue: signalImpressionRawValue)!
+        )])
+
+        XCTAssertEqual(sut.getTriggeredEvents().count, 1, "One trigger should match a single deduped row")
+    }
+
     // MARK: - Tests for clear
 
     func test_clear_removesAllEvents() {
