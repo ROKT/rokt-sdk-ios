@@ -5,17 +5,19 @@ import Foundation
 internal struct OffersClient {
     let baseURL: URL
     let accountId: String
-    let authToken: String
+    let authToken: String?
     let sdkVersion: String
     let pageInstanceGuid: String
+    let deviceHeaders: [String: String]
     let httpClient: HTTPClientAdapter
 
     init(
         baseURL: URL,
         accountId: String,
-        authToken: String,
+        authToken: String?,
         sdkVersion: String,
         pageInstanceGuid: String,
+        deviceHeaders: [String: String] = [:],
         httpClient: HTTPClientAdapter = RoktHTTPClient()
     ) {
         self.baseURL = baseURL
@@ -23,6 +25,7 @@ internal struct OffersClient {
         self.authToken = authToken
         self.sdkVersion = sdkVersion
         self.pageInstanceGuid = pageInstanceGuid
+        self.deviceHeaders = deviceHeaders
         self.httpClient = httpClient
     }
 
@@ -46,15 +49,22 @@ internal struct OffersClient {
             throw OffersClientError.bodyEncodingFailed
         }
 
-        let headers: RoktHTTPHeaders = [
+        var headers: RoktHTTPHeaders = [
             "rokt-account-id": accountId,
-            "Authorization": authToken,
             "x-request-id": input.requestId,
             "rokt-page-instance-guid": pageInstanceGuid,
-            // The app bundle id scopes server-side page detection for mobile.
-            "rokt-package-name": Bundle.main.bundleIdentifier ?? "",
             "Content-Type": "application/json"
         ]
+        // Authorization is optional: with no live token the server mints a fresh session.
+        if let authToken, !authToken.isEmpty {
+            headers["Authorization"] = authToken
+        }
+        // Device headers (os, model, locale, app version) and the load-bearing
+        // rokt-package-name ride in via NetworkingHelper.txnDeviceHeaders — the
+        // gateway's mobile page detection and targeting key off them.
+        for (key, value) in deviceHeaders {
+            headers[key] = value
+        }
 
         return try await withCheckedThrowingContinuation { continuation in
             httpClient.startRequestWith(

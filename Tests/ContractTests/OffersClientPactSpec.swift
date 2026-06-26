@@ -26,6 +26,12 @@ import PactSwift
 /// the client drift to `"ios-mobile"` without failing the consumer test.
 /// Per-runtime values (account id, auth token, request id, page identifier,
 /// etc.) stay as `SomethingLike` because they legitimately vary per call.
+/// `rokt-package-name` is the exception: it is matched as a non-empty value
+/// (regex `.+`) because server-side mobile page detection keys off it and an
+/// empty value would silently return no offers. The device headers
+/// (`rokt-os-type`/`-os-version`/`-device-model`/`-ui-locale`/`-package-version`)
+/// ride in via `NetworkingHelper.txnDeviceHeaders` and are asserted for parity
+/// with the Android offers contract.
 class OffersClientPactSpec: XCTestCase {
     static var mockService: MockService!
 
@@ -57,7 +63,17 @@ class OffersClientPactSpec: XCTestCase {
                     "Authorization": Matcher.SomethingLike("Bearer session-token-abc"),
                     "x-request-id": Matcher.SomethingLike("request-id-123"),
                     "rokt-page-instance-guid": Matcher.SomethingLike("page-instance-guid-123"),
-                    "rokt-package-name": Matcher.SomethingLike("com.rokt.example"),
+                    // rokt-package-name is matched as a non-empty value (regex .+),
+                    // not by type: it is the signal server-side mobile page detection
+                    // keys off, and an empty value would silently return no offers.
+                    "rokt-package-name": Matcher.RegexLike("com.rokt.example", term: #".+"#),
+                    // Device headers ride in via NetworkingHelper.txnDeviceHeaders;
+                    // asserted here for parity with the Android offers contract.
+                    "rokt-os-type": Matcher.SomethingLike("iOS"),
+                    "rokt-os-version": Matcher.SomethingLike("17.0"),
+                    "rokt-device-model": Matcher.SomethingLike("iPhone15,2"),
+                    "rokt-ui-locale": Matcher.SomethingLike("en_US"),
+                    "rokt-package-version": Matcher.SomethingLike("1.0.0"),
                     "Content-Type": "application/json"
                 ],
                 body: [
@@ -124,7 +140,15 @@ class OffersClientPactSpec: XCTestCase {
                         accountId: "account-456",
                         authToken: "Bearer session-token-abc",
                         sdkVersion: "5.2.2",
-                        pageInstanceGuid: "page-instance-guid-123"
+                        pageInstanceGuid: "page-instance-guid-123",
+                        deviceHeaders: [
+                            "rokt-package-name": "com.rokt.example",
+                            "rokt-os-type": "iOS",
+                            "rokt-os-version": "17.0",
+                            "rokt-device-model": "iPhone15,2",
+                            "rokt-ui-locale": "en_US",
+                            "rokt-package-version": "1.0.0"
+                        ]
                     )
                     let input = OffersInput(
                         requestId: "request-id-123",
@@ -163,7 +187,17 @@ class OffersClientPactSpec: XCTestCase {
                     "Authorization": Matcher.SomethingLike("Bearer session-token-abc"),
                     "x-request-id": Matcher.SomethingLike("request-id-123"),
                     "rokt-page-instance-guid": Matcher.SomethingLike("page-instance-guid-123"),
-                    "rokt-package-name": Matcher.SomethingLike("com.rokt.example"),
+                    // rokt-package-name is matched as a non-empty value (regex .+),
+                    // not by type: it is the signal server-side mobile page detection
+                    // keys off, and an empty value would silently return no offers.
+                    "rokt-package-name": Matcher.RegexLike("com.rokt.example", term: #".+"#),
+                    // Device headers ride in via NetworkingHelper.txnDeviceHeaders;
+                    // asserted here for parity with the Android offers contract.
+                    "rokt-os-type": Matcher.SomethingLike("iOS"),
+                    "rokt-os-version": Matcher.SomethingLike("17.0"),
+                    "rokt-device-model": Matcher.SomethingLike("iPhone15,2"),
+                    "rokt-ui-locale": Matcher.SomethingLike("en_US"),
+                    "rokt-package-version": Matcher.SomethingLike("1.0.0"),
                     "Content-Type": "application/json"
                 ],
                 body: [
@@ -220,7 +254,15 @@ class OffersClientPactSpec: XCTestCase {
                         accountId: "account-456",
                         authToken: "Bearer session-token-abc",
                         sdkVersion: "5.2.2",
-                        pageInstanceGuid: "page-instance-guid-123"
+                        pageInstanceGuid: "page-instance-guid-123",
+                        deviceHeaders: [
+                            "rokt-package-name": "com.rokt.example",
+                            "rokt-os-type": "iOS",
+                            "rokt-os-version": "17.0",
+                            "rokt-device-model": "iPhone15,2",
+                            "rokt-ui-locale": "en_US",
+                            "rokt-package-version": "1.0.0"
+                        ]
                     )
                     let input = OffersInput(
                         requestId: "request-id-123",

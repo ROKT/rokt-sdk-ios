@@ -98,6 +98,7 @@ final class TestOffersService: XCTestCase {
     private func makeService(
         _ stub: StubHTTPClient,
         sessionManager: TxnSessionManager = TxnSessionManager(),
+        deviceHeaders: [String: String] = [:],
         maxRetries: Int = 0
     ) -> OffersService {
         OffersService(
@@ -106,6 +107,7 @@ final class TestOffersService: XCTestCase {
             sdkVersion: "1.0.0",
             sessionManager: sessionManager,
             httpClient: stub,
+            deviceHeaders: deviceHeaders,
             maxRetries: maxRetries,
             sleep: { _ in }
         )
@@ -202,6 +204,52 @@ final class TestOffersService: XCTestCase {
         XCTAssertEqual(attributes?["email"] as? String, "a@b.com")
         // Privacy keys are stripped from the forwarded attributes.
         XCTAssertNil(attributes?["noFunctional"])
+    }
+
+    func test_getExperienceData_forwardsDeviceHeaders() {
+        let stub = StubHTTPClient(responseData: Data(offersResponse.utf8), statusCode: 200)
+        let service = makeService(stub, deviceHeaders: [
+            "rokt-os-type": "iOS",
+            "rokt-package-name": "com.rokt.test"
+        ])
+
+        let completed = expectation(description: "offers experience returned")
+        service.getExperienceData(viewName: "checkout", attributes: [:], config: nil, successLayout: { _ in
+            completed.fulfill()
+        }, failure: { error, _, _ in
+            XCTFail("unexpected failure: \(error)")
+        })
+
+        wait(for: [completed], timeout: 5)
+        // Device headers (incl. the load-bearing rokt-package-name) reach the request.
+        XCTAssertEqual(stub.lastHeaders?["rokt-os-type"], "iOS")
+        XCTAssertEqual(stub.lastHeaders?["rokt-package-name"], "com.rokt.test")
+    }
+
+    func test_getExperienceData_omitsAuthorizationUntilTokenRolledForward() {
+        let stub = StubHTTPClient(responseData: Data(offersResponse.utf8), statusCode: 200)
+        let service = makeService(stub, sessionManager: TxnSessionManager())
+
+        // First call: no live token, so Authorization is omitted entirely — the server
+        // then mints a fresh session rather than seeing a blank `Bearer` header.
+        let first = expectation(description: "first offers call")
+        service.getExperienceData(viewName: "checkout", attributes: [:], config: nil, successLayout: { _ in
+            first.fulfill()
+        }, failure: { error, _, _ in
+            XCTFail("unexpected failure: \(error)")
+        })
+        wait(for: [first], timeout: 5)
+        XCTAssertNil(stub.lastHeaders?["Authorization"])
+
+        // The response rolled a non-expired token forward, so the next call carries it.
+        let second = expectation(description: "second offers call")
+        service.getExperienceData(viewName: "checkout", attributes: [:], config: nil, successLayout: { _ in
+            second.fulfill()
+        }, failure: { error, _, _ in
+            XCTFail("unexpected failure: \(error)")
+        })
+        wait(for: [second], timeout: 5)
+        XCTAssertEqual(stub.lastHeaders?["Authorization"], "Bearer rolled-token")
     }
 
     func test_getExperienceData_retriesTransientTransportErrorThenSucceeds() {
