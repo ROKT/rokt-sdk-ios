@@ -24,6 +24,11 @@ internal struct OffersService {
     let makeRequestId: () -> String
     let makePageInstanceGuid: () -> String
     let completionQueue: DispatchQueue
+    // Real-time event store seams (injected for tests). `captureEvents` stores the response's
+    // events for the next call; it only adds (no global clear) to mirror the v1 capture and
+    // avoid wiping triggered events the events/v1 paths share in RealTimeEventManager.shared.
+    let triggeredEvents: () -> [TriggeredRealTimeEvent]
+    let captureEvents: ([UntriggeredRealTimeEvent]) -> Void
 
     init(
         environment: Environment,
@@ -40,7 +45,13 @@ internal struct OffersService {
         },
         makeRequestId: @escaping () -> String = { UUID().uuidString },
         makePageInstanceGuid: @escaping () -> String = { UUID().uuidString },
-        completionQueue: DispatchQueue = .main
+        completionQueue: DispatchQueue = .main,
+        triggeredEvents: @escaping () -> [TriggeredRealTimeEvent] = {
+            RealTimeEventManager.shared.getTriggeredEvents()
+        },
+        captureEvents: @escaping ([UntriggeredRealTimeEvent]) -> Void = { events in
+            RealTimeEventManager.shared.addUntriggeredEvents(events)
+        }
     ) {
         self.environment = environment
         self.accountId = accountId
@@ -55,6 +66,8 @@ internal struct OffersService {
         self.makeRequestId = makeRequestId
         self.makePageInstanceGuid = makePageInstanceGuid
         self.completionQueue = completionQueue
+        self.triggeredEvents = triggeredEvents
+        self.captureEvents = captureEvents
     }
 
     /// Builds the request from the partner inputs, fetches the experience, and reports
@@ -104,21 +117,26 @@ internal struct OffersService {
 
         httpClient.updateTimeout(timeout: requestTimeout)
 
+        let authToken = await sessionManager.authorizationHeader
         let client = OffersClient(
             baseURL: baseURL,
             accountId: accountId,
-            authToken: await sessionManager.authorizationHeader,
+            authToken: authToken,
             sdkVersion: sdkVersion,
             pageInstanceGuid: makePageInstanceGuid(),
             deviceHeaders: deviceHeaders,
             httpClient: httpClient
         )
+        // Forward events triggered during the previous placement; read once, before retries.
+        // Only with a live session to attribute them to, matching Android.
+        let forwardedEvents = authToken != nil ? SelectEventMapper.requestEvents(from: triggeredEvents()) : []
         let input = OffersInput(
             requestId: makeRequestId(),
             pageIdentifier: pageIdentifier,
             attributes: attributes,
             privacyControl: privacyControl,
-            privacy: privacy
+            privacy: privacy,
+            events: forwardedEvents.isEmpty ? nil : forwardedEvents
         )
 
         var attempt = 0
@@ -143,6 +161,10 @@ internal struct OffersService {
                 let decoded = try JSONDecoder().decode(SelectResponse.self, from: data)
                 // Roll the refreshed token forward for the next offers/events call.
                 await sessionManager.update(sessionToken: decoded.sessionToken)
+                // Capture the echoed events so the next placement can forward them back.
+                if let eventData = decoded.eventData {
+                    captureEvents(SelectEventMapper.untriggeredEvents(from: eventData))
+                }
                 return try SelectExperienceAdapter.experienceJSONString(from: decoded)
             } catch let error where isRetryable(error: error) && attempt < maxRetries {
                 try await sleep(backoffDelay(attempt: attempt))

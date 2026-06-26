@@ -63,6 +63,27 @@ final class TestSelectSerialization: XCTestCase {
         XCTAssertNil(object["customer"])
         XCTAssertNil(object["privacy_control"])
         XCTAssertNil(object["privacy"])
+        XCTAssertNil(object["events"])
+    }
+
+    func test_request_encodesEventsInTheEventsEndpointShape() throws {
+        // Forwarded real-time events reuse the /v2/sessions/events element shape:
+        // event_type + epoch-ms timestamp + data.payload, with instance_id omitted.
+        let request = SelectRequest(
+            page: SelectPage(pageIdentifier: "checkout"),
+            channel: SelectChannel(sdkVersion: "5.2.2"),
+            events: [TxnEvent(eventType: "impression", instanceId: nil, timestamp: 123, data: ["payload": .string("pl")])]
+        )
+
+        let encoded = try JSONEncoder().encode(request)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        let events = try XCTUnwrap(object["events"] as? [[String: Any]])
+
+        XCTAssertEqual(events.count, 1)
+        XCTAssertEqual(events.first?["event_type"] as? String, "impression")
+        XCTAssertEqual(events.first?["timestamp"] as? Int, 123)
+        XCTAssertEqual((events.first?["data"] as? [String: Any])?["payload"] as? String, "pl")
+        XCTAssertNil(events.first?["instance_id"])
     }
 
     func test_request_encodesGpcUnderTopLevelPrivacy() throws {

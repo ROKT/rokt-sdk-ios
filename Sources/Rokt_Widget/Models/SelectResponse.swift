@@ -15,6 +15,9 @@ internal struct SelectRequest: Encodable, Equatable {
     let attributes: [String: String]
     let privacyControl: SelectPrivacyControl?
     let privacy: SelectPrivacy?
+    // Real-time events triggered during the previous placement, forwarded for the next
+    // selection. Reuses TxnEvent (the /v2/sessions/events element); omitted when none.
+    let events: [TxnEvent]?
 
     enum CodingKeys: String, CodingKey {
         case page
@@ -22,6 +25,7 @@ internal struct SelectRequest: Encodable, Equatable {
         case attributes
         case privacyControl = "privacy_control"
         case privacy
+        case events
     }
 
     init(
@@ -29,13 +33,15 @@ internal struct SelectRequest: Encodable, Equatable {
         channel: SelectChannel,
         attributes: [String: String] = [:],
         privacyControl: SelectPrivacyControl? = nil,
-        privacy: SelectPrivacy? = nil
+        privacy: SelectPrivacy? = nil,
+        events: [TxnEvent]? = nil
     ) {
         self.page = page
         self.channel = channel
         self.attributes = attributes
         self.privacyControl = privacyControl
         self.privacy = privacy
+        self.events = events
     }
 }
 

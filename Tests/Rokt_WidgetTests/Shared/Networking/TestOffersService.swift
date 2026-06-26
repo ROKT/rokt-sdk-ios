@@ -99,8 +99,11 @@ final class TestOffersService: XCTestCase {
         _ stub: StubHTTPClient,
         sessionManager: TxnSessionManager = TxnSessionManager(),
         deviceHeaders: [String: String] = [:],
+        triggeredEvents: @escaping () -> [TriggeredRealTimeEvent] = { [] },
+        captureEvents: @escaping ([UntriggeredRealTimeEvent]) -> Void = { _ in },
         maxRetries: Int = 0
     ) -> OffersService {
+        // Event store seams default to inert so tests never touch the global singleton.
         OffersService(
             environment: .Prod,
             accountId: "account-1",
@@ -109,7 +112,9 @@ final class TestOffersService: XCTestCase {
             httpClient: stub,
             deviceHeaders: deviceHeaders,
             maxRetries: maxRetries,
-            sleep: { _ in }
+            sleep: { _ in },
+            triggeredEvents: triggeredEvents,
+            captureEvents: captureEvents
         )
     }
 
@@ -258,6 +263,77 @@ final class TestOffersService: XCTestCase {
         XCTAssertEqual(stub.lastHeaders?["Authorization"], "Bearer rolled-token")
     }
 
+    func test_getExperienceData_forwardsTriggeredEventsOnlyWhenSessionLive() throws {
+        let stub = StubHTTPClient(responseData: Data(offersResponse.utf8), statusCode: 200)
+        let eventTime = EventDateFormatter.dateFormatter.string(from: Date(timeIntervalSince1970: 1_782_484_201))
+        let service = makeService(stub, sessionManager: TxnSessionManager(), triggeredEvents: {
+            [TriggeredRealTimeEvent(parentGuid: "p", eventType: "impression", eventTime: eventTime, payload: "pl")]
+        })
+
+        // No live token yet: events are not forwarded (nothing to attribute them to). This
+        // call rolls a non-expired token forward via the response.
+        let first = expectation(description: "first call")
+        service.getExperienceData(viewName: "checkout", attributes: [:], config: nil, successLayout: { _ in
+            first.fulfill()
+        }, failure: { error, _, _ in XCTFail("unexpected failure: \(error)") })
+        wait(for: [first], timeout: 5)
+        XCTAssertNil((stub.lastParameters as? [String: Any])?["events"])
+
+        // With a live token the triggered events ride on the request as events[] in the
+        // /v2/sessions/events shape (event_type + epoch-ms timestamp + data.payload, no instance_id).
+        let second = expectation(description: "second call")
+        service.getExperienceData(viewName: "checkout", attributes: [:], config: nil, successLayout: { _ in
+            second.fulfill()
+        }, failure: { error, _, _ in XCTFail("unexpected failure: \(error)") })
+        wait(for: [second], timeout: 5)
+
+        let body = stub.lastParameters as? [String: Any]
+        let events = try XCTUnwrap(body?["events"] as? [[String: Any]])
+        XCTAssertEqual(events.count, 1)
+        XCTAssertEqual(events.first?["event_type"] as? String, "impression")
+        XCTAssertEqual(events.first?["timestamp"] as? Int, 1_782_484_201_000)
+        XCTAssertEqual((events.first?["data"] as? [String: Any])?["payload"] as? String, "pl")
+        XCTAssertNil(events.first?["instance_id"])
+    }
+
+    func test_getExperienceData_capturesResponseEventDataForNextCall() {
+        let responseWithEvents = """
+        {
+          "session_id": "session-1",
+          "session_token": { "token": "rolled-token", "expires_at": 32503680000000 },
+          "page_context": { "page_id": "checkout" },
+          "plugins": [
+            { "plugin": { "id": "plugin-1", "config": {
+              "token": "plugin-token",
+              "outer_layout_schema": "{\\"layout\\":{\\"node\\":\\"outer\\"}}",
+              "slots": []
+            } } }
+          ],
+          "event_data": {
+            "parent-1": { "token": "tok", "events": { "SignalResponse": { "event_type": "x", "payload": "y" } } }
+          }
+        }
+        """
+        let stub = StubHTTPClient(responseData: Data(responseWithEvents.utf8), statusCode: 200)
+        var captured: [UntriggeredRealTimeEvent] = []
+        let service = makeService(stub, captureEvents: { captured = $0 })
+
+        let completed = expectation(description: "offers response captured")
+        service.getExperienceData(viewName: "checkout", attributes: [:], config: nil, successLayout: { _ in
+            completed.fulfill()
+        }, failure: { error, _, _ in
+            XCTFail("unexpected failure: \(error)")
+        })
+        wait(for: [completed], timeout: 5)
+
+        // The echoed event_data is flattened into untriggered events for the next placement.
+        XCTAssertEqual(captured.count, 1)
+        XCTAssertEqual(captured.first?.triggerGuid, "parent-1")
+        XCTAssertEqual(captured.first?.triggerEvent, "SignalResponse")
+        XCTAssertEqual(captured.first?.eventType, "x")
+        XCTAssertEqual(captured.first?.payload, "y")
+    }
+
     func test_getExperienceData_retriesTransientTransportErrorThenSucceeds() {
         let timeout = NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut)
         let stub = StubHTTPClient(sequence: [
@@ -322,7 +398,8 @@ final class TestOffersService: XCTestCase {
             sessionManager: TxnSessionManager(),
             httpClient: stub,
             maxRetries: 1,
-            baseBackoff: 0.001
+            baseBackoff: 0.001,
+            triggeredEvents: { [] }
         )
 
         let completed = expectation(description: "default backoff sleep used on retry")
