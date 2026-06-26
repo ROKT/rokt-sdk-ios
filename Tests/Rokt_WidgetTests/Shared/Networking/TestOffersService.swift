@@ -98,16 +98,23 @@ final class TestOffersService: XCTestCase {
     private func makeService(
         _ stub: StubHTTPClient,
         sessionManager: TxnSessionManager = TxnSessionManager(),
+        deviceHeaders: [String: String] = [:],
+        triggeredEvents: @escaping () -> [TriggeredRealTimeEvent] = { [] },
+        captureEvents: @escaping ([UntriggeredRealTimeEvent]) -> Void = { _ in },
         maxRetries: Int = 0
     ) -> OffersService {
+        // Event store seams default to inert so tests never touch the global singleton.
         OffersService(
             environment: .Prod,
             accountId: "account-1",
             sdkVersion: "1.0.0",
             sessionManager: sessionManager,
             httpClient: stub,
+            deviceHeaders: deviceHeaders,
             maxRetries: maxRetries,
-            sleep: { _ in }
+            sleep: { _ in },
+            triggeredEvents: triggeredEvents,
+            captureEvents: captureEvents
         )
     }
 
@@ -183,7 +190,7 @@ final class TestOffersService: XCTestCase {
         let completed = expectation(description: "request built")
         service.getExperienceData(
             viewName: "checkout",
-            attributes: ["noFunctional": "true", "doNotShareOrSell": "false", "email": "a@b.com"],
+            attributes: ["noFunctional": "true", "doNotShareOrSell": "false", "gpcEnabled": "true", "email": "a@b.com"],
             config: nil,
             onRequestStart: { onRequestStartFired = true },
             successLayout: { _ in completed.fulfill() },
@@ -194,14 +201,139 @@ final class TestOffersService: XCTestCase {
         XCTAssertTrue(onRequestStartFired)
 
         let body = try? XCTUnwrap(stub.lastParameters as? [String: Any])
-        let privacy = body?["privacy_control"] as? [String: Any]
-        XCTAssertEqual(privacy?["no_functional"] as? Bool, true)
-        XCTAssertEqual(privacy?["do_not_share_or_sell"] as? Bool, false)
+        let privacyControl = body?["privacy_control"] as? [String: Any]
+        XCTAssertEqual(privacyControl?["no_functional"] as? Bool, true)
+        XCTAssertEqual(privacyControl?["do_not_share_or_sell"] as? Bool, false)
+
+        // gpc_enabled travels under a separate top-level `privacy` object, not privacy_control.
+        let privacy = body?["privacy"] as? [String: Any]
+        XCTAssertEqual(privacy?["gpc_enabled"] as? Bool, true)
+        XCTAssertNil(privacyControl?["gpc_enabled"])
 
         let attributes = body?["attributes"] as? [String: Any]
         XCTAssertEqual(attributes?["email"] as? String, "a@b.com")
-        // Privacy keys are stripped from the forwarded attributes.
+        // Privacy keys (incl. gpcEnabled) are stripped from the forwarded attributes.
         XCTAssertNil(attributes?["noFunctional"])
+        XCTAssertNil(attributes?["gpcEnabled"])
+    }
+
+    func test_getExperienceData_forwardsDeviceHeaders() {
+        let stub = StubHTTPClient(responseData: Data(offersResponse.utf8), statusCode: 200)
+        let service = makeService(stub, deviceHeaders: [
+            "rokt-os-type": "iOS",
+            "rokt-package-name": "com.rokt.test"
+        ])
+
+        let completed = expectation(description: "offers experience returned")
+        service.getExperienceData(viewName: "checkout", attributes: [:], config: nil, successLayout: { _ in
+            completed.fulfill()
+        }, failure: { error, _, _ in
+            XCTFail("unexpected failure: \(error)")
+        })
+
+        wait(for: [completed], timeout: 5)
+        // Device headers (incl. the load-bearing rokt-package-name) reach the request.
+        XCTAssertEqual(stub.lastHeaders?["rokt-os-type"], "iOS")
+        XCTAssertEqual(stub.lastHeaders?["rokt-package-name"], "com.rokt.test")
+        // Every v2 request marks itself as live (non-shadow) traffic.
+        XCTAssertEqual(stub.lastHeaders?["rokt-txn-shadow"], "false")
+    }
+
+    func test_getExperienceData_omitsAuthorizationUntilTokenRolledForward() {
+        let stub = StubHTTPClient(responseData: Data(offersResponse.utf8), statusCode: 200)
+        let service = makeService(stub, sessionManager: TxnSessionManager())
+
+        // First call: no live token, so Authorization is omitted entirely — the server
+        // then mints a fresh session rather than seeing a blank `Bearer` header.
+        let first = expectation(description: "first offers call")
+        service.getExperienceData(viewName: "checkout", attributes: [:], config: nil, successLayout: { _ in
+            first.fulfill()
+        }, failure: { error, _, _ in
+            XCTFail("unexpected failure: \(error)")
+        })
+        wait(for: [first], timeout: 5)
+        XCTAssertNil(stub.lastHeaders?["Authorization"])
+
+        // The response rolled a non-expired token forward, so the next call carries it.
+        let second = expectation(description: "second offers call")
+        service.getExperienceData(viewName: "checkout", attributes: [:], config: nil, successLayout: { _ in
+            second.fulfill()
+        }, failure: { error, _, _ in
+            XCTFail("unexpected failure: \(error)")
+        })
+        wait(for: [second], timeout: 5)
+        XCTAssertEqual(stub.lastHeaders?["Authorization"], "Bearer rolled-token")
+    }
+
+    func test_getExperienceData_forwardsTriggeredEventsOnlyWhenSessionLive() throws {
+        let stub = StubHTTPClient(responseData: Data(offersResponse.utf8), statusCode: 200)
+        let eventTime = EventDateFormatter.dateFormatter.string(from: Date(timeIntervalSince1970: 1_782_484_201))
+        let service = makeService(stub, sessionManager: TxnSessionManager(), triggeredEvents: {
+            [TriggeredRealTimeEvent(parentGuid: "p", eventType: "impression", eventTime: eventTime, payload: "pl")]
+        })
+
+        // No live token yet: events are not forwarded (nothing to attribute them to). This
+        // call rolls a non-expired token forward via the response.
+        let first = expectation(description: "first call")
+        service.getExperienceData(viewName: "checkout", attributes: [:], config: nil, successLayout: { _ in
+            first.fulfill()
+        }, failure: { error, _, _ in XCTFail("unexpected failure: \(error)") })
+        wait(for: [first], timeout: 5)
+        XCTAssertNil((stub.lastParameters as? [String: Any])?["events"])
+
+        // With a live token the triggered events ride on the request as events[] in the
+        // /v2/sessions/events shape (event_type + epoch-ms timestamp + data.payload, no instance_id).
+        let second = expectation(description: "second call")
+        service.getExperienceData(viewName: "checkout", attributes: [:], config: nil, successLayout: { _ in
+            second.fulfill()
+        }, failure: { error, _, _ in XCTFail("unexpected failure: \(error)") })
+        wait(for: [second], timeout: 5)
+
+        let body = stub.lastParameters as? [String: Any]
+        let events = try XCTUnwrap(body?["events"] as? [[String: Any]])
+        XCTAssertEqual(events.count, 1)
+        XCTAssertEqual(events.first?["event_type"] as? String, "impression")
+        XCTAssertEqual(events.first?["timestamp"] as? Int, 1_782_484_201_000)
+        XCTAssertEqual((events.first?["data"] as? [String: Any])?["payload"] as? String, "pl")
+        XCTAssertNil(events.first?["instance_id"])
+    }
+
+    func test_getExperienceData_capturesResponseEventDataForNextCall() {
+        let responseWithEvents = """
+        {
+          "session_id": "session-1",
+          "session_token": { "token": "rolled-token", "expires_at": 32503680000000 },
+          "page_context": { "page_id": "checkout" },
+          "plugins": [
+            { "plugin": { "id": "plugin-1", "config": {
+              "token": "plugin-token",
+              "outer_layout_schema": "{\\"layout\\":{\\"node\\":\\"outer\\"}}",
+              "slots": []
+            } } }
+          ],
+          "event_data": {
+            "parent-1": { "token": "tok", "events": { "SignalResponse": { "event_type": "x", "payload": "y" } } }
+          }
+        }
+        """
+        let stub = StubHTTPClient(responseData: Data(responseWithEvents.utf8), statusCode: 200)
+        var captured: [UntriggeredRealTimeEvent] = []
+        let service = makeService(stub, captureEvents: { captured = $0 })
+
+        let completed = expectation(description: "offers response captured")
+        service.getExperienceData(viewName: "checkout", attributes: [:], config: nil, successLayout: { _ in
+            completed.fulfill()
+        }, failure: { error, _, _ in
+            XCTFail("unexpected failure: \(error)")
+        })
+        wait(for: [completed], timeout: 5)
+
+        // The echoed event_data is flattened into untriggered events for the next placement.
+        XCTAssertEqual(captured.count, 1)
+        XCTAssertEqual(captured.first?.triggerGuid, "parent-1")
+        XCTAssertEqual(captured.first?.triggerEvent, "SignalResponse")
+        XCTAssertEqual(captured.first?.eventType, "x")
+        XCTAssertEqual(captured.first?.payload, "y")
     }
 
     func test_getExperienceData_retriesTransientTransportErrorThenSucceeds() {
@@ -268,7 +400,8 @@ final class TestOffersService: XCTestCase {
             sessionManager: TxnSessionManager(),
             httpClient: stub,
             maxRetries: 1,
-            baseBackoff: 0.001
+            baseBackoff: 0.001,
+            triggeredEvents: { [] }
         )
 
         let completed = expectation(description: "default backoff sleep used on retry")

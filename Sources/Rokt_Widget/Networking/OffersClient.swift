@@ -5,17 +5,19 @@ import Foundation
 internal struct OffersClient {
     let baseURL: URL
     let accountId: String
-    let authToken: String
+    let authToken: String?
     let sdkVersion: String
     let pageInstanceGuid: String
+    let deviceHeaders: [String: String]
     let httpClient: HTTPClientAdapter
 
     init(
         baseURL: URL,
         accountId: String,
-        authToken: String,
+        authToken: String?,
         sdkVersion: String,
         pageInstanceGuid: String,
+        deviceHeaders: [String: String] = [:],
         httpClient: HTTPClientAdapter = RoktHTTPClient()
     ) {
         self.baseURL = baseURL
@@ -23,6 +25,7 @@ internal struct OffersClient {
         self.authToken = authToken
         self.sdkVersion = sdkVersion
         self.pageInstanceGuid = pageInstanceGuid
+        self.deviceHeaders = deviceHeaders
         self.httpClient = httpClient
     }
 
@@ -39,22 +42,24 @@ internal struct OffersClient {
             page: SelectPage(pageIdentifier: input.pageIdentifier),
             channel: SelectChannel(sdkVersion: sdkVersion),
             attributes: input.attributes,
-            privacyControl: input.privacyControl
+            privacyControl: input.privacyControl,
+            privacy: input.privacy,
+            events: input.events
         )
         let bodyData = try JSONEncoder().encode(requestBody)
         guard let bodyParameters = try JSONSerialization.jsonObject(with: bodyData) as? RoktHTTPParameters else {
             throw OffersClientError.bodyEncodingFailed
         }
 
-        let headers: RoktHTTPHeaders = [
-            "rokt-account-id": accountId,
-            "Authorization": authToken,
-            "x-request-id": input.requestId,
-            "rokt-page-instance-guid": pageInstanceGuid,
-            // The app bundle id scopes server-side page detection for mobile.
-            "rokt-package-name": Bundle.main.bundleIdentifier ?? "",
-            "Content-Type": "application/json"
-        ]
+        var headers = TxnRequestHeaders.common(accountId: accountId, authToken: authToken)
+        headers["x-request-id"] = input.requestId
+        headers["rokt-page-instance-guid"] = pageInstanceGuid
+        // Device headers (os, model, locale, app version) and the load-bearing
+        // rokt-package-name ride in via NetworkingHelper.txnDeviceHeaders — the
+        // gateway's mobile page detection and targeting key off them.
+        for (key, value) in deviceHeaders {
+            headers[key] = value
+        }
 
         return try await withCheckedThrowingContinuation { continuation in
             httpClient.startRequestWith(
@@ -87,16 +92,22 @@ internal struct OffersInput {
     let pageIdentifier: String
     let attributes: [String: String]
     let privacyControl: SelectPrivacyControl?
+    let privacy: SelectPrivacy?
+    let events: [SelectEvent]?
 
     init(
         requestId: String,
         pageIdentifier: String,
         attributes: [String: String],
-        privacyControl: SelectPrivacyControl? = nil
+        privacyControl: SelectPrivacyControl? = nil,
+        privacy: SelectPrivacy? = nil,
+        events: [SelectEvent]? = nil
     ) {
         self.requestId = requestId
         self.pageIdentifier = pageIdentifier
         self.attributes = attributes
         self.privacyControl = privacyControl
+        self.privacy = privacy
+        self.events = events
     }
 }

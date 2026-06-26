@@ -16,6 +16,7 @@ internal struct OffersService {
     let sdkVersion: String
     let sessionManager: TxnSessionManager
     let httpClient: HTTPClientAdapter
+    let deviceHeaders: [String: String]
     let maxRetries: Int
     let requestTimeout: TimeInterval
     let baseBackoff: TimeInterval
@@ -23,6 +24,11 @@ internal struct OffersService {
     let makeRequestId: () -> String
     let makePageInstanceGuid: () -> String
     let completionQueue: DispatchQueue
+    // Real-time event store seams (injected for tests). `captureEvents` stores the response's
+    // events for the next call; it only adds (no global clear) to mirror the v1 capture and
+    // avoid wiping triggered events the events/v1 paths share in RealTimeEventManager.shared.
+    let triggeredEvents: () -> [TriggeredRealTimeEvent]
+    let captureEvents: ([UntriggeredRealTimeEvent]) -> Void
 
     init(
         environment: Environment,
@@ -30,6 +36,7 @@ internal struct OffersService {
         sdkVersion: String,
         sessionManager: TxnSessionManager,
         httpClient: HTTPClientAdapter = RoktHTTPClient(),
+        deviceHeaders: [String: String] = [:],
         maxRetries: Int = 3,
         requestTimeout: TimeInterval = 7,
         baseBackoff: TimeInterval = 0.2,
@@ -38,13 +45,20 @@ internal struct OffersService {
         },
         makeRequestId: @escaping () -> String = { UUID().uuidString },
         makePageInstanceGuid: @escaping () -> String = { UUID().uuidString },
-        completionQueue: DispatchQueue = .main
+        completionQueue: DispatchQueue = .main,
+        triggeredEvents: @escaping () -> [TriggeredRealTimeEvent] = {
+            RealTimeEventManager.shared.getTriggeredEvents()
+        },
+        captureEvents: @escaping ([UntriggeredRealTimeEvent]) -> Void = { events in
+            RealTimeEventManager.shared.addUntriggeredEvents(events)
+        }
     ) {
         self.environment = environment
         self.accountId = accountId
         self.sdkVersion = sdkVersion
         self.sessionManager = sessionManager
         self.httpClient = httpClient
+        self.deviceHeaders = deviceHeaders
         self.maxRetries = maxRetries
         self.requestTimeout = requestTimeout
         self.baseBackoff = baseBackoff
@@ -52,6 +66,8 @@ internal struct OffersService {
         self.makeRequestId = makeRequestId
         self.makePageInstanceGuid = makePageInstanceGuid
         self.completionQueue = completionQueue
+        self.triggeredEvents = triggeredEvents
+        self.captureEvents = captureEvents
     }
 
     /// Builds the request from the partner inputs, fetches the experience, and reports
@@ -67,7 +83,10 @@ internal struct OffersService {
         onRequestStart?()
 
         // Extract privacy KVPs before sanitising, then enrich the remaining attributes.
-        let privacyControl = buildPrivacyControl(from: attributes)
+        // gpc_enabled travels under `privacy`, separate from `privacy_control`, to match Android.
+        let privacyPayload = RoktAPIHelper.getPrivacyControlPayload(attributes: attributes)
+        let privacyControl = buildPrivacyControl(from: privacyPayload)
+        let privacy = buildPrivacy(from: privacyPayload)
         let sanitisedAttributes = RoktAPIHelper.removePrivacyControlAttributes(attributes: attributes)
         let enrichedAttributes = AttributeEnrichment.shared.enrich(attributes: sanitisedAttributes, config: config)
 
@@ -76,7 +95,8 @@ internal struct OffersService {
                 let experience = try await fetchExperienceString(
                     pageIdentifier: viewName ?? "",
                     attributes: enrichedAttributes,
-                    privacyControl: privacyControl
+                    privacyControl: privacyControl,
+                    privacy: privacy
                 )
                 completionQueue.async { successLayout?(experience) }
             } catch {
@@ -89,7 +109,8 @@ internal struct OffersService {
     private func fetchExperienceString(
         pageIdentifier: String,
         attributes: [String: String],
-        privacyControl: SelectPrivacyControl?
+        privacyControl: SelectPrivacyControl?,
+        privacy: SelectPrivacy?
     ) async throws -> String {
         guard let baseURL = URL(string: environment.gatewayBaseURL) else {
             throw OffersError.invalidBaseURL
@@ -97,19 +118,29 @@ internal struct OffersService {
 
         httpClient.updateTimeout(timeout: requestTimeout)
 
+        let authToken = await sessionManager.authorizationHeader
         let client = OffersClient(
             baseURL: baseURL,
             accountId: accountId,
-            authToken: (await sessionManager.authorizationHeader) ?? "",
+            authToken: authToken,
             sdkVersion: sdkVersion,
             pageInstanceGuid: makePageInstanceGuid(),
+            deviceHeaders: deviceHeaders,
             httpClient: httpClient
         )
+        // Forward events triggered during the previous placement; read once, before retries,
+        // and only with a live session to attribute them to (matching Android). As on the v1
+        // path, triggered events are not cleared after forwarding — they ride subsequent
+        // requests until session invalidation; re-send is expected (the "only adds, no clear"
+        // note elsewhere is about the untriggered response-capture, not this read).
+        let forwardedEvents = authToken != nil ? SelectEventMapper.requestEvents(from: triggeredEvents()) : []
         let input = OffersInput(
             requestId: makeRequestId(),
             pageIdentifier: pageIdentifier,
             attributes: attributes,
-            privacyControl: privacyControl
+            privacyControl: privacyControl,
+            privacy: privacy,
+            events: forwardedEvents.isEmpty ? nil : forwardedEvents
         )
 
         var attempt = 0
@@ -134,6 +165,10 @@ internal struct OffersService {
                 let decoded = try JSONDecoder().decode(SelectResponse.self, from: data)
                 // Roll the refreshed token forward for the next offers/events call.
                 await sessionManager.update(sessionToken: decoded.sessionToken)
+                // Capture the echoed events so the next placement can forward them back.
+                if let eventData = decoded.eventData {
+                    captureEvents(SelectEventMapper.untriggeredEvents(from: eventData))
+                }
                 return try SelectExperienceAdapter.experienceJSONString(from: decoded)
             } catch let error where isRetryable(error: error) && attempt < maxRetries {
                 try await sleep(backoffDelay(attempt: attempt))
@@ -143,14 +178,22 @@ internal struct OffersService {
         }
     }
 
-    private func buildPrivacyControl(from attributes: [String: String]) -> SelectPrivacyControl? {
-        let payload = RoktAPIHelper.getPrivacyControlPayload(attributes: attributes)
-        guard !payload.isEmpty else { return nil }
+    // Both builders read the same parsed payload; getExperienceData computes it once.
+    private func buildPrivacyControl(from payload: [String: Bool]) -> SelectPrivacyControl? {
+        guard payload[RoktAPIHelper.noFunctionalKey] != nil
+            || payload[RoktAPIHelper.noTargetingKey] != nil
+            || payload[RoktAPIHelper.doNotShareOrSellKey] != nil else { return nil }
         return SelectPrivacyControl(
             noFunctional: payload[RoktAPIHelper.noFunctionalKey],
             noTargeting: payload[RoktAPIHelper.noTargetingKey],
             doNotShareOrSell: payload[RoktAPIHelper.doNotShareOrSellKey]
         )
+    }
+
+    // gpc_enabled is a sibling of privacy_control (Android parity), omitted when the partner sent none.
+    private func buildPrivacy(from payload: [String: Bool]) -> SelectPrivacy? {
+        guard let gpcEnabled = payload[RoktAPIHelper.gpcEnabledKey] else { return nil }
+        return SelectPrivacy(gpcEnabled: gpcEnabled)
     }
 
     static func statusCode(from error: Error) -> Int? {

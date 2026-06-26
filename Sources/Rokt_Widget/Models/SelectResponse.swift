@@ -14,24 +14,34 @@ internal struct SelectRequest: Encodable, Equatable {
     let channel: SelectChannel
     let attributes: [String: String]
     let privacyControl: SelectPrivacyControl?
+    let privacy: SelectPrivacy?
+    // Real-time events triggered during the previous placement, forwarded for the next
+    // selection; omitted when none.
+    let events: [SelectEvent]?
 
     enum CodingKeys: String, CodingKey {
         case page
         case channel
         case attributes
         case privacyControl = "privacy_control"
+        case privacy
+        case events
     }
 
     init(
         page: SelectPage,
         channel: SelectChannel,
         attributes: [String: String] = [:],
-        privacyControl: SelectPrivacyControl? = nil
+        privacyControl: SelectPrivacyControl? = nil,
+        privacy: SelectPrivacy? = nil,
+        events: [SelectEvent]? = nil
     ) {
         self.page = page
         self.channel = channel
         self.attributes = attributes
         self.privacyControl = privacyControl
+        self.privacy = privacy
+        self.events = events
     }
 }
 
@@ -88,6 +98,48 @@ internal struct SelectPrivacyControl: Encodable, Equatable {
         self.noFunctional = noFunctional
         self.noTargeting = noTargeting
         self.doNotShareOrSell = doNotShareOrSell
+    }
+}
+
+/// GPC (Global Privacy Control) signal. A top-level sibling of
+/// ``SelectPrivacyControl`` — `gpc_enabled` rides under `privacy`, not inside
+/// `privacy_control`, matching Android.
+internal struct SelectPrivacy: Encodable, Equatable {
+    let gpcEnabled: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case gpcEnabled = "gpc_enabled"
+    }
+
+    init(gpcEnabled: Bool? = nil) {
+        self.gpcEnabled = gpcEnabled
+    }
+}
+
+/// A real-time event forwarded on the offers request: the provider's typed event
+/// plus its echoed `payload`, stamped with an epoch-ms `timestamp`. Encodes to the
+/// `/v2/sessions/events` element shape (`event_type`, `timestamp`, `data.payload`).
+internal struct SelectEvent: Encodable, Equatable {
+    let eventType: String
+    let timestamp: Int64
+    let payload: String
+
+    enum CodingKeys: String, CodingKey {
+        case eventType = "event_type"
+        case timestamp
+        case data
+    }
+
+    private enum DataKeys: String, CodingKey {
+        case payload
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(eventType, forKey: .eventType)
+        try container.encode(timestamp, forKey: .timestamp)
+        var data = container.nestedContainer(keyedBy: DataKeys.self, forKey: .data)
+        try data.encode(payload, forKey: .payload)
     }
 }
 
@@ -365,7 +417,7 @@ internal struct SelectEventDataEntry: Decodable, Equatable {
 
 /// A pre-serialized real-time event payload, keyed by signal type. Mirrors the
 /// provider's typed event shape (and Android's `SelectRealTimeEvent`).
-internal struct SelectRealTimeEvent: Decodable, Equatable {
+internal struct SelectRealTimeEvent: Decodable, Equatable, RealTimeEventSignal {
     let eventType: String?
     let payload: String?
 

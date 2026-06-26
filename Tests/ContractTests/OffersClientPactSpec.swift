@@ -26,6 +26,9 @@ import PactSwift
 /// the client drift to `"ios-mobile"` without failing the consumer test.
 /// Per-runtime values (account id, auth token, request id, page identifier,
 /// etc.) stay as `SomethingLike` because they legitimately vary per call.
+/// Device headers from `NetworkingHelper.txnDeviceHeaders` are sent on the live
+/// request; only `rokt-package-name` (it gates page detection) is asserted here,
+/// supplied via `deviceHeaders` below.
 class OffersClientPactSpec: XCTestCase {
     static var mockService: MockService!
 
@@ -124,7 +127,8 @@ class OffersClientPactSpec: XCTestCase {
                         accountId: "account-456",
                         authToken: "Bearer session-token-abc",
                         sdkVersion: "5.2.2",
-                        pageInstanceGuid: "page-instance-guid-123"
+                        pageInstanceGuid: "page-instance-guid-123",
+                        deviceHeaders: ["rokt-package-name": "com.rokt.example"]
                     )
                     let input = OffersInput(
                         requestId: "request-id-123",
@@ -220,7 +224,8 @@ class OffersClientPactSpec: XCTestCase {
                         accountId: "account-456",
                         authToken: "Bearer session-token-abc",
                         sdkVersion: "5.2.2",
-                        pageInstanceGuid: "page-instance-guid-123"
+                        pageInstanceGuid: "page-instance-guid-123",
+                        deviceHeaders: ["rokt-package-name": "com.rokt.example"]
                     )
                     let input = OffersInput(
                         requestId: "request-id-123",

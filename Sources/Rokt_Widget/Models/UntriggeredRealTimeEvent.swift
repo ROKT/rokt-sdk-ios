@@ -20,26 +20,9 @@ struct UntriggeredEventsContainer: Decodable {
     init(from decoder: Decoder) throws {
         let rootContainer = try decoder.container(keyedBy: CodingKeys.self)
         let rawEventDataMap = try rootContainer.decode([String: RawEventData].self, forKey: .eventData)
-
-        var parsedEvents: [UntriggeredRealTimeEvent] = []
-
-        for (parentGuid, individualRawData) in rawEventDataMap {
-            if let actualEvents = individualRawData.events {
-                for (signalKey, rawSignalEvent) in actualEvents {
-                    let event = UntriggeredRealTimeEvent(
-                        triggerGuid: parentGuid,
-                        triggerEvent: signalKey,
-                        eventType: rawSignalEvent.eventType,
-                        payload: rawSignalEvent.payload
-                    )
-                    if event.isValid() {
-                        parsedEvents.append(event)
-                    }
-                }
-            }
-        }
-
-        self.untriggeredEvents = parsedEvents
+        self.untriggeredEvents = UntriggeredRealTimeEvent.flattenedValid(
+            from: rawEventDataMap.mapValues { $0.events }
+        )
     }
 
     enum CodingKeys: String, CodingKey {
@@ -51,7 +34,37 @@ private struct RawEventData: Decodable {
     let events: [String: RawEvent]?
 }
 
-private struct RawEvent: Decodable {
+private struct RawEvent: Decodable, RealTimeEventSignal {
     let eventType: String?
     let payload: String?
+}
+
+// A decoded real-time-event signal: the minimal shape (event_type + payload) shared by the
+// v1 (camelCase RawEvent) and v2 (snake_case SelectRealTimeEvent) decode types. They stay
+// separate Decodables for the casing difference, but flatten/validate through one path.
+internal protocol RealTimeEventSignal {
+    var eventType: String? { get }
+    var payload: String? { get }
+}
+
+extension UntriggeredRealTimeEvent {
+    /// Flatten a decoded event_data envelope (parentGuid -> signalKey -> signal) into untriggered
+    /// events, dropping invalid entries. Single home for the validity rule so v1/v2 can't drift.
+    static func flattenedValid<Signal: RealTimeEventSignal>(
+        from eventData: [String: [String: Signal]?]
+    ) -> [UntriggeredRealTimeEvent] {
+        var events: [UntriggeredRealTimeEvent] = []
+        for (parentGuid, signals) in eventData {
+            guard let signals else { continue }
+            for (signalKey, signal) in signals {
+                events.append(UntriggeredRealTimeEvent(
+                    triggerGuid: parentGuid,
+                    triggerEvent: signalKey,
+                    eventType: signal.eventType,
+                    payload: signal.payload
+                ))
+            }
+        }
+        return events.filter { $0.isValid() }
+    }
 }
