@@ -185,7 +185,7 @@ final class TestOffersService: XCTestCase {
         let completed = expectation(description: "request built")
         service.getExperienceData(
             viewName: "checkout",
-            attributes: ["noFunctional": "true", "doNotShareOrSell": "false", "email": "a@b.com"],
+            attributes: ["noFunctional": "true", "doNotShareOrSell": "false", "gpcEnabled": "true", "email": "a@b.com"],
             config: nil,
             onRequestStart: { onRequestStartFired = true },
             successLayout: { _ in completed.fulfill() },
@@ -196,14 +196,20 @@ final class TestOffersService: XCTestCase {
         XCTAssertTrue(onRequestStartFired)
 
         let body = try? XCTUnwrap(stub.lastParameters as? [String: Any])
-        let privacy = body?["privacy_control"] as? [String: Any]
-        XCTAssertEqual(privacy?["no_functional"] as? Bool, true)
-        XCTAssertEqual(privacy?["do_not_share_or_sell"] as? Bool, false)
+        let privacyControl = body?["privacy_control"] as? [String: Any]
+        XCTAssertEqual(privacyControl?["no_functional"] as? Bool, true)
+        XCTAssertEqual(privacyControl?["do_not_share_or_sell"] as? Bool, false)
+
+        // gpc_enabled travels under a separate top-level `privacy` object, not privacy_control.
+        let privacy = body?["privacy"] as? [String: Any]
+        XCTAssertEqual(privacy?["gpc_enabled"] as? Bool, true)
+        XCTAssertNil(privacyControl?["gpc_enabled"])
 
         let attributes = body?["attributes"] as? [String: Any]
         XCTAssertEqual(attributes?["email"] as? String, "a@b.com")
-        // Privacy keys are stripped from the forwarded attributes.
+        // Privacy keys (incl. gpcEnabled) are stripped from the forwarded attributes.
         XCTAssertNil(attributes?["noFunctional"])
+        XCTAssertNil(attributes?["gpcEnabled"])
     }
 
     func test_getExperienceData_forwardsDeviceHeaders() {

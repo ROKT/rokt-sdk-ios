@@ -14,24 +14,28 @@ internal struct SelectRequest: Encodable, Equatable {
     let channel: SelectChannel
     let attributes: [String: String]
     let privacyControl: SelectPrivacyControl?
+    let privacy: SelectPrivacy?
 
     enum CodingKeys: String, CodingKey {
         case page
         case channel
         case attributes
         case privacyControl = "privacy_control"
+        case privacy
     }
 
     init(
         page: SelectPage,
         channel: SelectChannel,
         attributes: [String: String] = [:],
-        privacyControl: SelectPrivacyControl? = nil
+        privacyControl: SelectPrivacyControl? = nil,
+        privacy: SelectPrivacy? = nil
     ) {
         self.page = page
         self.channel = channel
         self.attributes = attributes
         self.privacyControl = privacyControl
+        self.privacy = privacy
     }
 }
 
@@ -88,6 +92,21 @@ internal struct SelectPrivacyControl: Encodable, Equatable {
         self.noFunctional = noFunctional
         self.noTargeting = noTargeting
         self.doNotShareOrSell = doNotShareOrSell
+    }
+}
+
+/// GPC (Global Privacy Control) signal. A top-level sibling of
+/// ``SelectPrivacyControl`` — `gpc_enabled` rides under `privacy`, not inside
+/// `privacy_control`, matching Android.
+internal struct SelectPrivacy: Encodable, Equatable {
+    let gpcEnabled: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case gpcEnabled = "gpc_enabled"
+    }
+
+    init(gpcEnabled: Bool? = nil) {
+        self.gpcEnabled = gpcEnabled
     }
 }
 

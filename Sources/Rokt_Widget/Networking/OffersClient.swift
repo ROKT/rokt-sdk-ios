@@ -42,7 +42,8 @@ internal struct OffersClient {
             page: SelectPage(pageIdentifier: input.pageIdentifier),
             channel: SelectChannel(sdkVersion: sdkVersion),
             attributes: input.attributes,
-            privacyControl: input.privacyControl
+            privacyControl: input.privacyControl,
+            privacy: input.privacy
         )
         let bodyData = try JSONEncoder().encode(requestBody)
         guard let bodyParameters = try JSONSerialization.jsonObject(with: bodyData) as? RoktHTTPParameters else {
@@ -97,16 +98,19 @@ internal struct OffersInput {
     let pageIdentifier: String
     let attributes: [String: String]
     let privacyControl: SelectPrivacyControl?
+    let privacy: SelectPrivacy?
 
     init(
         requestId: String,
         pageIdentifier: String,
         attributes: [String: String],
-        privacyControl: SelectPrivacyControl? = nil
+        privacyControl: SelectPrivacyControl? = nil,
+        privacy: SelectPrivacy? = nil
     ) {
         self.requestId = requestId
         self.pageIdentifier = pageIdentifier
         self.attributes = attributes
         self.privacyControl = privacyControl
+        self.privacy = privacy
     }
 }

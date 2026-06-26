@@ -62,6 +62,24 @@ final class TestSelectSerialization: XCTestCase {
         XCTAssertNil(object["mpid"])
         XCTAssertNil(object["customer"])
         XCTAssertNil(object["privacy_control"])
+        XCTAssertNil(object["privacy"])
+    }
+
+    func test_request_encodesGpcUnderTopLevelPrivacy() throws {
+        // gpc_enabled rides under a top-level `privacy` object, a sibling of
+        // `privacy_control` (Android parity) — not folded into privacy_control.
+        let request = SelectRequest(
+            page: SelectPage(pageIdentifier: "checkout"),
+            channel: SelectChannel(sdkVersion: "5.2.2"),
+            privacy: SelectPrivacy(gpcEnabled: true)
+        )
+
+        let encoded = try JSONEncoder().encode(request)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+
+        let privacy = try XCTUnwrap(object["privacy"] as? [String: Any])
+        XCTAssertEqual(privacy["gpc_enabled"] as? Bool, true)
+        XCTAssertNil(object["privacy_control"])
     }
 
     // MARK: - Response

@@ -70,7 +70,9 @@ internal struct OffersService {
         onRequestStart?()
 
         // Extract privacy KVPs before sanitising, then enrich the remaining attributes.
+        // gpc_enabled travels under `privacy`, separate from `privacy_control`, to match Android.
         let privacyControl = buildPrivacyControl(from: attributes)
+        let privacy = buildPrivacy(from: attributes)
         let sanitisedAttributes = RoktAPIHelper.removePrivacyControlAttributes(attributes: attributes)
         let enrichedAttributes = AttributeEnrichment.shared.enrich(attributes: sanitisedAttributes, config: config)
 
@@ -79,7 +81,8 @@ internal struct OffersService {
                 let experience = try await fetchExperienceString(
                     pageIdentifier: viewName ?? "",
                     attributes: enrichedAttributes,
-                    privacyControl: privacyControl
+                    privacyControl: privacyControl,
+                    privacy: privacy
                 )
                 completionQueue.async { successLayout?(experience) }
             } catch {
@@ -92,7 +95,8 @@ internal struct OffersService {
     private func fetchExperienceString(
         pageIdentifier: String,
         attributes: [String: String],
-        privacyControl: SelectPrivacyControl?
+        privacyControl: SelectPrivacyControl?,
+        privacy: SelectPrivacy?
     ) async throws -> String {
         guard let baseURL = URL(string: environment.gatewayBaseURL) else {
             throw OffersError.invalidBaseURL
@@ -113,7 +117,8 @@ internal struct OffersService {
             requestId: makeRequestId(),
             pageIdentifier: pageIdentifier,
             attributes: attributes,
-            privacyControl: privacyControl
+            privacyControl: privacyControl,
+            privacy: privacy
         )
 
         var attempt = 0
@@ -149,12 +154,21 @@ internal struct OffersService {
 
     private func buildPrivacyControl(from attributes: [String: String]) -> SelectPrivacyControl? {
         let payload = RoktAPIHelper.getPrivacyControlPayload(attributes: attributes)
-        guard !payload.isEmpty else { return nil }
+        guard payload[RoktAPIHelper.noFunctionalKey] != nil
+            || payload[RoktAPIHelper.noTargetingKey] != nil
+            || payload[RoktAPIHelper.doNotShareOrSellKey] != nil else { return nil }
         return SelectPrivacyControl(
             noFunctional: payload[RoktAPIHelper.noFunctionalKey],
             noTargeting: payload[RoktAPIHelper.noTargetingKey],
             doNotShareOrSell: payload[RoktAPIHelper.doNotShareOrSellKey]
         )
+    }
+
+    // gpc_enabled is a sibling of privacy_control (Android parity), omitted when the partner sent none.
+    private func buildPrivacy(from attributes: [String: String]) -> SelectPrivacy? {
+        let payload = RoktAPIHelper.getPrivacyControlPayload(attributes: attributes)
+        guard let gpcEnabled = payload[RoktAPIHelper.gpcEnabledKey] else { return nil }
+        return SelectPrivacy(gpcEnabled: gpcEnabled)
     }
 
     static func statusCode(from error: Error) -> Int? {
