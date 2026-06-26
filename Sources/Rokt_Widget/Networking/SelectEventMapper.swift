@@ -4,19 +4,18 @@ import Foundation
 
 /// Bridges the SDK real-time event store and the v2 offers request/response.
 ///
-/// The request `events[]` element reuses ``TxnEvent`` (the `/v2/sessions/events`
-/// wire shape: `event_type`, epoch-ms `timestamp`, `data.payload`), matching
-/// Android; `instance_id` is omitted for forwarded events.
+/// The request `events[]` element (``SelectEvent``) encodes to the
+/// `/v2/sessions/events` wire shape: `event_type`, epoch-ms `timestamp`,
+/// `data.payload`, matching Android.
 internal enum SelectEventMapper {
 
     /// Triggered events from the previous placement → the offers request `events[]`.
-    static func requestEvents(from triggered: [TriggeredRealTimeEvent]) -> [TxnEvent] {
+    static func requestEvents(from triggered: [TriggeredRealTimeEvent]) -> [SelectEvent] {
         triggered.map { event in
-            TxnEvent(
+            SelectEvent(
                 eventType: event.eventType,
-                instanceId: nil,
                 timestamp: epochMilliseconds(from: event.eventTime),
-                data: ["payload": .string(event.payload)]
+                payload: event.payload
             )
         }
     }

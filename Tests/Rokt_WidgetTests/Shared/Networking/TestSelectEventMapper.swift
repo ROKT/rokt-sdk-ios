@@ -18,9 +18,8 @@ final class TestSelectEventMapper: XCTestCase {
         XCTAssertEqual(events.count, 1)
         let event = try XCTUnwrap(events.first)
         XCTAssertEqual(event.eventType, "impression")
-        XCTAssertNil(event.instanceId)
         XCTAssertEqual(event.timestamp, 1_782_484_201_000)
-        XCTAssertEqual(event.data?["payload"], .string("pl"))
+        XCTAssertEqual(event.payload, "pl")
     }
 
     func test_requestEvents_fallsBackToNowWhenEventTimeUnparseable() {

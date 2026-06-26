@@ -72,7 +72,7 @@ final class TestSelectSerialization: XCTestCase {
         let request = SelectRequest(
             page: SelectPage(pageIdentifier: "checkout"),
             channel: SelectChannel(sdkVersion: "5.2.2"),
-            events: [TxnEvent(eventType: "impression", instanceId: nil, timestamp: 123, data: ["payload": .string("pl")])]
+            events: [SelectEvent(eventType: "impression", timestamp: 123, payload: "pl")]
         )
 
         let encoded = try JSONEncoder().encode(request)

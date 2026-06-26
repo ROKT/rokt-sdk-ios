@@ -100,7 +100,7 @@ internal struct OffersInput {
     let attributes: [String: String]
     let privacyControl: SelectPrivacyControl?
     let privacy: SelectPrivacy?
-    let events: [TxnEvent]?
+    let events: [SelectEvent]?
 
     init(
         requestId: String,
@@ -108,7 +108,7 @@ internal struct OffersInput {
         attributes: [String: String],
         privacyControl: SelectPrivacyControl? = nil,
         privacy: SelectPrivacy? = nil,
-        events: [TxnEvent]? = nil
+        events: [SelectEvent]? = nil
     ) {
         self.requestId = requestId
         self.pageIdentifier = pageIdentifier
