@@ -15,7 +15,10 @@ class RealtimeEventStoreMemory: RealTimeEventStore {
     private var triggeredEvents: [TriggeredRealTimeEvent] = []
 
     func addUntriggeredEvents(_ events: [UntriggeredRealTimeEvent]) {
-        self.untriggeredEvents.append(contentsOf: events)
+        appendDeduped(events, to: &untriggeredEvents)
+        if untriggeredEvents.count > maximumRealTimeEventsToStore {
+            untriggeredEvents = Array(untriggeredEvents.suffix(maximumRealTimeEventsToStore))
+        }
     }
 
     func getTriggeredEvents() -> [TriggeredRealTimeEvent] {
@@ -67,9 +70,19 @@ class RealTimeEventStoreFile: RealTimeEventStore {
 
     func addUntriggeredEvents(_ events: [UntriggeredRealTimeEvent]) {
         guard let untriggeredEventsFilePath else { return }
-        var all = getUntriggeredEvents()
-        all.append(contentsOf: events)
-        save(all, to: untriggeredEventsFilePath)
+        // Serialize on the same queue as markAsTriggered's processing: this is a
+        // read-modify-write, so concurrent captures (or a capture racing a trigger-mark)
+        // would otherwise lose updates when the second save overwrites the first.
+        eventProcessingQueue.sync {
+            var all = getUntriggeredEvents()
+            appendDeduped(events, to: &all)
+            // Bound the untriggered file the way triggered events are capped: a long-lived
+            // session whose responses echo distinct event_data must not grow without limit.
+            if all.count > maximumRealTimeEventsToStore {
+                all = Array(all.suffix(maximumRealTimeEventsToStore))
+            }
+            save(all, to: untriggeredEventsFilePath)
+        }
     }
 
     func getTriggeredEvents() -> [TriggeredRealTimeEvent] {
@@ -194,4 +207,14 @@ private func updateTriggeredEvents(
 private func trimTriggeredEvents(_ triggeredEvents: [TriggeredRealTimeEvent]) -> [TriggeredRealTimeEvent] {
     let sortedEvents = triggeredEvents.sorted { $0.eventTime > $1.eventTime }
     return Array(sortedEvents.prefix(maximumRealTimeEventsToStore))
+}
+
+// Appends only events not already present, preserving order. The backend can echo the same
+// event_data across responses; de-duping keeps the untriggered store bounded and stops a single
+// trigger from matching duplicate rows and multiplying what gets forwarded.
+private func appendDeduped(_ events: [UntriggeredRealTimeEvent], to all: inout [UntriggeredRealTimeEvent]) {
+    var seen = Set(all)
+    for event in events where seen.insert(event).inserted {
+        all.append(event)
+    }
 }

@@ -28,9 +28,10 @@ class TxnInitClientPactSpec: XCTestCase {
             .withRequest(
                 method: .POST,
                 path: "/v2/sessions/init",
+                // Cold init: no Authorization — the client has no session token yet,
+                // so the server mints one. x-request-id is always sent.
                 headers: [
                     "rokt-account-id": Matcher.RegexLike("account-456", term: #".+"#),
-                    "Authorization": Matcher.RegexLike("Bearer session-token-abc", term: #".+"#),
                     "x-request-id": Matcher.RegexLike("request-id-123", term: #".+"#),
                     "Content-Type": "application/json"
                 ],
@@ -52,10 +53,11 @@ class TxnInitClientPactSpec: XCTestCase {
                         "expires_at": Matcher.SomethingLike(1_774_474_053_000)
                     ],
                     "feature_flags": [
-                        "rokt-tracking-status": Matcher.SomethingLike(true),
-                        "client-timeout-ms": Matcher.SomethingLike(30_000),
-                        "ios-sdk-log-font-happy-path": Matcher.SomethingLike(true),
-                        "ios-sdk-use-font-register-with-url": Matcher.SomethingLike(false),
+                        // Provider returns these four verbatim — pin exact (not type) match.
+                        "rokt-tracking-status": true,
+                        "client-timeout-ms": 30_000,
+                        "ios-sdk-log-font-happy-path": true,
+                        "ios-sdk-use-font-register-with-url": false,
                         "mobile-sdk-use-bounding-box": Matcher.SomethingLike(false),
                         "mobile-sdk-use-partner-events": Matcher.SomethingLike(false),
                         "mobile-sdk-use-open-url-from-rokt": Matcher.SomethingLike(false),
@@ -80,7 +82,6 @@ class TxnInitClientPactSpec: XCTestCase {
                     let client = TxnInitClient(
                         baseURL: url,
                         accountId: "account-456",
-                        authToken: "Bearer session-token-abc",
                         sdkVersion: "5.2.2"
                     )
                     let (_, httpResponse) = try await client.initSession(
