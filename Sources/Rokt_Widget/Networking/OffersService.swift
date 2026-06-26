@@ -100,7 +100,7 @@ internal struct OffersService {
         let client = OffersClient(
             baseURL: baseURL,
             accountId: accountId,
-            authToken: sessionManager.authorizationHeader ?? "",
+            authToken: (await sessionManager.authorizationHeader) ?? "",
             sdkVersion: sdkVersion,
             pageInstanceGuid: makePageInstanceGuid(),
             httpClient: httpClient
@@ -133,7 +133,7 @@ internal struct OffersService {
 
                 let decoded = try JSONDecoder().decode(SelectResponse.self, from: data)
                 // Roll the refreshed token forward for the next offers/events call.
-                sessionManager.update(sessionToken: decoded.sessionToken)
+                await sessionManager.update(sessionToken: decoded.sessionToken)
                 return try SelectExperienceAdapter.experienceJSONString(from: decoded)
             } catch let error where isRetryable(error: error) && attempt < maxRetries {
                 try await sleep(backoffDelay(attempt: attempt))

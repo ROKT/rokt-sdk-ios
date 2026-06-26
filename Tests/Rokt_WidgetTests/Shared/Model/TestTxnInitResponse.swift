@@ -8,7 +8,7 @@ final class TestTxnInitResponse: XCTestCase {
         return try JSONDecoder().decode(TxnInitResponse.self, from: data)
     }
 
-    // Mirrors the happy-path body in V2SessionsInitClientPactSpec.
+    // Mirrors the happy-path body in TxnInitClientPactSpec.
     private let happyPathJSON = """
     {
         "session_id": "550e8400-e29b-41d4-a716-446655440000",

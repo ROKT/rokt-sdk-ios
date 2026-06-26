@@ -111,7 +111,7 @@ final class TestOffersService: XCTestCase {
         )
     }
 
-    func test_getExperienceData_adaptsResponseAndRollsTokenForward() {
+    func test_getExperienceData_adaptsResponseAndRollsTokenForward() async {
         let sessionManager = TxnSessionManager()
         let service = makeService(StubHTTPClient(responseData: Data(offersResponse.utf8), statusCode: 200),
                                   sessionManager: sessionManager)
@@ -126,9 +126,10 @@ final class TestOffersService: XCTestCase {
             XCTFail("unexpected failure: \(error)")
         })
 
-        wait(for: [completed], timeout: 5)
+        await fulfillment(of: [completed], timeout: 5)
         // The refreshed token is rolled forward for the next call.
-        XCTAssertEqual(sessionManager.authorizationHeader, "Bearer rolled-token")
+        let header = await sessionManager.authorizationHeader
+        XCTAssertEqual(header, "Bearer rolled-token")
     }
 
     func test_getExperienceData_retriesRetryableStatusThenSucceeds() {

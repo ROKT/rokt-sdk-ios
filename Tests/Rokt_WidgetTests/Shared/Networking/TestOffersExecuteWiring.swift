@@ -99,19 +99,6 @@ final class TestOffersExecuteWiring: XCTestCase {
         super.tearDown()
     }
 
-    private func waitUntil(_ condition: @escaping () -> Bool, timeout: TimeInterval = 5) {
-        let exp = expectation(description: "condition met")
-        func check() {
-            if condition() {
-                exp.fulfill()
-            } else {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.02, execute: check)
-            }
-        }
-        check()
-        wait(for: [exp], timeout: timeout)
-    }
-
     /// Brings the SDK to `isInitialized` with a stubbed init response.
     private func initialize(cacheEnabled: Bool = false) {
         impl.makeTxnInitServiceOverride = { tagId in
@@ -137,7 +124,7 @@ final class TestOffersExecuteWiring: XCTestCase {
             )
         }
         impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
-        waitUntil { self.impl.isInitialized }
+        waitUntil({ self.impl.isInitialized }, timeout: 10)
     }
 
     private func offersOverride(data: Data?, status: Int, error: Error? = nil) -> (String) -> OffersService {
@@ -169,7 +156,7 @@ final class TestOffersExecuteWiring: XCTestCase {
         // `pageinit` is a 13-digit epoch-ms in the past, so the timing parity block records it.
         impl.execute(viewName: "checkout", attributes: ["email": "a@b.com", "pageinit": "1700000000000"], config: nil)
 
-        waitUntil { self.impl.capturedPage != nil }
+        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
         let page = try XCTUnwrap(impl.capturedPage)
         XCTAssertTrue(page.contains("render-session"), "renderer should receive the adapted offers experience")
     }
@@ -194,7 +181,7 @@ final class TestOffersExecuteWiring: XCTestCase {
         impl.execute(viewName: "checkout", attributes: [:], config: nil)
 
         // The offline transport still decodes + adapts, so the success hand-off runs.
-        waitUntil { self.impl.capturedPage != nil }
+        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
         XCTAssertNotNil(impl.capturedPage)
     }
 
@@ -211,19 +198,19 @@ final class TestOffersExecuteWiring: XCTestCase {
 
         // First execute fetches offers and writes the experience to the cache.
         impl.execute(viewName: viewName, attributes: attributes, config: cacheConfig)
-        waitUntil { self.impl.capturedPage != nil }
+        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
 
         // Wait for the background cache write to flush before reusing it.
-        waitUntil {
+        waitUntil({
             ExperienceCacheManager.getCachedExperienceResponse(
                 viewName: viewName, attributes: attributes, cacheDuration: cacheDuration
             ) != nil
-        }
+        }, timeout: 10)
 
         // Second execute serves the cached experience instead of fetching again.
         impl.capturedPage = nil
         impl.execute(viewName: viewName, attributes: attributes, config: cacheConfig)
-        waitUntil { self.impl.capturedPage != nil }
+        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
         XCTAssertTrue(try XCTUnwrap(impl.capturedPage).contains("render-session"))
     }
 }

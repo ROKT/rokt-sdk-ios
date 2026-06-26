@@ -4,15 +4,15 @@ import PactSwift
 
 /// Consumer-driven pact spec for the v2 `/v2/sessions/events` endpoint.
 ///
-/// Drives `V2EventsClient.recordEvents(events:)` — the test never constructs
+/// Drives `TxnEventsClient.recordEvents(events:authToken:)` — the test never constructs
 /// request headers or body directly, only domain inputs. Wire-shape
-/// construction lives entirely in `V2EventsClient`, so any drift there
+/// construction lives entirely in `TxnEventsClient`, so any drift there
 /// (e.g. changing the `channel.type` body field) gets rejected by the pact mock service.
 ///
 /// Mirrors OffersClientPactSpec — see that file's docstring for the
 /// matcher policy (exact-match for hardcoded constants, `SomethingLike`
 /// for per-runtime values).
-class V2EventsClientPactSpec: XCTestCase {
+class TxnEventsClientPactSpec: XCTestCase {
     static var mockService: MockService!
 
     override class func setUp() {
@@ -83,22 +83,24 @@ class V2EventsClientPactSpec: XCTestCase {
                 defer { done() }
                 do {
                     let url = try XCTUnwrap(URL(string: baseURL))
-                    let client = V2EventsClient(
+                    let client = TxnEventsClient(
                         baseURL: url,
                         accountId: "account-456",
-                        authToken: "Bearer session-token-abc",
                         sdkVersion: "5.2.2"
                     )
-                    let event = V2Event(
+                    let event = TxnEvent(
                         eventType: "impression",
                         instanceId: "00000000-0000-0000-0000-000000000001",
                         timestamp: 1_774_474_053_000,
                         data: ["source_message_id": "source-message-001"]
                     )
-                    let (_, httpResponse) = try await client.recordEvents(events: [event])
+                    let (_, httpResponse) = try await client.recordEvents(
+                        events: [event],
+                        authToken: "Bearer session-token-abc"
+                    )
                     XCTAssertEqual(httpResponse?.statusCode, 202)
                 } catch {
-                    XCTFail("V2EventsClient request failed: \(error)")
+                    XCTFail("TxnEventsClient request failed: \(error)")
                 }
                 expectation.fulfill()
             }
