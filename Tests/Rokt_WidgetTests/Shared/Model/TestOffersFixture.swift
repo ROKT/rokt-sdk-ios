@@ -1,27 +1,27 @@
 import XCTest
 @testable import Rokt_Widget
 
-/// Guards the bundled mock offers fixture (`txn_offers.json`): proves it decodes
-/// into `TxnSelectResponse` and that its response-option `action` / `signal_type`
-/// values are ones the renderer recognizes. Mirrors Android's `TxnOffersFixtureTest`
+/// Guards the bundled mock offers fixture (`offers.json`): proves it decodes
+/// into `SelectResponse` and that its response-option `action` / `signal_type`
+/// values are ones the renderer recognizes. Mirrors Android's `OffersFixtureTest`
 /// — the same fixture seeds the offline mock offers path, so an unrecognized
 /// action (or a fixture that fails to decode) silently breaks that path.
-final class TestTxnOffersFixture: XCTestCase {
+final class TestOffersFixture: XCTestCase {
 
     // Values the renderer's `Action` / `RoktUXSignalType` enums recognize; the
     // mapper later coerces anything outside them to `.unknown`.
     private let recognizedActions: Set<String> = ["Url", "CaptureOnly", "ExternalPaymentTrigger"]
     private let recognizedSignalTypes: Set<String> = ["SignalResponse", "SignalGatedResponse"]
 
-    private func loadFixture() throws -> TxnSelectResponse {
+    private func loadFixture() throws -> SelectResponse {
         let url = try XCTUnwrap(
-            Bundle.module.url(forResource: "txn_offers", withExtension: "json"),
-            "txn_offers.json missing from the test bundle"
+            Bundle.module.url(forResource: "offers", withExtension: "json"),
+            "offers.json missing from the test bundle"
         )
-        return try JSONDecoder().decode(TxnSelectResponse.self, from: Data(contentsOf: url))
+        return try JSONDecoder().decode(SelectResponse.self, from: Data(contentsOf: url))
     }
 
-    private func responseOptions(_ response: TxnSelectResponse) -> [TxnSelectResponseOption] {
+    private func responseOptions(_ response: SelectResponse) -> [SelectResponseOption] {
         (response.plugins ?? [])
             .compactMap { $0.plugin?.config?.slots }
             .flatMap { $0 }

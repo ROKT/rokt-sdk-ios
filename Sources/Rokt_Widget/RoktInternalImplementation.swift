@@ -54,6 +54,9 @@ class RoktInternalImplementation {
     // swiftlint:disable:next todo
     // TODO: Remove once v2 is fully rolled out.
     private static let useV2Init = true
+    // Offers source: v2 by default; v1 is retained as the alternative until the
+    // v1/v2 selection is finalised.
+    private static let useV2Offers = true
     // Layout schema version sent to the v2 init endpoint, matching the legacy header.
     private static var txnLayoutSchemaVersion: String {
         RoktUX.integrationInfo.integration.layoutSchemaVersion
@@ -61,6 +64,8 @@ class RoktInternalImplementation {
     }
     // Test-only override for the init service factory; nil uses the real builder.
     var makeTxnInitServiceOverride: ((String) -> TxnInitService)?
+    // Test-only override for the offers service factory; nil uses the real builder.
+    var makeOffersServiceOverride: ((String) -> OffersService)?
     private var loadingFonts = false
     private var pendingPayload: ExecutePayload?
     private var isExecuting = false
@@ -950,6 +955,19 @@ class RoktInternalImplementation {
         )
     }
 
+    private func defaultOffersService(roktTagId: String) -> OffersService {
+        let httpClient: HTTPClientAdapter = config.environment == .Mock
+            ? MockOffersHTTPClient()
+            : NetworkingHelper.shared.httpClient
+        return OffersService(
+            environment: config.environment,
+            accountId: roktTagId,
+            sdkVersion: libraryVersion,
+            sessionManager: TxnSessionManager(roktTagId: roktTagId),
+            httpClient: httpClient
+        )
+    }
+
     private static func statusCode(from error: Error) -> Int? {
         if case TxnInitService.TxnInitError.unexpectedStatusCode(let code) = error {
             return code
@@ -1077,57 +1095,86 @@ class RoktInternalImplementation {
                                                      selectionId: selectionId)
                         self.show(payload)
                     } else {
-                        RoktAPIHelper.getExperienceData(
-                            viewName: viewName,
-                            attributes: attributes,
-                            roktTagId: tagId,
-                            selectionId: selectionId,
-                            trackingConsent: trackingConsent,
-                            config: self.roktConfig,
-                            onRequestStart: onExperiencesRequestStart,
-                            successLayout: { page in
-                                onExperiencesRequestEnd()
-                                self.isExecuting = false
+                        let onSuccess: (String?) -> Void = { page in
+                            onExperiencesRequestEnd()
+                            self.isExecuting = false
 
-                                guard let page else {
-                                    self.conclude(withFailure: true)
-                                    return
-                                }
-                                // cache experience if applicable
-                                if self.isCacheEnabledAndConfigured() {
-                                    let cacheAttributes = self.roktConfig.cacheConfig.getCacheAttributesOrFallback(attributes)
-
-                                    DispatchQueue.background.async {
-                                        ExperienceCacheManager.cacheExperienceResponse(
-                                            viewName: viewName,
-                                            attributes: cacheAttributes,
-                                            experienceResponse: page
-                                        )
-                                    }
-                                }
-
-                                // Use cacheAttributes for plugin view states if cache is enabled for consistency
-                                let attributesForPluginStates = self.roktConfig.cacheConfig
-                                    .getCacheAttributesOrFallback(attributes)
-                                guard let layoutPageExecutePayload = self.processLayoutPageExecutePayload(
-                                    page, selectionId: selectionId, viewName: viewName, attributes: attributesForPluginStates
-                                ) else {
-                                    self.conclude(withFailure: true)
-                                    return
-                                }
-
-                                let payload = ExecutePayload(
-                                    layoutPage: layoutPageExecutePayload,
-                                    startDate: startDate,
-                                    selectionId: selectionId
-                                )
-                                self.show(payload)
-                            },
-                            failure: { (error, statusCode, response) in
-                                onExperiencesRequestEnd()
-                                self.executeFailureHandler(error, statusCode, response)
+                            guard let page else {
+                                self.conclude(withFailure: true)
+                                return
                             }
-                        )}
+                            // cache experience if applicable
+                            if self.isCacheEnabledAndConfigured() {
+                                let cacheAttributes = self.roktConfig.cacheConfig.getCacheAttributesOrFallback(attributes)
+
+                                DispatchQueue.background.async {
+                                    ExperienceCacheManager.cacheExperienceResponse(
+                                        viewName: viewName,
+                                        attributes: cacheAttributes,
+                                        experienceResponse: page
+                                    )
+                                }
+                            }
+
+                            // Use cacheAttributes for plugin view states if cache is enabled for consistency
+                            let attributesForPluginStates = self.roktConfig.cacheConfig
+                                .getCacheAttributesOrFallback(attributes)
+                            guard let layoutPageExecutePayload = self.processLayoutPageExecutePayload(
+                                page, selectionId: selectionId, viewName: viewName, attributes: attributesForPluginStates
+                            ) else {
+                                self.conclude(withFailure: true)
+                                return
+                            }
+
+                            let payload = ExecutePayload(
+                                layoutPage: layoutPageExecutePayload,
+                                startDate: startDate,
+                                selectionId: selectionId
+                            )
+                            self.show(payload)
+                        }
+                        let onFailure: (Error, Int?, String) -> Void = { error, statusCode, response in
+                            onExperiencesRequestEnd()
+                            self.executeFailureHandler(error, statusCode, response)
+                        }
+
+                        if Self.useV2Offers {
+                            // pageInit timing travels in attributes; record it here for parity
+                            // with the v1 path, since the offers service doesn't own timing extraction.
+                            if let pageInitAttr = RoktAPIHelper.getPageInitData(attributes: attributes),
+                               let validPageInitTime = self.processedTimingsRequests?.getValidPageInitTime(
+                                   selectionId: selectionId,
+                                   timeAsString: pageInitAttr
+                               ) {
+                                self.processedTimingsRequests?.setPageInitTime(
+                                    selectionId: selectionId,
+                                    time: validPageInitTime
+                                )
+                            }
+                            let offersService = self.makeOffersServiceOverride?(tagId)
+                                ?? self.defaultOffersService(roktTagId: tagId)
+                            offersService.getExperienceData(
+                                viewName: viewName,
+                                attributes: attributes,
+                                config: self.roktConfig,
+                                onRequestStart: onExperiencesRequestStart,
+                                successLayout: onSuccess,
+                                failure: onFailure
+                            )
+                        } else {
+                            RoktAPIHelper.getExperienceData(
+                                viewName: viewName,
+                                attributes: attributes,
+                                roktTagId: tagId,
+                                selectionId: selectionId,
+                                trackingConsent: trackingConsent,
+                                config: self.roktConfig,
+                                onRequestStart: onExperiencesRequestStart,
+                                successLayout: onSuccess,
+                                failure: onFailure
+                            )
+                        }
+                    }
                 }
             }
         } else {

@@ -1,4 +1,4 @@
-// periphery:ignore:all - net-new v2 offers network models, not yet wired into the live path
+// periphery:ignore:all - offers network models; some fields are decode-only
 import Foundation
 
 // MARK: - Request
@@ -7,16 +7,13 @@ import Foundation
 ///
 /// The session is identified solely by the JWT `sub` claim in the
 /// `Authorization` header — there is intentionally no `session_id` in the body.
-/// Platform/channel context travels in ``channel``; the legacy v1 experiences
-/// call carried these as implicit headers.
-///
-/// Mirrors Android #1039's `SelectRequest`. `customer` and `page.url` are
-/// accepted by the provider but intentionally omitted here to match Android.
-internal struct TxnSelectRequest: Encodable, Equatable {
-    let page: TxnSelectPage
-    let channel: TxnSelectChannel
+/// Platform/channel context travels in ``channel``. `customer` and `page.url`
+/// are accepted by the provider but intentionally omitted to match Android.
+internal struct SelectRequest: Encodable, Equatable {
+    let page: SelectPage
+    let channel: SelectChannel
     let attributes: [String: String]
-    let privacyControl: TxnSelectPrivacyControl?
+    let privacyControl: SelectPrivacyControl?
 
     enum CodingKeys: String, CodingKey {
         case page
@@ -26,10 +23,10 @@ internal struct TxnSelectRequest: Encodable, Equatable {
     }
 
     init(
-        page: TxnSelectPage,
-        channel: TxnSelectChannel,
+        page: SelectPage,
+        channel: SelectChannel,
         attributes: [String: String] = [:],
-        privacyControl: TxnSelectPrivacyControl? = nil
+        privacyControl: SelectPrivacyControl? = nil
     ) {
         self.page = page
         self.channel = channel
@@ -38,7 +35,7 @@ internal struct TxnSelectRequest: Encodable, Equatable {
     }
 }
 
-internal struct TxnSelectPage: Encodable, Equatable {
+internal struct SelectPage: Encodable, Equatable {
     let pageIdentifier: String
 
     enum CodingKeys: String, CodingKey {
@@ -46,29 +43,37 @@ internal struct TxnSelectPage: Encodable, Equatable {
     }
 }
 
-/// Channel descriptor. ``type`` is always encoded (`"msdk"`) so the backend
-/// derives the channel source — there are no longer any `rokt-platform-type` /
-/// `rokt-integration-type` headers carrying it.
-internal struct TxnSelectChannel: Encodable, Equatable {
+/// Channel descriptor. ``type`` (`"msdk"`) tells the backend the channel source
+/// and ``platformType`` (`"iOS"`) the platform; both travel in the body. The
+/// platform refines server-side page detection and targeting.
+internal struct SelectChannel: Encodable, Equatable {
     static let channelTypeMsdk = "msdk"
+    static let platformTypeIOS = "iOS"
 
     let type: String
     let sdkVersion: String
+    let platformType: String
 
     enum CodingKeys: String, CodingKey {
         case type
         case sdkVersion = "sdk_version"
+        case platformType = "rokt_platform_type"
     }
 
-    init(type: String = TxnSelectChannel.channelTypeMsdk, sdkVersion: String) {
+    init(
+        type: String = SelectChannel.channelTypeMsdk,
+        sdkVersion: String,
+        platformType: String = SelectChannel.platformTypeIOS
+    ) {
         self.type = type
         self.sdkVersion = sdkVersion
+        self.platformType = platformType
     }
 }
 
 /// SDK-side privacy consent signals for offer selection. Mirrors Android's
-/// `privacy_control` block (NOT the legacy `privacy`/`do_not_track` shape).
-internal struct TxnSelectPrivacyControl: Encodable, Equatable {
+/// `privacy_control` block.
+internal struct SelectPrivacyControl: Encodable, Equatable {
     let noFunctional: Bool?
     let noTargeting: Bool?
     let doNotShareOrSell: Bool?
@@ -90,22 +95,21 @@ internal struct TxnSelectPrivacyControl: Encodable, Equatable {
 
 /// Response body for `POST /v2/sessions/offers` on the Transactions API.
 ///
-/// Mirrors Android #1039's `SelectResponse`. Fields are optional / defaulted
-/// because the provider emits `omitempty` throughout; mapping into the render
-/// models the UX layer consumes is a later PR. `JSONDecoder` ignores unknown
-/// keys by default, so additional provider fields don't fail the decode.
+/// Fields are optional / defaulted because the provider emits `omitempty`
+/// throughout. `JSONDecoder` ignores unknown keys by default, so additional
+/// provider fields don't fail the decode.
 ///
-/// The DCUI schemas (``TxnSelectPluginConfig/outerLayoutSchema``,
-/// ``TxnSelectLayoutVariant/layoutVariantSchema``) arrive as pre-serialized JSON
+/// The DCUI schemas (``SelectPluginConfig/outerLayoutSchema``,
+/// ``SelectLayoutVariant/layoutVariantSchema``) arrive as pre-serialized JSON
 /// strings — the shape the render layer expects — so they are kept as `String`
 /// with no re-encoding.
-internal struct TxnSelectResponse: Decodable, Equatable {
+internal struct SelectResponse: Decodable, Equatable {
     let sessionId: String
     let sessionToken: TxnSessionToken
     let pageInstanceGuid: String
-    let pageContext: TxnSelectPageContext?
-    let plugins: [TxnSelectPlugin]?
-    let eventData: [String: TxnSelectEventDataEntry]?
+    let pageContext: SelectPageContext?
+    let plugins: [SelectPlugin]?
+    let eventData: [String: SelectEventDataEntry]?
 
     enum CodingKeys: String, CodingKey {
         case sessionId = "session_id"
@@ -121,13 +125,13 @@ internal struct TxnSelectResponse: Decodable, Equatable {
         sessionId = try container.decode(String.self, forKey: .sessionId)
         sessionToken = try container.decode(TxnSessionToken.self, forKey: .sessionToken)
         pageInstanceGuid = try container.decodeIfPresent(String.self, forKey: .pageInstanceGuid) ?? ""
-        pageContext = try container.decodeIfPresent(TxnSelectPageContext.self, forKey: .pageContext)
-        plugins = try container.decodeIfPresent([TxnSelectPlugin].self, forKey: .plugins)
-        eventData = try container.decodeIfPresent([String: TxnSelectEventDataEntry].self, forKey: .eventData)
+        pageContext = try container.decodeIfPresent(SelectPageContext.self, forKey: .pageContext)
+        plugins = try container.decodeIfPresent([SelectPlugin].self, forKey: .plugins)
+        eventData = try container.decodeIfPresent([String: SelectEventDataEntry].self, forKey: .eventData)
     }
 }
 
-internal struct TxnSelectPageContext: Decodable, Equatable {
+internal struct SelectPageContext: Decodable, Equatable {
     let pageInstanceGuid: String?
     let pageId: String?
     let language: String?
@@ -141,15 +145,15 @@ internal struct TxnSelectPageContext: Decodable, Equatable {
     }
 }
 
-internal struct TxnSelectPlugin: Decodable, Equatable {
-    let plugin: TxnSelectPluginLayout?
+internal struct SelectPlugin: Decodable, Equatable {
+    let plugin: SelectPluginLayout?
 }
 
-internal struct TxnSelectPluginLayout: Decodable, Equatable {
+internal struct SelectPluginLayout: Decodable, Equatable {
     let id: String?
     let name: String?
     let targetElementSelector: String?
-    let config: TxnSelectPluginConfig?
+    let config: SelectPluginConfig?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -159,8 +163,8 @@ internal struct TxnSelectPluginLayout: Decodable, Equatable {
     }
 }
 
-internal struct TxnSelectPluginConfig: Decodable, Equatable {
-    let slots: [TxnSelectSlot]
+internal struct SelectPluginConfig: Decodable, Equatable {
+    let slots: [SelectSlot]
     let instanceGuid: String?
     let outerLayoutSchema: String?
     let token: String?
@@ -174,17 +178,17 @@ internal struct TxnSelectPluginConfig: Decodable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        slots = try container.decodeIfPresent([TxnSelectSlot].self, forKey: .slots) ?? []
+        slots = try container.decodeIfPresent([SelectSlot].self, forKey: .slots) ?? []
         instanceGuid = try container.decodeIfPresent(String.self, forKey: .instanceGuid)
         outerLayoutSchema = try container.decodeIfPresent(String.self, forKey: .outerLayoutSchema)
         token = try container.decodeIfPresent(String.self, forKey: .token)
     }
 }
 
-internal struct TxnSelectSlot: Decodable, Equatable {
+internal struct SelectSlot: Decodable, Equatable {
     let instanceGuid: String?
-    let layoutVariant: TxnSelectLayoutVariant?
-    let offer: TxnSelectOffer?
+    let layoutVariant: SelectLayoutVariant?
+    let offer: SelectOffer?
     let token: String?
 
     enum CodingKeys: String, CodingKey {
@@ -195,7 +199,7 @@ internal struct TxnSelectSlot: Decodable, Equatable {
     }
 }
 
-internal struct TxnSelectLayoutVariant: Decodable, Equatable {
+internal struct SelectLayoutVariant: Decodable, Equatable {
     let layoutVariantId: String?
     let moduleName: String?
     let layoutVariantSchema: String?
@@ -207,12 +211,12 @@ internal struct TxnSelectLayoutVariant: Decodable, Equatable {
     }
 }
 
-internal struct TxnSelectOffer: Decodable, Equatable {
+internal struct SelectOffer: Decodable, Equatable {
     let campaignId: String?
-    let creative: TxnSelectCreative?
+    let creative: SelectCreative?
     // Shoppable-ad catalog items; surfacing them to the render models is
     // deferred to the mapper in a follow-up.
-    let catalogItems: [TxnSelectCatalogItem]?
+    let catalogItems: [SelectCatalogItem]?
 
     enum CodingKeys: String, CodingKey {
         case campaignId = "campaign_id"
@@ -224,7 +228,7 @@ internal struct TxnSelectOffer: Decodable, Equatable {
 /// A shoppable catalog item on an offer. Only the fields the render model
 /// consumes are declared; the lenient decoder skips anything else on the wire.
 /// The `token` is echoed back on purchase events.
-internal struct TxnSelectCatalogItem: Decodable, Equatable {
+internal struct SelectCatalogItem: Decodable, Equatable {
     let catalogItemId: String?
     let instanceGuid: String?
     let cartItemId: String?
@@ -244,7 +248,7 @@ internal struct TxnSelectCatalogItem: Decodable, Equatable {
     let providerData: String?
     let linkedProductId: String?
     let quantityMustBeSynchronized: Bool?
-    let images: [String: TxnSelectImage]?
+    let images: [String: SelectImage]?
     let token: String?
 
     enum CodingKeys: String, CodingKey {
@@ -272,15 +276,15 @@ internal struct TxnSelectCatalogItem: Decodable, Equatable {
     }
 }
 
-internal struct TxnSelectCreative: Decodable, Equatable {
+internal struct SelectCreative: Decodable, Equatable {
     let referralCreativeId: String?
     let instanceGuid: String?
     let token: String?
-    let responseOptionsMap: [String: TxnSelectResponseOption]?
+    let responseOptionsMap: [String: SelectResponseOption]?
     let copy: [String: String]?
-    let images: [String: TxnSelectImage]?
-    let links: [String: TxnSelectLink]?
-    let icons: [String: TxnSelectIcon]?
+    let images: [String: SelectImage]?
+    let links: [String: SelectLink]?
+    let icons: [String: SelectIcon]?
 
     enum CodingKeys: String, CodingKey {
         case referralCreativeId = "referral_creative_id"
@@ -294,7 +298,7 @@ internal struct TxnSelectCreative: Decodable, Equatable {
     }
 }
 
-internal struct TxnSelectResponseOption: Decodable, Equatable {
+internal struct SelectResponseOption: Decodable, Equatable {
     let id: String?
     let action: String?
     let instanceGuid: String?
@@ -337,31 +341,31 @@ internal struct TxnSelectResponseOption: Decodable, Equatable {
     }
 }
 
-internal struct TxnSelectImage: Decodable, Equatable {
+internal struct SelectImage: Decodable, Equatable {
     let light: String?
     let dark: String?
     let alt: String?
     let title: String?
 }
 
-internal struct TxnSelectLink: Decodable, Equatable {
+internal struct SelectLink: Decodable, Equatable {
     let url: String?
     let title: String?
 }
 
-internal struct TxnSelectIcon: Decodable, Equatable {
+internal struct SelectIcon: Decodable, Equatable {
     let name: String?
 }
 
 /// Token lookup for a trackable entity, echoed back on `/v2/sessions/events`.
-internal struct TxnSelectEventDataEntry: Decodable, Equatable {
+internal struct SelectEventDataEntry: Decodable, Equatable {
     let token: String
-    let events: [String: TxnSelectRealTimeEvent]?
+    let events: [String: SelectRealTimeEvent]?
 }
 
 /// A pre-serialized real-time event payload, keyed by signal type. Mirrors the
 /// provider's typed event shape (and Android's `SelectRealTimeEvent`).
-internal struct TxnSelectRealTimeEvent: Decodable, Equatable {
+internal struct SelectRealTimeEvent: Decodable, Equatable {
     let eventType: String?
     let payload: String?
 

@@ -1,8 +1,8 @@
-// periphery:ignore:all - referenced from Tests/ContractTests/V2OffersClientPactSpec.swift
+// periphery:ignore:all - offers network client
 
 import Foundation
 
-internal struct V2OffersClient {
+internal struct OffersClient {
     let baseURL: URL
     let accountId: String
     let authToken: String
@@ -26,7 +26,7 @@ internal struct V2OffersClient {
         self.httpClient = httpClient
     }
 
-    func fetchOffers(input: V2OffersInput) async throws -> (Data?, HTTPURLResponse?) {
+    func fetchOffers(input: OffersInput) async throws -> (Data?, HTTPURLResponse?) {
         let url = baseURL
             .appendingPathComponent("v2")
             .appendingPathComponent("sessions")
@@ -34,16 +34,16 @@ internal struct V2OffersClient {
 
         // Session identity is the JWT `sub` claim in the Authorization header —
         // never the body. `customer` and `page.url` are omitted to mirror the
-        // Android v2 offers contract.
-        let requestBody = TxnSelectRequest(
-            page: TxnSelectPage(pageIdentifier: input.pageIdentifier),
-            channel: TxnSelectChannel(sdkVersion: sdkVersion),
+        // Android offers contract.
+        let requestBody = SelectRequest(
+            page: SelectPage(pageIdentifier: input.pageIdentifier),
+            channel: SelectChannel(sdkVersion: sdkVersion),
             attributes: input.attributes,
             privacyControl: input.privacyControl
         )
         let bodyData = try JSONEncoder().encode(requestBody)
         guard let bodyParameters = try JSONSerialization.jsonObject(with: bodyData) as? RoktHTTPParameters else {
-            throw V2OffersClientError.bodyEncodingFailed
+            throw OffersClientError.bodyEncodingFailed
         }
 
         let headers: RoktHTTPHeaders = [
@@ -51,6 +51,8 @@ internal struct V2OffersClient {
             "Authorization": authToken,
             "x-request-id": input.requestId,
             "rokt-page-instance-guid": pageInstanceGuid,
+            // The app bundle id scopes server-side page detection for mobile.
+            "rokt-package-name": Bundle.main.bundleIdentifier ?? "",
             "Content-Type": "application/json"
         ]
 
@@ -76,21 +78,21 @@ internal struct V2OffersClient {
     }
 }
 
-internal enum V2OffersClientError: Error {
+internal enum OffersClientError: Error {
     case bodyEncodingFailed
 }
 
-internal struct V2OffersInput {
+internal struct OffersInput {
     let requestId: String
     let pageIdentifier: String
     let attributes: [String: String]
-    let privacyControl: TxnSelectPrivacyControl?
+    let privacyControl: SelectPrivacyControl?
 
     init(
         requestId: String,
         pageIdentifier: String,
         attributes: [String: String],
-        privacyControl: TxnSelectPrivacyControl? = nil
+        privacyControl: SelectPrivacyControl? = nil
     ) {
         self.requestId = requestId
         self.pageIdentifier = pageIdentifier
