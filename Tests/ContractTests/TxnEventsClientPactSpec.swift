@@ -50,7 +50,10 @@ class TxnEventsClientPactSpec: XCTestCase {
                     // the API rejects other forms, so the example uses a valid one.
                     "events": Matcher.EachLike([
                         "event_type": Matcher.SomethingLike("impression"),
-                        "instance_id": Matcher.SomethingLike("00000000-0000-0000-0000-000000000001"),
+                        "instance_id": Matcher.RegexLike(
+                            "00000000-0000-0000-0000-000000000001",
+                            term: #"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"#
+                        ),
                         "timestamp": Matcher.SomethingLike(1_774_474_053_000),
                         "data": [
                             "source_message_id": Matcher.SomethingLike("source-message-001")

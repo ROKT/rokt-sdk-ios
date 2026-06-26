@@ -150,4 +150,100 @@ class OffersClientPactSpec: XCTestCase {
 
         wait(for: [expectation], timeout: 35)
     }
+
+    func test_offersNoPageDetection_returnsSessionWithoutPlugins() {
+        Self.mockService
+            .uponReceiving("a v2 sessions offers request from rokt-sdk-ios for a non-configured page")
+            .given(ProviderState(description: "no page detection on offers request", params: [:]))
+            .withRequest(
+                method: .POST,
+                path: "/v2/sessions/offers",
+                headers: [
+                    "rokt-account-id": Matcher.SomethingLike("account-456"),
+                    "Authorization": Matcher.SomethingLike("Bearer session-token-abc"),
+                    "x-request-id": Matcher.SomethingLike("request-id-123"),
+                    "rokt-page-instance-guid": Matcher.SomethingLike("page-instance-guid-123"),
+                    "rokt-package-name": Matcher.SomethingLike("com.rokt.example"),
+                    "Content-Type": "application/json"
+                ],
+                body: [
+                    "page": [
+                        "page_identifier": Matcher.SomethingLike("checkout-page")
+                    ],
+                    "privacy_control": [
+                        "no_functional": Matcher.SomethingLike(false),
+                        "no_targeting": Matcher.SomethingLike(false),
+                        "do_not_share_or_sell": Matcher.SomethingLike(false)
+                    ],
+                    "channel": [
+                        "type": "msdk",
+                        "sdk_version": Matcher.SomethingLike("5.2.2"),
+                        "rokt_platform_type": "iOS"
+                    ],
+                    "attributes": [
+                        "standalone": Matcher.SomethingLike("notdefined"),
+                        "customer.locale": Matcher.SomethingLike("en-US")
+                    ]
+                ]
+            )
+            // No-detection shape: the request is identical to the happy path
+            // (detection is a server-only outcome), but the provider returns only
+            // the session and token, with page_context carrying is_page_detected:
+            // false. No page_id/page_type/page_instance_guid and no plugins are
+            // returned, so they are intentionally absent from this contract.
+            // PactSwift cannot assert a key is absent; omitting plugins is the
+            // parity equivalent of Android's assertNull(response.plugins).
+            .willRespondWith(
+                status: 200,
+                headers: ["Content-Type": Matcher.RegexLike("application/json; charset=utf-8", term: #"application/json(;.*)?"#)],
+                body: [
+                    "session_id": Matcher.SomethingLike("session-123"),
+                    "session_token": [
+                        "token": Matcher.SomethingLike("rotated-session-token"),
+                        "expires_at": Matcher.SomethingLike(1_774_474_053_000)
+                    ],
+                    "page_context": [
+                        "is_page_detected": false
+                    ]
+                ]
+            )
+
+        let expectation = expectation(description: "v2 offers no-detection request completes")
+
+        Self.mockService.run(timeout: 30) { baseURL, done in
+            Task {
+                defer { done() }
+                do {
+                    let url = try XCTUnwrap(URL(string: baseURL))
+                    let client = OffersClient(
+                        baseURL: url,
+                        accountId: "account-456",
+                        authToken: "Bearer session-token-abc",
+                        sdkVersion: "5.2.2",
+                        pageInstanceGuid: "page-instance-guid-123"
+                    )
+                    let input = OffersInput(
+                        requestId: "request-id-123",
+                        pageIdentifier: "checkout-page",
+                        attributes: [
+                            "standalone": "notdefined",
+                            "customer.locale": "en-US"
+                        ],
+                        privacyControl: SelectPrivacyControl(
+                            noFunctional: false,
+                            noTargeting: false,
+                            doNotShareOrSell: false
+                        )
+                    )
+                    let (_, httpResponse) = try await client.fetchOffers(input: input)
+                    XCTAssertEqual(httpResponse?.statusCode, 200)
+                } catch {
+                    XCTFail("OffersClient request failed: \(error)")
+                }
+                expectation.fulfill()
+            }
+        }
+
+        wait(for: [expectation], timeout: 35)
+    }
 }
