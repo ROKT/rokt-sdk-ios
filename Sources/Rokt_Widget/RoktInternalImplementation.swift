@@ -64,6 +64,8 @@ class RoktInternalImplementation {
     }
     // Test-only override for the init service factory; nil uses the real builder.
     var makeTxnInitServiceOverride: ((String) -> TxnInitService)?
+    // Test-only override for the offers service factory; nil uses the real builder.
+    var makeOffersServiceOverride: ((String) -> OffersService)?
     private var loadingFonts = false
     private var pendingPayload: ExecutePayload?
     private var isExecuting = false
@@ -1149,7 +1151,9 @@ class RoktInternalImplementation {
                                     time: validPageInitTime
                                 )
                             }
-                            self.defaultOffersService(roktTagId: tagId).getExperienceData(
+                            let offersService = self.makeOffersServiceOverride?(tagId)
+                                ?? self.defaultOffersService(roktTagId: tagId)
+                            offersService.getExperienceData(
                                 viewName: viewName,
                                 attributes: attributes,
                                 config: self.roktConfig,

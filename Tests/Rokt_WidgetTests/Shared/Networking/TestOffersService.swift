@@ -238,4 +238,47 @@ final class TestOffersService: XCTestCase {
         wait(for: [failed], timeout: 5)
         XCTAssertEqual(stub.requestCount, 1)
     }
+
+    func test_getExperienceData_doesNotRetryNonRetryableURLError() {
+        // A URL-domain error whose code is outside the transient set must fail fast.
+        let badResponse = NSError(domain: NSURLErrorDomain, code: NSURLErrorBadServerResponse)
+        let stub = StubHTTPClient(sequence: [StubResponse(data: nil, status: 0, error: badResponse)])
+        let service = makeService(stub, maxRetries: 2)
+
+        let failed = expectation(description: "non-retryable URL error fails without retry")
+        service.getExperienceData(viewName: "checkout", attributes: [:], config: nil, successLayout: { _ in
+            XCTFail("unexpected success")
+        }, failure: { _, _, _ in
+            failed.fulfill()
+        })
+
+        wait(for: [failed], timeout: 5)
+        XCTAssertEqual(stub.requestCount, 1)
+    }
+
+    func test_getExperienceData_usesDefaultBackoffSleepWhenNotInjected() {
+        // Build the service without injecting `sleep` so the real backoff closure runs
+        // during the retry; a tiny backoff keeps the delay negligible.
+        let stub = StubHTTPClient(responses: [(nil, 503), (Data(offersResponse.utf8), 200)])
+        let service = OffersService(
+            environment: .Prod,
+            accountId: "account-1",
+            sdkVersion: "1.0.0",
+            sessionManager: TxnSessionManager(),
+            httpClient: stub,
+            maxRetries: 1,
+            baseBackoff: 0.001
+        )
+
+        let completed = expectation(description: "default backoff sleep used on retry")
+        service.getExperienceData(viewName: "checkout", attributes: [:], config: nil, successLayout: { page in
+            XCTAssertNotNil(page)
+            completed.fulfill()
+        }, failure: { error, _, _ in
+            XCTFail("unexpected failure: \(error)")
+        })
+
+        wait(for: [completed], timeout: 5)
+        XCTAssertEqual(stub.requestCount, 2)
+    }
 }
