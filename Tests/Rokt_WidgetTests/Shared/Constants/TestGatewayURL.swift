@@ -1,7 +1,7 @@
 import XCTest
 @testable import Rokt_Widget
 
-final class TestTxnGatewayURL: XCTestCase {
+final class TestGatewayURL: XCTestCase {
 
     func test_gatewayBaseURL_stage() {
         XCTAssertEqual(Environment.Stage.gatewayBaseURL, "https://apps.stage.rokt.com")

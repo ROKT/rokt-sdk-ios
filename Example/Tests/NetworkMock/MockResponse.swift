@@ -8,16 +8,16 @@ let validInitFilename = "validInit"
 let invalidInitFilename = "InvalidInit"
 
 // Derived from the same environment as the live path so the mock URL matches the request.
-var txnInitResourceURL: String {
+var initResourceURL: String {
     config.environment.gatewayBaseURL + "/v2/sessions/init"
 }
 
-var txnEventResourceURL: String {
+var eventResourceURL: String {
     config.environment.gatewayBaseURL + "/v2/sessions/events"
 }
 
-// Reverse of TxnEventMapper's vocabulary so the v2 events stub can surface legacy EventModel names.
-let txnEventTypeToLegacyName: [String: String] = [
+// Reverse of EventMapper's vocabulary so the v2 events stub can surface legacy EventModel names.
+let eventTypeToLegacyName: [String: String] = [
     "impression": "SignalImpression",
     "viewed": "SignalViewed",
     "signal_initialize": "SignalInitialize",
@@ -33,7 +33,7 @@ let txnEventTypeToLegacyName: [String: String] = [
 ]
 
 // Reshapes a legacy init fixture into the v2 response so existing fixtures still drive init.
-func makeTxnInitData(fromLegacy legacyData: Data) -> Data? {
+func makeInitData(fromLegacy legacyData: Data) -> Data? {
     guard let legacy = try? JSONSerialization.jsonObject(with: legacyData) as? [String: Any] else {
         return nil
     }
@@ -66,7 +66,7 @@ func makeTxnInitData(fromLegacy legacyData: Data) -> Data? {
 }
 
 // Derived from the same environment as the live path so the mock URL matches the request.
-var txnOffersResourceURL: String {
+var offersResourceURL: String {
     config.environment.gatewayBaseURL + "/v2/sessions/offers"
 }
 
@@ -170,7 +170,7 @@ func makeOffersData(fromV1Experience legacyData: Data) -> Data? {
 
 // Stubs the v2 offers endpoint from a v1 experience fixture; nil legacyData yields a body-less error.
 func registerOffersStub(fromV1ExperienceData legacyData: Data?, statusCode: Int, delay: Int = 0) {
-    guard let url = URL(string: txnOffersResourceURL) else { return }
+    guard let url = URL(string: offersResourceURL) else { return }
     let body = legacyData.flatMap(makeOffersData(fromV1Experience:)) ?? Data()
     var mock = Mock(url: url, dataType: .json, statusCode: statusCode, data: [.post: body])
     mock.delay = DispatchTimeInterval.seconds(delay)
@@ -185,16 +185,16 @@ protocol StubMethodsProvider: AnyObject {
 extension StubMethodsProvider {
 
     // Stubs the v2 endpoint alongside the legacy one; nil legacyData yields a body-less error.
-    func registerTxnInitStub(legacyData: Data?, statusCode: Int) {
-        guard let url = URL(string: txnInitResourceURL) else { return }
-        let v2Data = legacyData.flatMap(makeTxnInitData(fromLegacy:)) ?? Data()
+    func registerInitStub(legacyData: Data?, statusCode: Int) {
+        guard let url = URL(string: initResourceURL) else { return }
+        let v2Data = legacyData.flatMap(makeInitData(fromLegacy:)) ?? Data()
         Mock(url: url, dataType: .json, statusCode: statusCode, data: [.post: v2Data]).register()
     }
 
     // Mirrors the legacy events stub for the v2 endpoint, translating the wire shape back into EventModel
     // so the same assertions hold whether events flow through the legacy or txn path.
-    func registerTxnEventsStub(onEventReceive: ((EventModel) -> Void)?) {
-        guard let url = URL(string: txnEventResourceURL) else { return }
+    func registerEventsStub(onEventReceive: ((EventModel) -> Void)?) {
+        guard let url = URL(string: eventResourceURL) else { return }
         var mock = Mock(url: url, dataType: .json, statusCode: 200, data: [.post: Data()])
 
         mock.onRequest = { request, _ in
@@ -202,8 +202,8 @@ extension StubMethodsProvider {
                   let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
                   let events = json["events"] as? [[String: Any]] else { return }
             for event in events {
-                guard let txnType = event["event_type"] as? String,
-                      let legacyType = txnEventTypeToLegacyName[txnType] else { continue }
+                guard let eventType = event["event_type"] as? String,
+                      let legacyType = eventTypeToLegacyName[eventType] else { continue }
                 let data = event["data"] as? [String: Any]
                 onEventReceive?(
                     EventModel(eventType: legacyType,
@@ -225,7 +225,7 @@ extension StubMethodsProvider {
                 .get: Data()
             ])
             mock.register()
-            registerTxnInitStub(legacyData: nil, statusCode: 500)
+            registerInitStub(legacyData: nil, statusCode: 500)
         } else {
             let initPath = testBundle.path(forResource: fileName, ofType: "json")!
             let initData = NSData(contentsOfFile: initPath)!
@@ -234,7 +234,7 @@ extension StubMethodsProvider {
                 .get: initData as Data // Data containing the JSON response
             ])
             mock.register()
-            registerTxnInitStub(legacyData: initData as Data, statusCode: 200)
+            registerInitStub(legacyData: initData as Data, statusCode: 200)
         }
     }
 
@@ -250,7 +250,7 @@ extension StubMethodsProvider {
             .get: initData as Data // Data containing the JSON response
         ])
         mock.register()
-        registerTxnInitStub(legacyData: initData as Data, statusCode: 200)
+        registerInitStub(legacyData: initData as Data, statusCode: 200)
     }
 
     func stubExecute(_ widgetFileName: String,
@@ -351,7 +351,7 @@ extension StubMethodsProvider {
             }
         }
         mock.register()
-        registerTxnEventsStub(onEventReceive: onEventReceive)
+        registerEventsStub(onEventReceive: onEventReceive)
     }
 
     func stubTimings(onTimingsRequestReceive: ((MockTimingsRequest) -> Void)? = nil) {
@@ -417,7 +417,7 @@ extension XCTestCase: StubMethodsProvider {
                 .get: Data()
             ])
             mock.register()
-            registerTxnInitStub(legacyData: nil, statusCode: 500)
+            registerInitStub(legacyData: nil, statusCode: 500)
         } else {
             let initPath = Bundle(for: type(of: self))
                 .path(forResource: fileName, ofType: "json")!
@@ -427,7 +427,7 @@ extension XCTestCase: StubMethodsProvider {
                 .get: initData as Data // Data containing the JSON response
             ])
             mock.register()
-            registerTxnInitStub(legacyData: initData as Data, statusCode: 200)
+            registerInitStub(legacyData: initData as Data, statusCode: 200)
         }
     }
 
@@ -444,7 +444,7 @@ extension XCTestCase: StubMethodsProvider {
             .get: initData as Data // Data containing the JSON response
         ])
         mock.register()
-        registerTxnInitStub(legacyData: initData as Data, statusCode: 200)
+        registerInitStub(legacyData: initData as Data, statusCode: 200)
     }
 
     func stubExecute(_ widgetFileName: String,
@@ -545,7 +545,7 @@ extension XCTestCase: StubMethodsProvider {
             }
         }
         mock.register()
-        registerTxnEventsStub(onEventReceive: onEventReceive)
+        registerEventsStub(onEventReceive: onEventReceive)
     }
 
     func stubTimings(onTimingsRequestReceive: ((MockTimingsRequest) -> Void)? = nil) {

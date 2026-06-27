@@ -1,15 +1,15 @@
 import XCTest
 @testable import Rokt_Widget
 
-final class TestTxnSessionManager: XCTestCase {
+final class TestSessionTokenManager: XCTestCase {
 
     private var now: Date!
-    private var manager: TxnSessionManager!
+    private var manager: SessionTokenManager!
 
     override func setUp() {
         super.setUp()
         now = Date(timeIntervalSince1970: 1_000_000)
-        manager = TxnSessionManager(clock: { self.now })
+        manager = SessionTokenManager(clock: { self.now })
     }
 
     override func tearDown() {
@@ -18,9 +18,9 @@ final class TestTxnSessionManager: XCTestCase {
         super.tearDown()
     }
 
-    private func token(_ value: String, expiresInSeconds seconds: TimeInterval) -> TxnSessionToken {
+    private func token(_ value: String, expiresInSeconds seconds: TimeInterval) -> SessionToken {
         let expiryMs = Int64(now.addingTimeInterval(seconds).timeIntervalSince1970 * 1000)
-        return TxnSessionToken(token: value, expiresAt: expiryMs)
+        return SessionToken(token: value, expiresAt: expiryMs)
     }
 
     func test_initialState_hasNoSession() async {
@@ -101,15 +101,15 @@ final class TestTxnSessionManager: XCTestCase {
 
     // Shared in-memory backing store so two managers see the same persisted state,
     // without touching the real Keychain during tests.
-    private final class InMemoryStore: TxnSessionStore {
+    private final class InMemoryStore: SessionStore {
         private var values: [String: String] = [:]
         func string(forKey key: String) -> String? { values[key] }
         func setString(_ value: String, forKey key: String) { values[key] = value }
         func removeValue(forKey key: String) { values[key] = nil }
     }
 
-    private func persistentManager(tagId: String, store: TxnSessionStore) -> TxnSessionManager {
-        TxnSessionManager(roktTagId: tagId, store: store, clock: { self.now })
+    private func persistentManager(tagId: String, store: SessionStore) -> SessionTokenManager {
+        SessionTokenManager(roktTagId: tagId, store: store, clock: { self.now })
     }
 
     func test_persistence_restoresValidSessionForSameTagId() async {
@@ -201,7 +201,7 @@ final class TestTxnSessionManager: XCTestCase {
     func test_inMemoryManager_doesNotPersist() async {
         // The clock-only initializer is in-memory; nothing should leak to the store.
         let store = InMemoryStore()
-        let inMemory = TxnSessionManager(clock: { self.now })
+        let inMemory = SessionTokenManager(clock: { self.now })
         await inMemory.update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 1800))
 
         let persistent = persistentManager(tagId: "tag-1", store: store)

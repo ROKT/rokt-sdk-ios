@@ -1,17 +1,17 @@
 import XCTest
 @testable import Rokt_Widget
 
-final class TestTxnEventService: XCTestCase {
+final class TestEventService: XCTestCase {
 
     private var now: Date!
-    private var sessionManager: TxnSessionManager!
-    private var httpClient: MockTxnEventsHTTPClient!
+    private var sessionManager: SessionTokenManager!
+    private var httpClient: MockEventsHTTPClient!
 
     override func setUp() {
         super.setUp()
         now = Date(timeIntervalSince1970: 1_000_000)
-        sessionManager = TxnSessionManager(clock: { self.now })
-        httpClient = MockTxnEventsHTTPClient()
+        sessionManager = SessionTokenManager(clock: { self.now })
+        httpClient = MockEventsHTTPClient()
     }
 
     override func tearDown() {
@@ -25,8 +25,8 @@ final class TestTxnEventService: XCTestCase {
         environment: Environment = .Prod,
         deviceHeaders: [String: String] = ["rokt-os-type": "iOS"],
         maxRetries: Int = 3
-    ) -> TxnEventService {
-        TxnEventService(
+    ) -> EventService {
+        EventService(
             environment: environment,
             accountId: "account-1",
             sdkVersion: "5.2.2",
@@ -41,7 +41,7 @@ final class TestTxnEventService: XCTestCase {
 
     private func storeValidToken(_ token: String = "stored-jwt") async {
         let expiryMs = Int64(now.addingTimeInterval(1800).timeIntervalSince1970 * 1000)
-        await sessionManager.update(sessionId: "session-1", sessionToken: TxnSessionToken(token: token, expiresAt: expiryMs))
+        await sessionManager.update(sessionId: "session-1", sessionToken: SessionToken(token: token, expiresAt: expiryMs))
     }
 
     private func rotatedResponse(token: String = "rotated-jwt") -> Data {
@@ -56,8 +56,8 @@ final class TestTxnEventService: XCTestCase {
         )
     }
 
-    private func sampleEvents() -> [TxnEvent] {
-        [TxnEvent(eventType: "impression", instanceId: "instance-1", timestamp: 1_700_000_000_000, data: ["k": "v"])]
+    private func sampleEvents() -> [Event] {
+        [Event(eventType: "impression", instanceId: "instance-1", timestamp: 1_700_000_000_000, data: ["k": "v"])]
     }
 
     func test_send_success_rotatesSessionToken() async throws {
@@ -124,7 +124,7 @@ final class TestTxnEventService: XCTestCase {
         do {
             try await makeService(maxRetries: 3).send(events: sampleEvents())
             XCTFail("Expected send to fail after exhausting retries")
-        } catch let error as TxnEventService.TxnEventError {
+        } catch let error as EventService.EventError {
             XCTAssertEqual(error, .unexpectedStatusCode(503))
             XCTAssertEqual(httpClient.callCount, 4)
         } catch {
@@ -138,7 +138,7 @@ final class TestTxnEventService: XCTestCase {
         do {
             try await makeService().send(events: sampleEvents())
             XCTFail("Expected send to fail on 400")
-        } catch let error as TxnEventService.TxnEventError {
+        } catch let error as EventService.EventError {
             XCTAssertEqual(error, .unexpectedStatusCode(400))
             XCTAssertEqual(httpClient.callCount, 1)
         } catch {
@@ -158,7 +158,7 @@ final class TestTxnEventService: XCTestCase {
         do {
             try await service.send(events: sampleEvents())
             XCTFail("Expected invalid base URL to fail")
-        } catch let error as TxnEventService.TxnEventError {
+        } catch let error as EventService.EventError {
             XCTAssertEqual(error, .invalidBaseURL)
             XCTAssertEqual(httpClient.callCount, 0)
         } catch {

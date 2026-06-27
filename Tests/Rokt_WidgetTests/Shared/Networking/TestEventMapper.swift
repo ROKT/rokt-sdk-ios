@@ -2,7 +2,7 @@ import XCTest
 internal import RoktUXHelper
 @testable import Rokt_Widget
 
-final class TestTxnEventMapper: XCTestCase {
+final class TestEventMapper: XCTestCase {
 
     private let eventTime = Date(timeIntervalSince1970: 1_700_000_000)
 
@@ -42,40 +42,40 @@ final class TestTxnEventMapper: XCTestCase {
         ]
 
         for (eventType, expected) in cases {
-            let event = TxnEventMapper.event(from: makeRequest(eventType: eventType))
+            let event = EventMapper.event(from: makeRequest(eventType: eventType))
             XCTAssertEqual(event?.eventType, expected, "Unexpected wire type for \(eventType)")
         }
     }
 
     func test_gatedResponse_mapsToSignalResponseWithMarker() {
-        let event = TxnEventMapper.event(from: makeRequest(eventType: .SignalGatedResponse))
+        let event = EventMapper.event(from: makeRequest(eventType: .SignalGatedResponse))
 
         XCTAssertEqual(event?.eventType, "signal_response")
         XCTAssertEqual(event?.data?["gated"], .string("true"))
     }
 
     func test_activation_mapsToUserInteractionWithType() {
-        let event = TxnEventMapper.event(from: makeRequest(eventType: .SignalActivation))
+        let event = EventMapper.event(from: makeRequest(eventType: .SignalActivation))
 
         XCTAssertEqual(event?.eventType, "user_interaction")
         XCTAssertEqual(event?.data?["interactionType"], .string("activation"))
     }
 
     func test_diagnosticAndInstantPurchaseDismissal_areDropped() {
-        XCTAssertNil(TxnEventMapper.event(from: makeRequest(eventType: .SignalSdkDiagnostic)))
-        XCTAssertNil(TxnEventMapper.event(from: makeRequest(eventType: .SignalInstantPurchaseDismissal)))
+        XCTAssertNil(EventMapper.event(from: makeRequest(eventType: .SignalSdkDiagnostic)))
+        XCTAssertNil(EventMapper.event(from: makeRequest(eventType: .SignalInstantPurchaseDismissal)))
     }
 
     func test_instanceIdAndTimestampAreCarried() {
         let request = makeRequest(eventType: .SignalImpression)
-        let event = TxnEventMapper.event(from: request)
+        let event = EventMapper.event(from: request)
 
         XCTAssertEqual(event?.instanceId, request.uuid)
         XCTAssertEqual(event?.timestamp, 1_700_000_000_000)
     }
 
     func test_attributesAreFlattenedAndMetadataMapped() {
-        let event = TxnEventMapper.event(from: makeRequest(
+        let event = EventMapper.event(from: makeRequest(
             eventType: .SignalImpression,
             eventData: ["source_message_id": "abc"]
         ))
@@ -87,7 +87,7 @@ final class TestTxnEventMapper: XCTestCase {
     }
 
     func test_reservedKeysAreAlwaysPresentAndWinOverAttributes() {
-        let event = TxnEventMapper.event(from: makeRequest(
+        let event = EventMapper.event(from: makeRequest(
             eventType: .SignalImpression,
             eventData: ["parent_id": "spoofed", "token": "spoofed"],
             parentGuid: "real-parent",
@@ -101,7 +101,7 @@ final class TestTxnEventMapper: XCTestCase {
     }
 
     func test_emptyPageInstanceGuid_isOmitted() {
-        let event = TxnEventMapper.event(from: makeRequest(
+        let event = EventMapper.event(from: makeRequest(
             eventType: .SignalImpression,
             pageInstanceGuid: ""
         ))
@@ -110,7 +110,7 @@ final class TestTxnEventMapper: XCTestCase {
     }
 
     func test_objectDataIsFlattenedIntoData() {
-        let event = TxnEventMapper.event(from: makeRequest(
+        let event = EventMapper.event(from: makeRequest(
             eventType: .SignalImpression,
             objectData: ["custom_field": "value"]
         ))
@@ -119,7 +119,7 @@ final class TestTxnEventMapper: XCTestCase {
     }
 
     func test_captureAttributes_nestsAttributesAndAddsMarker() {
-        let event = TxnEventMapper.event(from: makeRequest(
+        let event = EventMapper.event(from: makeRequest(
             eventType: .CaptureAttributes,
             eventData: ["email": "a@b.com", "token": "should-stay-nested"]
         ))
@@ -142,7 +142,7 @@ final class TestTxnEventMapper: XCTestCase {
             jwtToken: "jwt-1"
         )
 
-        let event = TxnEventMapper.event(from: request)
+        let event = EventMapper.event(from: request)
 
         XCTAssertEqual(event?.eventType, "capture_attributes")
         XCTAssertEqual(event?.instanceId, request.uuid)

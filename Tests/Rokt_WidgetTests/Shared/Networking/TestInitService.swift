@@ -1,17 +1,17 @@
 import XCTest
 @testable import Rokt_Widget
 
-final class TestTxnInitService: XCTestCase {
+final class TestInitService: XCTestCase {
 
     private var now: Date!
-    private var sessionManager: TxnSessionManager!
-    private var httpClient: MockTxnHTTPClient!
+    private var sessionManager: SessionTokenManager!
+    private var httpClient: MockHTTPClient!
 
     override func setUp() {
         super.setUp()
         now = Date(timeIntervalSince1970: 1_000_000)
-        sessionManager = TxnSessionManager(clock: { self.now })
-        httpClient = MockTxnHTTPClient()
+        sessionManager = SessionTokenManager(clock: { self.now })
+        httpClient = MockHTTPClient()
     }
 
     override func tearDown() {
@@ -21,8 +21,8 @@ final class TestTxnInitService: XCTestCase {
         super.tearDown()
     }
 
-    private func makeService(environment: Environment = .Prod, maxRetries: Int = 3) -> TxnInitService {
-        TxnInitService(
+    private func makeService(environment: Environment = .Prod, maxRetries: Int = 3) -> InitService {
+        InitService(
             environment: environment,
             accountId: "account-1",
             sdkVersion: "5.2.2",
@@ -72,7 +72,7 @@ final class TestTxnInitService: XCTestCase {
         let expiryMs = Int64(now.addingTimeInterval(1800).timeIntervalSince1970 * 1000)
         await sessionManager.update(
             sessionId: "existing",
-            sessionToken: TxnSessionToken(token: "stored-jwt", expiresAt: expiryMs)
+            sessionToken: SessionToken(token: "stored-jwt", expiresAt: expiryMs)
         )
         httpClient.results = [.success(data: successJSON())]
 
@@ -115,7 +115,7 @@ final class TestTxnInitService: XCTestCase {
         do {
             _ = try await makeService(maxRetries: 3).initSession()
             XCTFail("Expected init to fail after exhausting retries")
-        } catch let error as TxnInitService.TxnInitError {
+        } catch let error as InitService.InitError {
             XCTAssertEqual(error, .unexpectedStatusCode(503))
             XCTAssertEqual(httpClient.callCount, 4)
         } catch {
@@ -129,7 +129,7 @@ final class TestTxnInitService: XCTestCase {
         do {
             _ = try await makeService().initSession()
             XCTFail("Expected init to fail on 400")
-        } catch let error as TxnInitService.TxnInitError {
+        } catch let error as InitService.InitError {
             XCTAssertEqual(error, .unexpectedStatusCode(400))
             XCTAssertEqual(httpClient.callCount, 1)
         } catch {
@@ -167,7 +167,7 @@ final class TestTxnInitService: XCTestCase {
         do {
             _ = try await service.initSession()
             XCTFail("Expected invalid base URL to fail")
-        } catch let error as TxnInitService.TxnInitError {
+        } catch let error as InitService.InitError {
             XCTAssertEqual(error, .invalidBaseURL)
             XCTAssertEqual(httpClient.callCount, 0)
         } catch {
@@ -176,7 +176,7 @@ final class TestTxnInitService: XCTestCase {
     }
 }
 
-private final class MockTxnHTTPClient: HTTPClientAdapter {
+private final class MockHTTPClient: HTTPClientAdapter {
     enum Response {
         case success(data: Data)
         case status(Int)

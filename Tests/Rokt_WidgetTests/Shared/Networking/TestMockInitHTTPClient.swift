@@ -1,7 +1,7 @@
 import XCTest
 @testable import Rokt_Widget
 
-final class TestMockTxnInitHTTPClient: XCTestCase {
+final class TestMockInitHTTPClient: XCTestCase {
 
     private var tempDir: URL!
 
@@ -19,11 +19,11 @@ final class TestMockTxnInitHTTPClient: XCTestCase {
     }
 
     private func writeFixture(_ json: String) {
-        try? json.write(to: tempDir.appendingPathComponent("txn_init.json"), atomically: true, encoding: .utf8)
+        try? json.write(to: tempDir.appendingPathComponent("init.json"), atomically: true, encoding: .utf8)
     }
 
     private func performRequest(bundle: Bundle) -> RoktHTTPRequestResult? {
-        let client = MockTxnInitHTTPClient(bundle: bundle)
+        let client = MockInitHTTPClient(bundle: bundle)
         let expectation = expectation(description: "completion")
         var captured: RoktHTTPRequestResult?
         client.startRequestWith(
@@ -62,7 +62,7 @@ final class TestMockTxnInitHTTPClient: XCTestCase {
         XCTAssertEqual(result?.httpURLResponse?.statusCode, 200)
         XCTAssertNil(result?.responseError)
         let data = try XCTUnwrap(result?.responseData)
-        let decoded = try JSONDecoder().decode(TxnInitResponse.self, from: data)
+        let decoded = try JSONDecoder().decode(InitResponse.self, from: data)
         XCTAssertEqual(decoded.sessionId, "mock-sess")
         XCTAssertEqual(decoded.featureFlags.int(forKey: "client-timeout-ms"), 8000)
     }
@@ -75,7 +75,7 @@ final class TestMockTxnInitHTTPClient: XCTestCase {
         XCTAssertEqual(result?.httpURLResponse?.statusCode, 200)
         XCTAssertNil(result?.responseError)
         let data = try XCTUnwrap(result?.responseData)
-        let decoded = try JSONDecoder().decode(TxnInitResponse.self, from: data)
+        let decoded = try JSONDecoder().decode(InitResponse.self, from: data)
         XCTAssertEqual(decoded.featureFlags.int(forKey: "client-timeout-ms"), 8000)
     }
 }

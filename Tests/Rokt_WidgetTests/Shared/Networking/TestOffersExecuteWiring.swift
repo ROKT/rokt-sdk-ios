@@ -101,7 +101,7 @@ final class TestOffersExecuteWiring: XCTestCase {
 
     /// Brings the SDK to `isInitialized` with a stubbed init response.
     private func initialize(cacheEnabled: Bool = false) {
-        impl.makeTxnInitServiceOverride = { tagId in
+        impl.makeInitServiceOverride = { tagId in
             let stub = StubHTTPClient(data: Data(
                 """
                 {
@@ -112,12 +112,12 @@ final class TestOffersExecuteWiring: XCTestCase {
                 }
                 """.utf8
             ), status: 200)
-            return TxnInitService(
+            return InitService(
                 environment: .Prod,
                 accountId: tagId,
                 sdkVersion: "5.2.2",
                 layoutSchemaVersion: "1.0",
-                sessionManager: TxnSessionManager(),
+                sessionManager: SessionTokenManager(),
                 httpClient: stub,
                 baseBackoff: 0,
                 sleep: { _ in }
@@ -133,7 +133,7 @@ final class TestOffersExecuteWiring: XCTestCase {
                 environment: .Prod,
                 accountId: tagId,
                 sdkVersion: "5.2.2",
-                sessionManager: TxnSessionManager(),
+                sessionManager: SessionTokenManager(),
                 httpClient: StubHTTPClient(data: data, status: status, error: error),
                 maxRetries: 0,
                 sleep: { _ in }

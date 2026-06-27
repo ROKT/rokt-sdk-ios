@@ -1,47 +1,45 @@
 import Foundation
 
-internal struct TxnInitClient {
+internal struct EventsClient {
     let baseURL: URL
     let accountId: String
-    let authToken: String?
     let sdkVersion: String
+    let deviceHeaders: [String: String]
     let httpClient: HTTPClientAdapter
 
     init(
         baseURL: URL,
         accountId: String,
-        authToken: String? = nil,
         sdkVersion: String,
+        deviceHeaders: [String: String] = [:],
         httpClient: HTTPClientAdapter = RoktHTTPClient()
     ) {
         self.baseURL = baseURL
         self.accountId = accountId
-        self.authToken = authToken
         self.sdkVersion = sdkVersion
+        self.deviceHeaders = deviceHeaders
         self.httpClient = httpClient
     }
 
-    func initSession(
-        operating_system: String,
-        layout_schema_version: String
-    ) async throws -> (Data?, HTTPURLResponse?) {
+    func recordEvents(events: [Event], authToken: String?) async throws -> (Data?, HTTPURLResponse?) {
         let url = baseURL
             .appendingPathComponent("v2")
             .appendingPathComponent("sessions")
-            .appendingPathComponent("init")
+            .appendingPathComponent("events")
 
-        let requestBody = TxnInitRequest(
-            operatingSystem: operating_system,
-            sdkVersion: sdkVersion,
-            layoutSchemaVersion: layout_schema_version
+        let requestBody = EventsRequest(
+            channel: EventsChannel(type: "msdk", sdkVersion: sdkVersion),
+            events: events
         )
         let bodyData = try JSONEncoder().encode(requestBody)
         guard let bodyParameters = try JSONSerialization.jsonObject(with: bodyData) as? RoktHTTPParameters else {
-            throw TxnInitClientError.bodyEncodingFailed
+            throw EventsClientError.bodyEncodingFailed
         }
 
-        var headers = TxnRequestHeaders.common(accountId: accountId, authToken: authToken)
-        headers["x-request-id"] = UUID().uuidString
+        var headers = RequestHeaders.common(accountId: accountId, authToken: authToken)
+        for (key, value) in deviceHeaders {
+            headers[key] = value
+        }
 
         return try await withCheckedThrowingContinuation { continuation in
             httpClient.startRequestWith(
@@ -65,21 +63,43 @@ internal struct TxnInitClient {
     }
 }
 
-internal enum TxnInitClientError: Error {
+internal enum EventsClientError: Error {
     case bodyEncodingFailed
 }
 
-internal struct TxnInitRequest: Encodable {
+internal struct EventsRequest: Encodable {
     // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
-    let operatingSystem: String
+    let channel: EventsChannel
+    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
+    let events: [Event]
+}
+
+internal struct EventsChannel: Encodable {
+    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
+    let type: String
     // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
     let sdkVersion: String
-    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
-    let layoutSchemaVersion: String
 
     enum CodingKeys: String, CodingKey {
-        case operatingSystem = "operating_system"
+        case type
         case sdkVersion = "sdk_version"
-        case layoutSchemaVersion = "layout_schema_version"
+    }
+}
+
+internal struct Event: Encodable, Equatable {
+    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
+    let eventType: String
+    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
+    let instanceId: String?
+    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
+    let timestamp: Int64
+    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
+    let data: [String: EventDataValue]?
+
+    enum CodingKeys: String, CodingKey {
+        case eventType = "event_type"
+        case instanceId = "instance_id"
+        case timestamp
+        case data
     }
 }

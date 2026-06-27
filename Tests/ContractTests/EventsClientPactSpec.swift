@@ -4,15 +4,15 @@ import PactSwift
 
 /// Consumer-driven pact spec for the v2 `/v2/sessions/events` endpoint.
 ///
-/// Drives `TxnEventsClient.recordEvents(events:authToken:)` — the test never constructs
+/// Drives `EventsClient.recordEvents(events:authToken:)` — the test never constructs
 /// request headers or body directly, only domain inputs. Wire-shape
-/// construction lives entirely in `TxnEventsClient`, so any drift there
+/// construction lives entirely in `EventsClient`, so any drift there
 /// (e.g. changing the `channel.type` body field) gets rejected by the pact mock service.
 ///
 /// Mirrors OffersClientPactSpec — see that file's docstring for the
 /// matcher policy (exact-match for hardcoded constants, `SomethingLike`
 /// for per-runtime values).
-class TxnEventsClientPactSpec: XCTestCase {
+class EventsClientPactSpec: XCTestCase {
     static var mockService: MockService!
 
     override class func setUp() {
@@ -86,12 +86,12 @@ class TxnEventsClientPactSpec: XCTestCase {
                 defer { done() }
                 do {
                     let url = try XCTUnwrap(URL(string: baseURL))
-                    let client = TxnEventsClient(
+                    let client = EventsClient(
                         baseURL: url,
                         accountId: "account-456",
                         sdkVersion: "5.2.2"
                     )
-                    let event = TxnEvent(
+                    let event = Event(
                         eventType: "impression",
                         instanceId: "00000000-0000-0000-0000-000000000001",
                         timestamp: 1_774_474_053_000,
@@ -103,7 +103,7 @@ class TxnEventsClientPactSpec: XCTestCase {
                     )
                     XCTAssertEqual(httpResponse?.statusCode, 202)
                 } catch {
-                    XCTFail("TxnEventsClient request failed: \(error)")
+                    XCTFail("EventsClient request failed: \(error)")
                 }
                 expectation.fulfill()
             }

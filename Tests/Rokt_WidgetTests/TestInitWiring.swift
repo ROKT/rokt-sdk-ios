@@ -1,7 +1,7 @@
 import XCTest
 @testable import Rokt_Widget
 
-final class TestTxnInitWiring: XCTestCase {
+final class TestInitWiring: XCTestCase {
 
     private var impl: RoktInternalImplementation!
     private var stub: StubInitHTTPClient!
@@ -19,13 +19,13 @@ final class TestTxnInitWiring: XCTestCase {
     }
 
     private func injectService() {
-        impl.makeTxnInitServiceOverride = { [stub] tagId in
-            TxnInitService(
+        impl.makeInitServiceOverride = { [stub] tagId in
+            InitService(
                 environment: .Prod,
                 accountId: tagId,
                 sdkVersion: "5.2.2",
                 layoutSchemaVersion: "1.0",
-                sessionManager: TxnSessionManager(),
+                sessionManager: SessionTokenManager(),
                 httpClient: stub!,
                 baseBackoff: 0,
                 sleep: { _ in }
