@@ -1,16 +1,16 @@
 import XCTest
 @testable import Rokt_Widget
 
-final class TestTxnInitResponseAdapter: XCTestCase {
+final class TestInitResponseAdapter: XCTestCase {
 
     private func response(
-        flags: [String: TxnFeatureFlagValue],
-        fonts: [TxnFontItem] = []
-    ) -> TxnInitResponse {
-        TxnInitResponse(
+        flags: [String: FeatureFlagValue],
+        fonts: [FontItem] = []
+    ) -> InitResponse {
+        InitResponse(
             sessionId: "sess",
-            sessionToken: TxnSessionToken(token: "jwt", expiresAt: 1),
-            featureFlags: TxnFeatureFlags(flags: flags),
+            sessionToken: SessionToken(token: "jwt", expiresAt: 1),
+            featureFlags: FeatureFlags(flags: flags),
             fonts: fonts
         )
     }
@@ -39,14 +39,14 @@ final class TestTxnInitResponseAdapter: XCTestCase {
 
     func test_toInitRespose_mapsFonts() {
         let fonts = [
-            TxnFontItem(
+            FontItem(
                 fontName: "Arial",
                 fontURL: "https://example.com/arial.ttf",
                 fontStyle: "italic",
                 fontWeight: "700",
                 fontPostScriptName: "Arial-Italic"
             ),
-            TxnFontItem(
+            FontItem(
                 fontName: "Roboto",
                 fontURL: "https://example.com/roboto.ttf",
                 fontStyle: nil,

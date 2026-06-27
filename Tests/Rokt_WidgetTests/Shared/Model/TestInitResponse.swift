@@ -1,14 +1,14 @@
 import XCTest
 @testable import Rokt_Widget
 
-final class TestTxnInitResponse: XCTestCase {
+final class TestInitResponse: XCTestCase {
 
-    private func decode(_ json: String) throws -> TxnInitResponse {
+    private func decode(_ json: String) throws -> InitResponse {
         let data = Data(json.utf8)
-        return try JSONDecoder().decode(TxnInitResponse.self, from: data)
+        return try JSONDecoder().decode(InitResponse.self, from: data)
     }
 
-    // Mirrors the happy-path body in TxnInitClientPactSpec.
+    // Mirrors the happy-path body in InitClientPactSpec.
     private let happyPathJSON = """
     {
         "session_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -41,9 +41,9 @@ final class TestTxnInitResponse: XCTestCase {
     }
 
     func test_init_memberwise_setsAllFields() {
-        let token = TxnSessionToken(token: "t", expiresAt: 1_774_474_053_000)
-        let flags = TxnFeatureFlags(flags: ["rokt-tracking-status": .bool(true)])
-        let response = TxnInitResponse(sessionId: "sid", sessionToken: token, featureFlags: flags, fonts: [])
+        let token = SessionToken(token: "t", expiresAt: 1_774_474_053_000)
+        let flags = FeatureFlags(flags: ["rokt-tracking-status": .bool(true)])
+        let response = InitResponse(sessionId: "sid", sessionToken: token, featureFlags: flags, fonts: [])
         XCTAssertEqual(response.sessionId, "sid")
         XCTAssertEqual(response.sessionToken, token)
         XCTAssertEqual(response.featureFlags, flags)
@@ -53,7 +53,7 @@ final class TestTxnInitResponse: XCTestCase {
     // MARK: - Session token
 
     func test_sessionToken_expiresAtDate_convertsFromMilliseconds() {
-        let token = TxnSessionToken(token: "t", expiresAt: 1_774_474_053_000)
+        let token = SessionToken(token: "t", expiresAt: 1_774_474_053_000)
         XCTAssertEqual(token.expiresAtDate, Date(timeIntervalSince1970: 1_774_474_053))
     }
 
@@ -198,7 +198,7 @@ final class TestTxnInitResponse: XCTestCase {
     }
 
     func test_toInitFeatureFlags_emptySchemaString_mapsToMatchFalse() {
-        let flags = TxnFeatureFlags(flags: [
+        let flags = FeatureFlags(flags: [
             "is-post-purchase-enabled": .bool(true),
             "minimum-post-purchase-schema": .string("")
         ]).toInitFeatureFlags()
@@ -207,7 +207,7 @@ final class TestTxnInitResponse: XCTestCase {
     }
 
     func test_toInitFeatureFlags_absentRoktTrackingStatus_defaultsToTrue() {
-        let flags = TxnFeatureFlags(flags: [:]).toInitFeatureFlags()
+        let flags = FeatureFlags(flags: [:]).toInitFeatureFlags()
         XCTAssertTrue(flags.isEnabled(.roktTrackingStatus))
     }
 }

@@ -2,10 +2,10 @@ import Foundation
 
 // Offline transport for the Mock environment: serves a v2 init response without the network
 // so the SDK still exercises the real decode + mapping path. Falls back to a built-in
-// response so Mock init never depends on a host-bundled fixture (a bundled txn_init.json
+// response so Mock init never depends on a host-bundled fixture (a bundled init.json
 // overrides the default when present, which the example app uses).
-internal final class MockTxnInitHTTPClient: HTTPClientAdapter {
-    private static let fixtureName = "txn_init"
+internal final class MockInitHTTPClient: HTTPClientAdapter {
+    private static let fixtureName = "init"
 
     // Guaranteed success response, mirroring the hard-coded init the legacy mock path returned.
     private static let defaultResponse = Data(

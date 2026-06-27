@@ -58,7 +58,7 @@
 		25BC81762AFDFCD2007E1A0B /* layout_playground_inner.json in Resources */ = {isa = PBXBuildFile; fileRef = 25BC81752AFDFCD2007E1A0B /* layout_playground_inner.json */; };
 		25BC81782AFDFCE8007E1A0B /* layout_playground_outer.json in Resources */ = {isa = PBXBuildFile; fileRef = 25BC81772AFDFCE8007E1A0B /* layout_playground_outer.json */; };
 		25BC817A2AFDFD2F007E1A0B /* layout_playground.json in Resources */ = {isa = PBXBuildFile; fileRef = 25BC81792AFDFD2F007E1A0B /* layout_playground.json */; };
-		FACE7C0000000000000000F1 /* txn_init.json in Resources */ = {isa = PBXBuildFile; fileRef = FACE7C0000000000000000F0 /* txn_init.json */; };
+		FACE7C0000000000000000F1 /* init.json in Resources */ = {isa = PBXBuildFile; fileRef = FACE7C0000000000000000F0 /* init.json */; };
 		25F4A2F82BCCDBE2001D9087 /* validInitWithoutFeatureFlag.json in Resources */ = {isa = PBXBuildFile; fileRef = 25F4A2F72BCCDBE2001D9087 /* validInitWithoutFeatureFlag.json */; };
 		25F4A2F92BCCDBE2001D9087 /* validInitWithoutFeatureFlag.json in Resources */ = {isa = PBXBuildFile; fileRef = 25F4A2F72BCCDBE2001D9087 /* validInitWithoutFeatureFlag.json */; };
 		25FD47352BF4918B0051C704 /* RoktApplication.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25FD47342BF4918B0051C704 /* RoktApplication.swift */; };
@@ -181,7 +181,7 @@
 		25BC81752AFDFCD2007E1A0B /* layout_playground_inner.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = layout_playground_inner.json; sourceTree = "<group>"; };
 		25BC81772AFDFCE8007E1A0B /* layout_playground_outer.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = layout_playground_outer.json; sourceTree = "<group>"; };
 		25BC81792AFDFD2F007E1A0B /* layout_playground.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = layout_playground.json; sourceTree = "<group>"; };
-		FACE7C0000000000000000F0 /* txn_init.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = txn_init.json; sourceTree = "<group>"; };
+		FACE7C0000000000000000F0 /* init.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = init.json; sourceTree = "<group>"; };
 		25F4A2F72BCCDBE2001D9087 /* validInitWithoutFeatureFlag.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = validInitWithoutFeatureFlag.json; sourceTree = "<group>"; };
 		25FD47342BF4918B0051C704 /* RoktApplication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoktApplication.swift; sourceTree = "<group>"; };
 		25FD47362BF4922C0051C704 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
@@ -415,7 +415,7 @@
 				B17F42DC29F232C40047210B /* Layouts */,
 				607FACEA1AFB9204008FA782 /* Info.plist */,
 				4F7DEE392133395E007DABC4 /* validInit.json */,
-				FACE7C0000000000000000F0 /* txn_init.json */,
+				FACE7C0000000000000000F0 /* init.json */,
 				99FB79D32CEC98B600B7E7EC /* validInitWithCache.json */,
 				25F4A2F72BCCDBE2001D9087 /* validInitWithoutFeatureFlag.json */,
 				58EF6D1F25E364BE0058A2B2 /* initWithFalseRoktTrackingStatus.json */,
@@ -622,7 +622,7 @@
 				607FACDD1AFB9204008FA782 /* Images.xcassets in Resources */,
 				B180F4602A0B491D0075A9D9 /* ios_complex_test.json in Resources */,
 				25BC817A2AFDFD2F007E1A0B /* layout_playground.json in Resources */,
-				FACE7C0000000000000000F1 /* txn_init.json in Resources */,
+				FACE7C0000000000000000F1 /* init.json in Resources */,
 				B17F42E129F233E90047210B /* partner1_overlay_inner.json in Resources */,
 				25BC81782AFDFCE8007E1A0B /* layout_playground_outer.json in Resources */,
 				25226FED2A412AA7006AFCF7 /* layout_multiple_1.json in Resources */,

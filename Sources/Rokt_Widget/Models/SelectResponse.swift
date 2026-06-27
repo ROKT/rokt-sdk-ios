@@ -157,7 +157,7 @@ internal struct SelectEvent: Encodable, Equatable {
 /// with no re-encoding.
 internal struct SelectResponse: Decodable, Equatable {
     let sessionId: String
-    let sessionToken: TxnSessionToken
+    let sessionToken: SessionToken
     let pageInstanceGuid: String
     let pageContext: SelectPageContext?
     let plugins: [SelectPlugin]?
@@ -175,7 +175,7 @@ internal struct SelectResponse: Decodable, Equatable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         sessionId = try container.decode(String.self, forKey: .sessionId)
-        sessionToken = try container.decode(TxnSessionToken.self, forKey: .sessionToken)
+        sessionToken = try container.decode(SessionToken.self, forKey: .sessionToken)
         pageInstanceGuid = try container.decodeIfPresent(String.self, forKey: .pageInstanceGuid) ?? ""
         pageContext = try container.decodeIfPresent(SelectPageContext.self, forKey: .pageContext)
         plugins = try container.decodeIfPresent([SelectPlugin].self, forKey: .plugins)

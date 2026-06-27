@@ -1,45 +1,47 @@
 import Foundation
 
-internal struct TxnEventsClient {
+internal struct InitClient {
     let baseURL: URL
     let accountId: String
+    let authToken: String?
     let sdkVersion: String
-    let deviceHeaders: [String: String]
     let httpClient: HTTPClientAdapter
 
     init(
         baseURL: URL,
         accountId: String,
+        authToken: String? = nil,
         sdkVersion: String,
-        deviceHeaders: [String: String] = [:],
         httpClient: HTTPClientAdapter = RoktHTTPClient()
     ) {
         self.baseURL = baseURL
         self.accountId = accountId
+        self.authToken = authToken
         self.sdkVersion = sdkVersion
-        self.deviceHeaders = deviceHeaders
         self.httpClient = httpClient
     }
 
-    func recordEvents(events: [TxnEvent], authToken: String?) async throws -> (Data?, HTTPURLResponse?) {
+    func initSession(
+        operating_system: String,
+        layout_schema_version: String
+    ) async throws -> (Data?, HTTPURLResponse?) {
         let url = baseURL
             .appendingPathComponent("v2")
             .appendingPathComponent("sessions")
-            .appendingPathComponent("events")
+            .appendingPathComponent("init")
 
-        let requestBody = TxnEventsRequest(
-            channel: TxnEventsChannel(type: "msdk", sdkVersion: sdkVersion),
-            events: events
+        let requestBody = InitRequest(
+            operatingSystem: operating_system,
+            sdkVersion: sdkVersion,
+            layoutSchemaVersion: layout_schema_version
         )
         let bodyData = try JSONEncoder().encode(requestBody)
         guard let bodyParameters = try JSONSerialization.jsonObject(with: bodyData) as? RoktHTTPParameters else {
-            throw TxnEventsClientError.bodyEncodingFailed
+            throw InitClientError.bodyEncodingFailed
         }
 
-        var headers = TxnRequestHeaders.common(accountId: accountId, authToken: authToken)
-        for (key, value) in deviceHeaders {
-            headers[key] = value
-        }
+        var headers = RequestHeaders.common(accountId: accountId, authToken: authToken)
+        headers["x-request-id"] = UUID().uuidString
 
         return try await withCheckedThrowingContinuation { continuation in
             httpClient.startRequestWith(
@@ -63,43 +65,21 @@ internal struct TxnEventsClient {
     }
 }
 
-internal enum TxnEventsClientError: Error {
+internal enum InitClientError: Error {
     case bodyEncodingFailed
 }
 
-internal struct TxnEventsRequest: Encodable {
+internal struct InitRequest: Encodable {
     // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
-    let channel: TxnEventsChannel
-    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
-    let events: [TxnEvent]
-}
-
-internal struct TxnEventsChannel: Encodable {
-    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
-    let type: String
+    let operatingSystem: String
     // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
     let sdkVersion: String
+    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
+    let layoutSchemaVersion: String
 
     enum CodingKeys: String, CodingKey {
-        case type
+        case operatingSystem = "operating_system"
         case sdkVersion = "sdk_version"
-    }
-}
-
-internal struct TxnEvent: Encodable, Equatable {
-    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
-    let eventType: String
-    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
-    let instanceId: String?
-    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
-    let timestamp: Int64
-    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
-    let data: [String: TxnEventDataValue]?
-
-    enum CodingKeys: String, CodingKey {
-        case eventType = "event_type"
-        case instanceId = "instance_id"
-        case timestamp
-        case data
+        case layoutSchemaVersion = "layout_schema_version"
     }
 }

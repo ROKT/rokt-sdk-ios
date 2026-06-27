@@ -51,11 +51,11 @@ internal struct OffersClient {
             throw OffersClientError.bodyEncodingFailed
         }
 
-        var headers = TxnRequestHeaders.common(accountId: accountId, authToken: authToken)
+        var headers = RequestHeaders.common(accountId: accountId, authToken: authToken)
         headers["x-request-id"] = input.requestId
         headers["rokt-page-instance-guid"] = pageInstanceGuid
         // Device headers (os, model, locale, app version) and the load-bearing
-        // rokt-package-name ride in via NetworkingHelper.txnDeviceHeaders — the
+        // rokt-package-name ride in via NetworkingHelper.deviceHeaders — the
         // gateway's mobile page detection and targeting key off them.
         for (key, value) in deviceHeaders {
             headers[key] = value

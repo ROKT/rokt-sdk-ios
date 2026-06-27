@@ -137,8 +137,8 @@ class PlatformEventProcessor {
             guard let self else { return }
             RealTimeEventManager.shared.markEventsAsTriggered(triggeredEvents: events)
             let implementation = Rokt.shared.roktImplementation
-            if implementation.isTxnEventsEnabled {
-                implementation.dispatchTxnEvents(events.compactMap { TxnEventMapper.event(from: $0) })
+            if implementation.isV2EventsEnabled {
+                implementation.dispatchEvents(events.compactMap { EventMapper.event(from: $0) })
             } else {
                 RoktAPIHelper.sendEvents(events: events.map { self.getEventParams($0)})
             }

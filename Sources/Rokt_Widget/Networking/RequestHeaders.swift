@@ -7,7 +7,7 @@ import Foundation
 /// flag, and the optional Authorization. Centralised so the shadow and auth
 /// rules can't drift between the three clients (a partial edit would otherwise
 /// send one endpoint live and another shadow for the same session).
-internal enum TxnRequestHeaders {
+internal enum RequestHeaders {
     static let shadowHeaderKey = "rokt-txn-shadow"
 
     static func common(accountId: String, authToken: String?) -> RoktHTTPHeaders {

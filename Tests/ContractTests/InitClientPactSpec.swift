@@ -3,9 +3,9 @@ import PactSwift
 @testable import Rokt_Widget
 
 /// Consumer-driven pact spec for `POST /v2/sessions/init`. Drives
-/// `TxnInitClient.initSession` through the pact mock service so any drift
+/// `InitClient.initSession` through the pact mock service so any drift
 /// in the client's wire shape fails here.
-class TxnInitClientPactSpec: XCTestCase {
+class InitClientPactSpec: XCTestCase {
     static var mockService: MockService!
 
     override class func setUp() {
@@ -73,13 +73,13 @@ class TxnInitClientPactSpec: XCTestCase {
 
         let expectation = expectation(description: "v2 sessions init request completes")
 
-        // Timeout sized for CI cold-start. See TxnEventsClientPactSpec.
+        // Timeout sized for CI cold-start. See EventsClientPactSpec.
         Self.mockService.run(timeout: 30) { baseURL, done in
             Task {
                 defer { done() }
                 do {
                     let url = try XCTUnwrap(URL(string: baseURL))
-                    let client = TxnInitClient(
+                    let client = InitClient(
                         baseURL: url,
                         accountId: "account-456",
                         sdkVersion: "5.2.2"
@@ -90,7 +90,7 @@ class TxnInitClientPactSpec: XCTestCase {
                     )
                     XCTAssertEqual(httpResponse?.statusCode, 200)
                 } catch {
-                    XCTFail("TxnInitClient request failed: \(error)")
+                    XCTFail("InitClient request failed: \(error)")
                 }
                 expectation.fulfill()
             }

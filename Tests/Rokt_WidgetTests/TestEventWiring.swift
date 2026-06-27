@@ -1,15 +1,15 @@
 import XCTest
 @testable import Rokt_Widget
 
-final class TestTxnEventWiring: XCTestCase {
+final class TestEventWiring: XCTestCase {
 
     private var impl: RoktInternalImplementation!
-    private var stub: MockTxnEventsHTTPClient!
+    private var stub: MockEventsHTTPClient!
 
     override func setUp() {
         super.setUp()
         impl = RoktInternalImplementation()
-        stub = MockTxnEventsHTTPClient()
+        stub = MockEventsHTTPClient()
     }
 
     override func tearDown() {
@@ -19,12 +19,12 @@ final class TestTxnEventWiring: XCTestCase {
     }
 
     private func injectService() {
-        impl.makeTxnEventServiceOverride = { [stub] tagId in
-            TxnEventService(
+        impl.makeEventServiceOverride = { [stub] tagId in
+            EventService(
                 environment: .Prod,
                 accountId: tagId,
                 sdkVersion: "5.2.2",
-                sessionManager: TxnSessionManager(),
+                sessionManager: SessionTokenManager(),
                 httpClient: stub!,
                 baseBackoff: 0,
                 sleep: { _ in }
@@ -32,19 +32,19 @@ final class TestTxnEventWiring: XCTestCase {
         }
     }
 
-    private func sampleEvent() -> TxnEvent {
-        TxnEvent(eventType: "impression", instanceId: "instance-1", timestamp: 1_700_000_000_000, data: ["k": "v"])
+    private func sampleEvent() -> Event {
+        Event(eventType: "impression", instanceId: "instance-1", timestamp: 1_700_000_000_000, data: ["k": "v"])
     }
 
-    func test_txnEvents_isEnabled() {
-        XCTAssertTrue(impl.isTxnEventsEnabled)
+    func test_v2Events_isEnabled() {
+        XCTAssertTrue(impl.isV2EventsEnabled)
     }
 
     func test_dispatch_withTagId_sendsThroughService() {
         injectService()
         impl.roktTagId = "tag-1"
 
-        impl.dispatchTxnEvents([sampleEvent()])
+        impl.dispatchEvents([sampleEvent()])
 
         waitUntil { self.stub.callCount == 1 }
     }
@@ -52,7 +52,7 @@ final class TestTxnEventWiring: XCTestCase {
     func test_dispatch_withoutTagId_doesNotSend() {
         injectService()
 
-        impl.dispatchTxnEvents([sampleEvent()])
+        impl.dispatchEvents([sampleEvent()])
 
         let settled = expectation(description: "settled")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { settled.fulfill() }
@@ -64,7 +64,7 @@ final class TestTxnEventWiring: XCTestCase {
         injectService()
         impl.roktTagId = "tag-1"
 
-        impl.dispatchTxnEvents([])
+        impl.dispatchEvents([])
 
         let settled = expectation(description: "settled")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { settled.fulfill() }
