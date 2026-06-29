@@ -8,26 +8,8 @@ internal struct OffersClient {
     let authToken: String?
     let sdkVersion: String
     let pageInstanceGuid: String
-    let deviceHeaders: [String: String]
-    let httpClient: HTTPClientAdapter
-
-    init(
-        baseURL: URL,
-        accountId: String,
-        authToken: String?,
-        sdkVersion: String,
-        pageInstanceGuid: String,
-        deviceHeaders: [String: String] = [:],
-        httpClient: HTTPClientAdapter = RoktHTTPClient()
-    ) {
-        self.baseURL = baseURL
-        self.accountId = accountId
-        self.authToken = authToken
-        self.sdkVersion = sdkVersion
-        self.pageInstanceGuid = pageInstanceGuid
-        self.deviceHeaders = deviceHeaders
-        self.httpClient = httpClient
-    }
+    var deviceHeaders: [String: String] = [:]
+    var httpClient: HTTPClientAdapter = RoktHTTPClient()
 
     func fetchOffers(input: OffersInput) async throws -> (Data?, HTTPURLResponse?) {
         let url = baseURL
@@ -91,23 +73,7 @@ internal struct OffersInput {
     let requestId: String
     let pageIdentifier: String
     let attributes: [String: String]
-    let privacyControl: SelectPrivacyControl?
-    let privacy: SelectPrivacy?
-    let events: [SelectEvent]?
-
-    init(
-        requestId: String,
-        pageIdentifier: String,
-        attributes: [String: String],
-        privacyControl: SelectPrivacyControl? = nil,
-        privacy: SelectPrivacy? = nil,
-        events: [SelectEvent]? = nil
-    ) {
-        self.requestId = requestId
-        self.pageIdentifier = pageIdentifier
-        self.attributes = attributes
-        self.privacyControl = privacyControl
-        self.privacy = privacy
-        self.events = events
-    }
+    var privacyControl: SelectPrivacyControl?
+    var privacy: SelectPrivacy?
+    var events: [SelectEvent]?
 }

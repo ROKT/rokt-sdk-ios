@@ -12,12 +12,12 @@ import Foundation
 internal struct SelectRequest: Encodable, Equatable {
     let page: SelectPage
     let channel: SelectChannel
-    let attributes: [String: String]
-    let privacyControl: SelectPrivacyControl?
-    let privacy: SelectPrivacy?
+    var attributes: [String: String] = [:]
+    var privacyControl: SelectPrivacyControl?
+    var privacy: SelectPrivacy?
     // Real-time events triggered during the previous placement, forwarded for the next
     // selection; omitted when none.
-    let events: [SelectEvent]?
+    var events: [SelectEvent]?
 
     enum CodingKeys: String, CodingKey {
         case page
@@ -26,22 +26,6 @@ internal struct SelectRequest: Encodable, Equatable {
         case privacyControl = "privacy_control"
         case privacy
         case events
-    }
-
-    init(
-        page: SelectPage,
-        channel: SelectChannel,
-        attributes: [String: String] = [:],
-        privacyControl: SelectPrivacyControl? = nil,
-        privacy: SelectPrivacy? = nil,
-        events: [SelectEvent]? = nil
-    ) {
-        self.page = page
-        self.channel = channel
-        self.attributes = attributes
-        self.privacyControl = privacyControl
-        self.privacy = privacy
-        self.events = events
     }
 }
 
@@ -60,24 +44,14 @@ internal struct SelectChannel: Encodable, Equatable {
     static let channelTypeMsdk = "msdk"
     static let platformTypeIOS = "iOS"
 
-    let type: String
+    var type: String = SelectChannel.channelTypeMsdk
     let sdkVersion: String
-    let platformType: String
+    var platformType: String = SelectChannel.platformTypeIOS
 
     enum CodingKeys: String, CodingKey {
         case type
         case sdkVersion = "sdk_version"
         case platformType = "rokt_platform_type"
-    }
-
-    init(
-        type: String = SelectChannel.channelTypeMsdk,
-        sdkVersion: String,
-        platformType: String = SelectChannel.platformTypeIOS
-    ) {
-        self.type = type
-        self.sdkVersion = sdkVersion
-        self.platformType = platformType
     }
 }
 
@@ -93,12 +67,6 @@ internal struct SelectPrivacyControl: Encodable, Equatable {
         case noTargeting = "no_targeting"
         case doNotShareOrSell = "do_not_share_or_sell"
     }
-
-    init(noFunctional: Bool? = nil, noTargeting: Bool? = nil, doNotShareOrSell: Bool? = nil) {
-        self.noFunctional = noFunctional
-        self.noTargeting = noTargeting
-        self.doNotShareOrSell = doNotShareOrSell
-    }
 }
 
 /// GPC (Global Privacy Control) signal. A top-level sibling of
@@ -109,10 +77,6 @@ internal struct SelectPrivacy: Encodable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case gpcEnabled = "gpc_enabled"
-    }
-
-    init(gpcEnabled: Bool? = nil) {
-        self.gpcEnabled = gpcEnabled
     }
 }
 

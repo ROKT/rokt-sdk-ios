@@ -16,6 +16,7 @@ internal struct OffersService {
     let sdkVersion: String
     let sessionManager: TxnSessionManager
     let httpClient: HTTPClientAdapter
+    let attributeEnrichment: AttributeEnrichment
     let deviceHeaders: [String: String]
     let maxRetries: Int
     let requestTimeout: TimeInterval
@@ -36,6 +37,7 @@ internal struct OffersService {
         sdkVersion: String,
         sessionManager: TxnSessionManager,
         httpClient: HTTPClientAdapter = RoktHTTPClient(),
+        attributeEnrichment: AttributeEnrichment = .shared,
         deviceHeaders: [String: String] = [:],
         maxRetries: Int = 3,
         requestTimeout: TimeInterval = 7,
@@ -58,6 +60,7 @@ internal struct OffersService {
         self.sdkVersion = sdkVersion
         self.sessionManager = sessionManager
         self.httpClient = httpClient
+        self.attributeEnrichment = attributeEnrichment
         self.deviceHeaders = deviceHeaders
         self.maxRetries = maxRetries
         self.requestTimeout = requestTimeout
@@ -88,7 +91,7 @@ internal struct OffersService {
         let privacyControl = buildPrivacyControl(from: privacyPayload)
         let privacy = buildPrivacy(from: privacyPayload)
         let sanitisedAttributes = RoktAPIHelper.removePrivacyControlAttributes(attributes: attributes)
-        let enrichedAttributes = AttributeEnrichment.shared.enrich(attributes: sanitisedAttributes, config: config)
+        let enrichedAttributes = attributeEnrichment.enrich(attributes: sanitisedAttributes, config: config)
 
         Task {
             do {

@@ -79,51 +79,52 @@ func makeOffersData(fromV1Experience legacyData: Data) -> Data? {
         return nil
     }
 
-    func reshapeResponseOption(_ ro: [String: Any]) -> [String: Any] {
+    func reshapeResponseOption(_ responseOption: [String: Any]) -> [String: Any] {
         var out: [String: Any] = [:]
-        out["id"] = ro["id"]
-        out["action"] = ro["action"]
-        out["instance_guid"] = ro["instanceGuid"]
-        out["token"] = ro["token"]
-        out["signal_type"] = ro["signalType"]
-        out["short_label"] = ro["shortLabel"]
-        out["long_label"] = ro["longLabel"]
-        out["short_success_label"] = ro["shortSuccessLabel"]
-        out["is_positive"] = ro["isPositive"]
-        out["url"] = ro["url"]
+        out["id"] = responseOption["id"]
+        out["action"] = responseOption["action"]
+        out["instance_guid"] = responseOption["instanceGuid"]
+        out["token"] = responseOption["token"]
+        out["signal_type"] = responseOption["signalType"]
+        out["short_label"] = responseOption["shortLabel"]
+        out["long_label"] = responseOption["longLabel"]
+        out["short_success_label"] = responseOption["shortSuccessLabel"]
+        out["is_positive"] = responseOption["isPositive"]
+        out["url"] = responseOption["url"]
         return out
     }
 
-    func reshapeCreative(_ cr: [String: Any]) -> [String: Any] {
+    func reshapeCreative(_ creative: [String: Any]) -> [String: Any] {
         var out: [String: Any] = [:]
-        out["referral_creative_id"] = cr["referralCreativeId"]
-        out["instance_guid"] = cr["instanceGuid"]
-        out["token"] = cr["token"]
-        out["copy"] = cr["copy"]
-        out["images"] = cr["images"]
-        out["links"] = cr["links"]
-        if let rom = cr["responseOptionsMap"] as? [String: Any] {
-            out["response_options_map"] = rom.compactMapValues { ($0 as? [String: Any]).map(reshapeResponseOption) }
+        out["referral_creative_id"] = creative["referralCreativeId"]
+        out["instance_guid"] = creative["instanceGuid"]
+        out["token"] = creative["token"]
+        out["copy"] = creative["copy"]
+        out["images"] = creative["images"]
+        out["links"] = creative["links"]
+        if let responseOptionsMap = creative["responseOptionsMap"] as? [String: Any] {
+            out["response_options_map"] = responseOptionsMap
+                .compactMapValues { ($0 as? [String: Any]).map(reshapeResponseOption) }
         }
         return out
     }
 
-    func reshapeSlot(_ s: [String: Any]) -> [String: Any] {
+    func reshapeSlot(_ slot: [String: Any]) -> [String: Any] {
         var out: [String: Any] = [:]
-        out["instance_guid"] = s["instanceGuid"]
-        out["token"] = s["token"]
-        if let lv = s["layoutVariant"] as? [String: Any] {
-            var lvOut: [String: Any] = [:]
-            lvOut["layout_variant_id"] = lv["layoutVariantId"]
-            lvOut["module_name"] = lv["moduleName"]
-            lvOut["layout_variant_schema"] = lv["layoutVariantSchema"]
-            out["layout_variant"] = lvOut
+        out["instance_guid"] = slot["instanceGuid"]
+        out["token"] = slot["token"]
+        if let layoutVariant = slot["layoutVariant"] as? [String: Any] {
+            var layoutVariantOut: [String: Any] = [:]
+            layoutVariantOut["layout_variant_id"] = layoutVariant["layoutVariantId"]
+            layoutVariantOut["module_name"] = layoutVariant["moduleName"]
+            layoutVariantOut["layout_variant_schema"] = layoutVariant["layoutVariantSchema"]
+            out["layout_variant"] = layoutVariantOut
         }
-        if let offer = s["offer"] as? [String: Any] {
+        if let offer = slot["offer"] as? [String: Any] {
             var offerOut: [String: Any] = [:]
             offerOut["campaign_id"] = offer["campaignId"]
-            if let cr = offer["creative"] as? [String: Any] {
-                offerOut["creative"] = reshapeCreative(cr)
+            if let creative = offer["creative"] as? [String: Any] {
+                offerOut["creative"] = reshapeCreative(creative)
             }
             out["offer"] = offerOut
         }
@@ -131,18 +132,18 @@ func makeOffersData(fromV1Experience legacyData: Data) -> Data? {
     }
 
     func reshapePlugin(_ container: [String: Any]) -> [String: Any] {
-        guard let p = container["plugin"] as? [String: Any] else { return [:] }
+        guard let plugin = container["plugin"] as? [String: Any] else { return [:] }
         var pluginOut: [String: Any] = [:]
-        pluginOut["id"] = p["id"]
-        pluginOut["name"] = p["name"]
-        pluginOut["target_element_selector"] = p["targetElementSelector"]
-        if let cfg = p["config"] as? [String: Any] {
-            var cfgOut: [String: Any] = [:]
-            cfgOut["instance_guid"] = cfg["instanceGuid"]
-            cfgOut["token"] = cfg["token"]
-            cfgOut["outer_layout_schema"] = cfg["outerLayoutSchema"]
-            cfgOut["slots"] = (cfg["slots"] as? [[String: Any]] ?? []).map(reshapeSlot)
-            pluginOut["config"] = cfgOut
+        pluginOut["id"] = plugin["id"]
+        pluginOut["name"] = plugin["name"]
+        pluginOut["target_element_selector"] = plugin["targetElementSelector"]
+        if let config = plugin["config"] as? [String: Any] {
+            var configOut: [String: Any] = [:]
+            configOut["instance_guid"] = config["instanceGuid"]
+            configOut["token"] = config["token"]
+            configOut["outer_layout_schema"] = config["outerLayoutSchema"]
+            configOut["slots"] = (config["slots"] as? [[String: Any]] ?? []).map(reshapeSlot)
+            pluginOut["config"] = configOut
         }
         return ["plugin": pluginOut]
     }
