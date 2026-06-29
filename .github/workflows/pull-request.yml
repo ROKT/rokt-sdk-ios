@@ -92,7 +92,7 @@ jobs:
         run: |
           xcodebuild test \
             -scheme Rokt-Widget \
-            -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest' \
+            -destination 'platform=iOS Simulator,name=iPhone 16e,OS=latest' \
             -enableCodeCoverage YES \
             -skipPackagePluginValidation \
             -retry-tests-on-failure \
@@ -178,7 +178,7 @@ jobs:
 
           xcodebuild test \
             -scheme "$SCHEME" \
-            -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest' \
+            -destination 'platform=iOS Simulator,name=iPhone 16e,OS=latest' \
             -derivedDataPath "$DERIVED" \
             -skipPackagePluginValidation \
             -retry-tests-on-failure \
@@ -207,7 +207,7 @@ jobs:
           xcodebuild test \
             -project Example/rokt.xcodeproj \
             -scheme rokt-Example-MOCK \
-            -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest' \
+            -destination 'platform=iOS Simulator,name=iPhone 16e,OS=latest' \
             -enableCodeCoverage YES \
             -skipPackagePluginValidation \
             -resultBundlePath UiTestResult.xcresult \
@@ -257,7 +257,7 @@ jobs:
 
       - name: Build Example App
         run: |
-          xcodebuild -project "Example/rokt.xcodeproj" -scheme "rokt-Example" -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest' -derivedDataPath "DerivedData-periphery" -quiet build CODE_SIGNING_ALLOWED="NO" ENABLE_BITCODE="NO" DEBUG_INFORMATION_FORMAT="dwarf" COMPILER_INDEX_STORE_ENABLE="YES" INDEX_ENABLE_DATA_STORE="YES"
+          xcodebuild -project "Example/rokt.xcodeproj" -scheme "rokt-Example" -destination 'platform=iOS Simulator,name=iPhone 16e,OS=latest' -derivedDataPath "DerivedData-periphery" -quiet build CODE_SIGNING_ALLOWED="NO" ENABLE_BITCODE="NO" DEBUG_INFORMATION_FORMAT="dwarf" COMPILER_INDEX_STORE_ENABLE="YES" INDEX_ENABLE_DATA_STORE="YES"
 
       - name: Run Periphery Scan
         run: periphery scan --format github-actions
