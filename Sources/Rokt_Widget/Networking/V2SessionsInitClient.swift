@@ -23,6 +23,12 @@ internal struct V2SessionsInitClient {
         self.httpClient = httpClient
     }
 
+    /// Calls `GET /v2/sessions/init`.
+    ///
+    /// All inputs travel as request headers — there is no body — so the request
+    /// is a plain, cacheable GET. Operating system, layout schema version and
+    /// SDK version are carried as `rokt-os-type`, `rokt-layout-schema-version`
+    /// and `rokt-sdk-version` respectively.
     func initSession(
         operating_system: String,
         sdk_version: String,
@@ -33,30 +39,22 @@ internal struct V2SessionsInitClient {
             .appendingPathComponent("sessions")
             .appendingPathComponent("init")
 
-        let requestBody = V2SessionsInitRequest(
-            operatingSystem: operating_system,
-            sdkVersion: sdk_version,
-            layoutSchemaVersion: layout_schema_version
-        )
-        let bodyData = try JSONEncoder().encode(requestBody)
-        guard let bodyParameters = try JSONSerialization.jsonObject(with: bodyData) as? RoktHTTPParameters else {
-            throw V2SessionsInitClientError.bodyEncodingFailed
-        }
-
         let headers: RoktHTTPHeaders = [
             "rokt-account-id": accountId,
+            "rokt-os-type": operating_system,
+            "rokt-layout-schema-version": layout_schema_version,
+            "rokt-sdk-version": sdk_version,
             "Authorization": authToken,
             "rokt-platform-type": "iOS",
             "rokt-integration-type": "msdk-ios",
-            "x-request-id": UUID().uuidString,
-            "Content-Type": "application/json"
+            "x-request-id": UUID().uuidString
         ]
 
         return try await withCheckedThrowingContinuation { continuation in
             httpClient.startRequestWith(
                 urlAddress: url.absoluteString,
-                method: .post,
-                parameters: bodyParameters,
+                method: .get,
+                parameters: nil,
                 parameterArray: nil,
                 headers: headers,
                 onRequestStart: nil,
@@ -71,21 +69,5 @@ internal struct V2SessionsInitClient {
                 }
             )
         }
-    }
-}
-
-internal enum V2SessionsInitClientError: Error {
-    case bodyEncodingFailed
-}
-
-internal struct V2SessionsInitRequest: Encodable {
-    let operatingSystem: String
-    let sdkVersion: String
-    let layoutSchemaVersion: String
-
-    enum CodingKeys: String, CodingKey {
-        case operatingSystem = "operating_system"
-        case sdkVersion = "sdk_version"
-        case layoutSchemaVersion = "layout_schema_version"
     }
 }

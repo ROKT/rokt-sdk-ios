@@ -21,25 +21,24 @@ class V2SessionsInitClientPactSpec: XCTestCase {
         )
     }
 
-    func test_sessionInitHappyPath_returnsSessionAndFeatureFlags() {
+    func test_sessionInitHappyPath_returnsFeatureFlags() {
         Self.mockService
-            .uponReceiving("a v2 sessions init request from rokt-sdk-ios initializes a session and returns feature flags")
+            .uponReceiving("a v2 sessions init request from rokt-sdk-ios returns feature flags and fonts")
             .given(ProviderState(description: "a valid session initialization request is submitted", params: [:]))
+            // Body-less GET: every input travels as a header so the CDN edge
+            // can route (and cache-key) without deserializing a body.
             .withRequest(
-                method: .POST,
+                method: .GET,
                 path: "/v2/sessions/init",
                 headers: [
                     "rokt-account-id": Matcher.RegexLike("account-456", term: #".+"#),
+                    "rokt-os-type": "ios",
+                    "rokt-layout-schema-version": Matcher.SomethingLike("2.1.0"),
+                    "rokt-sdk-version": Matcher.SomethingLike("5.2.2"),
                     "Authorization": Matcher.RegexLike("Bearer session-token-abc", term: #".+"#),
                     "rokt-platform-type": "iOS",
                     "rokt-integration-type": "msdk-ios",
-                    "x-request-id": Matcher.RegexLike("request-id-123", term: #".+"#),
-                    "Content-Type": "application/json"
-                ],
-                body: [
-                    "operating_system": "ios",
-                    "sdk_version": Matcher.SomethingLike("5.2.2"),
-                    "layout_schema_version": Matcher.SomethingLike("2.1.0")
+                    "x-request-id": Matcher.RegexLike("request-id-123", term: #".+"#)
                 ]
             )
             // fonts is a literal `[]` (exact match), not EachLike: the provider always
@@ -48,11 +47,9 @@ class V2SessionsInitClientPactSpec: XCTestCase {
                 status: 200,
                 headers: ["Content-Type": Matcher.RegexLike("application/json; charset=utf-8", term: #"application/json(;.*)?"#)],
                 body: [
-                    "session_id": Matcher.SomethingLike("550e8400-e29b-41d4-a716-446655440000"),
-                    "session_token": [
-                        "token": Matcher.SomethingLike("pact-stub-session-token"),
-                        "expires_at": Matcher.SomethingLike(1_774_474_053_000)
-                    ],
+                    // init is config-only: no session_id / session_token. The SDK
+                    // sources its session from offers/select, and this client never
+                    // decodes init's body, so the response is just flags + fonts.
                     "feature_flags": [
                         "rokt-tracking-status": Matcher.SomethingLike(true),
                         "client-timeout-ms": Matcher.SomethingLike(30_000),
