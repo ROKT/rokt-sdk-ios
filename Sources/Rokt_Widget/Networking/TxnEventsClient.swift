@@ -72,6 +72,16 @@ internal struct TxnEventsRequest: Encodable {
     let channel: TxnEventsChannel
     // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
     let events: [TxnEvent]
+    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
+    // Mirrors the web controller's single_session: the mobile v2 flow uses one
+    // session token for the whole batch.
+    let singleSession: Bool = true
+
+    enum CodingKeys: String, CodingKey {
+        case channel
+        case events
+        case singleSession = "single_session"
+    }
 }
 
 internal struct TxnEventsChannel: Encodable {

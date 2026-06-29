@@ -79,7 +79,7 @@ final class TestTxnInitService: XCTestCase {
         _ = try await makeService().initSession()
 
         XCTAssertEqual(httpClient.capturedHeaders.first?["Authorization"], "Bearer stored-jwt")
-        XCTAssertEqual(httpClient.capturedHeaders.first?["rokt-txn-shadow"], "false")
+        XCTAssertNil(httpClient.capturedHeaders.first?["rokt-txn-shadow"])
     }
 
     func test_initSession_withoutToken_omitsAuthorizationHeader() async throws {

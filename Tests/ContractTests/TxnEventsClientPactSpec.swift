@@ -46,6 +46,8 @@ class TxnEventsClientPactSpec: XCTestCase {
                         "type": "msdk",
                         "sdk_version": Matcher.SomethingLike("5.2.2")
                     ],
+                    // Mirrors the web controller: one session for the whole batch.
+                    "single_session": true,
                     // instance_id must be a canonical 36-character, non-nil UUID;
                     // the API rejects other forms, so the example uses a valid one.
                     "events": Matcher.EachLike([

@@ -235,8 +235,8 @@ final class TestOffersService: XCTestCase {
         // Device headers (incl. the load-bearing rokt-package-name) reach the request.
         XCTAssertEqual(stub.lastHeaders?["rokt-os-type"], "iOS")
         XCTAssertEqual(stub.lastHeaders?["rokt-package-name"], "com.rokt.test")
-        // Every v2 request marks itself as live (non-shadow) traffic.
-        XCTAssertEqual(stub.lastHeaders?["rokt-txn-shadow"], "false")
+        // rokt-txn-shadow is no longer sent; mobile shadow routing is session-id-shape driven.
+        XCTAssertNil(stub.lastHeaders?["rokt-txn-shadow"])
     }
 
     func test_getExperienceData_omitsAuthorizationUntilTokenRolledForward() {
