@@ -99,7 +99,9 @@ internal struct TxnEvent: Encodable, Equatable {
     // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
     let instanceId: String?
     // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
-    let timestamp: Int64
+    // Optional: omitted from the wire when the capture time is missing/unparseable
+    // so the gateway defaults it to receive-time (mirrors web + Android).
+    let timestamp: Int64?
     // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
     let data: [String: TxnEventDataValue]?
 

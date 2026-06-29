@@ -74,6 +74,31 @@ final class TestTxnEventMapper: XCTestCase {
         XCTAssertEqual(event?.timestamp, 1_700_000_000_000)
     }
 
+    func test_omitsTimestampWhenEventTimeUnparseable() throws {
+        // The public initializer always formats a valid date, so decode a request whose
+        // eventTime is unparseable to exercise the omit path.
+        let json = Data("""
+        {
+          "instanceGuid": "11111111-1111-1111-1111-111111111111",
+          "sessionId": "session-1",
+          "eventType": "SignalImpression",
+          "parentGuid": "parent-1",
+          "eventTime": "not-a-date",
+          "eventData": [],
+          "metadata": [],
+          "pageInstanceGuid": "page-1",
+          "token": "jwt-1"
+        }
+        """.utf8)
+        let request = try JSONDecoder().decode(RoktEventRequest.self, from: json)
+
+        let event = TxnEventMapper.event(from: request)
+
+        XCTAssertNotNil(event)
+        // Dropped from the wire so the gateway defaults to receive-time (mirrors web + Android).
+        XCTAssertNil(event?.timestamp)
+    }
+
     func test_attributesAreFlattenedAndMetadataMapped() {
         let event = TxnEventMapper.event(from: makeRequest(
             eventType: .SignalImpression,
