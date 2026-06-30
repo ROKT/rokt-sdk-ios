@@ -2,7 +2,7 @@ import Foundation
 
 /// Fetches an offers experience from `POST /v2/sessions/offers`, rolls the session
 /// token forward, and adapts the response into the experience string the renderer
-/// consumes. Mirrors ``TxnInitService``'s retry/backoff and reports back through the
+/// consumes. Mirrors ``InitService``'s retry/backoff and reports back through the
 /// same `successLayout`/`failure` callbacks the offers call site already uses.
 internal struct OffersService {
     enum OffersError: Error, Equatable {
@@ -14,7 +14,7 @@ internal struct OffersService {
     let environment: Environment
     let accountId: String
     let sdkVersion: String
-    let sessionManager: TxnSessionManager
+    let sessionManager: SessionTokenManager
     let httpClient: HTTPClientAdapter
     let attributeEnrichment: AttributeEnrichment
     let deviceHeaders: [String: String]
@@ -35,7 +35,7 @@ internal struct OffersService {
         environment: Environment,
         accountId: String,
         sdkVersion: String,
-        sessionManager: TxnSessionManager,
+        sessionManager: SessionTokenManager,
         httpClient: HTTPClientAdapter = RoktHTTPClient(),
         attributeEnrichment: AttributeEnrichment = .shared,
         deviceHeaders: [String: String] = [:],

@@ -1,6 +1,6 @@
 import Foundation
 
-extension TxnInitResponse {
+extension InitResponse {
     private static let clientTimeoutFlag = "client-timeout-ms"
 
     // Adapts the v2 response into the legacy InitRespose so downstream init is unchanged.

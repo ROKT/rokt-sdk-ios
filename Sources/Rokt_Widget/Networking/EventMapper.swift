@@ -3,7 +3,7 @@ internal import RoktUXHelper
 
 // Maps domain events to the v2 wire shape. Reserved keys (parent_id, token, page_instance_guid)
 // are written last so partner attributes cannot overwrite them.
-internal enum TxnEventMapper {
+internal enum EventMapper {
     private static let clientTimeStampKey = "clientTimeStamp"
     private static let captureMethodKey = "captureMethod"
 
@@ -17,9 +17,9 @@ internal enum TxnEventMapper {
         }
     }
 
-    static func event(from request: RoktEventRequest) -> TxnEvent? {
+    static func event(from request: RoktEventRequest) -> Event? {
         guard let mapped = mappedType(for: request.eventType) else { return nil }
-        return TxnEvent(
+        return Event(
             eventType: mapped.eventType,
             instanceId: request.uuid,
             timestamp: EventDateFormatter.epochMilliseconds(from: request.eventTime),
@@ -36,9 +36,9 @@ internal enum TxnEventMapper {
         )
     }
 
-    static func event(from request: EventRequest) -> TxnEvent? {
+    static func event(from request: EventRequest) -> Event? {
         guard let mapped = mappedType(for: request.eventType) else { return nil }
-        return TxnEvent(
+        return Event(
             eventType: mapped.eventType,
             instanceId: request.uuid,
             timestamp: EventDateFormatter.epochMilliseconds(from: request.eventTime),
@@ -84,8 +84,8 @@ internal enum TxnEventMapper {
         token: String,
         pageInstanceGuid: String,
         markers: [String: String]
-    ) -> [String: TxnEventDataValue]? {
-        var data: [String: TxnEventDataValue] = [:]
+    ) -> [String: EventDataValue]? {
+        var data: [String: EventDataValue] = [:]
 
         if eventType == .CaptureAttributes {
             // Nest under `attributes` so partner keys can't collide with top-level routing fields.

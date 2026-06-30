@@ -26,7 +26,7 @@ import PactSwift
 /// the client drift to `"ios-mobile"` without failing the consumer test.
 /// Per-runtime values (account id, auth token, request id, page identifier,
 /// etc.) stay as `SomethingLike` because they legitimately vary per call.
-/// Device headers from `NetworkingHelper.txnDeviceHeaders` are sent on the live
+/// Device headers from `NetworkingHelper.deviceHeaders` are sent on the live
 /// request; only `rokt-package-name` (it gates page detection) is asserted here,
 /// supplied via `deviceHeaders` below.
 class OffersClientPactSpec: XCTestCase {
@@ -116,7 +116,7 @@ class OffersClientPactSpec: XCTestCase {
 
         let expectation = expectation(description: "v2 offers request completes")
 
-        // See TxnEventsClientPactSpec for why this is sized for CI cold-start.
+        // See EventsClientPactSpec for why this is sized for CI cold-start.
         Self.mockService.run(timeout: 30) { baseURL, done in
             Task {
                 defer { done() }

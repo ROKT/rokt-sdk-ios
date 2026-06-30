@@ -37,8 +37,8 @@ jobs:
           filters: |
             contract:
               - 'Sources/Rokt_Widget/Networking/OffersClient.swift'
-              - 'Sources/Rokt_Widget/Networking/TxnEventsClient.swift'
-              - 'Sources/Rokt_Widget/Networking/TxnInitClient.swift'
+              - 'Sources/Rokt_Widget/Networking/EventsClient.swift'
+              - 'Sources/Rokt_Widget/Networking/InitClient.swift'
               - 'Sources/Rokt_Widget/Models/SelectResponse.swift'
               - 'Tests/ContractTests/**'
               - 'Package.swift'

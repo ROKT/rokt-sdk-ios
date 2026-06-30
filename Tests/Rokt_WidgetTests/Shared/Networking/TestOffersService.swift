@@ -97,7 +97,7 @@ final class TestOffersService: XCTestCase {
 
     private func makeService(
         _ stub: StubHTTPClient,
-        sessionManager: TxnSessionManager = TxnSessionManager(),
+        sessionManager: SessionTokenManager = SessionTokenManager(),
         deviceHeaders: [String: String] = [:],
         triggeredEvents: @escaping () -> [TriggeredRealTimeEvent] = { [] },
         captureEvents: @escaping ([UntriggeredRealTimeEvent]) -> Void = { _ in },
@@ -119,7 +119,7 @@ final class TestOffersService: XCTestCase {
     }
 
     func test_getExperienceData_adaptsResponseAndRollsTokenForward() async {
-        let sessionManager = TxnSessionManager()
+        let sessionManager = SessionTokenManager()
         let service = makeService(StubHTTPClient(responseData: Data(offersResponse.utf8), statusCode: 200),
                                   sessionManager: sessionManager)
 
@@ -241,7 +241,7 @@ final class TestOffersService: XCTestCase {
 
     func test_getExperienceData_omitsAuthorizationUntilTokenRolledForward() {
         let stub = StubHTTPClient(responseData: Data(offersResponse.utf8), statusCode: 200)
-        let service = makeService(stub, sessionManager: TxnSessionManager())
+        let service = makeService(stub, sessionManager: SessionTokenManager())
 
         // First call: no live token, so Authorization is omitted entirely — the server
         // then mints a fresh session rather than seeing a blank `Bearer` header.
@@ -268,7 +268,7 @@ final class TestOffersService: XCTestCase {
     func test_getExperienceData_forwardsTriggeredEventsOnlyWhenSessionLive() throws {
         let stub = StubHTTPClient(responseData: Data(offersResponse.utf8), statusCode: 200)
         let eventTime = EventDateFormatter.dateFormatter.string(from: Date(timeIntervalSince1970: 1_782_484_201))
-        let service = makeService(stub, sessionManager: TxnSessionManager(), triggeredEvents: {
+        let service = makeService(stub, sessionManager: SessionTokenManager(), triggeredEvents: {
             [TriggeredRealTimeEvent(parentGuid: "p", eventType: "impression", eventTime: eventTime, payload: "pl")]
         })
 
@@ -397,7 +397,7 @@ final class TestOffersService: XCTestCase {
             environment: .Prod,
             accountId: "account-1",
             sdkVersion: "1.0.0",
-            sessionManager: TxnSessionManager(),
+            sessionManager: SessionTokenManager(),
             httpClient: stub,
             maxRetries: 1,
             baseBackoff: 0.001,
