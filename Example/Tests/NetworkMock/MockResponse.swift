@@ -65,6 +65,119 @@ func makeTxnInitData(fromLegacy legacyData: Data) -> Data? {
     return try? JSONSerialization.data(withJSONObject: v2Response)
 }
 
+// Derived from the same environment as the live path so the mock URL matches the request.
+var txnOffersResourceURL: String {
+    config.environment.gatewayBaseURL + "/v2/sessions/offers"
+}
+
+// Reshapes a legacy v1 experience fixture into the v2 offers response so existing
+// layout fixtures still drive offers rendering through the v2 path. Structural keys
+// are re-homed to snake_case; the DCUI schema strings and copy/images/links maps pass
+// through verbatim. The render-side adapter re-buckets response options by is_positive.
+func makeOffersData(fromV1Experience legacyData: Data) -> Data? {
+    guard let v1 = try? JSONSerialization.jsonObject(with: legacyData) as? [String: Any] else {
+        return nil
+    }
+
+    func reshapeResponseOption(_ responseOption: [String: Any]) -> [String: Any] {
+        var out: [String: Any] = [:]
+        out["id"] = responseOption["id"]
+        out["action"] = responseOption["action"]
+        out["instance_guid"] = responseOption["instanceGuid"]
+        out["token"] = responseOption["token"]
+        out["signal_type"] = responseOption["signalType"]
+        out["short_label"] = responseOption["shortLabel"]
+        out["long_label"] = responseOption["longLabel"]
+        out["short_success_label"] = responseOption["shortSuccessLabel"]
+        out["is_positive"] = responseOption["isPositive"]
+        out["url"] = responseOption["url"]
+        return out
+    }
+
+    func reshapeCreative(_ creative: [String: Any]) -> [String: Any] {
+        var out: [String: Any] = [:]
+        out["referral_creative_id"] = creative["referralCreativeId"]
+        out["instance_guid"] = creative["instanceGuid"]
+        out["token"] = creative["token"]
+        out["copy"] = creative["copy"]
+        out["images"] = creative["images"]
+        out["links"] = creative["links"]
+        if let responseOptionsMap = creative["responseOptionsMap"] as? [String: Any] {
+            out["response_options_map"] = responseOptionsMap
+                .compactMapValues { ($0 as? [String: Any]).map(reshapeResponseOption) }
+        }
+        return out
+    }
+
+    func reshapeSlot(_ slot: [String: Any]) -> [String: Any] {
+        var out: [String: Any] = [:]
+        out["instance_guid"] = slot["instanceGuid"]
+        out["token"] = slot["token"]
+        if let layoutVariant = slot["layoutVariant"] as? [String: Any] {
+            var layoutVariantOut: [String: Any] = [:]
+            layoutVariantOut["layout_variant_id"] = layoutVariant["layoutVariantId"]
+            layoutVariantOut["module_name"] = layoutVariant["moduleName"]
+            layoutVariantOut["layout_variant_schema"] = layoutVariant["layoutVariantSchema"]
+            out["layout_variant"] = layoutVariantOut
+        }
+        if let offer = slot["offer"] as? [String: Any] {
+            var offerOut: [String: Any] = [:]
+            offerOut["campaign_id"] = offer["campaignId"]
+            if let creative = offer["creative"] as? [String: Any] {
+                offerOut["creative"] = reshapeCreative(creative)
+            }
+            out["offer"] = offerOut
+        }
+        return out
+    }
+
+    func reshapePlugin(_ container: [String: Any]) -> [String: Any] {
+        guard let plugin = container["plugin"] as? [String: Any] else { return [:] }
+        var pluginOut: [String: Any] = [:]
+        pluginOut["id"] = plugin["id"]
+        pluginOut["name"] = plugin["name"]
+        pluginOut["target_element_selector"] = plugin["targetElementSelector"]
+        if let config = plugin["config"] as? [String: Any] {
+            var configOut: [String: Any] = [:]
+            configOut["instance_guid"] = config["instanceGuid"]
+            configOut["token"] = config["token"]
+            configOut["outer_layout_schema"] = config["outerLayoutSchema"]
+            configOut["slots"] = (config["slots"] as? [[String: Any]] ?? []).map(reshapeSlot)
+            pluginOut["config"] = configOut
+        }
+        return ["plugin": pluginOut]
+    }
+
+    let placementContext = v1["placementContext"] as? [String: Any]
+    let pageInstanceGuid = placementContext?["pageInstanceGuid"] as? String ?? ""
+
+    var pageContext: [String: Any] = ["page_instance_guid": pageInstanceGuid]
+    pageContext["page_id"] = (v1["page"] as? [String: Any])?["pageId"]
+    pageContext["token"] = placementContext?["token"]
+
+    let response: [String: Any] = [
+        "session_id": v1["sessionId"] as? String ?? "mock-session",
+        "session_token": [
+            "token": v1["token"] as? String ?? "mock-session-token",
+            "expires_at": 32_503_680_000_000
+        ],
+        "page_instance_guid": pageInstanceGuid,
+        "page_context": pageContext,
+        "plugins": (v1["plugins"] as? [[String: Any]] ?? []).map(reshapePlugin)
+    ]
+
+    return try? JSONSerialization.data(withJSONObject: response)
+}
+
+// Stubs the v2 offers endpoint from a v1 experience fixture; nil legacyData yields a body-less error.
+func registerOffersStub(fromV1ExperienceData legacyData: Data?, statusCode: Int, delay: Int = 0) {
+    guard let url = URL(string: txnOffersResourceURL) else { return }
+    let body = legacyData.flatMap(makeOffersData(fromV1Experience:)) ?? Data()
+    var mock = Mock(url: url, dataType: .json, statusCode: statusCode, data: [.post: body])
+    mock.delay = DispatchTimeInterval.seconds(delay)
+    mock.register()
+}
+
 // Protocol to share stub methods between QuickSpec and XCTestCase
 protocol StubMethodsProvider: AnyObject {
     var testBundle: Bundle { get }
@@ -172,6 +285,9 @@ extension StubMethodsProvider {
         mock.delay = DispatchTimeInterval.seconds(delay)
         mock.register()
 
+        // The v2 offers path is the active runtime; stub it from the same fixture.
+        registerOffersStub(fromV1ExperienceData: data, statusCode: 200, delay: delay)
+
         Mocker.ignore(URL(string: "https://avatars.githubusercontent.com/u/6335212")!)
     }
 
@@ -184,6 +300,9 @@ extension StubMethodsProvider {
                         data: [.get: Data()])
 
         mock.register()
+
+        // The v2 offers path is the active runtime; fail it the same way.
+        registerOffersStub(fromV1ExperienceData: nil, statusCode: 500)
     }
 
     func stubDiagnostics(onDiagnosticsReceive: ((String) -> Void)? = nil) {
@@ -360,6 +479,9 @@ extension XCTestCase: StubMethodsProvider {
         mock.delay = DispatchTimeInterval.seconds(delay)
         mock.register()
 
+        // The v2 offers path is the active runtime; stub it from the same fixture.
+        registerOffersStub(fromV1ExperienceData: data, statusCode: 200, delay: delay)
+
         Mocker.ignore(URL(string: "https://avatars.githubusercontent.com/u/6335212")!)
     }
 
@@ -372,6 +494,9 @@ extension XCTestCase: StubMethodsProvider {
                         data: [.get: Data()])
 
         mock.register()
+
+        // The v2 offers path is the active runtime; fail it the same way.
+        registerOffersStub(fromV1ExperienceData: nil, statusCode: 500)
     }
 
     func stubDiagnostics(onDiagnosticsReceive: ((String) -> Void)? = nil) {

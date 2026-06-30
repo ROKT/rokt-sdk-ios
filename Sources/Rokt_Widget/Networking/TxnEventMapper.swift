@@ -22,7 +22,7 @@ internal enum TxnEventMapper {
         return TxnEvent(
             eventType: mapped.eventType,
             instanceId: request.uuid,
-            timestamp: epochMilliseconds(from: request.eventTime),
+            timestamp: EventDateFormatter.epochMilliseconds(from: request.eventTime),
             data: buildData(
                 eventType: request.eventType,
                 attributes: request.eventData,
@@ -41,7 +41,7 @@ internal enum TxnEventMapper {
         return TxnEvent(
             eventType: mapped.eventType,
             instanceId: request.uuid,
-            timestamp: epochMilliseconds(from: request.eventTime),
+            timestamp: EventDateFormatter.epochMilliseconds(from: request.eventTime),
             data: buildData(
                 eventType: request.eventType,
                 attributes: request.attributes,
@@ -120,12 +120,5 @@ internal enum TxnEventMapper {
         for (key, value) in markers { data[key] = .string(value) }
 
         return data.isEmpty ? nil : data
-    }
-
-    private static func epochMilliseconds(from eventTime: String) -> Int64 {
-        if let date = EventDateFormatter.dateFormatter.date(from: eventTime) {
-            return Int64(date.timeIntervalSince1970 * 1000)
-        }
-        return Int64(Date().timeIntervalSince1970 * 1000)
     }
 }

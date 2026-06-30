@@ -80,6 +80,7 @@ final class TestTxnEventService: XCTestCase {
         XCTAssertEqual(httpClient.capturedHeaders.first?["Authorization"], "Bearer stored-jwt")
         XCTAssertEqual(httpClient.capturedHeaders.first?["rokt-account-id"], "account-1")
         XCTAssertEqual(httpClient.capturedHeaders.first?["rokt-os-type"], "iOS")
+        XCTAssertNil(httpClient.capturedHeaders.first?["rokt-txn-shadow"])
     }
 
     func test_send_withoutToken_omitsAuthorization() async throws {
