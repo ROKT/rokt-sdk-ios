@@ -19,7 +19,7 @@ class TxnInitClientPactSpec: XCTestCase {
         )
     }
 
-    func test_configHappyPath_returnsFeatureFlags() {
+    func test_initHappyPath_returnsFeatureFlags() {
         Self.mockService
             .uponReceiving("a v2 config request from rokt-sdk-ios returns feature flags and fonts")
             .given(ProviderState(description: "a valid config request is submitted", params: [:]))
