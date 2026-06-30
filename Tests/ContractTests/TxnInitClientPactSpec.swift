@@ -21,8 +21,8 @@ class TxnInitClientPactSpec: XCTestCase {
 
     func test_initHappyPath_returnsFeatureFlags() {
         Self.mockService
-            .uponReceiving("a v2 config request from rokt-sdk-ios returns feature flags and fonts")
-            .given(ProviderState(description: "a valid config request is submitted", params: [:]))
+            .uponReceiving("a v2 init request from rokt-sdk-ios returns feature flags and fonts")
+            .given(ProviderState(description: "a valid init request is submitted", params: [:]))
             // Body-less GET: inputs as headers, no Authorization (cacheable).
             .withRequest(
                 method: .GET,
@@ -59,7 +59,7 @@ class TxnInitClientPactSpec: XCTestCase {
                 ]
             )
 
-        let expectation = expectation(description: "v2 config request completes")
+        let expectation = expectation(description: "v2 init request completes")
 
         // Timeout sized for CI cold-start. See TxnEventsClientPactSpec.
         Self.mockService.run(timeout: 30) { baseURL, done in
