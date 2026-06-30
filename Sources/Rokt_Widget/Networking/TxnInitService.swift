@@ -16,7 +16,6 @@ internal struct TxnInitService {
     let accountId: String
     let sdkVersion: String
     let layoutSchemaVersion: String
-    let sessionManager: TxnSessionManager
     let httpClient: HTTPClientAdapter
     let maxRetries: Int
     let requestTimeout: TimeInterval
@@ -28,7 +27,6 @@ internal struct TxnInitService {
         accountId: String,
         sdkVersion: String,
         layoutSchemaVersion: String,
-        sessionManager: TxnSessionManager,
         httpClient: HTTPClientAdapter = RoktHTTPClient(),
         maxRetries: Int = 3,
         requestTimeout: TimeInterval = 7,
@@ -41,7 +39,6 @@ internal struct TxnInitService {
         self.accountId = accountId
         self.sdkVersion = sdkVersion
         self.layoutSchemaVersion = layoutSchemaVersion
-        self.sessionManager = sessionManager
         self.httpClient = httpClient
         self.maxRetries = maxRetries
         self.requestTimeout = requestTimeout
@@ -56,11 +53,9 @@ internal struct TxnInitService {
 
         httpClient.updateTimeout(timeout: requestTimeout)
 
-        let authToken = await sessionManager.authorizationHeader
         let client = TxnInitClient(
             baseURL: baseURL,
             accountId: accountId,
-            authToken: authToken,
             sdkVersion: sdkVersion,
             httpClient: httpClient
         )
@@ -87,8 +82,9 @@ internal struct TxnInitService {
                     throw TxnInitError.missingResponseData
                 }
 
+                // Config-only: no session is minted here. The SDK sources its
+                // session from the offers/select response instead.
                 let decoded = try JSONDecoder().decode(TxnInitResponse.self, from: data)
-                await sessionManager.update(sessionId: decoded.sessionId, sessionToken: decoded.sessionToken)
                 return InitResult(response: decoded, featureFlags: decoded.featureFlags.toInitFeatureFlags())
             } catch let error where isRetryable(error: error) && attempt < maxRetries {
                 try await sleep(backoffDelay(attempt: attempt))

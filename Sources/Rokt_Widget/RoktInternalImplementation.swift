@@ -953,7 +953,6 @@ class RoktInternalImplementation {
             accountId: roktTagId,
             sdkVersion: libraryVersion,
             layoutSchemaVersion: Self.txnLayoutSchemaVersion,
-            sessionManager: TxnSessionManager(roktTagId: roktTagId),
             httpClient: httpClient
         )
     }

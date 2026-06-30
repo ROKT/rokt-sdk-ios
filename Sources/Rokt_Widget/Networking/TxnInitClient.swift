@@ -3,24 +3,27 @@ import Foundation
 internal struct TxnInitClient {
     let baseURL: URL
     let accountId: String
-    let authToken: String?
     let sdkVersion: String
     let httpClient: HTTPClientAdapter
 
     init(
         baseURL: URL,
         accountId: String,
-        authToken: String? = nil,
         sdkVersion: String,
         httpClient: HTTPClientAdapter = RoktHTTPClient()
     ) {
         self.baseURL = baseURL
         self.accountId = accountId
-        self.authToken = authToken
         self.sdkVersion = sdkVersion
         self.httpClient = httpClient
     }
 
+    /// Calls the config-only `GET /v2/config`.
+    ///
+    /// Every input travels as a request header — there is no body and no
+    /// `Authorization` — so the request is a plain, cacheable GET. The response
+    /// carries no session; the SDK sources its session from the offers/select
+    /// response instead.
     func initSession(
         operating_system: String,
         layout_schema_version: String
@@ -29,31 +32,19 @@ internal struct TxnInitClient {
             .appendingPathComponent("v2")
             .appendingPathComponent("config")
 
-        let requestBody = TxnInitRequest(
-            operatingSystem: operating_system,
-            sdkVersion: sdkVersion,
-            layoutSchemaVersion: layout_schema_version
-        )
-        let bodyData = try JSONEncoder().encode(requestBody)
-        guard let bodyParameters = try JSONSerialization.jsonObject(with: bodyData) as? RoktHTTPParameters else {
-            throw TxnInitClientError.bodyEncodingFailed
-        }
-
-        var headers: RoktHTTPHeaders = [
+        let headers: RoktHTTPHeaders = [
             "rokt-account-id": accountId,
-            "x-request-id": UUID().uuidString,
-            "Content-Type": "application/json"
+            "rokt-os-type": operating_system,
+            "rokt-sdk-version": sdkVersion,
+            "rokt-layout-schema-version": layout_schema_version,
+            "x-request-id": UUID().uuidString
         ]
-        // Authorization is optional: with no stored token the server mints a fresh session.
-        if let authToken, !authToken.isEmpty {
-            headers["Authorization"] = authToken
-        }
 
         return try await withCheckedThrowingContinuation { continuation in
             httpClient.startRequestWith(
                 urlAddress: url.absoluteString,
-                method: .post,
-                parameters: bodyParameters,
+                method: .get,
+                parameters: nil,
                 parameterArray: nil,
                 headers: headers,
                 onRequestStart: nil,
@@ -68,24 +59,5 @@ internal struct TxnInitClient {
                 }
             )
         }
-    }
-}
-
-internal enum TxnInitClientError: Error {
-    case bodyEncodingFailed
-}
-
-internal struct TxnInitRequest: Encodable {
-    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
-    let operatingSystem: String
-    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
-    let sdkVersion: String
-    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
-    let layoutSchemaVersion: String
-
-    enum CodingKeys: String, CodingKey {
-        case operatingSystem = "operating_system"
-        case sdkVersion = "sdk_version"
-        case layoutSchemaVersion = "layout_schema_version"
     }
 }
