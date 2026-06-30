@@ -2,9 +2,7 @@ import XCTest
 import PactSwift
 @testable import Rokt_Widget
 
-/// Consumer-driven pact spec for the config-only `GET /v2/init`. Drives
-/// `TxnInitClient.initSession` through the pact mock service so any drift in
-/// the client's wire shape fails here.
+/// Consumer-driven pact spec for the config-only `GET /v2/init`.
 class TxnInitClientPactSpec: XCTestCase {
     static var mockService: MockService!
 
@@ -25,8 +23,7 @@ class TxnInitClientPactSpec: XCTestCase {
         Self.mockService
             .uponReceiving("a v2 config request from rokt-sdk-ios returns feature flags and fonts")
             .given(ProviderState(description: "a valid config request is submitted", params: [:]))
-            // Body-less GET: every input travels as a header and there is no
-            // Authorization (config is unauthenticated), so the request is cacheable.
+            // Body-less GET: inputs as headers, no Authorization (cacheable).
             .withRequest(
                 method: .GET,
                 path: "/v2/init",
@@ -38,9 +35,8 @@ class TxnInitClientPactSpec: XCTestCase {
                     "x-request-id": Matcher.RegexLike("request-id-123", term: #".+"#)
                 ]
             )
-            // Config-only response: no session_id / session_token. The SDK sources
-            // its session from offers/select. fonts is a literal `[]` (exact match),
-            // not EachLike: the provider always returns empty today.
+            // Config-only response: no session. fonts is a literal `[]` (exact
+            // match, not EachLike) — the provider returns empty today.
             .willRespondWith(
                 status: 200,
                 headers: ["Content-Type": Matcher.RegexLike("application/json; charset=utf-8", term: #"application/json(;.*)?"#)],

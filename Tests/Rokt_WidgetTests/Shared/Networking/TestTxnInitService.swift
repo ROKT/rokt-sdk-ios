@@ -28,8 +28,7 @@ final class TestTxnInitService: XCTestCase {
         )
     }
 
-    // Config-only payload — no session_id / session_token. A session block in
-    // the JSON would simply be ignored by the decoder.
+    // Config-only payload — no session fields.
     private func successJSON() -> Data {
         Data(
             """
@@ -61,12 +60,12 @@ final class TestTxnInitService: XCTestCase {
         _ = try await makeService().initSession()
 
         let headers = httpClient.capturedHeaders.first
-        // Body-less GET: inputs travel as headers.
+        // Inputs travel as headers.
         XCTAssertEqual(headers?["rokt-account-id"], "account-1")
         XCTAssertEqual(headers?["rokt-os-type"], "ios")
         XCTAssertEqual(headers?["rokt-sdk-version"], "5.2.2")
         XCTAssertEqual(headers?["rokt-layout-schema-version"], "2.3")
-        // Config-only is unauthenticated: never send Authorization.
+        // Never send Authorization.
         XCTAssertNil(headers?["Authorization"])
     }
 

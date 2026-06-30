@@ -82,8 +82,6 @@ internal struct TxnInitService {
                     throw TxnInitError.missingResponseData
                 }
 
-                // Config-only: no session is minted here. The SDK sources its
-                // session from the offers/select response instead.
                 let decoded = try JSONDecoder().decode(TxnInitResponse.self, from: data)
                 return InitResult(response: decoded, featureFlags: decoded.featureFlags.toInitFeatureFlags())
             } catch let error where isRetryable(error: error) && attempt < maxRetries {

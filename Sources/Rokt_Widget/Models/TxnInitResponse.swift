@@ -18,9 +18,8 @@ internal struct TxnInitResponse: Decodable, Equatable {
         self.fonts = fonts
     }
 
-    // Config-only: /v2/init carries no session (the SDK sources its session
-    // from offers/select). Tolerate absent feature_flags/fonts so a missing
-    // block doesn't fail decoding.
+    // feature_flags/fonts are optional config: default to empty rather than throwing,
+    // so a partial response never fails the startup-blocking init decode.
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         featureFlags = try container.decodeIfPresent(TxnFeatureFlags.self, forKey: .featureFlags)

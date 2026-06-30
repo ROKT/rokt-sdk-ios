@@ -33,8 +33,7 @@ final class TestTxnInitResponse: XCTestCase {
     // MARK: - Top-level decoding
 
     func test_decode_happyPath_topLevelFields() throws {
-        // Config-only: any session fields in the payload are ignored (the
-        // decoder declares only feature_flags + fonts).
+        // Config-only: session fields in the payload are ignored.
         let response = try decode(happyPathJSON)
         XCTAssertEqual(response.fonts, [])
     }
@@ -154,8 +153,7 @@ final class TestTxnInitResponse: XCTestCase {
     }
 
     func test_decode_sessionFieldsAreIgnored() throws {
-        // Config-only: a session block in the payload must not be required and
-        // is simply ignored — decoding succeeds with only feature_flags + fonts.
+        // A session block must not be required; the decoder ignores it.
         let json = """
         {
             "session_id": "s",
