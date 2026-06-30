@@ -2,35 +2,27 @@
 import Foundation
 
 internal struct TxnInitResponse: Decodable, Equatable {
-    let sessionId: String
-    let sessionToken: TxnSessionToken
     let featureFlags: TxnFeatureFlags
     let fonts: [TxnFontItem]
 
     enum CodingKeys: String, CodingKey {
-        case sessionId = "session_id"
-        case sessionToken = "session_token"
         case featureFlags = "feature_flags"
         case fonts
     }
 
     init(
-        sessionId: String,
-        sessionToken: TxnSessionToken,
         featureFlags: TxnFeatureFlags,
         fonts: [TxnFontItem]
     ) {
-        self.sessionId = sessionId
-        self.sessionToken = sessionToken
         self.featureFlags = featureFlags
         self.fonts = fonts
     }
 
+    // Config-only: /v2/config carries no session (the SDK sources its session
+    // from offers/select). Tolerate absent feature_flags/fonts so a missing
+    // block doesn't fail decoding.
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        sessionId = try container.decode(String.self, forKey: .sessionId)
-        sessionToken = try container.decode(TxnSessionToken.self, forKey: .sessionToken)
-        // Tolerate absent feature_flags/fonts so a missing block doesn't fail init.
         featureFlags = try container.decodeIfPresent(TxnFeatureFlags.self, forKey: .featureFlags)
             ?? TxnFeatureFlags(flags: [:])
         fonts = try container.decodeIfPresent([TxnFontItem].self, forKey: .fonts) ?? []

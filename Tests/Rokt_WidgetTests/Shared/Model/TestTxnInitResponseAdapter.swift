@@ -8,8 +8,6 @@ final class TestTxnInitResponseAdapter: XCTestCase {
         fonts: [TxnFontItem] = []
     ) -> TxnInitResponse {
         TxnInitResponse(
-            sessionId: "sess",
-            sessionToken: TxnSessionToken(token: "jwt", expiresAt: 1),
             featureFlags: TxnFeatureFlags(flags: flags),
             fonts: fonts
         )

@@ -25,7 +25,6 @@ final class TestTxnInitWiring: XCTestCase {
                 accountId: tagId,
                 sdkVersion: "5.2.2",
                 layoutSchemaVersion: "1.0",
-                sessionManager: TxnSessionManager(),
                 httpClient: stub!,
                 baseBackoff: 0,
                 sleep: { _ in }
