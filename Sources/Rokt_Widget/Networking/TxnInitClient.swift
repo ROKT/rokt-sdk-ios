@@ -3,51 +3,44 @@ import Foundation
 internal struct TxnInitClient {
     let baseURL: URL
     let accountId: String
-    let authToken: String?
     let sdkVersion: String
     let httpClient: HTTPClientAdapter
 
     init(
         baseURL: URL,
         accountId: String,
-        authToken: String? = nil,
         sdkVersion: String,
         httpClient: HTTPClientAdapter = RoktHTTPClient()
     ) {
         self.baseURL = baseURL
         self.accountId = accountId
-        self.authToken = authToken
         self.sdkVersion = sdkVersion
         self.httpClient = httpClient
     }
 
+    /// Config-only `GET /v2/init`: inputs as headers, no body/auth, no session
+    /// in the response (session comes from offers/select).
     func initSession(
         operating_system: String,
         layout_schema_version: String
     ) async throws -> (Data?, HTTPURLResponse?) {
         let url = baseURL
             .appendingPathComponent("v2")
-            .appendingPathComponent("sessions")
             .appendingPathComponent("init")
 
-        let requestBody = TxnInitRequest(
-            operatingSystem: operating_system,
-            sdkVersion: sdkVersion,
-            layoutSchemaVersion: layout_schema_version
-        )
-        let bodyData = try JSONEncoder().encode(requestBody)
-        guard let bodyParameters = try JSONSerialization.jsonObject(with: bodyData) as? RoktHTTPParameters else {
-            throw TxnInitClientError.bodyEncodingFailed
-        }
-
-        var headers = TxnRequestHeaders.common(accountId: accountId, authToken: authToken)
-        headers["x-request-id"] = UUID().uuidString
+        let headers: RoktHTTPHeaders = [
+            "rokt-account-id": accountId,
+            "rokt-os-type": operating_system,
+            "rokt-sdk-version": sdkVersion,
+            "rokt-layout-schema-version": layout_schema_version,
+            "x-request-id": UUID().uuidString
+        ]
 
         return try await withCheckedThrowingContinuation { continuation in
             httpClient.startRequestWith(
                 urlAddress: url.absoluteString,
-                method: .post,
-                parameters: bodyParameters,
+                method: .get,
+                parameters: nil,
                 parameterArray: nil,
                 headers: headers,
                 onRequestStart: nil,
@@ -62,24 +55,5 @@ internal struct TxnInitClient {
                 }
             )
         }
-    }
-}
-
-internal enum TxnInitClientError: Error {
-    case bodyEncodingFailed
-}
-
-internal struct TxnInitRequest: Encodable {
-    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
-    let operatingSystem: String
-    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
-    let sdkVersion: String
-    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
-    let layoutSchemaVersion: String
-
-    enum CodingKeys: String, CodingKey {
-        case operatingSystem = "operating_system"
-        case sdkVersion = "sdk_version"
-        case layoutSchemaVersion = "layout_schema_version"
     }
 }
