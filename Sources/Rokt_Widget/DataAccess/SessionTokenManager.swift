@@ -1,7 +1,7 @@
 // periphery:ignore:all - v2 session store; token-refresh/session-id members are consumed by the upcoming v2 offers/events path
 import Foundation
 
-internal actor TxnSessionManager {
+internal actor SessionTokenManager {
     // Persistence keys for the v2 path, separate from the legacy SessionManager's `rokt.*` keys.
     private enum Keys {
         static let tagId = "ROKT_TXN_TAG_ID"
@@ -14,9 +14,9 @@ internal actor TxnSessionManager {
 
     // nil disables persistence (in-memory only), preserving the lightweight test setup.
     private let roktTagId: String?
-    private let store: TxnSessionStore?
+    private let store: SessionStore?
 
-    // Immutable, so it is read synchronously outside the actor in resolveTxnSessionManager.
+    // Immutable, so it is read synchronously outside the actor in resolveSessionTokenManager.
     nonisolated let boundTagId: String?
 
     private var sessionId: String?
@@ -32,7 +32,7 @@ internal actor TxnSessionManager {
 
     init(
         roktTagId: String,
-        store: TxnSessionStore = UserDefaultsTxnSessionStore(),
+        store: SessionStore = UserDefaultsSessionStore(),
         clock: @escaping () -> Date = Date.init
     ) {
         self.clock = clock
@@ -57,7 +57,7 @@ internal actor TxnSessionManager {
         return "Bearer \(token)"
     }
 
-    func update(sessionId: String, sessionToken: TxnSessionToken) {
+    func update(sessionId: String, sessionToken: SessionToken) {
         self.sessionId = sessionId
         token = sessionToken.token
         expiresAt = sessionToken.expiresAtDate
@@ -65,7 +65,7 @@ internal actor TxnSessionManager {
     }
 
     // Token-only refresh for offers/events responses, keeping the session id.
-    func update(sessionToken: TxnSessionToken) {
+    func update(sessionToken: SessionToken) {
         token = sessionToken.token
         expiresAt = sessionToken.expiresAtDate
         persist(includeSessionId: false)

@@ -1,7 +1,7 @@
 import XCTest
 @testable import Rokt_Widget
 
-final class MockTxnEventsHTTPClient: HTTPClientAdapter {
+final class MockEventsHTTPClient: HTTPClientAdapter {
     enum Response {
         case success(status: Int, data: Data)
         case status(Int)

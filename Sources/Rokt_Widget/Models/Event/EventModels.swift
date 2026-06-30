@@ -1,7 +1,7 @@
 import Foundation
 
 // Event `data` values are either flat strings or nested string maps (capture-attributes partner snapshot).
-internal enum TxnEventDataValue: Encodable, Equatable, ExpressibleByStringLiteral {
+internal enum EventDataValue: Encodable, Equatable, ExpressibleByStringLiteral {
     case string(String)
     case object([String: String])
 
@@ -21,8 +21,8 @@ internal enum TxnEventDataValue: Encodable, Equatable, ExpressibleByStringLitera
 }
 
 // Only the rotated session_token is consumed client-side; absent token leaves the current one in place.
-internal struct TxnEventsResponse: Decodable, Equatable {
-    let sessionToken: TxnSessionToken?
+internal struct EventsResponse: Decodable, Equatable {
+    let sessionToken: SessionToken?
 
     enum CodingKeys: String, CodingKey {
         case sessionToken = "session_token"
@@ -30,6 +30,6 @@ internal struct TxnEventsResponse: Decodable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        sessionToken = try container.decodeIfPresent(TxnSessionToken.self, forKey: .sessionToken)
+        sessionToken = try container.decodeIfPresent(SessionToken.self, forKey: .sessionToken)
     }
 }

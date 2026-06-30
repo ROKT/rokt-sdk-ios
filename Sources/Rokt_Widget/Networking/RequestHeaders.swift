@@ -5,7 +5,7 @@ import Foundation
 /// Single owner for the headers common to every v2 transactions request
 /// (init / events / offers): the account id, content type, and the optional
 /// Authorization. Centralised so the auth rule can't drift between the three clients.
-internal enum TxnRequestHeaders {
+internal enum RequestHeaders {
     static func common(accountId: String, authToken: String?) -> RoktHTTPHeaders {
         var headers: RoktHTTPHeaders = [
             "rokt-account-id": accountId,

@@ -1,25 +1,35 @@
 import Foundation
 
-internal struct TxnEventService {
-    enum TxnEventError: Error, Equatable {
+internal struct InitService {
+    enum InitError: Error, Equatable {
         case invalidBaseURL
+        case missingResponseData
         case unexpectedStatusCode(Int)
     }
 
-    let sessionManager: TxnSessionManager
+    struct InitResult {
+        let response: InitResponse
+        let featureFlags: InitFeatureFlags
+    }
+
+    let environment: Environment
+    let accountId: String
+    let sdkVersion: String
+    let layoutSchemaVersion: String
+    let sessionManager: SessionTokenManager
+    let httpClient: HTTPClientAdapter
     let maxRetries: Int
+    let requestTimeout: TimeInterval
     let baseBackoff: TimeInterval
     let sleep: (TimeInterval) async throws -> Void
-
-    private let client: TxnEventsClient?
 
     init(
         environment: Environment,
         accountId: String,
         sdkVersion: String,
-        sessionManager: TxnSessionManager,
+        layoutSchemaVersion: String,
+        sessionManager: SessionTokenManager,
         httpClient: HTTPClientAdapter = RoktHTTPClient(),
-        deviceHeaders: [String: String] = [:],
         maxRetries: Int = 3,
         requestTimeout: TimeInterval = 7,
         baseBackoff: TimeInterval = 0.2,
@@ -27,35 +37,41 @@ internal struct TxnEventService {
             try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
         }
     ) {
+        self.environment = environment
+        self.accountId = accountId
+        self.sdkVersion = sdkVersion
+        self.layoutSchemaVersion = layoutSchemaVersion
         self.sessionManager = sessionManager
+        self.httpClient = httpClient
         self.maxRetries = maxRetries
+        self.requestTimeout = requestTimeout
         self.baseBackoff = baseBackoff
         self.sleep = sleep
-
-        if let baseURL = URL(string: environment.gatewayBaseURL) {
-            httpClient.updateTimeout(timeout: requestTimeout)
-            self.client = TxnEventsClient(
-                baseURL: baseURL,
-                accountId: accountId,
-                sdkVersion: sdkVersion,
-                deviceHeaders: deviceHeaders,
-                httpClient: httpClient
-            )
-        } else {
-            self.client = nil
-        }
     }
 
-    func send(events: [TxnEvent]) async throws {
-        guard !events.isEmpty else { return }
-        guard let client else { throw TxnEventError.invalidBaseURL }
+    func initSession() async throws -> InitResult {
+        guard let baseURL = URL(string: environment.gatewayBaseURL) else {
+            throw InitError.invalidBaseURL
+        }
+
+        httpClient.updateTimeout(timeout: requestTimeout)
 
         let authToken = await sessionManager.authorizationHeader
+        let client = InitClient(
+            baseURL: baseURL,
+            accountId: accountId,
+            authToken: authToken,
+            sdkVersion: sdkVersion,
+            httpClient: httpClient
+        )
 
         var attempt = 0
         while true {
             do {
-                let (data, response) = try await client.recordEvents(events: events, authToken: authToken)
+                let (data, response) = try await client.initSession(
+                    operating_system: "ios",
+                    layout_schema_version: layoutSchemaVersion
+                )
                 let statusCode = response?.statusCode ?? 0
 
                 if isRetryable(statusCode: statusCode), attempt < maxRetries {
@@ -65,15 +81,15 @@ internal struct TxnEventService {
                 }
 
                 guard (200..<300).contains(statusCode) else {
-                    throw TxnEventError.unexpectedStatusCode(statusCode)
+                    throw InitError.unexpectedStatusCode(statusCode)
+                }
+                guard let data else {
+                    throw InitError.missingResponseData
                 }
 
-                if let data,
-                   let decoded = try? JSONDecoder().decode(TxnEventsResponse.self, from: data),
-                   let sessionToken = decoded.sessionToken {
-                    await sessionManager.update(sessionToken: sessionToken)
-                }
-                return
+                let decoded = try JSONDecoder().decode(InitResponse.self, from: data)
+                await sessionManager.update(sessionId: decoded.sessionId, sessionToken: decoded.sessionToken)
+                return InitResult(response: decoded, featureFlags: decoded.featureFlags.toInitFeatureFlags())
             } catch let error where isRetryable(error: error) && attempt < maxRetries {
                 try await sleep(backoffDelay(attempt: attempt))
                 attempt += 1

@@ -1,6 +1,6 @@
 import Foundation
 
-internal struct TxnInitClient {
+internal struct InitClient {
     let baseURL: URL
     let accountId: String
     let authToken: String?
@@ -30,17 +30,17 @@ internal struct TxnInitClient {
             .appendingPathComponent("sessions")
             .appendingPathComponent("init")
 
-        let requestBody = TxnInitRequest(
+        let requestBody = InitRequest(
             operatingSystem: operating_system,
             sdkVersion: sdkVersion,
             layoutSchemaVersion: layout_schema_version
         )
         let bodyData = try JSONEncoder().encode(requestBody)
         guard let bodyParameters = try JSONSerialization.jsonObject(with: bodyData) as? RoktHTTPParameters else {
-            throw TxnInitClientError.bodyEncodingFailed
+            throw InitClientError.bodyEncodingFailed
         }
 
-        var headers = TxnRequestHeaders.common(accountId: accountId, authToken: authToken)
+        var headers = RequestHeaders.common(accountId: accountId, authToken: authToken)
         headers["x-request-id"] = UUID().uuidString
 
         return try await withCheckedThrowingContinuation { continuation in
@@ -65,11 +65,11 @@ internal struct TxnInitClient {
     }
 }
 
-internal enum TxnInitClientError: Error {
+internal enum InitClientError: Error {
     case bodyEncodingFailed
 }
 
-internal struct TxnInitRequest: Encodable {
+internal struct InitRequest: Encodable {
     // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
     let operatingSystem: String
     // periphery:ignore - encode-only; read by the synthesized Encodable, not by code

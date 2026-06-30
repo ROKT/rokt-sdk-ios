@@ -1,11 +1,11 @@
 // periphery:ignore:all - net-new v2 init response models, not yet wired into the live path
 import Foundation
 
-internal struct TxnInitResponse: Decodable, Equatable {
+internal struct InitResponse: Decodable, Equatable {
     let sessionId: String
-    let sessionToken: TxnSessionToken
-    let featureFlags: TxnFeatureFlags
-    let fonts: [TxnFontItem]
+    let sessionToken: SessionToken
+    let featureFlags: FeatureFlags
+    let fonts: [FontItem]
 
     enum CodingKeys: String, CodingKey {
         case sessionId = "session_id"
@@ -16,9 +16,9 @@ internal struct TxnInitResponse: Decodable, Equatable {
 
     init(
         sessionId: String,
-        sessionToken: TxnSessionToken,
-        featureFlags: TxnFeatureFlags,
-        fonts: [TxnFontItem]
+        sessionToken: SessionToken,
+        featureFlags: FeatureFlags,
+        fonts: [FontItem]
     ) {
         self.sessionId = sessionId
         self.sessionToken = sessionToken
@@ -29,15 +29,15 @@ internal struct TxnInitResponse: Decodable, Equatable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         sessionId = try container.decode(String.self, forKey: .sessionId)
-        sessionToken = try container.decode(TxnSessionToken.self, forKey: .sessionToken)
+        sessionToken = try container.decode(SessionToken.self, forKey: .sessionToken)
         // Tolerate absent feature_flags/fonts so a missing block doesn't fail init.
-        featureFlags = try container.decodeIfPresent(TxnFeatureFlags.self, forKey: .featureFlags)
-            ?? TxnFeatureFlags(flags: [:])
-        fonts = try container.decodeIfPresent([TxnFontItem].self, forKey: .fonts) ?? []
+        featureFlags = try container.decodeIfPresent(FeatureFlags.self, forKey: .featureFlags)
+            ?? FeatureFlags(flags: [:])
+        fonts = try container.decodeIfPresent([FontItem].self, forKey: .fonts) ?? []
     }
 }
 
-internal struct TxnSessionToken: Decodable, Equatable {
+internal struct SessionToken: Decodable, Equatable {
     let token: String
     let expiresAt: Int64 // Unix epoch milliseconds
 
@@ -51,7 +51,7 @@ internal struct TxnSessionToken: Decodable, Equatable {
     }
 }
 
-internal struct TxnFontItem: Decodable, Equatable {
+internal struct FontItem: Decodable, Equatable {
     let fontName: String
     let fontURL: String
     let fontStyle: String?
@@ -67,7 +67,7 @@ internal struct TxnFontItem: Decodable, Equatable {
     }
 }
 
-internal enum TxnFeatureFlagValue: Decodable, Equatable {
+internal enum FeatureFlagValue: Decodable, Equatable {
     case bool(Bool)
     case int(Int)
     case double(Double)
@@ -93,10 +93,10 @@ internal enum TxnFeatureFlagValue: Decodable, Equatable {
     }
 }
 
-internal struct TxnFeatureFlags: Decodable, Equatable {
-    let flags: [String: TxnFeatureFlagValue]
+internal struct FeatureFlags: Decodable, Equatable {
+    let flags: [String: FeatureFlagValue]
 
-    init(flags: [String: TxnFeatureFlagValue]) {
+    init(flags: [String: FeatureFlagValue]) {
         self.flags = flags
     }
 
@@ -104,9 +104,9 @@ internal struct TxnFeatureFlags: Decodable, Equatable {
         // Decode per-key and skip values whose type isn't modeled, so a single
         // unknown/extensible server flag can't fail the whole init response.
         let container = try decoder.container(keyedBy: DynamicCodingKey.self)
-        var decoded: [String: TxnFeatureFlagValue] = [:]
+        var decoded: [String: FeatureFlagValue] = [:]
         for key in container.allKeys {
-            if let value = try? container.decode(TxnFeatureFlagValue.self, forKey: key) {
+            if let value = try? container.decode(FeatureFlagValue.self, forKey: key) {
                 decoded[key.stringValue] = value
             }
         }
@@ -142,7 +142,7 @@ internal struct TxnFeatureFlags: Decodable, Equatable {
     }
 }
 
-extension TxnFeatureFlags {
+extension FeatureFlags {
     // minimum-post-purchase-schema is server-gated: a non-empty version string means
     // the schema requirement is met, so string flags map to match = !isEmpty.
     func toInitFeatureFlags() -> InitFeatureFlags {

@@ -226,7 +226,7 @@ class NetworkingHelper {
     }
 
     // Subset of common headers for the v2 path; sdk_version travels in the request body instead.
-    class internal func txnDeviceHeaders() -> [String: String] {
+    class internal func deviceHeaders() -> [String: String] {
         var headers = [String: String]()
         headers[RoktHeaderKeys.osType] = "iOS"
         headers[RoktHeaderKeys.osVersion] = UIDevice.current.systemVersion
