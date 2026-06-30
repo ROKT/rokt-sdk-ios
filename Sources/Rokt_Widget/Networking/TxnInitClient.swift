@@ -18,7 +18,7 @@ internal struct TxnInitClient {
         self.httpClient = httpClient
     }
 
-    /// Calls the config-only `GET /v2/config`.
+    /// Calls the config-only `GET /v2/init`.
     ///
     /// Every input travels as a request header — there is no body and no
     /// `Authorization` — so the request is a plain, cacheable GET. The response
@@ -30,7 +30,7 @@ internal struct TxnInitClient {
     ) async throws -> (Data?, HTTPURLResponse?) {
         let url = baseURL
             .appendingPathComponent("v2")
-            .appendingPathComponent("config")
+            .appendingPathComponent("init")
 
         let headers: RoktHTTPHeaders = [
             "rokt-account-id": accountId,

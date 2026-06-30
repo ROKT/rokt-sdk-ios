@@ -27,7 +27,7 @@ final class TestMockTxnInitHTTPClient: XCTestCase {
         let expectation = expectation(description: "completion")
         var captured: RoktHTTPRequestResult?
         client.startRequestWith(
-            urlAddress: "https://apps.rokt.com/v2/config",
+            urlAddress: "https://apps.rokt.com/v2/init",
             method: .post,
             parameters: nil,
             parameterArray: nil,

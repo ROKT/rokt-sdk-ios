@@ -2,7 +2,7 @@ import XCTest
 import PactSwift
 @testable import Rokt_Widget
 
-/// Consumer-driven pact spec for the config-only `GET /v2/config`. Drives
+/// Consumer-driven pact spec for the config-only `GET /v2/init`. Drives
 /// `TxnInitClient.initSession` through the pact mock service so any drift in
 /// the client's wire shape fails here.
 class TxnInitClientPactSpec: XCTestCase {
@@ -29,7 +29,7 @@ class TxnInitClientPactSpec: XCTestCase {
             // Authorization (config is unauthenticated), so the request is cacheable.
             .withRequest(
                 method: .GET,
-                path: "/v2/config",
+                path: "/v2/init",
                 headers: [
                     "rokt-account-id": Matcher.RegexLike("account-456", term: #".+"#),
                     "rokt-os-type": "ios",

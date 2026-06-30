@@ -18,7 +18,7 @@ internal struct TxnInitResponse: Decodable, Equatable {
         self.fonts = fonts
     }
 
-    // Config-only: /v2/config carries no session (the SDK sources its session
+    // Config-only: /v2/init carries no session (the SDK sources its session
     // from offers/select). Tolerate absent feature_flags/fonts so a missing
     // block doesn't fail decoding.
     init(from decoder: Decoder) throws {
