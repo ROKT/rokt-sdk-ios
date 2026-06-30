@@ -27,8 +27,7 @@ internal struct TxnInitClient {
     ) async throws -> (Data?, HTTPURLResponse?) {
         let url = baseURL
             .appendingPathComponent("v2")
-            .appendingPathComponent("sessions")
-            .appendingPathComponent("init")
+            .appendingPathComponent("config")
 
         let requestBody = TxnInitRequest(
             operatingSystem: operating_system,

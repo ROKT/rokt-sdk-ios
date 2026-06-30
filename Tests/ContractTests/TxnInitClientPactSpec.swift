@@ -2,7 +2,7 @@ import XCTest
 import PactSwift
 @testable import Rokt_Widget
 
-/// Consumer-driven pact spec for `POST /v2/sessions/init`. Drives
+/// Consumer-driven pact spec for `POST /v2/config`. Drives
 /// `TxnInitClient.initSession` through the pact mock service so any drift
 /// in the client's wire shape fails here.
 class TxnInitClientPactSpec: XCTestCase {
@@ -27,7 +27,7 @@ class TxnInitClientPactSpec: XCTestCase {
             .given(ProviderState(description: "a valid session initialization request is submitted", params: [:]))
             .withRequest(
                 method: .POST,
-                path: "/v2/sessions/init",
+                path: "/v2/config",
                 headers: [
                     "rokt-account-id": Matcher.RegexLike("account-456", term: #".+"#),
                     "Authorization": Matcher.RegexLike("Bearer session-token-abc", term: #".+"#),

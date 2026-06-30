@@ -9,7 +9,7 @@ let invalidInitFilename = "InvalidInit"
 
 // Derived from the same environment as the live path so the mock URL matches the request.
 var txnInitResourceURL: String {
-    config.environment.gatewayBaseURL + "/v2/sessions/init"
+    config.environment.gatewayBaseURL + "/v2/config"
 }
 
 var txnEventResourceURL: String {
