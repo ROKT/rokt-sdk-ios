@@ -251,22 +251,28 @@ internal import RoktUXHelper
         shared.roktImplementation.purchaseFinalized(identifier: identifier, catalogItemId: catalogItemId, success: success)
     }
 
-    /// Set the session id to use for the next execute call.
-    /// This is useful for cases where you have a session id from a non-native integration,
-    /// e.g. WebView, and you want the session to be consistent across integrations.
+    /// Adopt a session shared from another integration (e.g. a WebView-hosted
+    /// web integration) so the native SDK continues the *same* session.
     ///
-    /// - Note: Empty strings are ignored and will not update the session.
+    /// The bundle carries the session token, which is what lets the gateway
+    /// continue the shared session rather than minting a new one. The token is
+    /// applied on the next initialization, so call this before
+    /// ``initWith(roktTagId:)`` when adopting a session established elsewhere.
+    /// It may also be called *after* initialization to override the session
+    /// established by init; the new token is then used on the offers API.
+    ///
+    /// - Note: An expired session is ignored and will not replace the current one.
     ///
     /// - Parameters:
-    ///   - sessionId: The session id to be set. Must be a non-empty string.
-    public static func setSessionId(sessionId: String) {
-        shared.roktImplementation.setSessionId(sessionId: sessionId)
+    ///   - sharedSession: The session to adopt.
+    public static func setSharedSession(_ sharedSession: RoktSharedSession) async {
+        await shared.roktImplementation.setSharedSession(sharedSession)
     }
 
-    /// Get the session id to use within a non-native integration e.g. WebView
+    /// Get the current session to share with a non-native integration e.g. WebView.
     ///
-    /// - Returns: The session id or nil if no session is present.
-    public static func getSessionId() -> String? {
-        shared.roktImplementation.getSessionId()
+    /// - Returns: The shared session, or nil if there is no live (non-expired) session.
+    public static func getSharedSession() async -> RoktSharedSession? {
+        await shared.roktImplementation.getSharedSession()
     }
 }
