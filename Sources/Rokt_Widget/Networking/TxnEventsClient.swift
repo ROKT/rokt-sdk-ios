@@ -36,14 +36,7 @@ internal struct TxnEventsClient {
             throw TxnEventsClientError.bodyEncodingFailed
         }
 
-        var headers: RoktHTTPHeaders = [
-            "rokt-account-id": accountId,
-            "Content-Type": "application/json"
-        ]
-        // Authorization is optional: with no live token the server mints a fresh session.
-        if let authToken, !authToken.isEmpty {
-            headers["Authorization"] = authToken
-        }
+        var headers = TxnRequestHeaders.common(accountId: accountId, authToken: authToken)
         for (key, value) in deviceHeaders {
             headers[key] = value
         }
@@ -79,6 +72,16 @@ internal struct TxnEventsRequest: Encodable {
     let channel: TxnEventsChannel
     // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
     let events: [TxnEvent]
+    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
+    // Mirrors the web controller's single_session: the mobile v2 flow uses one
+    // session token for the whole batch.
+    let singleSession: Bool = true
+
+    enum CodingKeys: String, CodingKey {
+        case channel
+        case events
+        case singleSession = "single_session"
+    }
 }
 
 internal struct TxnEventsChannel: Encodable {

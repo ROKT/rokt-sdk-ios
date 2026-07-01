@@ -3,20 +3,14 @@ import XCTest
 
 final class TestTxnInitService: XCTestCase {
 
-    private var now: Date!
-    private var sessionManager: TxnSessionManager!
     private var httpClient: MockTxnHTTPClient!
 
     override func setUp() {
         super.setUp()
-        now = Date(timeIntervalSince1970: 1_000_000)
-        sessionManager = TxnSessionManager(clock: { self.now })
         httpClient = MockTxnHTTPClient()
     }
 
     override func tearDown() {
-        now = nil
-        sessionManager = nil
         httpClient = nil
         super.tearDown()
     }
@@ -27,7 +21,6 @@ final class TestTxnInitService: XCTestCase {
             accountId: "account-1",
             sdkVersion: "5.2.2",
             layoutSchemaVersion: "2.3",
-            sessionManager: sessionManager,
             httpClient: httpClient,
             maxRetries: maxRetries,
             baseBackoff: 0,
@@ -35,12 +28,11 @@ final class TestTxnInitService: XCTestCase {
         )
     }
 
-    private func successJSON(token: String = "minted-jwt", expiresAt: Int64 = 2_000_000_000_000) -> Data {
+    // Config-only payload — no session fields.
+    private func successJSON() -> Data {
         Data(
             """
             {
-              "session_id": "sess-123",
-              "session_token": { "token": "\(token)", "expires_at": \(expiresAt) },
               "feature_flags": {
                 "rokt-tracking-status": true,
                 "client-timeout-ms": 30000,
@@ -53,48 +45,35 @@ final class TestTxnInitService: XCTestCase {
         )
     }
 
-    func test_initSession_success_decodesAndStoresSession() async throws {
+    func test_initSession_success_decodesFeatureFlags() async throws {
         httpClient.results = [.success(data: successJSON())]
         let result = try await makeService().initSession()
 
-        let storedSessionId = await sessionManager.currentSessionId
-        let storedHeader = await sessionManager.authorizationHeader
-        XCTAssertEqual(result.response.sessionId, "sess-123")
-        XCTAssertEqual(result.response.sessionToken.token, "minted-jwt")
-        XCTAssertEqual(storedSessionId, "sess-123")
-        XCTAssertEqual(storedHeader, "Bearer minted-jwt")
         XCTAssertTrue(result.featureFlags.isEnabled(.roktTrackingStatus))
         XCTAssertTrue(result.featureFlags.isEnabled(.minimumPostPurchaseSchema))
         XCTAssertEqual(httpClient.capturedHeaders.count, 1)
     }
 
-    func test_initSession_withValidStoredToken_sendsAuthorizationHeader() async throws {
-        let expiryMs = Int64(now.addingTimeInterval(1800).timeIntervalSince1970 * 1000)
-        await sessionManager.update(
-            sessionId: "existing",
-            sessionToken: TxnSessionToken(token: "stored-jwt", expiresAt: expiryMs)
-        )
+    func test_initSession_sendsHeaderInputs_andNoAuthorization() async throws {
         httpClient.results = [.success(data: successJSON())]
 
         _ = try await makeService().initSession()
 
-        XCTAssertEqual(httpClient.capturedHeaders.first?["Authorization"], "Bearer stored-jwt")
-    }
-
-    func test_initSession_withoutToken_omitsAuthorizationHeader() async throws {
-        httpClient.results = [.success(data: successJSON())]
-
-        _ = try await makeService().initSession()
-
-        XCTAssertNil(httpClient.capturedHeaders.first?["Authorization"])
+        let headers = httpClient.capturedHeaders.first
+        // Inputs travel as headers.
+        XCTAssertEqual(headers?["rokt-account-id"], "account-1")
+        XCTAssertEqual(headers?["rokt-os-type"], "ios")
+        XCTAssertEqual(headers?["rokt-sdk-version"], "5.2.2")
+        XCTAssertEqual(headers?["rokt-layout-schema-version"], "2.3")
+        // Never send Authorization.
+        XCTAssertNil(headers?["Authorization"])
     }
 
     func test_initSession_retriesOnTransient5xx_thenSucceeds() async throws {
         httpClient.results = [.status(500), .status(503), .status(504), .success(data: successJSON())]
 
-        let result = try await makeService().initSession()
+        _ = try await makeService().initSession()
 
-        XCTAssertEqual(result.response.sessionId, "sess-123")
         XCTAssertEqual(httpClient.callCount, 4)
     }
 
@@ -102,9 +81,8 @@ final class TestTxnInitService: XCTestCase {
         httpClient.results = [.transport(NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut)),
                               .success(data: successJSON())]
 
-        let result = try await makeService().initSession()
+        _ = try await makeService().initSession()
 
-        XCTAssertEqual(result.response.sessionId, "sess-123")
         XCTAssertEqual(httpClient.callCount, 2)
     }
 

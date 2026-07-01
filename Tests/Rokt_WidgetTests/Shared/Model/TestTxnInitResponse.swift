@@ -33,19 +33,14 @@ final class TestTxnInitResponse: XCTestCase {
     // MARK: - Top-level decoding
 
     func test_decode_happyPath_topLevelFields() throws {
+        // Config-only: session fields in the payload are ignored.
         let response = try decode(happyPathJSON)
-        XCTAssertEqual(response.sessionId, "550e8400-e29b-41d4-a716-446655440000")
-        XCTAssertEqual(response.sessionToken.token, "pact-stub-session-token")
-        XCTAssertEqual(response.sessionToken.expiresAt, 1_774_474_053_000)
         XCTAssertEqual(response.fonts, [])
     }
 
     func test_init_memberwise_setsAllFields() {
-        let token = TxnSessionToken(token: "t", expiresAt: 1_774_474_053_000)
         let flags = TxnFeatureFlags(flags: ["rokt-tracking-status": .bool(true)])
-        let response = TxnInitResponse(sessionId: "sid", sessionToken: token, featureFlags: flags, fonts: [])
-        XCTAssertEqual(response.sessionId, "sid")
-        XCTAssertEqual(response.sessionToken, token)
+        let response = TxnInitResponse(featureFlags: flags, fonts: [])
         XCTAssertEqual(response.featureFlags, flags)
         XCTAssertEqual(response.fonts, [])
     }
@@ -152,22 +147,24 @@ final class TestTxnInitResponse: XCTestCase {
     // MARK: - Resilience
 
     func test_decode_missingFeatureFlagsAndFonts_defaultsToEmpty() throws {
+        let response = try decode("{}")
+        XCTAssertTrue(response.featureFlags.flags.isEmpty)
+        XCTAssertEqual(response.fonts, [])
+    }
+
+    func test_decode_sessionFieldsAreIgnored() throws {
+        // A session block must not be required; the decoder ignores it.
         let json = """
         {
             "session_id": "s",
-            "session_token": { "token": "t", "expires_at": 1 }
+            "session_token": { "token": "t", "expires_at": 1 },
+            "feature_flags": {},
+            "fonts": []
         }
         """
         let response = try decode(json)
         XCTAssertTrue(response.featureFlags.flags.isEmpty)
         XCTAssertEqual(response.fonts, [])
-    }
-
-    func test_decode_missingSessionToken_throws() {
-        let json = """
-        { "session_id": "s", "feature_flags": {}, "fonts": [] }
-        """
-        XCTAssertThrowsError(try decode(json))
     }
 
     // MARK: - toInitFeatureFlags mapping

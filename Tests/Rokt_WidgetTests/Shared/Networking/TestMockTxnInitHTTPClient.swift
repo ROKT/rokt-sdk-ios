@@ -27,7 +27,7 @@ final class TestMockTxnInitHTTPClient: XCTestCase {
         let expectation = expectation(description: "completion")
         var captured: RoktHTTPRequestResult?
         client.startRequestWith(
-            urlAddress: "https://apps.rokt.com/v2/sessions/init",
+            urlAddress: "https://apps.rokt.com/v2/init",
             method: .post,
             parameters: nil,
             parameterArray: nil,
@@ -48,8 +48,6 @@ final class TestMockTxnInitHTTPClient: XCTestCase {
         writeFixture(
             """
             {
-              "session_id": "mock-sess",
-              "session_token": { "token": "mock-jwt", "expires_at": 32503680000000 },
               "feature_flags": { "client-timeout-ms": 8000 },
               "fonts": []
             }
@@ -63,8 +61,8 @@ final class TestMockTxnInitHTTPClient: XCTestCase {
         XCTAssertNil(result?.responseError)
         let data = try XCTUnwrap(result?.responseData)
         let decoded = try JSONDecoder().decode(TxnInitResponse.self, from: data)
-        XCTAssertEqual(decoded.sessionId, "mock-sess")
         XCTAssertEqual(decoded.featureFlags.int(forKey: "client-timeout-ms"), 8000)
+        XCTAssertEqual(decoded.fonts, [])
     }
 
     func test_missingFixture_servesEmbeddedDefaultAs200() throws {
