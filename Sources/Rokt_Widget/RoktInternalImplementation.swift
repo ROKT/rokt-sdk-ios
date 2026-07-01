@@ -143,10 +143,21 @@ class RoktInternalImplementation {
         }
     }
 
-    private func devicePayFinalized(executeId: String, layoutId: String, catalogItemId: String, success: Bool) {
+    private func devicePayFinalized(
+        executeId: String,
+        layoutId: String,
+        catalogItemId: String,
+        success: Bool,
+        retryable: Bool = false
+    ) {
         guard let state = stateManager.getState(id: executeId),
               let uxHelper = state.uxHelper as? RoktUX else { return }
-        uxHelper.devicePayFinalized(layoutId: layoutId, catalogItemId: catalogItemId, success: success)
+        uxHelper.devicePayFinalized(
+            layoutId: layoutId,
+            catalogItemId: catalogItemId,
+            success: success,
+            retryable: retryable
+        )
     }
 
     private func forwardPaymentFinalized(executeId: String,
@@ -595,7 +606,10 @@ class RoktInternalImplementation {
                         totalPrice: event.totalPrice.map { NSDecimalNumber(decimal: $0) },
                         unitPrice: event.unitPrice.map { NSDecimalNumber(decimal: $0) }
                     ))
-                } else {
+                } else if !result.isRetryable {
+                    // Retryable (transient) failures are not terminal — the offer stays and the
+                    // buyer can re-tap — so we skip the partner-facing purchase-failure event,
+                    // matching web/DCUI parity.
                     self?.callOnRoktEvent(executeId, event: RoktEvent.CartItemInstantPurchaseFailure(
                         identifier: event.layoutId,
                         catalogItemId: event.catalogItemId,
@@ -607,7 +621,8 @@ class RoktInternalImplementation {
                     executeId: executeId,
                     layoutId: event.layoutId,
                     catalogItemId: event.catalogItemId,
-                    success: success
+                    success: success,
+                    retryable: result.isRetryable
                 )
             }
         } else if let event = uxEvent as? RoktUXEvent.CartItemForwardPayment {

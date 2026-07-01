@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+### Core
+
+#### Added
+
+- Surface transient built-in PayPal `initialize-purchase` failures (network / timeout / HTTP 429 / 5xx) as retryable so the offer stays and the buyer can re-tap; terminal failures (validation / other 4xx / missing approval URL) still dismiss. Requires RoktContracts 2.1.0 and RoktUXHelper 0.13.0.
+
 ## [5.2.5] - 2026-06-18
 
 ### Core

@@ -619,6 +619,110 @@ class TestPaymentOrchestrator: XCTestCase {
         XCTAssertEqual(payPalPresenter.lastApprovalURL?.absoluteString, "https://www.paypal.com/checkoutnow?token=MOCK")
     }
 
+    // MARK: - PayPal init-purchase retryable classification
+
+    /// Drives a built-in PayPal init-purchase failure and returns the resulting `PaymentSheetResult`.
+    private func payPalInitFailureResult(
+        error: Error,
+        statusCode: Int?,
+        message: String = "init failed"
+    ) -> PaymentSheetResult {
+        sut = PaymentOrchestrator(apiHelper: PaymentOrchestratorAPIHelperSpy.self)
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseFailure = (error, statusCode, message)
+
+        let item = PaymentItem(id: "item1", name: "Widget", amount: 9.99, currency: "USD")
+        let context = PaymentContext(
+            returnURL: "myapp://paypal/success",
+            cancelURL: "myapp://paypal/cancel"
+        )
+        let expectation = expectation(description: "PayPal init failure completes")
+        var captured: PaymentSheetResult?
+        sut.processPayment(
+            method: .paypal,
+            item: item,
+            context: context,
+            cartItemId: "v1:cart-paypal:canal",
+            from: UIViewController(),
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests()
+        ) { result in
+            captured = result
+            expectation.fulfill()
+        }
+        wait(for: [expectation], timeout: 1.0)
+        return captured ?? .canceled
+    }
+
+    func test_payPalInitFailure_serverError_isRetryable() {
+        let result = payPalInitFailureResult(error: NSError(domain: "test", code: 1), statusCode: 500)
+        XCTAssertEqual(result.outcome, .failed)
+        XCTAssertTrue(result.isRetryable)
+    }
+
+    func test_payPalInitFailure_tooManyRequests_isRetryable() {
+        let result = payPalInitFailureResult(error: NSError(domain: "test", code: 1), statusCode: 429)
+        XCTAssertEqual(result.outcome, .failed)
+        XCTAssertTrue(result.isRetryable)
+    }
+
+    func test_payPalInitFailure_networkTimeout_isRetryable() {
+        let timeout = NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut)
+        let result = payPalInitFailureResult(error: timeout, statusCode: nil)
+        XCTAssertEqual(result.outcome, .failed)
+        XCTAssertTrue(result.isRetryable)
+    }
+
+    func test_payPalInitFailure_clientError_isNotRetryable() {
+        let result = payPalInitFailureResult(error: NSError(domain: "test", code: 1), statusCode: 400)
+        XCTAssertEqual(result.outcome, .failed)
+        XCTAssertFalse(result.isRetryable)
+    }
+
+    func test_payPalInitFailure_validationError_isNotRetryable() {
+        sut = PaymentOrchestrator(apiHelper: PaymentOrchestratorAPIHelperSpy.self)
+        // A 200 response missing clientSecret hits the terminal validation path, not the transport
+        // classifier — so it must not be retryable.
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = InitializePurchaseResponse(
+            success: true,
+            totalUpsellPrice: 9.99,
+            currency: "USD",
+            upsellItems: [],
+            paymentDetails: PaymentDetails(
+                gateway: "paypal",
+                merchantName: "Test Merchant",
+                merchantAccountId: "merchant.com.test",
+                paymentIntentId: "pi_test",
+                clientSecret: nil,
+                shippingCost: 0,
+                tax: 0,
+                totalAmount: 9.99
+            ),
+            paypalData: nil
+        )
+
+        let item = PaymentItem(id: "item1", name: "Widget", amount: 9.99, currency: "USD")
+        let context = PaymentContext(
+            returnURL: "myapp://paypal/success",
+            cancelURL: "myapp://paypal/cancel"
+        )
+        let expectation = expectation(description: "PayPal validation failure completes")
+        var captured: PaymentSheetResult?
+        sut.processPayment(
+            method: .paypal,
+            item: item,
+            context: context,
+            cartItemId: "v1:cart-paypal:canal",
+            from: UIViewController(),
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests()
+        ) { result in
+            captured = result
+            expectation.fulfill()
+        }
+        wait(for: [expectation], timeout: 1.0)
+
+        XCTAssertEqual(captured?.outcome, .failed)
+        XCTAssertEqual(captured?.isRetryable, false)
+    }
+
     func test_processPayment_payPal_passesReturnAndCancelURLToInitializePurchase() {
         let payPalPresenter = MockPayPalApprovalPresenter()
         sut = PaymentOrchestrator(
@@ -1376,6 +1480,10 @@ class TestPaymentOrchestrator: XCTestCase {
 
 class PaymentOrchestratorAPIHelperSpy: RoktAPIHelper {
     static var initializePurchaseResponse: InitializePurchaseResponse?
+    /// When set, `initializePurchase` invokes its `failure` callback with these values (takes
+    /// precedence over `initializePurchaseResponse`) so tests can exercise transient vs terminal
+    /// init-purchase failures with a specific HTTP status / transport error.
+    static var initializePurchaseFailure: (error: Error, statusCode: Int?, message: String)?
     static var initializePurchaseCallCount = 0
     static var lastInitializePurchaseReturnURL: String?
     static var lastInitializePurchaseCancelURL: String?
@@ -1390,6 +1498,7 @@ class PaymentOrchestratorAPIHelperSpy: RoktAPIHelper {
 
     static func reset() {
         initializePurchaseResponse = nil
+        initializePurchaseFailure = nil
         initializePurchaseCallCount = 0
         lastInitializePurchaseReturnURL = nil
         lastInitializePurchaseCancelURL = nil
@@ -1419,7 +1528,9 @@ class PaymentOrchestratorAPIHelperSpy: RoktAPIHelper {
         lastInitializePurchasePaymentMethodType = paymentMethodType
         lastInitializePurchasePaymentProvider = paymentProvider
         lastInitializePurchaseShippingAttributes = shippingAttributes
-        if let initializePurchaseResponse {
+        if let initializePurchaseFailure {
+            failure?(initializePurchaseFailure.error, initializePurchaseFailure.statusCode, initializePurchaseFailure.message)
+        } else if let initializePurchaseResponse {
             success?(initializePurchaseResponse)
         } else {
             let error = NSError(

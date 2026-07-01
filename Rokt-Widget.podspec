@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'Rokt-Widget'
-  s.version          = '5.2.5'
+  s.version          = '5.3.0'
   s.summary          = 'Rokt Mobile SDK for iOS'
   s.swift_version    = '5.9'
 
@@ -19,6 +19,6 @@ Pod::Spec.new do |s|
   s.resource_bundles = { 'Rokt_Widget' => ['Sources/Rokt_Widget/PrivacyInfo.xcprivacy'] }
   s.frameworks       = 'Foundation', 'UIKit', 'SwiftUI', 'Combine'
 
-  s.dependency 'RoktContracts', '>= 2.0.2', '< 3.0'
-  s.dependency 'RoktUXHelper', '>= 0.12.0', '< 1.0'
+  s.dependency 'RoktContracts', '>= 2.1.0', '< 3.0'
+  s.dependency 'RoktUXHelper', '>= 0.13.0', '< 1.0'
 end

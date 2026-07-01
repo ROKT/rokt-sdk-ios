@@ -2,6 +2,17 @@ import Foundation
 import UIKit
 import RoktContracts
 
+/// Wraps an `initialize-purchase` (Step-1) failure with a client-side retry hint derived from the
+/// transport error / HTTP status (see ``PayPalInitPurchaseRetryClassifier``). Lets built-in
+/// device-pay callers surface a retryable ``PaymentSheetResult`` while preserving the original
+/// error message through ``LocalizedError``.
+struct InitializePurchaseFailure: Error, LocalizedError {
+    let underlyingError: Error
+    let isRetryable: Bool
+
+    var errorDescription: String? { underlyingError.localizedDescription }
+}
+
 /// Layout context and confirmation hook for built-in **two-step device pay** flows (PayPal, Card).
 ///
 /// Used to drive ``RoktUX/devicePayShowConfirmation`` from the orchestrator after Step-1
@@ -359,8 +370,11 @@ final class PaymentOrchestrator {
                 Self.pendingBuiltInTwoStepCheckout = .paypal(pending)
                 Self.pendingBuiltInTwoStepLock.unlock()
             case .failure(let error):
+                // Transient init-purchase failures (network / timeout / HTTP 429 / 5xx) are surfaced
+                // as retryable so the offer stays and the buyer can re-tap; terminal failures dismiss.
+                let isRetryable = (error as? InitializePurchaseFailure)?.isRetryable ?? false
                 DispatchQueue.main.async {
-                    completion(.failed(error: error.localizedDescription))
+                    completion(.failed(error: error.localizedDescription, isRetryable: isRetryable))
                 }
             }
         }
@@ -767,7 +781,7 @@ final class PaymentOrchestrator {
                             "merchantIdPresent": response.paymentDetails.merchantAccountId != nil
                         ]
                     )
-                    completion(.failure(validationError))
+                    completion(.failure(InitializePurchaseFailure(underlyingError: validationError, isRetryable: false)))
                     return
                 }
 
@@ -787,7 +801,7 @@ final class PaymentOrchestrator {
                 )
                 completion(.success(preparation))
             },
-            failure: { error, _, message in
+            failure: { error, statusCode, message in
                 self.apiHelper.sendDiagnostics(
                     message: PaymentOrchestrator.devicePayErrorCode,
                     callStack: PaymentOrchestrator.paymentPreparationFailedError,
@@ -797,7 +811,11 @@ final class PaymentOrchestrator {
                         "message": message
                     ]
                 )
-                completion(.failure(error))
+                let isRetryable = PayPalInitPurchaseRetryClassifier.isRetryableInitPurchaseTransportFailure(
+                    error: error,
+                    statusCode: statusCode
+                )
+                completion(.failure(InitializePurchaseFailure(underlyingError: error, isRetryable: isRetryable)))
             }
         )
     }
