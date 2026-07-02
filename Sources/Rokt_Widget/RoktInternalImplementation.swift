@@ -586,60 +586,7 @@ class RoktInternalImplementation {
                 builtInPayPalDevicePaySession: paypalSession,
                 builtInCardDevicePaySession: cardSession
             ) { [weak self] result in
-                switch result.outcome {
-                case .succeeded:
-                    self?.callOnRoktEvent(executeId, event: RoktEvent.CartItemInstantPurchase(
-                        identifier: event.layoutId,
-                        name: event.name,
-                        cartItemId: event.cartItemId,
-                        catalogItemId: event.catalogItemId,
-                        currency: event.currency,
-                        description: event.description,
-                        linkedProductId: event.linkedProductId,
-                        providerData: event.providerData,
-                        quantity: NSDecimalNumber(decimal: event.quantity),
-                        totalPrice: event.totalPrice.map { NSDecimalNumber(decimal: $0) },
-                        unitPrice: event.unitPrice.map { NSDecimalNumber(decimal: $0) }
-                    ))
-                    self?.devicePayFinalized(
-                        executeId: executeId,
-                        layoutId: event.layoutId,
-                        catalogItemId: event.catalogItemId,
-                        success: true
-                    )
-                case .canceled:
-                    self?.devicePayRetry(
-                        executeId: executeId,
-                        layoutId: event.layoutId,
-                        catalogItemId: event.catalogItemId
-                    )
-                case .failed:
-                    self?.callOnRoktEvent(executeId, event: RoktEvent.CartItemInstantPurchaseFailure(
-                        identifier: event.layoutId,
-                        catalogItemId: event.catalogItemId,
-                        cartItemId: event.cartItemId,
-                        error: result.errorMessage
-                    ))
-                    self?.devicePayFinalized(
-                        executeId: executeId,
-                        layoutId: event.layoutId,
-                        catalogItemId: event.catalogItemId,
-                        success: false
-                    )
-                @unknown default:
-                    self?.callOnRoktEvent(executeId, event: RoktEvent.CartItemInstantPurchaseFailure(
-                        identifier: event.layoutId,
-                        catalogItemId: event.catalogItemId,
-                        cartItemId: event.cartItemId,
-                        error: result.errorMessage
-                    ))
-                    self?.devicePayFinalized(
-                        executeId: executeId,
-                        layoutId: event.layoutId,
-                        catalogItemId: event.catalogItemId,
-                        success: false
-                    )
-                }
+                self?.handleDevicePayPaymentCompletion(executeId: executeId, event: event, result: result)
             }
         } else if let event = uxEvent as? RoktUXEvent.CartItemForwardPayment {
             handleForwardPayment(executeId: executeId, event: event)
@@ -721,6 +668,65 @@ class RoktInternalImplementation {
     ) -> (success: Bool, failureReason: String?) {
         let failureReason = message.isEmpty ? unknownForwardPaymentFailureReason : message
         return (false, failureReason)
+    }
+
+    func handleDevicePayPaymentCompletion(executeId: String,
+                                          event: RoktUXEvent.CartItemDevicePay,
+                                          result: PaymentSheetResult) {
+        switch result.outcome {
+        case .succeeded:
+            callOnRoktEvent(executeId, event: RoktEvent.CartItemInstantPurchase(
+                identifier: event.layoutId,
+                name: event.name,
+                cartItemId: event.cartItemId,
+                catalogItemId: event.catalogItemId,
+                currency: event.currency,
+                description: event.description,
+                linkedProductId: event.linkedProductId,
+                providerData: event.providerData,
+                quantity: NSDecimalNumber(decimal: event.quantity),
+                totalPrice: event.totalPrice.map { NSDecimalNumber(decimal: $0) },
+                unitPrice: event.unitPrice.map { NSDecimalNumber(decimal: $0) }
+            ))
+            devicePayFinalized(
+                executeId: executeId,
+                layoutId: event.layoutId,
+                catalogItemId: event.catalogItemId,
+                success: true
+            )
+        case .canceled:
+            devicePayRetry(
+                executeId: executeId,
+                layoutId: event.layoutId,
+                catalogItemId: event.catalogItemId
+            )
+        case .failed:
+            callOnRoktEvent(executeId, event: RoktEvent.CartItemInstantPurchaseFailure(
+                identifier: event.layoutId,
+                catalogItemId: event.catalogItemId,
+                cartItemId: event.cartItemId,
+                error: result.errorMessage
+            ))
+            devicePayFinalized(
+                executeId: executeId,
+                layoutId: event.layoutId,
+                catalogItemId: event.catalogItemId,
+                success: false
+            )
+        @unknown default:
+            callOnRoktEvent(executeId, event: RoktEvent.CartItemInstantPurchaseFailure(
+                identifier: event.layoutId,
+                catalogItemId: event.catalogItemId,
+                cartItemId: event.cartItemId,
+                error: result.errorMessage
+            ))
+            devicePayFinalized(
+                executeId: executeId,
+                layoutId: event.layoutId,
+                catalogItemId: event.catalogItemId,
+                success: false
+            )
+        }
     }
 
     func handleForwardPayment(executeId: String,
