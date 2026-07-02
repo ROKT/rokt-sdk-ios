@@ -149,6 +149,12 @@ class RoktInternalImplementation {
         uxHelper.devicePayFinalized(layoutId: layoutId, catalogItemId: catalogItemId, success: success)
     }
 
+    private func devicePayRetry(executeId: String, layoutId: String, catalogItemId: String) {
+        guard let state = stateManager.getState(id: executeId),
+              let uxHelper = state.uxHelper as? RoktUX else { return }
+        uxHelper.devicePayRetry(layoutId: layoutId, catalogItemId: catalogItemId)
+    }
+
     private func forwardPaymentFinalized(executeId: String,
                                          layoutId: String,
                                          catalogItemId: String,
@@ -580,8 +586,8 @@ class RoktInternalImplementation {
                 builtInPayPalDevicePaySession: paypalSession,
                 builtInCardDevicePaySession: cardSession
             ) { [weak self] result in
-                let success = result.outcome == .succeeded
-                if success {
+                switch result.outcome {
+                case .succeeded:
                     self?.callOnRoktEvent(executeId, event: RoktEvent.CartItemInstantPurchase(
                         identifier: event.layoutId,
                         name: event.name,
@@ -595,20 +601,45 @@ class RoktInternalImplementation {
                         totalPrice: event.totalPrice.map { NSDecimalNumber(decimal: $0) },
                         unitPrice: event.unitPrice.map { NSDecimalNumber(decimal: $0) }
                     ))
-                } else {
+                    self?.devicePayFinalized(
+                        executeId: executeId,
+                        layoutId: event.layoutId,
+                        catalogItemId: event.catalogItemId,
+                        success: true
+                    )
+                case .canceled:
+                    self?.devicePayRetry(
+                        executeId: executeId,
+                        layoutId: event.layoutId,
+                        catalogItemId: event.catalogItemId
+                    )
+                case .failed:
                     self?.callOnRoktEvent(executeId, event: RoktEvent.CartItemInstantPurchaseFailure(
                         identifier: event.layoutId,
                         catalogItemId: event.catalogItemId,
                         cartItemId: event.cartItemId,
-                        error: nil
+                        error: result.errorMessage
                     ))
+                    self?.devicePayFinalized(
+                        executeId: executeId,
+                        layoutId: event.layoutId,
+                        catalogItemId: event.catalogItemId,
+                        success: false
+                    )
+                @unknown default:
+                    self?.callOnRoktEvent(executeId, event: RoktEvent.CartItemInstantPurchaseFailure(
+                        identifier: event.layoutId,
+                        catalogItemId: event.catalogItemId,
+                        cartItemId: event.cartItemId,
+                        error: result.errorMessage
+                    ))
+                    self?.devicePayFinalized(
+                        executeId: executeId,
+                        layoutId: event.layoutId,
+                        catalogItemId: event.catalogItemId,
+                        success: false
+                    )
                 }
-                self?.devicePayFinalized(
-                    executeId: executeId,
-                    layoutId: event.layoutId,
-                    catalogItemId: event.catalogItemId,
-                    success: success
-                )
             }
         } else if let event = uxEvent as? RoktUXEvent.CartItemForwardPayment {
             handleForwardPayment(executeId: executeId, event: event)
