@@ -175,7 +175,8 @@ internal class RoktNetWorkAPI {
 
                     return
                 } else {
-                    Rokt.shared.roktImplementation.isInitialized = false
+                    // Font failure is best-effort: mark for diagnostics but do
+                    // not un-initialise the SDK; rendering uses system fonts.
                     Rokt.shared.roktImplementation.isInitFailedForFont = true
                     let callstack = "\(fontErrorMessage) \(font.url), " +
                         "error: \(String(describing: downloadResponse.downloadError.debugDescription))"

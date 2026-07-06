@@ -25,8 +25,6 @@ class RoktInternalImplementation {
         "Rokt: Built-in PayPal device pay requires Rokt.setBuiltInPayPalRedirectURLScheme(_:) "
             + "with a bare URL scheme registered in Info.plist (CFBundleURLTypes / CFBundleURLSchemes)."
 
-    private var fontLoadObservers: [NSObjectProtocol] = []
-
     var roktTagId: String?
     // Identifies the latest init request so a superseded init's async completion is ignored.
     private var initGeneration = 0
@@ -74,7 +72,6 @@ class RoktInternalImplementation {
     var isTxnEventsEnabled: Bool { Self.useTxnEvents }
     // Test-only override for the events service factory; nil uses the real builder.
     var makeTxnEventServiceOverride: ((String) -> TxnEventService)?
-    private var loadingFonts = false
     private var pendingPayload: ExecutePayload?
     private var isExecuting = false
     private var placements: [String: RoktEmbeddedView]?
@@ -131,21 +128,6 @@ class RoktInternalImplementation {
         let managedSessionObjects = [RealTimeEventManager.shared]
         sessionManager = SessionManager(managedSessions: managedSessionObjects)
         NetworkingHelper.updateTimeout(timeout: clientTimeoutMilliseconds/1000)
-    }
-
-    // Loading fonts notification observer selector
-    private func startedLoadingFonts(notification: Notification) {
-        loadingFonts = true
-    }
-
-    // Finished loading fonts notification observer selector
-    private func finishedLoadingFonts(notification: Notification) {
-        loadingFonts = false
-        processedTimingsRequests?.setInitEndTime()
-
-        if let page = pendingPayload {
-            showNow(payload: page)
-        }
     }
 
     func purchaseFinalized(identifier: String, catalogItemId: String, success: Bool) {
@@ -278,7 +260,9 @@ class RoktInternalImplementation {
 
     // Shows the widget on top the visible view controller
     private func showNow(payload: ExecutePayload) {
-        guard !loadingFonts && isInitialized else {
+        // Render as soon as init config is ready — never wait on font downloads.
+        // Missing custom fonts fall back to system fonts and swap in when ready.
+        guard isInitialized else {
             pendingPayload = payload
             return
         }
@@ -867,8 +851,6 @@ class RoktInternalImplementation {
         isInitFailedForFont = false
         stateManager = StateBagManager()
 
-        setupFontObservers()
-
         RoktLogger.shared.debug("Starting API initialization request")
         performInit(roktTagId: roktTagId, initStartTime: initStartTime)
     }
@@ -922,15 +904,25 @@ class RoktInternalImplementation {
         }
         NetworkingHelper.updateTimeout(timeout: self.clientTimeoutMilliseconds/1000)
 
+        // Init is complete on config alone. Fonts load off the critical path so
+        // init is never blocked on (or failed by) font download: renders use
+        // system-font fallback and swap in custom fonts once they finish.
+        self.processedTimingsRequests?.setInitEndTime()
+        RoktLogger.shared.info("Initialization complete - success: \(self.isInitialized)")
+        if let eventListener = self.roktEventMap[Self.defaultRoktInitEvent] {
+            eventListener?(RoktEvent.InitComplete(success: self.isInitialized))
+        }
+
+        // Replay any execute that arrived before init finished.
+        if let page = pendingPayload {
+            showNow(payload: page)
+        }
+
         let initFonts = initResponse.fonts
         RoktLogger.shared.debug("Downloading \(initFonts.count) font(s)")
         FontManager.removeUnusedFonts(fonts: initFonts)
         RoktAPIHelper.downloadFonts(initFonts) {
-            let success = self.isInitialized && !self.isInitFailedForFont
-            RoktLogger.shared.info("Initialization complete - success: \(success)")
-            if let eventListener = self.roktEventMap[Self.defaultRoktInitEvent] {
-                eventListener?(RoktEvent.InitComplete(success: success))
-            }
+            RoktLogger.shared.debug("Font download complete")
         }
     }
 
@@ -1344,38 +1336,6 @@ class RoktInternalImplementation {
 
     func getSessionId() -> String? {
         return sessionManager.getCurrentSessionIdWithoutExpiring()
-    }
-
-    private func setupFontObservers() {
-        // Clean up existing observers
-        fontLoadObservers.forEach { NotificationCenter.default.removeObserver($0) }
-        fontLoadObservers.removeAll()
-
-        // Observer for started loading fonts
-        let startedObserver = NotificationCenter.default.addObserver(
-            forName: NSNotification.Name(FontManager.downloadingFonts),
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.loadingFonts = true
-        }
-
-        // Observer for finished loading fonts
-        let finishedObserver = NotificationCenter.default.addObserver(
-            forName: NSNotification.Name(finishedDownloadingFonts),
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            guard let self = self else { return }
-            self.loadingFonts = false
-            self.processedTimingsRequests?.setInitEndTime()
-
-            if let page = self.pendingPayload {
-                self.showNow(payload: page)
-            }
-        }
-
-        fontLoadObservers.append(contentsOf: [startedObserver, finishedObserver])
     }
 
     // MARK: - Payment Extension
