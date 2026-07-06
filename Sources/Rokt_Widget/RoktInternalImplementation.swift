@@ -871,10 +871,10 @@ class RoktInternalImplementation {
         performInit(roktTagId: roktTagId, initStartTime: initStartTime)
     }
 
-    // v2 is the only active init path; the legacy `else` is retained but inactive until v1 is removed.
+    // The transactions path is the only active one; the legacy `else` is retained but inactive until it is removed.
     private func performInit(roktTagId: String, initStartTime: Date) {
         guard Self.useTxnInit else {
-            // v1: fonts gate render/init completion, so observe font load state.
+            // Legacy path: fonts gate render/init completion, so observe font load state.
             setupFontObservers()
             RoktAPIHelper.initialize(
                 roktTagId: roktTagId,
@@ -934,7 +934,7 @@ class RoktInternalImplementation {
         }
     }
 
-    // v2 (Txn) init completion: init completes on config; fonts load off the
+    // Transactions init completion: init completes on config; fonts load off the
     // critical path (never block/fail init). No font observers on this path.
     private func handleTxnInitSuccess(_ initResponse: InitRespose, initStartTime: Date) {
         RoktLogger.shared.info("API initialization succeeded")
