@@ -62,6 +62,8 @@
       "s:11Rokt_Widget0A10NetWorkAPIC18initializePurchase11upsellItems18shippingAttributes7success7failureySayAA10UpsellItemVG_AA08ShippingK0VyAA010InitializeG8ResponseVcSgys5Error_p_SiSgSStcSgtFZ",
       "s:11Rokt_Widget0A15LayoutViewModelC8locationSSvp",
       "s:11Rokt_Widget0A17HTTPRequestResultV13responseErrors0F0_pSgvp",
+      "s:11Rokt_Widget0A22InternalImplementationC19startedLoadingFonts33_33E6418F743E5CA689D9A4B1A5C62869LL12notificationy10Foundation12NotificationV_tF",
+      "s:11Rokt_Widget0A22InternalImplementationC20finishedLoadingFonts33_33E6418F743E5CA689D9A4B1A5C62869LL12notificationy10Foundation12NotificationV_tF",
       "s:11Rokt_Widget0A6LoggerC9setSharedyA2CFZ",
       "s:11Rokt_Widget0A7MockAPIC13downloadFontsyySayAA9FontModelCGFZ",
       "s:11Rokt_Widget0A7MockAPIC18initializePurchase11upsellItems18shippingAttributes7success7failureySayAA10UpsellItemVG_AA08ShippingJ0VSgyAA010InitializeF8ResponseVcSgys5Error_p_SiSgSStcSgtFZ",
