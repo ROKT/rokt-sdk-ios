@@ -260,8 +260,7 @@ class RoktInternalImplementation {
 
     // Shows the widget on top the visible view controller
     private func showNow(payload: ExecutePayload) {
-        // Render as soon as init config is ready — never wait on font downloads.
-        // Missing custom fonts fall back to system fonts and swap in when ready.
+        // Render on init config; never wait on fonts (system-font fallback).
         guard isInitialized else {
             pendingPayload = payload
             return
@@ -904,9 +903,7 @@ class RoktInternalImplementation {
         }
         NetworkingHelper.updateTimeout(timeout: self.clientTimeoutMilliseconds/1000)
 
-        // Init is complete on config alone. Fonts load off the critical path so
-        // init is never blocked on (or failed by) font download: renders use
-        // system-font fallback and swap in custom fonts once they finish.
+        // Init completes on config; fonts load off the critical path (never block/fail init).
         self.processedTimingsRequests?.setInitEndTime()
         RoktLogger.shared.info("Initialization complete - success: \(self.isInitialized)")
         if let eventListener = self.roktEventMap[Self.defaultRoktInitEvent] {
