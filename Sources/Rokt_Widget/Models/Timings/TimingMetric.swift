@@ -25,4 +25,7 @@ enum TimingType: String, Codable {
     case experiencesRequestEnd
     case placementInteractive
     case jointSdkSelectPlacements
+    // Function-level timings use the dynamic `fn:<name>:start|end` naming convention
+    case experienceJsonParseStart = "fn:experienceJsonParse:start"
+    case experienceJsonParseEnd = "fn:experienceJsonParse:end"
 }

@@ -1,6 +1,7 @@
 import Foundation
 import UIKit
 import AppTrackingTransparency
+import RoktContracts
 internal import RoktUXHelper
 
 class RoktInternalImplementation {
@@ -103,6 +104,10 @@ class RoktInternalImplementation {
     // Payment orchestrator for Shoppable Ads
     private lazy var paymentOrchestrator = PaymentOrchestrator()
 
+    // Exposes `PaymentOrchestrator` for unit tests that exercise built-in card forwarding.
+    // periphery:ignore
+    internal var paymentOrchestratorForTesting: PaymentOrchestrator { paymentOrchestrator }
+
     /// Bare URL scheme (no `://`) for built-in PayPal device-pay redirects: `\(scheme)://rokt-paypal-return` / `rokt-paypal-cancel`.
     /// Set via ``Rokt/setBuiltInPayPalRedirectURLScheme(_:)`` before PayPal device pay; required for that flow.
     private var builtInPayPalRedirectURLScheme: String?
@@ -171,6 +176,12 @@ class RoktInternalImplementation {
         guard let state = stateManager.getState(id: executeId),
               let uxHelper = state.uxHelper as? RoktUX else { return }
         uxHelper.devicePayFinalized(layoutId: layoutId, catalogItemId: catalogItemId, success: success)
+    }
+
+    private func devicePayRetry(executeId: String, layoutId: String, catalogItemId: String) {
+        guard let state = stateManager.getState(id: executeId),
+              let uxHelper = state.uxHelper as? RoktUX else { return }
+        uxHelper.devicePayRetry(layoutId: layoutId, catalogItemId: catalogItemId)
     }
 
     private func forwardPaymentFinalized(executeId: String,
@@ -300,12 +311,10 @@ class RoktInternalImplementation {
         if let swiftUiExecuteLayout {
             uxHelper.loadLayout(
                 startDate: startDate,
-                experienceResponse: layoutPage.page,
+                pageModel: layoutPage.pageModel,
                 layoutPluginViewStates: layoutPage.cacheProperties?.pluginViewStates,
                 defaultLayoutLoader: swiftUiExecuteLayout,
                 config: roktConfig.getUXConfig(),
-                onLoad: {[weak self] in self?.callOnLoad(selectionId)},
-                onUnload: {[weak self] in self?.callOnUnLoad(selectionId)},
                 onEmbeddedSizeChange: {[weak self] selectedPlacementName, widgetHeight in
                     self?.callOnEmbeddedSizeChange(selectionId,
                                                    selectedPlacementName: selectedPlacementName,
@@ -325,12 +334,10 @@ class RoktInternalImplementation {
         } else {
             uxHelper.loadLayout(
                 startDate: startDate,
-                experienceResponse: layoutPage.page,
+                pageModel: layoutPage.pageModel,
                 layoutPluginViewStates: layoutPage.cacheProperties?.pluginViewStates,
                 layoutLoaders: placements,
                 config: roktConfig.getUXConfig(),
-                onLoad: {[weak self] in self?.callOnLoad(selectionId)},
-                onUnload: {[weak self] in self?.callOnUnLoad(selectionId)},
                 onEmbeddedSizeChange: {[weak self] selectedPlacementName, widgetHeight in
                     self?.callOnEmbeddedSizeChange(selectionId,
                                                    selectedPlacementName: selectedPlacementName,
@@ -422,8 +429,8 @@ class RoktInternalImplementation {
                                       execute: workItem)
     }
 
-    private func callOnRoktUXEvent(_ executeId: String,
-                                   uxEvent: RoktUXEvent) {
+    func callOnRoktUXEvent(_ executeId: String,
+                           uxEvent: RoktUXEvent) {
         if uxEvent is RoktUXEvent.FirstPositiveEngagement {
             callOnRoktEvent(executeId, event: uxEvent.mapToRoktEvent)
         } else if let event = uxEvent as? RoktUXEvent.OpenUrl {
@@ -443,6 +450,15 @@ class RoktInternalImplementation {
             callOnUnLoad(executeId)
             placements = nil
             _swiftUiExecuteLayout = nil
+        } else if (uxEvent as? RoktUXEvent.LayoutInteractive) != nil {
+            // Track placement load (count gates clearCallBacks).
+            callOnLoad(executeId)
+            callOnRoktEvent(executeId, event: uxEvent.mapToRoktEvent)
+        } else if (uxEvent as? RoktUXEvent.LayoutClosed) != nil
+                    || (uxEvent as? RoktUXEvent.LayoutCompleted) != nil {
+            // Track placement unload.
+            callOnRoktEvent(executeId, event: uxEvent.mapToRoktEvent)
+            callOnUnLoad(executeId)
         } else if let event = uxEvent as? RoktUXEvent.CartItemInstantPurchase {
             callOnRoktEvent(executeId, event: RoktEvent.CartItemInstantPurchaseInitiated(
                 identifier: event.layoutId,
@@ -599,35 +615,7 @@ class RoktInternalImplementation {
                 builtInPayPalDevicePaySession: paypalSession,
                 builtInCardDevicePaySession: cardSession
             ) { [weak self] result in
-                let success = result.outcome == .succeeded
-                if success {
-                    self?.callOnRoktEvent(executeId, event: RoktEvent.CartItemInstantPurchase(
-                        identifier: event.layoutId,
-                        name: event.name,
-                        cartItemId: event.cartItemId,
-                        catalogItemId: event.catalogItemId,
-                        currency: event.currency,
-                        description: event.description,
-                        linkedProductId: event.linkedProductId,
-                        providerData: event.providerData,
-                        quantity: NSDecimalNumber(decimal: event.quantity),
-                        totalPrice: event.totalPrice.map { NSDecimalNumber(decimal: $0) },
-                        unitPrice: event.unitPrice.map { NSDecimalNumber(decimal: $0) }
-                    ))
-                } else {
-                    self?.callOnRoktEvent(executeId, event: RoktEvent.CartItemInstantPurchaseFailure(
-                        identifier: event.layoutId,
-                        catalogItemId: event.catalogItemId,
-                        cartItemId: event.cartItemId,
-                        error: nil
-                    ))
-                }
-                self?.devicePayFinalized(
-                    executeId: executeId,
-                    layoutId: event.layoutId,
-                    catalogItemId: event.catalogItemId,
-                    success: success
-                )
+                self?.handleDevicePayPaymentCompletion(executeId: executeId, event: event, result: result)
             }
         } else if let event = uxEvent as? RoktUXEvent.CartItemForwardPayment {
             handleForwardPayment(executeId: executeId, event: event)
@@ -711,6 +699,65 @@ class RoktInternalImplementation {
         return (false, failureReason)
     }
 
+    func handleDevicePayPaymentCompletion(executeId: String,
+                                          event: RoktUXEvent.CartItemDevicePay,
+                                          result: PaymentSheetResult) {
+        switch result.outcome {
+        case .succeeded:
+            callOnRoktEvent(executeId, event: RoktEvent.CartItemInstantPurchase(
+                identifier: event.layoutId,
+                name: event.name,
+                cartItemId: event.cartItemId,
+                catalogItemId: event.catalogItemId,
+                currency: event.currency,
+                description: event.description,
+                linkedProductId: event.linkedProductId,
+                providerData: event.providerData,
+                quantity: NSDecimalNumber(decimal: event.quantity),
+                totalPrice: event.totalPrice.map { NSDecimalNumber(decimal: $0) },
+                unitPrice: event.unitPrice.map { NSDecimalNumber(decimal: $0) }
+            ))
+            devicePayFinalized(
+                executeId: executeId,
+                layoutId: event.layoutId,
+                catalogItemId: event.catalogItemId,
+                success: true
+            )
+        case .canceled:
+            devicePayRetry(
+                executeId: executeId,
+                layoutId: event.layoutId,
+                catalogItemId: event.catalogItemId
+            )
+        case .failed:
+            callOnRoktEvent(executeId, event: RoktEvent.CartItemInstantPurchaseFailure(
+                identifier: event.layoutId,
+                catalogItemId: event.catalogItemId,
+                cartItemId: event.cartItemId,
+                error: result.errorMessage
+            ))
+            devicePayFinalized(
+                executeId: executeId,
+                layoutId: event.layoutId,
+                catalogItemId: event.catalogItemId,
+                success: false
+            )
+        @unknown default:
+            callOnRoktEvent(executeId, event: RoktEvent.CartItemInstantPurchaseFailure(
+                identifier: event.layoutId,
+                catalogItemId: event.catalogItemId,
+                cartItemId: event.cartItemId,
+                error: result.errorMessage
+            ))
+            devicePayFinalized(
+                executeId: executeId,
+                layoutId: event.layoutId,
+                catalogItemId: event.catalogItemId,
+                success: false
+            )
+        }
+    }
+
     func handleForwardPayment(executeId: String,
                               event: RoktUXEvent.CartItemForwardPayment) {
         let presentedPayPal = paymentOrchestrator.presentPendingBuiltInPayPalForForwardPayment { [weak self] result in
@@ -754,68 +801,29 @@ class RoktInternalImplementation {
             return
         }
 
-        // Built-in card forwarding caches its Step-1 completion in PaymentOrchestrator;
-        // pop it here so device-pay finalization can chain off the same `/v1/cart/purchase` outcome.
-        let cardStepOneCompletion = paymentOrchestrator.popPendingBuiltInCardCompletion()
-
-        let fulfillmentDetails = event.transactionData?.shippingAddress.map {
-            FulfillmentDetails(shippingAttributes: ShippingAttributes(from: $0))
-        }
-        guard let request = Self.buildForwardPaymentRequest(
-            from: event,
-            fulfillmentDetails: fulfillmentDetails
-        ) else {
-            RoktLogger.shared.warning(
-                "Forward-payment event missing price or has non-positive quantity"
-            )
-            paymentOrchestrator.cancelPendingBuiltInTwoStepIfNeeded()
-            cardStepOneCompletion?(.failed(error: Self.missingForwardPaymentPriceReason))
-            forwardPaymentFinalized(
-                executeId: executeId,
-                layoutId: event.layoutId,
-                catalogItemId: event.catalogItemId,
-                success: false,
-                failureReason: Self.missingForwardPaymentPriceReason
-            )
-            return
-        }
-
-        callOnRoktEvent(executeId, event: RoktEvent.ShowLoadingIndicator())
-
-        RoktAPIHelper.forwardPayment(
-            request: request,
-            success: { [weak self] response in
-                guard let self else { return }
-                self.callOnRoktEvent(executeId, event: RoktEvent.HideLoadingIndicator())
-                let finalization = Self.resolveForwardPaymentFinalization(from: response)
-                if finalization.success {
-                    cardStepOneCompletion?(.succeeded(transactionId: ""))
-                } else {
-                    cardStepOneCompletion?(.failed(error: finalization.failureReason ?? Self.unknownForwardPaymentFailureReason))
-                }
-                self.forwardPaymentFinalized(
-                    executeId: executeId,
-                    layoutId: event.layoutId,
-                    catalogItemId: event.catalogItemId,
-                    success: finalization.success,
-                    failureReason: finalization.failureReason
-                )
+        let forwardPaymentCartPurchase = ForwardPaymentCartPurchaseCoordinator(
+            paymentOrchestrator: paymentOrchestrator,
+            unknownFailureReason: Self.unknownForwardPaymentFailureReason,
+            missingPriceFailureReason: Self.missingForwardPaymentPriceReason,
+            resolveCartPurchaseFinalization: { RoktInternalImplementation.resolveForwardPaymentFinalization(from: $0) },
+            resolveTransportFailureFinalization: {
+            RoktInternalImplementation.resolveForwardPaymentFinalization(fromFailureMessage: $0) },
+            emitRoktEvent: { [weak self] executeId, event in
+                self?.callOnRoktEvent(executeId, event: event)
             },
-            failure: { [weak self] _, _, message in
-                guard let self else { return }
-                self.callOnRoktEvent(executeId, event: RoktEvent.HideLoadingIndicator())
-                let finalization = Self.resolveForwardPaymentFinalization(
-                    fromFailureMessage: message
-                )
-                cardStepOneCompletion?(.failed(error: finalization.failureReason ?? Self.unknownForwardPaymentFailureReason))
-                self.forwardPaymentFinalized(
+            finalizeForwardPayment: { [weak self] executeId, layoutId, catalogItemId, success, failureReason in
+                self?.forwardPaymentFinalized(
                     executeId: executeId,
-                    layoutId: event.layoutId,
-                    catalogItemId: event.catalogItemId,
-                    success: finalization.success,
-                    failureReason: finalization.failureReason
+                    layoutId: layoutId,
+                    catalogItemId: catalogItemId,
+                    success: success,
+                    failureReason: failureReason
                 )
             }
+        )
+        forwardPaymentCartPurchase.performForwardPaymentCartPurchase(
+            executeId: executeId,
+            event: event
         )
     }
 
@@ -1229,12 +1237,20 @@ class RoktInternalImplementation {
             return nil
         }
 
-        guard let pageDecodedData = try? decodeOnSeparateThread(RoktUXExperienceResponse.self, pageData) else {
+        // Single parse: the UX helper decodes the experience response once and reports
+        // the parse window; the resulting page model is reused for rendering.
+        guard let parseResult = RoktUX.parseExperience(page) else {
             return nil
         }
-        sessionManager.updateSessionId(newSessionId: pageDecodedData.sessionId)
+        sessionManager.updateSessionId(newSessionId: parseResult.sessionId)
 
-        guard let pageModel = pageDecodedData.getPageModel() else {
+        processedTimingsRequests?.setExperienceJsonParseTimes(
+            selectionId: selectionId,
+            start: parseResult.parseStart,
+            end: parseResult.parseEnd
+        )
+
+        guard let pageModel = parseResult.pageModel else {
             return nil
         }
         let events = try? decodeOnSeparateThread(UntriggeredEventsContainer.self, pageData)
@@ -1244,7 +1260,7 @@ class RoktInternalImplementation {
 
         processedTimingsRequests?.setPageProperties(
             selectionId: selectionId,
-            sessionId: pageDecodedData.sessionId,
+            sessionId: parseResult.sessionId,
             pageId: pageModel.pageId,
             pageInstanceGuid: pageModel.pageInstanceGuid
         )
@@ -1275,10 +1291,10 @@ class RoktInternalImplementation {
                 pluginViewStates: pluginViewStates,
                 onPluginViewStateChange: onPluginViewStateChange
             )
-            return LayoutPageExecutePayload(page: page,
+            return LayoutPageExecutePayload(pageModel: pageModel,
                                             cacheProperties: cacheProperties)
         } else {
-            return LayoutPageExecutePayload(page: page,
+            return LayoutPageExecutePayload(pageModel: pageModel,
                                             cacheProperties: nil)
         }
     }
@@ -1489,7 +1505,9 @@ struct ExecutePayload {
 }
 
 struct LayoutPageExecutePayload {
-    let page: String
+    /// Pre-parsed experience page model; rendering reuses it so the
+    /// experience response is decoded exactly once.
+    let pageModel: RoktUXPageModel
     let cacheProperties: LayoutPageCacheProperties?
 }
 

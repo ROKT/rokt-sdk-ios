@@ -9,6 +9,79 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [5.2.5] - 2026-06-18
+
+### Core
+
+#### Fixed
+
+- Keep in-app browser open for internal links on the last offer ([#205](https://github.com/ROKT/rokt-sdk-ios/pull/205))
+
+### Kits
+
+#### Rokt-payment-extension-ios
+
+##### Changed
+
+- Remove mirror-only scaffolding from rokt-payment-extension-ios ([#198](https://github.com/ROKT/rokt-sdk-ios/pull/198))
+
+## [5.2.4] - 2026-06-16
+
+### Core
+
+#### Added
+
+- Add Card Forwarding Retry Support ([#194](https://github.com/ROKT/rokt-sdk-ios/pull/194))
+- Parse experience once and report performance metrics ([#195](https://github.com/ROKT/rokt-sdk-ios/pull/195))
+- Offer Retry on PayPal Cancel or Payment Failure ([#191](https://github.com/ROKT/rokt-sdk-ios/pull/191))
+
+#### Changed
+
+- Bump codecov/codecov-action from 6.0.1 to 7.0.0 ([#193](https://github.com/ROKT/rokt-sdk-ios/pull/193))
+- Bump actions/checkout from 6.0.2 to 6.0.3 ([#190](https://github.com/ROKT/rokt-sdk-ios/pull/190))
+
+### Kits
+
+#### Kits
+
+##### Fixed
+
+- Correct Rokt-Payment-Extension-iOS history ([#199](https://github.com/ROKT/rokt-sdk-ios/pull/199))
+
+## [5.2.3] - 2026-06-03
+
+### Core
+
+#### Added
+
+- Add v2/sessions/init consumer pact for iOS SDK ([#183](https://github.com/ROKT/rokt-sdk-ios/pull/183))
+- Consumer pact publishing + advisory can-i-deploy ([#179](https://github.com/ROKT/rokt-sdk-ios/pull/179))
+- Send paymentMethod and paymentProvider in cart initialize-purchase ([#168](https://github.com/ROKT/rokt-sdk-ios/pull/168))
+
+#### Fixed
+
+- Send payment method under paymentMethodType key ([#178](https://github.com/ROKT/rokt-sdk-ios/pull/178))
+- Update Paypal Flow to SFSafari from WKWeb ([#175](https://github.com/ROKT/rokt-sdk-ios/pull/175))
+
+#### Changed
+
+- Bump minimum RoktUXHelper to 0.11.0 ([#187](https://github.com/ROKT/rokt-sdk-ios/pull/187))
+- Upgrade trunk ([#181](https://github.com/ROKT/rokt-sdk-ios/pull/181))
+- Public-repo confidentiality + changelog automation guidance ([#177](https://github.com/ROKT/rokt-sdk-ios/pull/177))
+- Remove unused id-token: write from pull-request workflow ([#176](https://github.com/ROKT/rokt-sdk-ios/pull/176))
+- Bump zizmorcore/zizmor-action from 0.5.3 to 0.5.6 ([#173](https://github.com/ROKT/rokt-sdk-ios/pull/173))
+- Bump codecov/codecov-action from 6.0.0 to 6.0.1 ([#172](https://github.com/ROKT/rokt-sdk-ios/pull/172))
+- Add V2EventsClient + consumer pact for /v2/sessions/events ([#171](https://github.com/ROKT/rokt-sdk-ios/pull/171))
+- Scaffold consumer-driven contracts against transactions-api v2 ([#169](https://github.com/ROKT/rokt-sdk-ios/pull/169))
+
+### Extensions
+
+#### Extensions
+
+##### Added
+
+- Convert to Monorepo ([#182](https://github.com/ROKT/rokt-sdk-ios/pull/182))
+
 ## [5.2.2] - 2026-05-19
 
 ### Fixed
@@ -385,7 +458,10 @@ For a complete migration walkthrough with before/after code examples, see the [v
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.2...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.5...HEAD
+[5.2.5]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.4...5.2.5
+[5.2.4]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.3...5.2.4
+[5.2.3]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.2...5.2.3
 [5.2.2]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.1...5.2.2
 [5.2.1]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.0...5.2.1
 [5.2.0]: https://github.com/ROKT/rokt-sdk-ios/compare/5.1.0...5.2.0

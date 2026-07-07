@@ -11,22 +11,21 @@ let kValidInitWithCacheFilename = "validInitWithCache"
 var mockImplementation: MockRoktInternalImplementation!
 
 class MockRoktInternalImplementation: RoktInternalImplementation {
-    var executingLayoutPage: LayoutPageExecutePayload?
-    var executingPluginIds: [String]? {
-        guard let page = executingLayoutPage?.page,
-              let pageData = page.data(using: .utf8),
-              let pageDecodedData = try? JSONDecoder().decode(RoktUXExperienceResponse.self, from: pageData),
-              let pageModel = pageDecodedData.getPageModel()
-        else {
-            return nil
+    var executingLayoutPage: LayoutPageExecutePayload? {
+        didSet {
+            if executingLayoutPage == nil { executingPageString = nil }
         }
-        guard let layoutPlugins = pageModel.layoutPlugins else { return nil }
-        return layoutPlugins.compactMap { (plugin) -> String? in plugin.pluginId }
+    }
+    // Raw experience JSON for the in-flight execute; cleared whenever executingLayoutPage is.
+    var executingPageString: String?
+    var executingPluginIds: [String]? {
+        executingLayoutPage?.pageModel.layoutPlugins?.compactMap { $0.pluginId }
     }
     override func processLayoutPageExecutePayload(_ page: String,
                                                   selectionId: String,
                                                   viewName: String? = nil,
                                                   attributes: [String: String]) -> LayoutPageExecutePayload? {
+        executingPageString = page
         executingLayoutPage = super.processLayoutPageExecutePayload(
             page,
             selectionId: selectionId,
@@ -106,7 +105,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
 
                     // Initial execute with original response
                     self.executeRokt()
-                    expect(mockImplementation.executingLayoutPage?.page).toEventually(
+                    expect(mockImplementation.executingPageString).toEventually(
                         equal(stubCachedResponseAsString), timeout: .seconds(5)
                     )
 
@@ -120,7 +119,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     self.executeRokt()
 
                     // Check uses new response
-                    expect(mockImplementation.executingLayoutPage?.page).toEventually(
+                    expect(mockImplementation.executingPageString).toEventually(
                         equal(stubNewResponseAsString), timeout: .seconds(60)
                     )
                 }
@@ -136,7 +135,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
 
                     // Initial execute with original response
                     self.executeRokt(config: config)
-                    expect(mockImplementation.executingLayoutPage?.page)
+                    expect(mockImplementation.executingPageString)
                         .toEventually(equal(stubCachedResponseAsString), timeout: .seconds(5))
 
                     // Stub execute to return new response
@@ -146,7 +145,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     self.executeRokt(config: config)
 
                     // Check uses original (cached) response
-                    expect(mockImplementation.executingLayoutPage?.page)
+                    expect(mockImplementation.executingPageString)
                         .toEventually(equal(stubCachedResponseAsString), timeout: .seconds(5))
                 }
 
@@ -161,7 +160,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
 
                     // Initial execute with original response
                     self.executeRokt(config: config)
-                    expect(mockImplementation.executingLayoutPage?.page).toEventually(
+                    expect(mockImplementation.executingPageString).toEventually(
                         equal(stubCachedResponseAsString),
                         timeout: .seconds(5)
                     )
@@ -179,7 +178,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
 
                     // Check uses new response
                     let stubNewResponseAsString = self.expectedOffersPage(forV1Fixture: kValidLayoutGroupedFilename)
-                    expect(mockImplementation.executingLayoutPage?.page).toEventually(
+                    expect(mockImplementation.executingPageString).toEventually(
                         equal(stubNewResponseAsString),
                         timeout: .seconds(1)
                     )
@@ -194,7 +193,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
 
                     // Initial execute with execute attributes, returning original response
                     self.executeRokt(attributes: self.mockedAttributes, config: config)
-                    expect(mockImplementation.executingLayoutPage?.page).toEventually(
+                    expect(mockImplementation.executingPageString).toEventually(
                         equal(stubCachedResponseAsString),
                         timeout: .seconds(5)
                     )
@@ -206,7 +205,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     self.executeRokt(attributes: self.mockedAttributes, config: config)
 
                     // Check uses original response
-                    expect(mockImplementation.executingLayoutPage?.page).toEventually(
+                    expect(mockImplementation.executingPageString).toEventually(
                         equal(stubCachedResponseAsString),
                         timeout: .seconds(5)
                     )
@@ -221,7 +220,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
 
                     // Initial execute with execute attributes, returning original response
                     self.executeRokt(attributes: self.mockedAttributes, config: config)
-                    expect(mockImplementation.executingLayoutPage?.page).toEventually(
+                    expect(mockImplementation.executingPageString).toEventually(
                         equal(stubCachedResponseAsString),
                         timeout: .seconds(5)
                     )
@@ -234,7 +233,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
 
                     // Check uses new response
                     let stubNewResponseAsString = self.expectedOffersPage(forV1Fixture: kValidLayoutGroupedFilename)
-                    expect(mockImplementation.executingLayoutPage?.page).toEventually(
+                    expect(mockImplementation.executingPageString).toEventually(
                         equal(stubNewResponseAsString),
                         timeout: .seconds(5)
                     )
@@ -249,7 +248,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
 
                     // Initial execute with execute attributes, returning original response
                     self.executeRokt(attributes: self.mockedAttributes, config: config)
-                    expect(mockImplementation.executingLayoutPage?.page).toEventually(
+                    expect(mockImplementation.executingPageString).toEventually(
                         equal(stubCachedResponseAsString),
                         timeout: .seconds(5)
                     )
@@ -261,7 +260,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     self.executeRokt(attributes: self.mockedReorderedAttributes, config: config)
 
                     // Check uses original response
-                    expect(mockImplementation.executingLayoutPage?.page).toEventually(
+                    expect(mockImplementation.executingPageString).toEventually(
                         equal(stubCachedResponseAsString),
                         timeout: .seconds(5)
                     )
@@ -276,7 +275,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
 
                     // Initial execute with execute viewName and attributes, returning original response
                     self.executeRokt(viewName: self.mockedViewName, attributes: self.mockedAttributes, config: config)
-                    expect(mockImplementation.executingLayoutPage?.page).toEventually(
+                    expect(mockImplementation.executingPageString).toEventually(
                         equal(stubCachedResponseAsString),
                         timeout: .seconds(5)
                     )
@@ -288,7 +287,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     self.executeRokt(viewName: self.mockedViewName, attributes: self.mockedAttributes, config: config)
 
                     // Check uses original response
-                    expect(mockImplementation.executingLayoutPage?.page).toEventually(
+                    expect(mockImplementation.executingPageString).toEventually(
                         equal(stubCachedResponseAsString),
                         timeout: .seconds(5)
                     )
@@ -303,7 +302,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
 
                     // Initial execute with execute attributes, returning original response
                     self.executeRokt(attributes: self.mockedAttributes, config: config)
-                    expect(mockImplementation.executingLayoutPage?.page).toEventually(
+                    expect(mockImplementation.executingPageString).toEventually(
                         equal(stubCachedResponseAsString),
                         timeout: .seconds(5)
                     )
@@ -320,7 +319,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
 
                     // Check uses new response
                     let stubNewResponseAsString = self.expectedOffersPage(forV1Fixture: kValidLayoutGroupedFilename)
-                    expect(mockImplementation.executingLayoutPage?.page).toEventually(
+                    expect(mockImplementation.executingPageString).toEventually(
                         equal(stubNewResponseAsString),
                         timeout: .seconds(5)
                     )
@@ -505,14 +504,14 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     let stubNewResponseAsString = self.expectedOffersPage(forV1Fixture: kValidLayoutGroupedFilename)
 
                     self.executeRokt(config: config)
-                    expect(mockImplementation.executingLayoutPage?.page).toEventually(
+                    expect(mockImplementation.executingPageString).toEventually(
                         equal(stubCachedResponseAsString),
                         timeout: .seconds(5)
                     )
 
                     self.stubExecute(kValidLayoutGroupedFilename, isLayout: true)
                     self.executeRokt(config: config)
-                    expect(mockImplementation.executingLayoutPage?.page).toEventually(
+                    expect(mockImplementation.executingPageString).toEventually(
                         equal(stubNewResponseAsString),
                         timeout: .seconds(5)
                     )

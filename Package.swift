@@ -21,7 +21,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/ROKT/rokt-contracts-apple.git", .upToNextMajor(from: "2.0.2")),
-        .package(url: "https://github.com/ROKT/rokt-ux-helper-ios.git", from: "0.10.12"),
+        .package(url: "https://github.com/ROKT/rokt-ux-helper-ios.git", from: "0.13.0"),
         .package(url: "https://github.com/WeTransfer/Mocker.git", .upToNextMajor(from: "2.0.0")),
         .package(url: "https://github.com/surpher/PactSwift.git", .upToNextMajor(from: "1.2.0"))
     ],

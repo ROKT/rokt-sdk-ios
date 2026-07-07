@@ -23,7 +23,7 @@ jobs:
       matrix: ${{ steps.set.outputs.matrix }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
           sparse-checkout: Packages/matrix.json
@@ -43,7 +43,7 @@ jobs:
       checks: write
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
           fetch-depth: 1
@@ -59,7 +59,7 @@ jobs:
     needs: trunk-check
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
 
@@ -76,7 +76,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
 
@@ -109,7 +109,7 @@ jobs:
 
       - name: Upload coverage report
         if: always()
-        uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v6.0.1
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml
@@ -133,7 +133,7 @@ jobs:
         package: ${{ fromJson(needs.load-package-matrix.outputs.matrix) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
 
@@ -176,15 +176,39 @@ jobs:
           rm -rf "$DERIVED"
           mkdir -p "$DERIVED"
 
+          # Expose coverage artifacts to later steps before running tests so the
+          # upload (if: always()) still has them when tests fail.
+          echo "PKG_FLAG=$(basename "${{ matrix.package.path }}")" >> "$GITHUB_ENV"
+          echo "PKG_XCRESULT=${DERIVED}/Tests.xcresult" >> "$GITHUB_ENV"
+
           xcodebuild test \
             -scheme "$SCHEME" \
             -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
             -derivedDataPath "$DERIVED" \
+            -resultBundlePath "${DERIVED}/Tests.xcresult" \
+            -enableCodeCoverage YES \
             -skipPackagePluginValidation \
             -retry-tests-on-failure \
             CODE_SIGN_IDENTITY= \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO
+
+      - name: Install xcresultparser
+        if: always()
+        run: brew install xcresultparser
+
+      - name: Process coverage report
+        if: always()
+        run: |
+          xcresultparser --output-format cobertura "$PKG_XCRESULT" --project-root "$GITHUB_WORKSPACE" > "package-coverage.xml"
+
+      - name: Upload coverage report
+        if: always()
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./package-coverage.xml
+          flags: ${{ env.PKG_FLAG }}
 
   ui-test:
     name: UI Tests
@@ -193,7 +217,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
 
@@ -224,7 +248,7 @@ jobs:
 
       - name: Upload coverage report
         if: always()
-        uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v6.0.1
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./ui-coverage.xml
@@ -243,7 +267,7 @@ jobs:
     needs: trunk-check
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
 
