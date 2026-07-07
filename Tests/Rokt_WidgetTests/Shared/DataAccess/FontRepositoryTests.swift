@@ -320,6 +320,101 @@ class FontRepositoryTests: XCTestCase {
 
         XCTAssertEqual(result, .success)
     }
+
+    // MARK: - Cache directory paths
+
+    func test_getCacheDirectoryUrl_returnsRoktFontsSubdirectoryUnderCaches() throws {
+        let cacheDirectoryUrl = try XCTUnwrap(FontRepository.getCacheDirectoryUrl())
+
+        XCTAssertTrue(cacheDirectoryUrl.path.contains("Caches"))
+        XCTAssertTrue(cacheDirectoryUrl.path.hasSuffix("RoktFonts"))
+    }
+
+    func test_getFileUrl_returnsJsonFileUnderCacheDirectory() throws {
+        let fileUrl = try XCTUnwrap(FontRepository.getFileUrl(name: "custom-cache-file"))
+
+        XCTAssertEqual(fileUrl.pathExtension, "json")
+        XCTAssertTrue(fileUrl.path.contains("RoktFonts"))
+        XCTAssertEqual(fileUrl.deletingPathExtension().lastPathComponent, "custom-cache-file")
+    }
+
+    func test_isFileExist_returnsTrueAfterSuccessfulSave() {
+        let expectation = expectation(description: "save font url")
+
+        FontRepository.saveFontUrl(key: "exists-test") {
+            expectation.fulfill()
+        }
+
+        waitForExpectations(timeout: 15)
+
+        XCTAssertTrue(FontRepository.isFileExist(name: FontRepository.fontDownloadURLFileName))
+    }
+
+    func test_saveFontURL_movesDuplicateToFrontOfList() throws {
+        let expectation1 = expectation(description: "save font 1")
+        let expectation2 = expectation(description: "save font 2")
+        let expectation3 = expectation(description: "save font 1 again")
+
+        FontRepository.saveFontUrl(key: "test-1") {
+            expectation1.fulfill()
+        }
+        FontRepository.saveFontUrl(key: "test-2") {
+            expectation2.fulfill()
+        }
+        FontRepository.saveFontUrl(key: "test-1") {
+            expectation3.fulfill()
+        }
+
+        waitForExpectations(timeout: 15)
+
+        let savedURLs = try XCTUnwrap(FontRepository.loadAllFontURLs())
+
+        XCTAssertEqual(savedURLs, ["test-1", "test-2"])
+    }
+
+    func test_removeFontUrl_withMissingKey_leavesSavedURLsUntouched() throws {
+        let saveExpectation1 = expectation(description: "save font 1")
+        let saveExpectation2 = expectation(description: "save font 2")
+
+        FontRepository.saveFontUrl(key: "test-1") {
+            saveExpectation1.fulfill()
+        }
+        FontRepository.saveFontUrl(key: "test-2") {
+            saveExpectation2.fulfill()
+        }
+
+        waitForExpectations(timeout: 15)
+
+        let removeExpectation = expectation(description: "remove missing key")
+        FontRepository.removeFontUrl(key: "missing-key") {
+            removeExpectation.fulfill()
+        }
+
+        waitForExpectations(timeout: 15)
+
+        let savedURLs = try XCTUnwrap(FontRepository.loadAllFontURLs())
+
+        XCTAssertEqual(["test-1", "test-2"], savedURLs.sorted())
+    }
+
+    func test_loadFontURLs_withCorruptFile_sendsDiagnostics() throws {
+        let fileURL = try XCTUnwrap(FontRepositoryTests.downloadURLFileURL())
+        try FileManager.default.createDirectory(
+            at: fileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Data("not-json".utf8).write(to: fileURL)
+
+        _ = FontRepository.loadAllFontURLs()
+
+        let expectation = expectation(description: "Wait for async diagnostics")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            expectation.fulfill()
+        }
+        waitForExpectations(timeout: 1)
+
+        XCTAssertFalse(diagnosticsReceived.isEmpty)
+    }
 }
 
 extension XCTestCase {
@@ -407,5 +502,14 @@ extension XCTestCase {
             XCTFail("could not decode URL file with error \(error.localizedDescription)")
             return nil
         }
+    }
+
+    static func writeFontFileToCache(named name: String, data: Data = Data([0x00])) throws {
+        let fileUrl = try XCTUnwrap(FontManager.getFileUrl(name: name))
+        try FileManager.default.createDirectory(
+            at: fileUrl.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try data.write(to: fileUrl)
     }
 }
