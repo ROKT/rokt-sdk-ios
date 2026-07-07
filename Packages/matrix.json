@@ -8,6 +8,6 @@
     "changelog_file": "CHANGELOG.md",
     "cocoapods_publish_order": 1,
     "pod_trunk_name": "RoktPaymentExtension",
-    "mirror_force_push_main": false
+    "mirror_force_push_main": true
   }
 ]
