@@ -86,7 +86,7 @@ internal class FontManager {
                     continue
                 }
 
-                // additional check if font can be created in local documents directory
+                // additional check if font can be created in local caches directory
                 guard let fileUrl = getFileUrl(name: registeredFontName) else {
                     Rokt.shared.roktImplementation.isInitialized = false
                     Rokt.shared.roktImplementation.isInitFailedForFont = true
@@ -272,15 +272,16 @@ internal class FontManager {
     }
 
     internal static func getFileUrl(name: String) -> URL? {
-        if let documentsUrl = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
-            let fullPath = documentsUrl.appendingPathComponent("\(name)\(fontExtension)")
-            // Log FFL008
-            sendFullFontLogs("Full file path URL: \(fullPath)", fontLogId: fullFontLogCode8)
-            return fullPath
+        guard let cacheDirectoryUrl = FontRepository.getCacheDirectoryUrl() else {
+            // Log FFL009
+            sendFullFontLogs("File Manager failed to read caches directory in user home", fontLogId: fullFontLogCode9)
+            return nil
         }
-        // Log FFL009
-        sendFullFontLogs("File Manager failed to read documents directory in user home", fontLogId: fullFontLogCode9)
-        return nil
+
+        let fullPath = cacheDirectoryUrl.appendingPathComponent("\(name)\(fontExtension)")
+        // Log FFL008
+        sendFullFontLogs("Full file path URL: \(fullPath)", fontLogId: fullFontLogCode8)
+        return fullPath
     }
 
     internal static func isFontFileExist(name: String) -> Bool {

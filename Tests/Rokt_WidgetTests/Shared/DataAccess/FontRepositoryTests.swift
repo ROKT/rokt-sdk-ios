@@ -345,13 +345,12 @@ extension XCTestCase {
     }
 
     static func fileURLFor(fileName: String) -> URL? {
-        guard let documentsUrl = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
-        else {
-            XCTFail("documents url does not exist")
+        guard let cacheDirectoryUrl = FontRepository.getCacheDirectoryUrl() else {
+            XCTFail("caches url does not exist")
             return nil
         }
 
-        return documentsUrl.appendingPathComponent(fileName).appendingPathExtension("json")
+        return cacheDirectoryUrl.appendingPathComponent(fileName).appendingPathExtension("json")
     }
 
     static func deleteJSONFileWith(name: String) {

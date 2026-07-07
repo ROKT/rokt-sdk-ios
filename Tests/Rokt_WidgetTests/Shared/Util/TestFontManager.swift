@@ -75,8 +75,8 @@ class TestFontManager: XCTestCase {
     }
 
     func test_getFileURL_returnsMappedURL() throws {
-        let documentsUrl = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let expectedURL = documentsUrl.appendingPathComponent("test.ttf")
+        let cacheDirectoryUrl = try XCTUnwrap(FontRepository.getCacheDirectoryUrl())
+        let expectedURL = cacheDirectoryUrl.appendingPathComponent("test.ttf")
 
         let url = try XCTUnwrap(FontManager.getFileUrl(name: "test"))
 
