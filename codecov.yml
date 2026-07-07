@@ -3,11 +3,41 @@ coverage:
     project:
       default:
         threshold: 1%
+        # Keep the gating SDK status scoped to the root module; mirrored
+        # subtree packages are tracked via their own flag/status below.
+        paths:
+          - "!Packages/.*"
+      rokt-payment-extension-ios:
+        threshold: 1%
+        flags:
+          - rokt-payment-extension-ios
     patch:
       default:
         threshold: 1%
-  ignore:
-    - Example/Tests
-    - Tests/Rokt_WidgetTests
-    - Tests/SizeReport
-    - Packages/
+        paths:
+          - "!Packages/.*"
+      rokt-payment-extension-ios:
+        threshold: 1%
+        flags:
+          - rokt-payment-extension-ios
+
+# Track each mirrored Packages/ subtree under its own flag so its coverage is
+# collected from the package-unit-tests job (see pull-request.yml).
+flag_management:
+  individual_flags:
+    - name: rokt-payment-extension-ios
+      paths:
+        - Packages/rokt-payment-extension-ios/Sources/.*
+
+component_management:
+  individual_components:
+    - component_id: rokt-payment-extension-ios
+      name: RoktPaymentExtension
+      paths:
+        - Packages/rokt-payment-extension-ios/Sources/**
+
+ignore:
+  - Example/Tests
+  - Tests/Rokt_WidgetTests
+  - Tests/SizeReport
+  - Packages/**/Tests/**

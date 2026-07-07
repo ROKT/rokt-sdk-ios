@@ -2,12 +2,14 @@ import Foundation
 import SafariServices
 internal import RoktUXHelper
 
-class LinkHandler {
+class LinkHandler: NSObject {
     private static let urlDiagnosticCode = "[URL]"
 
     private var completionHandler: (() -> Void)?
 
-    init() {}
+    override init() {
+        super.init()
+    }
 
     private func openURL(url: URL, type: RoktUXOpenURLType) {
         func openExternalLink(_ url: URL) {
@@ -29,9 +31,8 @@ class LinkHandler {
             }
             let safariVC = SFSafariViewController(url: url)
             safariVC.modalPresentationStyle = .overFullScreen
-            UIApplication.topViewController()?.present(safariVC, animated: true, completion: { [weak self] in
-                self?.completionHandler?()
-            })
+            safariVC.delegate = self
+            UIApplication.topViewController()?.present(safariVC, animated: true)
         case .externally,
                 .passthrough:
             completionHandler?()
@@ -59,4 +60,16 @@ class LinkHandler {
         openURL(url: url, type: type)
     }
 
+}
+
+extension LinkHandler: SFSafariViewControllerDelegate {
+    // For internally-opened links the completion (offer progression / close) must run only
+    // once the in-app browser is actually dismissed. Firing it while Safari is still
+    // presented would, on the last/only offer, close the placement and tear down the
+    // Safari controller that the placement presents.
+    func safariViewControllerDidFinish(_ controller: SFSafariViewController) {
+        let handler = completionHandler
+        completionHandler = nil
+        handler?()
+    }
 }

@@ -253,6 +253,38 @@ final class ValidLayoutOverlayTests: QuickSpec {
                         .toEventually(equal(roundedDate),
                                       timeout: .seconds(5))
                 }
+
+                // An internally-opened link presents Safari on top of the overlay. The completion
+                // (which on the last/only offer closes the placement) must be deferred until the
+                // user dismisses Safari, otherwise closing the placement would tear down the Safari
+                // controller it presents and dismiss it immediately.
+                it("internal link defers completion until Safari is dismissed") {
+                    expect(UIApplication.topViewController())
+                        .toEventually(beAnInstanceOf(RoktUXSwiftUIViewController.self), timeout: .seconds(19))
+                    guard let overlay = UIApplication.topViewController() else {
+                        fail("overlay not presented")
+                        return
+                    }
+                    let linkHandler = LinkHandler()
+                    let url = URL(string: "https://www.rokt.com")!
+                    var completionFired = false
+                    linkHandler.linkHandler(url: url, type: .internally(sessionId: nil), completionHandler: {
+                        completionFired = true
+                    })
+
+                    // Safari is presented and stays presented while the completion is deferred.
+                    expect(overlay.presentedViewController)
+                        .toEventually(beAnInstanceOf(SFSafariViewController.self), timeout: .seconds(5))
+                    expect(completionFired).to(beFalse())
+
+                    // When the user closes Safari the deferred completion runs.
+                    guard let safari = overlay.presentedViewController as? SFSafariViewController else {
+                        fail("Safari not presented")
+                        return
+                    }
+                    linkHandler.safariViewControllerDidFinish(safari)
+                    expect(completionFired).toEventually(beTrue(), timeout: .seconds(5))
+                }
             }
         }
     }

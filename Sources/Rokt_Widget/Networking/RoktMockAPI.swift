@@ -162,4 +162,13 @@ internal class RoktMockAPI {
             RoktLogger.shared.verbose(String(bytes: params, encoding: .utf8) ?? "")
         } catch {}
     }
+
+    class func sendTimingEvents(timingEventsRequest: TimingEventsRequest, selectionId: String) {
+        do {
+            var requestData = timingEventsRequest.toDictionary()
+            requestData["selectionId"] = selectionId
+            let params = try JSONSerialization.data(withJSONObject: requestData, options: [])
+            RoktLogger.shared.verbose(String(bytes: params, encoding: .utf8) ?? "")
+        } catch {}
+    }
 }

@@ -6,6 +6,8 @@ import Foundation
 class TimingData {
     var experiencesRequestStart: Date?
     var experiencesRequestEnd: Date?
+    var experienceJsonParseStart: Date?
+    var experienceJsonParseEnd: Date?
     var selectionStart: Date?
     var selectionEnd: Date?
     var pageInit: Date?
