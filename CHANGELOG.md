@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [5.2.6] - 2026-07-07
+
+### Core
+
+#### Removed
+
+- Roll back example app minimum iOS deployment target to 15.0 ([#228](https://github.com/ROKT/rokt-sdk-ios/pull/228))
+
+#### Added
+
+- Add Stripe Payment Retry Logic ([#204](https://github.com/ROKT/rokt-sdk-ios/pull/204))
+
+#### Fixed
+
+- Retryable Stripe Support ([#229](https://github.com/ROKT/rokt-sdk-ios/pull/229))
+- Use iPhone 17 Pro simulator in pull-request workflow ([#232](https://github.com/ROKT/rokt-sdk-ios/pull/232))
+
+#### Changed
+
+- Bump minimum RoktUXHelper to 0.13.0 ([#231](https://github.com/ROKT/rokt-sdk-ios/pull/231))
+- Collect Codecov coverage for monorepo subtree packages ([#197](https://github.com/ROKT/rokt-sdk-ios/pull/197))
+
 ## [5.2.5] - 2026-06-18
 
 ### Core
@@ -458,7 +480,8 @@ For a complete migration walkthrough with before/after code examples, see the [v
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.5...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.6...HEAD
+[5.2.6]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.5...5.2.6
 [5.2.5]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.4...5.2.5
 [5.2.4]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.3...5.2.4
 [5.2.3]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.2...5.2.3
