@@ -3,14 +3,17 @@ import XCTest
 
 class FontRepositoryTests: XCTestCase {
     var diagnosticsReceived: [String] = []
+    var diagnosticModelsReceived: [XCTestCase.StubbedDiagnosticsModel] = []
 
     override func setUp() {
         super.setUp()
 
         diagnosticsReceived = []
+        diagnosticModelsReceived = []
         Rokt.shared.roktImplementation.roktTagId = "123"
-        stubDiagnostics { [weak self] code in
-            self?.diagnosticsReceived.append(code)
+        stubDiagnostics { [weak self] model in
+            self?.diagnosticModelsReceived.append(model)
+            self?.diagnosticsReceived.append(model.code)
         }
 
         FontRepositoryTests.prepareTestFiles()
@@ -20,7 +23,9 @@ class FontRepositoryTests: XCTestCase {
 
     override func tearDown() {
         FontRepositoryTests.deleteAllTestFiles()
+        FontRepositoryTests.unblockJSONFileWrites()
         diagnosticsReceived = []
+        diagnosticModelsReceived = []
 
         super.tearDown()
     }
@@ -415,6 +420,117 @@ class FontRepositoryTests: XCTestCase {
 
         XCTAssertFalse(diagnosticsReceived.isEmpty)
     }
+
+    func test_loadFontDetail_withCorruptFile_sendsDiagnosticsAndReturnsNil() throws {
+        let fileURL = try XCTUnwrap(FontRepositoryTests.downloadDetailFileURL())
+        try FileManager.default.createDirectory(
+            at: fileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Data("not-json".utf8).write(to: fileURL)
+
+        XCTAssertNil(FontRepository.loadFontDetail(key: "any-key"))
+
+        let expectation = expectation(description: "Wait for async diagnostics")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            expectation.fulfill()
+        }
+        waitForExpectations(timeout: 1)
+
+        XCTAssertFalse(diagnosticsReceived.isEmpty)
+    }
+
+    func test_isFileExist_returnsFalseWhenFileMissing() {
+        XCTAssertFalse(FontRepository.isFileExist(name: FontRepository.fontDownloadURLFileName))
+    }
+
+    func test_saveFontUrl_whenWriteBlocked_sendsInfoDiagnosticAndCallsCompletion() throws {
+        try FontRepositoryTests.blockJSONFileWrite(fileName: FontRepository.fontDownloadURLFileName)
+
+        let expectation = expectation(description: "completion called on write failure")
+        FontRepository.saveFontUrl(key: "test-url") {
+            expectation.fulfill()
+        }
+
+        waitForExpectations(timeout: 15)
+        waitForDiagnostics()
+
+        XCTAssertTrue(
+            diagnosticModelsReceived.contains {
+                $0.code == fontDiagnosticCode
+                    && $0.severity == Severity.info.rawValue
+                    && $0.stackTrace.contains("Failed to save font urls:")
+            }
+        )
+    }
+
+    func test_removeFontUrl_whenWriteBlocked_sendsInfoDiagnosticAndCallsCompletion() throws {
+        try FontRepositoryTests.blockJSONFileWrite(fileName: FontRepository.fontDownloadURLFileName)
+
+        let expectation = expectation(description: "completion called on write failure")
+        FontRepository.removeFontUrl(key: "test-url") {
+            expectation.fulfill()
+        }
+
+        waitForExpectations(timeout: 15)
+        waitForDiagnostics()
+
+        XCTAssertTrue(
+            diagnosticModelsReceived.contains {
+                $0.code == fontDiagnosticCode
+                    && $0.severity == Severity.info.rawValue
+                    && $0.stackTrace.contains("Failed to delete font urls:")
+            }
+        )
+    }
+
+    func test_saveFontDetail_whenWriteBlocked_sendsInfoDiagnosticAndCallsCompletion() throws {
+        try FontRepositoryTests.blockJSONFileWrite(fileName: FontRepository.fontDownloadDetailFileName)
+
+        let expectation = expectation(description: "completion called on write failure")
+        FontRepository.saveFontDetail(key: "test", values: ["key": "value"]) {
+            expectation.fulfill()
+        }
+
+        waitForExpectations(timeout: 15)
+        waitForDiagnostics()
+
+        XCTAssertTrue(
+            diagnosticModelsReceived.contains {
+                $0.code == fontDiagnosticCode
+                    && $0.severity == Severity.info.rawValue
+                    && $0.stackTrace.contains("Failed to save font details:")
+            }
+        )
+    }
+
+    func test_removeFontDetail_whenWriteBlocked_sendsInfoDiagnosticAndCallsCompletion() throws {
+        try FontRepositoryTests.blockJSONFileWrite(fileName: FontRepository.fontDownloadDetailFileName)
+
+        let expectation = expectation(description: "completion called on write failure")
+        FontRepository.removeFontDetail(key: "test") {
+            expectation.fulfill()
+        }
+
+        waitForExpectations(timeout: 15)
+        waitForDiagnostics()
+
+        XCTAssertTrue(
+            diagnosticModelsReceived.contains {
+                $0.code == fontDiagnosticCode
+                    && $0.severity == Severity.info.rawValue
+                    && $0.stackTrace.contains("Failed to delete font details:")
+            }
+        )
+    }
+
+    private func waitForDiagnostics() {
+        let expectation = expectation(description: "Wait for async diagnostics")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            expectation.fulfill()
+        }
+        waitForExpectations(timeout: 1)
+    }
 }
 
 extension XCTestCase {
@@ -511,5 +627,22 @@ extension XCTestCase {
             withIntermediateDirectories: true
         )
         try data.write(to: fileUrl)
+    }
+
+    static func blockJSONFileWrite(fileName: String) throws {
+        let fileURL = try XCTUnwrap(fileURLFor(fileName: fileName))
+        try FileManager.default.createDirectory(
+            at: fileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        if FileManager.default.fileExists(atPath: fileURL.path) {
+            try FileManager.default.removeItem(at: fileURL)
+        }
+        try FileManager.default.createDirectory(at: fileURL, withIntermediateDirectories: false)
+    }
+
+    static func unblockJSONFileWrites() {
+        deleteJSONFileWith(name: fontDownloadURLFileName)
+        deleteJSONFileWith(name: fontDownloadDetailFileName)
     }
 }
