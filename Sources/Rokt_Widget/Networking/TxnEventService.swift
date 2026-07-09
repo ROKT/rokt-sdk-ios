@@ -1,6 +1,10 @@
 import Foundation
 
 internal struct TxnEventService {
+    // Cap events per POST /v2/sessions/events so a large backlog is split across
+    // several requests instead of one oversized payload.
+    static let maxEventsPerBatch = 25
+
     enum TxnEventError: Error, Equatable {
         case invalidBaseURL
         case unexpectedStatusCode(Int)
@@ -48,6 +52,17 @@ internal struct TxnEventService {
 
     func send(events: [TxnEvent]) async throws {
         guard !events.isEmpty else { return }
+        guard client != nil else { throw TxnEventError.invalidBaseURL }
+
+        // Send batches sequentially (awaiting each) to preserve event order and so a
+        // session token refreshed by one batch is picked up by the next.
+        for start in stride(from: 0, to: events.count, by: Self.maxEventsPerBatch) {
+            let end = min(start + Self.maxEventsPerBatch, events.count)
+            try await sendBatch(events: Array(events[start..<end]))
+        }
+    }
+
+    private func sendBatch(events: [TxnEvent]) async throws {
         guard let client else { throw TxnEventError.invalidBaseURL }
 
         let authToken = await sessionManager.authorizationHeader
