@@ -166,8 +166,8 @@ internal struct OffersService {
                 }
 
                 let decoded = try JSONDecoder().decode(SelectResponse.self, from: data)
-                // Roll the refreshed token forward for the next offers/events call.
-                await sessionManager.update(sessionToken: decoded.sessionToken)
+                // Roll the session id and refreshed token forward for the next offers/events call.
+                await sessionManager.update(sessionId: decoded.sessionId, sessionToken: decoded.sessionToken)
                 // Capture the echoed events so the next placement can forward them back.
                 if let eventData = decoded.eventData {
                     captureEvents(SelectEventMapper.untriggeredEvents(from: eventData))

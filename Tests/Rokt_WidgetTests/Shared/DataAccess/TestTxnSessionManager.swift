@@ -170,6 +170,21 @@ final class TestTxnSessionManager: XCTestCase {
         XCTAssertTrue(isExpired)
     }
 
+    func test_persistence_tokenOnlyRefreshAloneSurvivesReload() async {
+        // Arrange: the first persisted state comes from a token-only refresh
+        // (no prior full update wrote the tag-id binding).
+        let store = InMemoryStore()
+        let manager = persistentManager(tagId: "tag-1", store: store)
+
+        // Act
+        await manager.update(sessionToken: token("fresh", expiresInSeconds: 1800))
+        let restored = persistentManager(tagId: "tag-1", store: store)
+
+        // Assert
+        let header = await restored.authorizationHeader
+        XCTAssertEqual(header, "Bearer fresh")
+    }
+
     func test_persistence_tokenOnlyRefreshDoesNotLoseSessionIdAcrossLoads() async {
         let store = InMemoryStore()
         let manager = persistentManager(tagId: "tag-1", store: store)
