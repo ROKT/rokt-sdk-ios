@@ -978,6 +978,7 @@ class RoktInternalImplementation {
             environment: config.environment,
             accountId: roktTagId,
             sdkVersion: libraryVersion,
+            layoutSchemaVersion: Self.txnLayoutSchemaVersion,
             sessionManager: TxnSessionManager(roktTagId: roktTagId),
             httpClient: httpClient,
             deviceHeaders: NetworkingHelper.txnDeviceHeaders()
