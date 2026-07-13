@@ -111,12 +111,75 @@ internal struct RenderLayoutVariant: Encodable {
 internal struct RenderOffer: Encodable {
     let campaignId: String?
     let creative: RenderCreative
+    let catalogItems: [RenderCatalogItem]?
 
     /// Nil when the slot carries no creative — an offer is only renderable with one.
     init?(_ offer: SelectOffer?) {
         guard let offer, let creative = offer.creative else { return nil }
         campaignId = offer.campaignId
         self.creative = RenderCreative(creative)
+        // Shoppable/instant-purchase catalog content. Without this the overlay
+        // renders empty: the renderer's catalog components read `offer.catalogItems`,
+        // so an unmapped offer yields a blank shoppable ad.
+        catalogItems = offer.catalogItems?.map(RenderCatalogItem.init)
+    }
+}
+
+/// A shoppable catalog item, re-homed from the offers response's snake_case
+/// ``SelectCatalogItem`` to the renderer's camelCase `CatalogItem` contract.
+/// The renderer decodes with a plain `JSONDecoder` (no key strategy), so keys
+/// must match its property names verbatim. Fields the renderer requires but the
+/// response can omit are defaulted so the item always decodes; `positiveResponseText`
+/// / `negativeResponseText` are required by the renderer's model yet read nowhere,
+/// so they default to empty.
+internal struct RenderCatalogItem: Encodable {
+    let catalogItemId: String
+    let cartItemId: String
+    let instanceGuid: String
+    let title: String
+    let description: String
+    let price: Double?
+    let priceFormatted: String?
+    let originalPrice: Double?
+    let originalPriceFormatted: String?
+    let currency: String
+    let signalType: String?
+    let url: String?
+    let urlBehavior: String?
+    let minItemCount: Int?
+    let maxItemCount: Int?
+    let preSelectedQuantity: Int?
+    let providerData: String
+    let linkedProductId: String?
+    let positiveResponseText: String
+    let negativeResponseText: String
+    let images: [String: RenderImage]
+    let token: String
+
+    init(_ item: SelectCatalogItem) {
+        catalogItemId = item.catalogItemId ?? ""
+        cartItemId = item.cartItemId ?? ""
+        instanceGuid = item.instanceGuid ?? ""
+        title = item.title ?? ""
+        description = item.description ?? ""
+        price = item.price
+        priceFormatted = item.priceFormatted
+        originalPrice = item.originalPrice
+        originalPriceFormatted = item.originalPriceFormatted
+        currency = item.currency ?? ""
+        signalType = item.signalType
+        url = item.url
+        urlBehavior = item.urlBehavior
+        minItemCount = item.minItemCount
+        maxItemCount = item.maxItemCount
+        preSelectedQuantity = item.preSelectedQuantity
+        providerData = item.providerData ?? ""
+        linkedProductId = item.linkedProductId
+        // Required by the renderer's CatalogItem but consumed nowhere; empty is safe.
+        positiveResponseText = ""
+        negativeResponseText = ""
+        images = item.images?.mapValues(RenderImage.init) ?? [:]
+        token = item.token ?? ""
     }
 }
 
