@@ -132,6 +132,7 @@ final class TestOffersExecuteWiring: XCTestCase {
                 environment: .Prod,
                 accountId: tagId,
                 sdkVersion: "5.2.2",
+                layoutSchemaVersion: "2.8",
                 sessionManager: TxnSessionManager(),
                 httpClient: StubHTTPClient(data: data, status: status, error: error),
                 maxRetries: 0,

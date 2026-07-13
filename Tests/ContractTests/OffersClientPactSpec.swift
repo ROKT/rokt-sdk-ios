@@ -61,6 +61,9 @@ class OffersClientPactSpec: XCTestCase {
                     "x-request-id": Matcher.SomethingLike("request-id-123"),
                     "rokt-page-instance-guid": Matcher.SomethingLike("page-instance-guid-123"),
                     "rokt-package-name": Matcher.SomethingLike("com.rokt.example"),
+                    // Pins the layout-schema-version negotiation: the provider must receive the
+                    // version the client can render, else it serves an unparseable legacy layout.
+                    "rokt-layout-schema-version": Matcher.SomethingLike("2.8"),
                     "Content-Type": "application/json"
                 ],
                 body: [
@@ -127,6 +130,7 @@ class OffersClientPactSpec: XCTestCase {
                         accountId: "account-456",
                         authToken: "Bearer session-token-abc",
                         sdkVersion: "5.2.2",
+                        layoutSchemaVersion: "2.8",
                         pageInstanceGuid: "page-instance-guid-123",
                         deviceHeaders: ["rokt-package-name": "com.rokt.example"]
                     )
@@ -168,6 +172,9 @@ class OffersClientPactSpec: XCTestCase {
                     "x-request-id": Matcher.SomethingLike("request-id-123"),
                     "rokt-page-instance-guid": Matcher.SomethingLike("page-instance-guid-123"),
                     "rokt-package-name": Matcher.SomethingLike("com.rokt.example"),
+                    // Pins the layout-schema-version negotiation: the provider must receive the
+                    // version the client can render, else it serves an unparseable legacy layout.
+                    "rokt-layout-schema-version": Matcher.SomethingLike("2.8"),
                     "Content-Type": "application/json"
                 ],
                 body: [
@@ -224,6 +231,7 @@ class OffersClientPactSpec: XCTestCase {
                         accountId: "account-456",
                         authToken: "Bearer session-token-abc",
                         sdkVersion: "5.2.2",
+                        layoutSchemaVersion: "2.8",
                         pageInstanceGuid: "page-instance-guid-123",
                         deviceHeaders: ["rokt-package-name": "com.rokt.example"]
                     )
