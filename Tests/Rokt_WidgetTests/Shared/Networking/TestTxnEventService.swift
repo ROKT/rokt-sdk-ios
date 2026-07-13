@@ -146,6 +146,42 @@ final class TestTxnEventService: XCTestCase {
         }
     }
 
+    private func events(_ count: Int) -> [TxnEvent] {
+        (0..<count).map { index in
+            TxnEvent(eventType: "impression", instanceId: "instance-\(index)", timestamp: 1_700_000_000_000, data: ["k": "v"])
+        }
+    }
+
+    func test_send_chunksEventsIntoBatchesOfMax25() async throws {
+        // 60 events -> batches of 25, 25, 10 sent as separate requests.
+        try await makeService().send(events: events(60))
+
+        XCTAssertEqual(httpClient.callCount, 3)
+        XCTAssertEqual(httpClient.capturedEventCounts, [25, 25, 10])
+    }
+
+    func test_send_countAtCap_sendsSingleRequest() async throws {
+        try await makeService().send(events: events(TxnEventService.maxEventsPerBatch))
+
+        XCTAssertEqual(httpClient.callCount, 1)
+        XCTAssertEqual(httpClient.capturedEventCounts, [TxnEventService.maxEventsPerBatch])
+    }
+
+    func test_send_chunkFailure_propagatesAndStopsSubsequentBatches() async {
+        // First batch exhausts retries on 400 (non-retryable); later batches must not be sent.
+        httpClient.results = [.status(400)]
+
+        do {
+            try await makeService().send(events: events(60))
+            XCTFail("Expected send to fail on first batch")
+        } catch let error as TxnEventService.TxnEventError {
+            XCTAssertEqual(error, .unexpectedStatusCode(400))
+            XCTAssertEqual(httpClient.callCount, 1)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     func test_send_emptyEvents_skipsRequest() async throws {
         try await makeService().send(events: [])
 
