@@ -20,6 +20,8 @@ internal struct OffersService {
     let attributeEnrichment: AttributeEnrichment
     let deviceHeaders: [String: String]
     let maxRetries: Int
+    // Bounded re-mint attempts after a 401 before giving up (exponential backoff between them).
+    let maxUnauthorizedRetries: Int
     let requestTimeout: TimeInterval
     let baseBackoff: TimeInterval
     let sleep: (TimeInterval) async throws -> Void
@@ -42,6 +44,7 @@ internal struct OffersService {
         attributeEnrichment: AttributeEnrichment = .shared,
         deviceHeaders: [String: String] = [:],
         maxRetries: Int = 3,
+        maxUnauthorizedRetries: Int = 2,
         requestTimeout: TimeInterval = 7,
         baseBackoff: TimeInterval = 0.2,
         sleep: @escaping (TimeInterval) async throws -> Void = { seconds in
@@ -66,6 +69,7 @@ internal struct OffersService {
         self.attributeEnrichment = attributeEnrichment
         self.deviceHeaders = deviceHeaders
         self.maxRetries = maxRetries
+        self.maxUnauthorizedRetries = maxUnauthorizedRetries
         self.requestTimeout = requestTimeout
         self.baseBackoff = baseBackoff
         self.sleep = sleep
@@ -163,22 +167,39 @@ internal struct OffersService {
         var input = makeInput(includeForwardedEvents: true)
 
         var attempt = 0
-        var didReMintAfterUnauthorized = false
+        var unauthorizedRetries = 0
         while true {
             do {
                 let (data, response) = try await client.fetchOffers(input: input)
                 let statusCode = response?.statusCode ?? 0
 
-                // Token rejected (server-side validation/revoked/expired): drop the stale
-                // session and re-mint once with no Authorization — the gateway issues a fresh
-                // session when no token is present, so the placement self-heals instead of
-                // looping on an invalid token.
-                if statusCode == HTTPStatusCode.unauthorized.rawValue, !didReMintAfterUnauthorized {
-                    RoktLogger.shared.verbose("Offers returned 401; dropping session and re-minting")
-                    await sessionManager.clear()
-                    didReMintAfterUnauthorized = true
-                    client = makeClient(authToken: nil)
-                    input = makeInput(includeForwardedEvents: false)
+                // Token rejected (server-side validation/revoked/expired). Drop the stale session
+                // and re-mint with no Authorization — the gateway issues a fresh session when no
+                // token is present, so the placement self-heals. The first re-mint is immediate;
+                // if it keeps failing we back off exponentially, then give up with a distinct
+                // error so a backend change that breaks the "no token => fresh session" contract
+                // surfaces instead of silently looping.
+                if statusCode == HTTPStatusCode.unauthorized.rawValue {
+                    guard unauthorizedRetries < maxUnauthorizedRetries else {
+                        RoktLogger.shared.error(
+                            "Offers still returned 401 after dropping the session and re-minting " +
+                            "\(unauthorizedRetries) time(s); tx-api token/session handling may have changed"
+                        )
+                        throw OffersError.unexpectedStatusCode(statusCode)
+                    }
+                    if unauthorizedRetries == 0 {
+                        // First 401: drop the session and re-mint immediately (no delay) so the
+                        // common case — a rotated/expired/rejected token — heals with low latency.
+                        RoktLogger.shared.verbose("Offers returned 401; dropping session and re-minting")
+                        await sessionManager.clear()
+                        client = makeClient(authToken: nil)
+                        input = makeInput(includeForwardedEvents: false)
+                    } else {
+                        // The token-less re-mint itself 401'd — back off before retrying in case
+                        // it is a transient backend blip.
+                        try await sleep(backoffDelay(attempt: unauthorizedRetries - 1))
+                    }
+                    unauthorizedRetries += 1
                     continue
                 }
 

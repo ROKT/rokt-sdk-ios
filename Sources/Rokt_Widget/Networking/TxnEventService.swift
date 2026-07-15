@@ -79,10 +79,14 @@ internal struct TxnEventService {
                     continue
                 }
 
-                // Token rejected: drop the stale session so the next offers call re-mints a
-                // fresh one. Events are best-effort, so we don't retry the batch.
+                // Token rejected: drop the stale session so the next offers call re-mints a fresh
+                // one. Events are best-effort so we don't retry the batch. Events auth mirrors
+                // offers, so a 401 here is not expected — log at error to surface a possible
+                // backend change rather than swallowing it silently.
                 if statusCode == HTTPStatusCode.unauthorized.rawValue {
-                    RoktLogger.shared.verbose("Events returned 401; dropping session")
+                    RoktLogger.shared.error(
+                        "Events returned 401; dropped session (unexpected — tx-api auth handling may have changed)"
+                    )
                     await sessionManager.clear()
                     throw TxnEventError.unexpectedStatusCode(statusCode)
                 }

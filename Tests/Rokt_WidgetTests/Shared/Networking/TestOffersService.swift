@@ -449,13 +449,26 @@ final class TestOffersService: XCTestCase {
         XCTAssertNil(stub.lastHeaders?["Authorization"])
     }
 
-    func test_getExperienceData_onRepeatedUnauthorized_failsAfterSingleReMint() {
-        // A 401 that persists after the re-mint must fail (not loop): one original request
-        // plus one re-mint, then surface the 401.
-        let stub = StubHTTPClient(responses: [(nil, 401), (nil, 401)])
-        let service = makeService(stub)
+    func test_getExperienceData_onPersistentUnauthorized_backsOffThenFails() {
+        // A 401 that persists on the token-less re-mint must fail (not loop): original request +
+        // immediate re-mint + one backed-off re-mint (maxUnauthorizedRetries=2), then surface the
+        // 401 via the distinct error path. Only the second re-mint backs off (the first is immediate).
+        var sleeps: [TimeInterval] = []
+        let stub = StubHTTPClient(responses: [(nil, 401)])
+        let service = OffersService(
+            environment: .Prod,
+            accountId: "account-1",
+            sdkVersion: "1.0.0",
+            layoutSchemaVersion: "2.8",
+            sessionManager: TxnSessionManager(),
+            httpClient: stub,
+            maxRetries: 0,
+            baseBackoff: 0.01,
+            sleep: { sleeps.append($0) },
+            triggeredEvents: { [] }
+        )
 
-        let failed = expectation(description: "repeated 401 fails after one re-mint")
+        let failed = expectation(description: "persistent 401 fails after backed-off re-mints")
         service.getExperienceData(viewName: "checkout", attributes: [:], config: nil, successLayout: { _ in
             XCTFail("unexpected success")
         }, failure: { _, statusCode, _ in
@@ -463,6 +476,9 @@ final class TestOffersService: XCTestCase {
             failed.fulfill()
         })
         wait(for: [failed], timeout: 5)
-        XCTAssertEqual(stub.requestCount, 2)
+        // original + immediate re-mint + one backed-off re-mint.
+        XCTAssertEqual(stub.requestCount, 3)
+        // Exponential backoff is applied only to the re-mint that follows a failed re-mint.
+        XCTAssertEqual(sleeps.count, 1)
     }
 }
