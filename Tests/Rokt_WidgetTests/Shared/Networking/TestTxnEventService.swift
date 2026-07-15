@@ -146,6 +146,28 @@ final class TestTxnEventService: XCTestCase {
         }
     }
 
+    func test_send_unauthorized_dropsSessionAndDoesNotRetry() async {
+        await storeValidToken()
+        httpClient.results = [.status(401)]
+
+        do {
+            try await makeService().send(events: sampleEvents())
+            XCTFail("Expected send to fail on 401")
+        } catch let error as TxnEventService.TxnEventError {
+            XCTAssertEqual(error, .unexpectedStatusCode(401))
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        // The 401 dropped the stored session so the next offers call re-mints a fresh one.
+        let header = await sessionManager.authorizationHeader
+        let sessionId = await sessionManager.currentSessionId
+        XCTAssertNil(header)
+        XCTAssertNil(sessionId)
+        // 401 is not retried.
+        XCTAssertEqual(httpClient.callCount, 1)
+    }
+
     private func events(_ count: Int) -> [TxnEvent] {
         (0..<count).map { index in
             TxnEvent(eventType: "impression", instanceId: "instance-\(index)", timestamp: 1_700_000_000_000, data: ["k": "v"])

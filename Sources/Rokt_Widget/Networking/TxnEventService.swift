@@ -79,6 +79,14 @@ internal struct TxnEventService {
                     continue
                 }
 
+                // Token rejected: drop the stale session so the next offers call re-mints a
+                // fresh one. Events are best-effort, so we don't retry the batch.
+                if statusCode == HTTPStatusCode.unauthorized.rawValue {
+                    RoktLogger.shared.verbose("Events returned 401; dropping session")
+                    await sessionManager.clear()
+                    throw TxnEventError.unexpectedStatusCode(statusCode)
+                }
+
                 guard (200..<300).contains(statusCode) else {
                     throw TxnEventError.unexpectedStatusCode(statusCode)
                 }

@@ -124,37 +124,63 @@ internal struct OffersService {
 
         httpClient.updateTimeout(timeout: requestTimeout)
 
+        // Stable across attempts (including the 401 re-mint below), matching the 5xx retry:
+        // one request identity and page-instance guid per placement.
+        let pageInstanceGuid = makePageInstanceGuid()
+        let requestId = makeRequestId()
+
+        func makeClient(authToken: String?) -> OffersClient {
+            OffersClient(
+                baseURL: baseURL,
+                accountId: accountId,
+                authToken: authToken,
+                sdkVersion: sdkVersion,
+                layoutSchemaVersion: layoutSchemaVersion,
+                pageInstanceGuid: pageInstanceGuid,
+                deviceHeaders: deviceHeaders,
+                httpClient: httpClient
+            )
+        }
+
         let authToken = await sessionManager.authorizationHeader
-        let client = OffersClient(
-            baseURL: baseURL,
-            accountId: accountId,
-            authToken: authToken,
-            sdkVersion: sdkVersion,
-            layoutSchemaVersion: layoutSchemaVersion,
-            pageInstanceGuid: makePageInstanceGuid(),
-            deviceHeaders: deviceHeaders,
-            httpClient: httpClient
-        )
+        var client = makeClient(authToken: authToken)
         // Forward events triggered during the previous placement; read once, before retries,
         // and only with a live session to attribute them to (matching Android). As on the v1
         // path, triggered events are not cleared after forwarding — they ride subsequent
         // requests until session invalidation; re-send is expected (the "only adds, no clear"
         // note elsewhere is about the untriggered response-capture, not this read).
         let forwardedEvents = authToken != nil ? SelectEventMapper.requestEvents(from: triggeredEvents()) : []
-        let input = OffersInput(
-            requestId: makeRequestId(),
-            pageIdentifier: pageIdentifier,
-            attributes: attributes,
-            privacyControl: privacyControl,
-            privacy: privacy,
-            events: forwardedEvents.isEmpty ? nil : forwardedEvents
-        )
+        func makeInput(includeForwardedEvents: Bool) -> OffersInput {
+            OffersInput(
+                requestId: requestId,
+                pageIdentifier: pageIdentifier,
+                attributes: attributes,
+                privacyControl: privacyControl,
+                privacy: privacy,
+                events: (includeForwardedEvents && !forwardedEvents.isEmpty) ? forwardedEvents : nil
+            )
+        }
+        var input = makeInput(includeForwardedEvents: true)
 
         var attempt = 0
+        var didReMintAfterUnauthorized = false
         while true {
             do {
                 let (data, response) = try await client.fetchOffers(input: input)
                 let statusCode = response?.statusCode ?? 0
+
+                // Token rejected (server-side validation/revoked/expired): drop the stale
+                // session and re-mint once with no Authorization — the gateway issues a fresh
+                // session when no token is present, so the placement self-heals instead of
+                // looping on an invalid token.
+                if statusCode == HTTPStatusCode.unauthorized.rawValue, !didReMintAfterUnauthorized {
+                    RoktLogger.shared.verbose("Offers returned 401; dropping session and re-minting")
+                    await sessionManager.clear()
+                    didReMintAfterUnauthorized = true
+                    client = makeClient(authToken: nil)
+                    input = makeInput(includeForwardedEvents: false)
+                    continue
+                }
 
                 if isRetryable(statusCode: statusCode), attempt < maxRetries {
                     try await sleep(backoffDelay(attempt: attempt))

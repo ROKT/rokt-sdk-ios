@@ -419,4 +419,50 @@ final class TestOffersService: XCTestCase {
         wait(for: [completed], timeout: 5)
         XCTAssertEqual(stub.requestCount, 2)
     }
+
+    func test_getExperienceData_onUnauthorized_dropsSessionAndReMintsWithoutToken() {
+        // First 200 rolls a live token forward; the second call's first request carries it,
+        // gets 401, so the session is dropped and offers is re-minted once with no
+        // Authorization — the gateway then issues a fresh session (200). Self-heals.
+        let stub = StubHTTPClient(responses: [
+            (Data(offersResponse.utf8), 200), // call 1: roll a live token forward
+            (nil, 401), // call 2: token rejected
+            (Data(offersResponse.utf8), 200) // call 2 re-mint: fresh session
+        ])
+        let service = makeService(stub, sessionManager: TxnSessionManager())
+
+        let first = expectation(description: "first call rolls token")
+        service.getExperienceData(viewName: "checkout", attributes: [:], config: nil, successLayout: { _ in
+            first.fulfill()
+        }, failure: { error, _, _ in XCTFail("unexpected failure: \(error)") })
+        wait(for: [first], timeout: 5)
+
+        let second = expectation(description: "401 self-heals via re-mint")
+        service.getExperienceData(viewName: "checkout", attributes: [:], config: nil, successLayout: { _ in
+            second.fulfill()
+        }, failure: { error, _, _ in XCTFail("unexpected failure: \(error)") })
+        wait(for: [second], timeout: 5)
+
+        // Three transport calls total: roll, 401, re-mint.
+        XCTAssertEqual(stub.requestCount, 3)
+        // The re-mint carried no Authorization because the session was cleared on the 401.
+        XCTAssertNil(stub.lastHeaders?["Authorization"])
+    }
+
+    func test_getExperienceData_onRepeatedUnauthorized_failsAfterSingleReMint() {
+        // A 401 that persists after the re-mint must fail (not loop): one original request
+        // plus one re-mint, then surface the 401.
+        let stub = StubHTTPClient(responses: [(nil, 401), (nil, 401)])
+        let service = makeService(stub)
+
+        let failed = expectation(description: "repeated 401 fails after one re-mint")
+        service.getExperienceData(viewName: "checkout", attributes: [:], config: nil, successLayout: { _ in
+            XCTFail("unexpected success")
+        }, failure: { _, statusCode, _ in
+            XCTAssertEqual(statusCode, 401)
+            failed.fulfill()
+        })
+        wait(for: [failed], timeout: 5)
+        XCTAssertEqual(stub.requestCount, 2)
+    }
 }
