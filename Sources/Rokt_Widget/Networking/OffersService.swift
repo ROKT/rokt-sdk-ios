@@ -133,38 +133,23 @@ internal struct OffersService {
         let pageInstanceGuid = makePageInstanceGuid()
         let requestId = makeRequestId()
 
-        func makeClient(authToken: String?) -> OffersClient {
-            OffersClient(
-                baseURL: baseURL,
-                accountId: accountId,
-                authToken: authToken,
-                sdkVersion: sdkVersion,
-                layoutSchemaVersion: layoutSchemaVersion,
-                pageInstanceGuid: pageInstanceGuid,
-                deviceHeaders: deviceHeaders,
-                httpClient: httpClient
-            )
-        }
-
         let authToken = await sessionManager.authorizationHeader
-        var client = makeClient(authToken: authToken)
+        var client = makeOffersClient(baseURL: baseURL, pageInstanceGuid: pageInstanceGuid, authToken: authToken)
         // Forward events triggered during the previous placement; read once, before retries,
         // and only with a live session to attribute them to (matching Android). As on the v1
         // path, triggered events are not cleared after forwarding — they ride subsequent
         // requests until session invalidation; re-send is expected (the "only adds, no clear"
         // note elsewhere is about the untriggered response-capture, not this read).
         let forwardedEvents = authToken != nil ? SelectEventMapper.requestEvents(from: triggeredEvents()) : []
-        func makeInput(includeForwardedEvents: Bool) -> OffersInput {
-            OffersInput(
-                requestId: requestId,
-                pageIdentifier: pageIdentifier,
-                attributes: attributes,
-                privacyControl: privacyControl,
-                privacy: privacy,
-                events: (includeForwardedEvents && !forwardedEvents.isEmpty) ? forwardedEvents : nil
-            )
-        }
-        var input = makeInput(includeForwardedEvents: true)
+        var input = makeOffersInput(
+            requestId: requestId,
+            pageIdentifier: pageIdentifier,
+            attributes: attributes,
+            privacyControl: privacyControl,
+            privacy: privacy,
+            forwardedEvents: forwardedEvents,
+            includeForwardedEvents: true
+        )
 
         var attempt = 0
         var unauthorizedRetries = 0
@@ -192,8 +177,16 @@ internal struct OffersService {
                         // common case — a rotated/expired/rejected token — heals with low latency.
                         RoktLogger.shared.verbose("Offers returned 401; dropping session and re-minting")
                         await sessionManager.clear()
-                        client = makeClient(authToken: nil)
-                        input = makeInput(includeForwardedEvents: false)
+                        client = makeOffersClient(baseURL: baseURL, pageInstanceGuid: pageInstanceGuid, authToken: nil)
+                        input = makeOffersInput(
+                            requestId: requestId,
+                            pageIdentifier: pageIdentifier,
+                            attributes: attributes,
+                            privacyControl: privacyControl,
+                            privacy: privacy,
+                            forwardedEvents: forwardedEvents,
+                            includeForwardedEvents: false
+                        )
                     } else {
                         // The token-less re-mint itself 401'd — back off before retrying in case
                         // it is a transient backend blip.
@@ -230,6 +223,38 @@ internal struct OffersService {
                 continue
             }
         }
+    }
+
+    private func makeOffersClient(baseURL: URL, pageInstanceGuid: String, authToken: String?) -> OffersClient {
+        OffersClient(
+            baseURL: baseURL,
+            accountId: accountId,
+            authToken: authToken,
+            sdkVersion: sdkVersion,
+            layoutSchemaVersion: layoutSchemaVersion,
+            pageInstanceGuid: pageInstanceGuid,
+            deviceHeaders: deviceHeaders,
+            httpClient: httpClient
+        )
+    }
+
+    private func makeOffersInput(
+        requestId: String,
+        pageIdentifier: String,
+        attributes: [String: String],
+        privacyControl: SelectPrivacyControl?,
+        privacy: SelectPrivacy?,
+        forwardedEvents: [SelectEvent],
+        includeForwardedEvents: Bool
+    ) -> OffersInput {
+        OffersInput(
+            requestId: requestId,
+            pageIdentifier: pageIdentifier,
+            attributes: attributes,
+            privacyControl: privacyControl,
+            privacy: privacy,
+            events: (includeForwardedEvents && !forwardedEvents.isEmpty) ? forwardedEvents : nil
+        )
     }
 
     // Both builders read the same parsed payload; getExperienceData computes it once.
