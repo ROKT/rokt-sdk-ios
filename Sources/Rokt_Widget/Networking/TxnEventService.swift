@@ -100,7 +100,7 @@ internal struct TxnEventService {
                     RoktLogger.shared.error("Events still 401 after re-mint; dropping \(events.count) event(s)")
                     RoktAPIHelper.sendDiagnostics(
                         message: Self.unauthorizedDiagnosticCode,
-                        callStack: "Dropped \(events.count) event(s): 401 persisted through the token-less re-mint on /v2/sessions/events"
+                        callStack: "401 persisted through token-less re-mint; dropped \(events.count) event(s)"
                     )
                     await sessionManager.clear()
                     throw TxnEventError.unexpectedStatusCode(statusCode)
