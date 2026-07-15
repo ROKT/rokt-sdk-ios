@@ -5,6 +5,8 @@ internal struct TxnEventService {
     // several requests instead of one oversized payload.
     static let maxEventsPerBatch = 25
 
+    static let unauthorizedDiagnosticCode = "[TXN_EVENTS_401]"
+
     enum TxnEventError: Error, Equatable {
         case invalidBaseURL
         case unexpectedStatusCode(Int)
@@ -14,8 +16,6 @@ internal struct TxnEventService {
     let maxRetries: Int
     let baseBackoff: TimeInterval
     let sleep: (TimeInterval) async throws -> Void
-    // Holds events that 401'd so they are re-sent under the next minted session rather than dropped.
-    let pendingStore: TxnPendingEventsStore
 
     private let client: TxnEventsClient?
 
@@ -29,7 +29,6 @@ internal struct TxnEventService {
         maxRetries: Int = 3,
         requestTimeout: TimeInterval = 7,
         baseBackoff: TimeInterval = 0.2,
-        pendingStore: TxnPendingEventsStore = .shared,
         sleep: @escaping (TimeInterval) async throws -> Void = { seconds in
             try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
         }
@@ -37,7 +36,6 @@ internal struct TxnEventService {
         self.sessionManager = sessionManager
         self.maxRetries = maxRetries
         self.baseBackoff = baseBackoff
-        self.pendingStore = pendingStore
         self.sleep = sleep
 
         if let baseURL = URL(string: environment.gatewayBaseURL) {
@@ -55,43 +53,14 @@ internal struct TxnEventService {
     }
 
     func send(events: [TxnEvent]) async throws {
+        guard !events.isEmpty else { return }
         guard client != nil else { throw TxnEventError.invalidBaseURL }
-
-        // Re-send anything buffered from a prior 401 first (order preserved) — by now an offers
-        // call has typically minted a fresh session, so these transfer to it instead of being
-        // dropped. `pending.count` marks the boundary so a later non-session failure only
-        // re-buffers the still-undelivered buffered events, not the current batch.
-        let pending = await pendingStore.drain()
-        let all = pending + events
-        guard !all.isEmpty else { return }
 
         // Send batches sequentially (awaiting each) to preserve event order and so a
         // session token refreshed by one batch is picked up by the next.
-        var start = 0
-        while start < all.count {
-            let end = min(start + Self.maxEventsPerBatch, all.count)
-            do {
-                try await sendBatch(events: Array(all[start..<end]))
-                start = end
-            } catch let error as TxnEventError where error == .unexpectedStatusCode(HTTPStatusCode.unauthorized.rawValue) {
-                // Session rejected: buffer this batch and everything after it so the events are
-                // re-sent under the next minted session instead of dropped. Best-effort: the
-                // session was already cleared in sendBatch, so we don't propagate.
-                let undelivered = Array(all[start...])
-                RoktLogger.shared.error(
-                    "Events returned 401; dropped session and buffered \(undelivered.count) event(s) to re-send " +
-                    "under the next minted session (tx-api auth handling may have changed if this persists)"
-                )
-                await pendingStore.add(undelivered)
-                return
-            } catch {
-                // Non-session failure: don't lose events that were buffered from a prior 401
-                // (they predate this call); let current-batch failures surface as before.
-                if start < pending.count {
-                    await pendingStore.add(Array(all[start..<pending.count]))
-                }
-                throw error
-            }
+        for start in stride(from: 0, to: events.count, by: Self.maxEventsPerBatch) {
+            let end = min(start + Self.maxEventsPerBatch, events.count)
+            try await sendBatch(events: Array(events[start..<end]))
         }
     }
 
@@ -112,10 +81,16 @@ internal struct TxnEventService {
                     continue
                 }
 
-                // Token rejected: drop the stale session so the next offers call re-mints a fresh
-                // one, then surface 401 so `send` can buffer the batch for re-send under that new
-                // session (events are best-effort, so the batch itself is not retried here).
+                // Token rejected. The events endpoint can't mint a session (only offers can), so
+                // these events can't be delivered under a valid session — drop them and clear the
+                // stored session so the next offers call re-mints. A 401 here is unexpected (events
+                // auth mirrors offers), so report a diagnostic to surface it during enforcement.
                 if statusCode == HTTPStatusCode.unauthorized.rawValue {
+                    RoktLogger.shared.error("Events returned 401; dropping session and \(events.count) event(s)")
+                    RoktAPIHelper.sendDiagnostics(
+                        message: Self.unauthorizedDiagnosticCode,
+                        callStack: "Dropped \(events.count) event(s) after 401 on /v2/sessions/events"
+                    )
                     await sessionManager.clear()
                     throw TxnEventError.unexpectedStatusCode(statusCode)
                 }

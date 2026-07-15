@@ -6,22 +6,18 @@ final class TestTxnEventService: XCTestCase {
     private var now: Date!
     private var sessionManager: TxnSessionManager!
     private var httpClient: MockTxnEventsHTTPClient!
-    // Isolated per test so the shared singleton never leaks events across cases.
-    private var pendingStore: TxnPendingEventsStore!
 
     override func setUp() {
         super.setUp()
         now = Date(timeIntervalSince1970: 1_000_000)
         sessionManager = TxnSessionManager(clock: { self.now })
         httpClient = MockTxnEventsHTTPClient()
-        pendingStore = TxnPendingEventsStore()
     }
 
     override func tearDown() {
         now = nil
         sessionManager = nil
         httpClient = nil
-        pendingStore = nil
         super.tearDown()
     }
 
@@ -39,7 +35,6 @@ final class TestTxnEventService: XCTestCase {
             deviceHeaders: deviceHeaders,
             maxRetries: maxRetries,
             baseBackoff: 0,
-            pendingStore: pendingStore,
             sleep: { _ in }
         )
     }
@@ -151,44 +146,27 @@ final class TestTxnEventService: XCTestCase {
         }
     }
 
-    func test_send_unauthorized_buffersEventsAndClearsSession() async throws {
+    func test_send_unauthorized_dropsSessionAndDoesNotRetry() async {
         await storeValidToken()
         httpClient.results = [.status(401)]
 
-        // Best-effort: a 401 no longer throws — it drops the session and buffers the events.
-        try await makeService().send(events: sampleEvents())
+        do {
+            try await makeService().send(events: sampleEvents())
+            XCTFail("Expected send to fail on 401")
+        } catch let error as TxnEventService.TxnEventError {
+            XCTAssertEqual(error, .unexpectedStatusCode(401))
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
 
-        // The session is dropped so the next offers call re-mints a fresh one.
+        // The events endpoint can't mint a session, so the events are dropped and the stored
+        // session is cleared — the next offers call re-mints a fresh one.
         let header = await sessionManager.authorizationHeader
         let sessionId = await sessionManager.currentSessionId
         XCTAssertNil(header)
         XCTAssertNil(sessionId)
-        // The events are buffered (not dropped) for re-send under the next session.
-        let buffered = await pendingStore.count
-        XCTAssertEqual(buffered, 1)
         // 401 is not retried.
         XCTAssertEqual(httpClient.callCount, 1)
-    }
-
-    func test_send_afterUnauthorized_reSendsBufferedEventsUnderNewSession() async throws {
-        // First send 401s and buffers the event.
-        await storeValidToken()
-        httpClient.results = [.status(401)]
-        try await makeService().send(events: sampleEvents())
-        let bufferedAfterFailure = await pendingStore.count
-        XCTAssertEqual(bufferedAfterFailure, 1)
-
-        // A fresh session is minted (as an offers call would) and the next send succeeds:
-        // the buffered event + the new event are delivered together and the buffer is drained.
-        await storeValidToken("fresh-jwt")
-        httpClient.results = [.success(status: 202, data: rotatedResponse())]
-        try await makeService().send(events: sampleEvents())
-
-        let bufferedAfterFlush = await pendingStore.count
-        XCTAssertEqual(bufferedAfterFlush, 0)
-        // Second request carried both the buffered and the new event; sent with the fresh token.
-        XCTAssertEqual(httpClient.capturedEventCounts.last, 2)
-        XCTAssertEqual(httpClient.capturedHeaders.last?["Authorization"], "Bearer fresh-jwt")
     }
 
     private func events(_ count: Int) -> [TxnEvent] {

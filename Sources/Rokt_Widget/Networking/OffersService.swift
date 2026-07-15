@@ -20,8 +20,6 @@ internal struct OffersService {
     let attributeEnrichment: AttributeEnrichment
     let deviceHeaders: [String: String]
     let maxRetries: Int
-    // Bounded re-mint attempts after a 401 before giving up (exponential backoff between them).
-    let maxUnauthorizedRetries: Int
     let requestTimeout: TimeInterval
     let baseBackoff: TimeInterval
     let sleep: (TimeInterval) async throws -> Void
@@ -44,7 +42,6 @@ internal struct OffersService {
         attributeEnrichment: AttributeEnrichment = .shared,
         deviceHeaders: [String: String] = [:],
         maxRetries: Int = 3,
-        maxUnauthorizedRetries: Int = 2,
         requestTimeout: TimeInterval = 7,
         baseBackoff: TimeInterval = 0.2,
         sleep: @escaping (TimeInterval) async throws -> Void = { seconds in
@@ -69,7 +66,6 @@ internal struct OffersService {
         self.attributeEnrichment = attributeEnrichment
         self.deviceHeaders = deviceHeaders
         self.maxRetries = maxRetries
-        self.maxUnauthorizedRetries = maxUnauthorizedRetries
         self.requestTimeout = requestTimeout
         self.baseBackoff = baseBackoff
         self.sleep = sleep
@@ -128,72 +124,42 @@ internal struct OffersService {
 
         httpClient.updateTimeout(timeout: requestTimeout)
 
-        // Stable across attempts (including the 401 re-mint below), matching the 5xx retry:
-        // one request identity and page-instance guid per placement.
+        // One request identity and page-instance guid per placement, stable across 5xx retries.
         let pageInstanceGuid = makePageInstanceGuid()
         let requestId = makeRequestId()
 
         let authToken = await sessionManager.authorizationHeader
-        var client = makeOffersClient(baseURL: baseURL, pageInstanceGuid: pageInstanceGuid, authToken: authToken)
+        let client = makeOffersClient(baseURL: baseURL, pageInstanceGuid: pageInstanceGuid, authToken: authToken)
         // Forward events triggered during the previous placement; read once, before retries,
         // and only with a live session to attribute them to (matching Android). As on the v1
         // path, triggered events are not cleared after forwarding — they ride subsequent
         // requests until session invalidation; re-send is expected (the "only adds, no clear"
         // note elsewhere is about the untriggered response-capture, not this read).
         let forwardedEvents = authToken != nil ? SelectEventMapper.requestEvents(from: triggeredEvents()) : []
-        var input = makeOffersInput(
+        let input = makeOffersInput(
             requestId: requestId,
             pageIdentifier: pageIdentifier,
             attributes: attributes,
             privacyControl: privacyControl,
             privacy: privacy,
-            forwardedEvents: forwardedEvents,
-            includeForwardedEvents: true
+            forwardedEvents: forwardedEvents
         )
 
         var attempt = 0
-        var unauthorizedRetries = 0
         while true {
             do {
                 let (data, response) = try await client.fetchOffers(input: input)
                 let statusCode = response?.statusCode ?? 0
 
-                // Token rejected (server-side validation/revoked/expired). Drop the stale session
-                // and re-mint with no Authorization — the gateway issues a fresh session when no
-                // token is present, so the placement self-heals. The first re-mint is immediate;
-                // if it keeps failing we back off exponentially, then give up with a distinct
-                // error so a backend change that breaks the "no token => fresh session" contract
-                // surfaces instead of silently looping.
+                // A 401 from offers is not expected — the gateway mints a fresh session even
+                // without a token. Defensive handling: if it happens, drop the stored session so
+                // the next offers call starts clean, and surface the failure for this placement.
                 if statusCode == HTTPStatusCode.unauthorized.rawValue {
-                    guard unauthorizedRetries < maxUnauthorizedRetries else {
-                        RoktLogger.shared.error(
-                            "Offers still returned 401 after dropping the session and re-minting " +
-                            "\(unauthorizedRetries) time(s); tx-api token/session handling may have changed"
-                        )
-                        throw OffersError.unexpectedStatusCode(statusCode)
-                    }
-                    if unauthorizedRetries == 0 {
-                        // First 401: drop the session and re-mint immediately (no delay) so the
-                        // common case — a rotated/expired/rejected token — heals with low latency.
-                        RoktLogger.shared.verbose("Offers returned 401; dropping session and re-minting")
-                        await sessionManager.clear()
-                        client = makeOffersClient(baseURL: baseURL, pageInstanceGuid: pageInstanceGuid, authToken: nil)
-                        input = makeOffersInput(
-                            requestId: requestId,
-                            pageIdentifier: pageIdentifier,
-                            attributes: attributes,
-                            privacyControl: privacyControl,
-                            privacy: privacy,
-                            forwardedEvents: forwardedEvents,
-                            includeForwardedEvents: false
-                        )
-                    } else {
-                        // The token-less re-mint itself 401'd — back off before retrying in case
-                        // it is a transient backend blip.
-                        try await sleep(backoffDelay(attempt: unauthorizedRetries - 1))
-                    }
-                    unauthorizedRetries += 1
-                    continue
+                    RoktLogger.shared.error(
+                        "Offers returned 401 (unexpected); dropping session so the next offers call re-mints"
+                    )
+                    await sessionManager.clear()
+                    throw OffersError.unexpectedStatusCode(statusCode)
                 }
 
                 if isRetryable(statusCode: statusCode), attempt < maxRetries {
@@ -244,8 +210,7 @@ internal struct OffersService {
         attributes: [String: String],
         privacyControl: SelectPrivacyControl?,
         privacy: SelectPrivacy?,
-        forwardedEvents: [SelectEvent],
-        includeForwardedEvents: Bool
+        forwardedEvents: [SelectEvent]
     ) -> OffersInput {
         OffersInput(
             requestId: requestId,
@@ -253,7 +218,7 @@ internal struct OffersService {
             attributes: attributes,
             privacyControl: privacyControl,
             privacy: privacy,
-            events: (includeForwardedEvents && !forwardedEvents.isEmpty) ? forwardedEvents : nil
+            events: forwardedEvents.isEmpty ? nil : forwardedEvents
         )
     }
 

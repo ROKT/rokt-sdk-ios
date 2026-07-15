@@ -420,65 +420,36 @@ final class TestOffersService: XCTestCase {
         XCTAssertEqual(stub.requestCount, 2)
     }
 
-    func test_getExperienceData_onUnauthorized_dropsSessionAndReMintsWithoutToken() {
-        // First 200 rolls a live token forward; the second call's first request carries it,
-        // gets 401, so the session is dropped and offers is re-minted once with no
-        // Authorization — the gateway then issues a fresh session (200). Self-heals.
+    func test_getExperienceData_onUnauthorized_dropsSessionAndFails() async {
+        // First 200 rolls a live token forward; the second call sends it, gets 401, so the
+        // session is dropped and the failure surfaces — no inline re-mint (the next offers call
+        // would send no token and re-mint a fresh session).
         let stub = StubHTTPClient(responses: [
             (Data(offersResponse.utf8), 200), // call 1: roll a live token forward
-            (nil, 401), // call 2: token rejected
-            (Data(offersResponse.utf8), 200) // call 2 re-mint: fresh session
+            (nil, 401) // call 2: token rejected
         ])
-        let service = makeService(stub, sessionManager: TxnSessionManager())
+        let sessionManager = TxnSessionManager()
+        let service = makeService(stub, sessionManager: sessionManager)
 
         let first = expectation(description: "first call rolls token")
         service.getExperienceData(viewName: "checkout", attributes: [:], config: nil, successLayout: { _ in
             first.fulfill()
         }, failure: { error, _, _ in XCTFail("unexpected failure: \(error)") })
-        wait(for: [first], timeout: 5)
+        await fulfillment(of: [first], timeout: 5)
 
-        let second = expectation(description: "401 self-heals via re-mint")
-        service.getExperienceData(viewName: "checkout", attributes: [:], config: nil, successLayout: { _ in
-            second.fulfill()
-        }, failure: { error, _, _ in XCTFail("unexpected failure: \(error)") })
-        wait(for: [second], timeout: 5)
-
-        // Three transport calls total: roll, 401, re-mint.
-        XCTAssertEqual(stub.requestCount, 3)
-        // The re-mint carried no Authorization because the session was cleared on the 401.
-        XCTAssertNil(stub.lastHeaders?["Authorization"])
-    }
-
-    func test_getExperienceData_onPersistentUnauthorized_backsOffThenFails() {
-        // A 401 that persists on the token-less re-mint must fail (not loop): original request +
-        // immediate re-mint + one backed-off re-mint (maxUnauthorizedRetries=2), then surface the
-        // 401 via the distinct error path. Only the second re-mint backs off (the first is immediate).
-        var sleeps: [TimeInterval] = []
-        let stub = StubHTTPClient(responses: [(nil, 401)])
-        let service = OffersService(
-            environment: .Prod,
-            accountId: "account-1",
-            sdkVersion: "1.0.0",
-            layoutSchemaVersion: "2.8",
-            sessionManager: TxnSessionManager(),
-            httpClient: stub,
-            maxRetries: 0,
-            baseBackoff: 0.01,
-            sleep: { sleeps.append($0) },
-            triggeredEvents: { [] }
-        )
-
-        let failed = expectation(description: "persistent 401 fails after backed-off re-mints")
+        let failed = expectation(description: "401 drops session and fails")
         service.getExperienceData(viewName: "checkout", attributes: [:], config: nil, successLayout: { _ in
             XCTFail("unexpected success")
         }, failure: { _, statusCode, _ in
             XCTAssertEqual(statusCode, 401)
             failed.fulfill()
         })
-        wait(for: [failed], timeout: 5)
-        // original + immediate re-mint + one backed-off re-mint.
-        XCTAssertEqual(stub.requestCount, 3)
-        // Exponential backoff is applied only to the re-mint that follows a failed re-mint.
-        XCTAssertEqual(sleeps.count, 1)
+        await fulfillment(of: [failed], timeout: 5)
+
+        // No inline re-mint: only the original call + the 401 call.
+        XCTAssertEqual(stub.requestCount, 2)
+        // Session was cleared, so a subsequent offers call would send no Authorization and re-mint.
+        let header = await sessionManager.authorizationHeader
+        XCTAssertNil(header)
     }
 }
