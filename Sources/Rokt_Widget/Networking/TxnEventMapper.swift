@@ -22,7 +22,7 @@ internal enum TxnEventMapper {
         return TxnEvent(
             eventType: mapped.eventType,
             instanceId: request.uuid,
-            timestamp: EventDateFormatter.epochMilliseconds(from: request.eventTime),
+            timestamp: epochMilliseconds(from: request.eventTime),
             data: buildData(
                 eventType: request.eventType,
                 attributes: request.eventData,
@@ -41,7 +41,7 @@ internal enum TxnEventMapper {
         return TxnEvent(
             eventType: mapped.eventType,
             instanceId: request.uuid,
-            timestamp: EventDateFormatter.epochMilliseconds(from: request.eventTime),
+            timestamp: epochMilliseconds(from: request.eventTime),
             data: buildData(
                 eventType: request.eventType,
                 attributes: request.attributes,
@@ -124,5 +124,16 @@ internal enum TxnEventMapper {
         for (key, value) in markers { data[key] = .string(value) }
 
         return data.isEmpty ? nil : data
+    }
+
+    // Returns nil (so the timestamp is dropped from the wire) when the capture time is
+    // missing/unparseable or non-positive. The gateway then defaults to receive-time
+    // rather than us sending a misleading value (mirrors web + Android).
+    private static func epochMilliseconds(from eventTime: String) -> Int64? {
+        guard let date = EventDateFormatter.dateFormatter.date(from: eventTime) else {
+            return nil
+        }
+        let ms = Int64(date.timeIntervalSince1970 * 1000)
+        return ms > 0 ? ms : nil
     }
 }
