@@ -18,8 +18,8 @@ class EventDateFormatter {
     }
 
     /// Parses an event-time string to epoch milliseconds, falling back to now when
-    /// unparseable. Shared by the txn-events and offers-events paths so the fallback
-    /// policy can't drift between them.
+    /// unparseable. Used by the offers real-time events path; the v2 events path
+    /// omits invalid timestamps instead (see ``TxnEventMapper``).
     static func epochMilliseconds(from eventTime: String) -> Int64 {
         if let date = dateFormatter.date(from: eventTime) {
             return Int64(date.timeIntervalSince1970 * 1000)

@@ -22,7 +22,7 @@ internal enum TxnEventMapper {
         return TxnEvent(
             eventType: mapped.eventType,
             instanceId: request.uuid,
-            timestamp: EventDateFormatter.epochMilliseconds(from: request.eventTime),
+            timestamp: epochMilliseconds(from: request.eventTime),
             data: buildData(
                 eventType: request.eventType,
                 attributes: request.eventData,
@@ -41,7 +41,7 @@ internal enum TxnEventMapper {
         return TxnEvent(
             eventType: mapped.eventType,
             instanceId: request.uuid,
-            timestamp: EventDateFormatter.epochMilliseconds(from: request.eventTime),
+            timestamp: epochMilliseconds(from: request.eventTime),
             data: buildData(
                 eventType: request.eventType,
                 attributes: request.attributes,
