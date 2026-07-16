@@ -875,15 +875,15 @@ class RoktInternalImplementation {
         isInitFailedForFont = false
         stateManager = StateBagManager()
 
-        setupFontObservers()
-
         RoktLogger.shared.debug("Starting API initialization request")
         performInit(roktTagId: roktTagId, initStartTime: initStartTime)
     }
 
-    // v2 is the only active init path; the legacy `else` is retained but inactive until v1 is removed.
+    // The transactions path is the only active one; the legacy `else` is retained but inactive until it is removed.
     private func performInit(roktTagId: String, initStartTime: Date) {
         guard Self.useTxnInit else {
+            // Legacy path: fonts gate render/init completion, so observe font load state.
+            setupFontObservers()
             RoktAPIHelper.initialize(
                 roktTagId: roktTagId,
                 success: { self.handleInitSuccess($0, initStartTime: initStartTime) },
@@ -901,7 +901,7 @@ class RoktInternalImplementation {
                 let initResponse = result.response.toInitRespose(featureFlags: result.featureFlags)
                 DispatchQueue.main.async {
                     guard self.initGeneration == generation else { return }
-                    self.handleInitSuccess(initResponse, initStartTime: initStartTime)
+                    self.handleTxnInitSuccess(initResponse, initStartTime: initStartTime)
                 }
             } catch {
                 let statusCode = Self.statusCode(from: error)
@@ -939,6 +939,43 @@ class RoktInternalImplementation {
             if let eventListener = self.roktEventMap[Self.defaultRoktInitEvent] {
                 eventListener?(RoktEvent.InitComplete(success: success))
             }
+        }
+    }
+
+    // Transactions init completion: init completes on config; fonts load off the
+    // critical path (never block/fail init). No font observers on this path.
+    private func handleTxnInitSuccess(_ initResponse: InitRespose, initStartTime: Date) {
+        RoktLogger.shared.info("API initialization succeeded")
+        self.isInitialized = true
+        self.initFeatureFlags = initResponse.featureFlags
+
+        self.processedTimingsRequests = TimingsRequestProcessor()
+        self.processedTimingsRequests?.setInitStartTime(initStartTime)
+
+        self.clientTimeoutMilliseconds = initResponse.timeout != 0 ?
+        initResponse.timeout : self.clientTimeoutMilliseconds
+        self.defaultLaunchDelayMilliseconds = initResponse.delay != 0 ?
+        initResponse.delay : self.defaultLaunchDelayMilliseconds
+        if let clientSessionTimeoutMilliseconds = initResponse.clientSessionTimeout {
+            self.sessionManager.currentSessionDurationSeconds = clientSessionTimeoutMilliseconds/1000
+        }
+        NetworkingHelper.updateTimeout(timeout: self.clientTimeoutMilliseconds/1000)
+        self.processedTimingsRequests?.setInitEndTime()
+
+        RoktLogger.shared.info("Initialization complete - success: \(self.isInitialized)")
+        if let eventListener = self.roktEventMap[Self.defaultRoktInitEvent] {
+            eventListener?(RoktEvent.InitComplete(success: self.isInitialized))
+        }
+
+        // Replay any execute that arrived before init finished.
+        if let page = pendingPayload {
+            showNow(payload: page)
+        }
+
+        let initFonts = initResponse.fonts
+        FontManager.removeUnusedFonts(fonts: initFonts)
+        RoktAPIHelper.downloadFonts(initFonts) {
+            RoktLogger.shared.debug("Font download complete")
         }
     }
 
