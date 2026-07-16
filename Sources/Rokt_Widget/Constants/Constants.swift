@@ -39,9 +39,3 @@ let validationDiagnosticCode = "[VALIDATION]"
 // MARK: - Network
 
 let maxRetries = 3
-
-// MARK: - Header to switch between Placement and DCUI
-
-let experienceTypeHeader = "rokt-experience-type"
-let placementsValue = "placements"
-let layoutsValue = "layouts"

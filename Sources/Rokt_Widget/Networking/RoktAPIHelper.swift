@@ -4,31 +4,12 @@ internal import RoktUXHelper
 
 /// Helper class to request and process Rokt api response details
 internal class RoktAPIHelper {
-    private static let viewNameKey = "pageIdentifier"
     private static let errorAdditionalKey = "additionalInformation"
     private static let errorSessionIdKey = "sessionId"
     private static let errorCampaignIdKey = "campaignId"
     static let errorCodeDiagnosticKey = "code"
     static let errorStackTraceDiagnosticKey = "stackTrace"
     static let errorSeverityDiagnosticKey = "severity"
-    private static let privacyControlKey = "privacyControl"
-
-    /// Rokt initialize API call
-    ///
-    /// - Parameters:
-    ///   - roktTagId: The tag id provided by Rokt, associated with the client's account
-    ///   - success: Function to execute after a successfull call to the API.
-    ///              Returns timeout, delay, session timeout and fonts
-    ///   - failure: Function to execute after an unseccessfull call to the API
-    class func initialize(roktTagId: String,
-                          success: ((InitRespose) -> Void)? = nil,
-                          failure: ((Error, Int?, String) -> Void)? = nil) {
-        if isMock() {
-            RoktMockAPI.initialize(roktTagId: roktTagId, success: success, failure: failure)
-        } else {
-            RoktNetWorkAPI.initialize(roktTagId: roktTagId, success: success, failure: failure)
-        }
-    }
 
     /// Rokt donwload fonts API call
     ///
@@ -37,78 +18,6 @@ internal class RoktAPIHelper {
     ///   - onFontDownloadComplete - Callback to notify when the font download finishes
     class func downloadFonts(_ fonts: [FontModel], _ onFontDownloadComplete: @escaping () -> Void) {
         FontManager.downloadFonts(fonts, onFontDownloadComplete)
-    }
-
-    /// Rokt Placement API call
-    ///
-    /// - Parameters:
-    ///   - viewName: The name that should be displayed in the widget
-    ///   - attributes: A string dictionary containing the parameters that should be displayed in the widget
-    ///   - roktTagId: The tag id provided by Rokt, associated with the client's account
-    ///   - selectionId: The selection id for the request
-    ///   - successPlacement: Function to execute after a successfull PLACEMENT call to the API
-    ///   - successLayout: Function to execute after a successfull LAYOUTS call to the API
-    ///   - failure: Function to execute after an unseccessfull call to the API
-    class func getExperienceData(viewName: String?,
-                                 attributes: [String: String],
-                                 roktTagId: String,
-                                 selectionId: String,
-                                 trackingConsent: UInt?,
-                                 config: RoktConfig?,
-                                 onRequestStart: (() -> Void)?,
-                                 successLayout: ((String?) -> Void)? = nil,
-                                 failure: ((Error, Int?, String) -> Void)? = nil) {
-        // extract the privacy KVPs BEFORE sanitising `attributes`
-        let privacyControlPayload = getPrivacyControlPayload(attributes: attributes)
-        let sanitisedAttributes = removePrivacyControlAttributes(attributes: attributes)
-
-        // extract the pageInit timestamp, if available
-        if let pageInitAttr = getPageInitData(attributes: attributes),
-           let validPageInitTime = Rokt.shared.roktImplementation.processedTimingsRequests?.getValidPageInitTime(
-               selectionId: selectionId,
-               timeAsString: pageInitAttr
-           ) {
-            Rokt.shared.roktImplementation.processedTimingsRequests?.setPageInitTime(
-                selectionId: selectionId,
-                time: validPageInitTime
-            )
-        }
-
-        let enrichedAttributes = AttributeEnrichment.shared.enrich(attributes: sanitisedAttributes, config: config)
-
-        var params: [String: Any] = [
-            attributesKey: enrichedAttributes
-        ]
-
-        if let vName = viewName {
-            params[viewNameKey] = vName
-        }
-
-        if !privacyControlPayload.isEmpty {
-            params[privacyControlKey] = privacyControlPayload
-        }
-
-        if isMock() {
-            RoktMockAPI.getExperienceData(
-                params: params,
-                roktTagId: roktTagId,
-                trackingConsent: trackingConsent,
-                pageIdentifier: viewName,
-                onRequestStart: onRequestStart,
-                successLayout: successLayout,
-                failure: failure
-            )
-        } else {
-            RoktNetWorkAPI.getExperienceData(
-                params: params,
-                roktTagId: roktTagId,
-                trackingConsent: trackingConsent,
-                pageIdentifier: viewName,
-                onRequestStart: onRequestStart,
-                successLayout: successLayout,
-                failure: failure
-            )
-        }
     }
 
     /// Rokt event API call
