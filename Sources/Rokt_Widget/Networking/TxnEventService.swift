@@ -5,6 +5,8 @@ internal struct TxnEventService {
     // several requests instead of one oversized payload.
     static let maxEventsPerBatch = 25
 
+    static let unauthorizedDiagnosticCode = "[TXN_EVENTS_401]"
+
     enum TxnEventError: Error, Equatable {
         case invalidBaseURL
         case unexpectedStatusCode(Int)
@@ -77,6 +79,21 @@ internal struct TxnEventService {
                     try await sleep(backoffDelay(attempt: attempt))
                     attempt += 1
                     continue
+                }
+
+                // A 401 here means a forged/corrupted token (invalid_signature, invalid_issuer,
+                // etc.) — the recoverable `expired`/`unknown_kid` cases return 200 with a fresh
+                // token bound to the same session id, handled by the success path below. These 401s
+                // are exceptional and not recoverable (re-minting would attach the events to a new,
+                // unlinked session), so drop the batch, clear the bad session, and diagnose.
+                if statusCode == HTTPStatusCode.unauthorized.rawValue {
+                    RoktLogger.shared.error("Events returned 401; dropping session and \(events.count) event(s)")
+                    RoktAPIHelper.sendDiagnostics(
+                        message: Self.unauthorizedDiagnosticCode,
+                        callStack: "Dropped \(events.count) event(s) after 401 on /v2/sessions/events"
+                    )
+                    await sessionManager.clear()
+                    throw TxnEventError.unexpectedStatusCode(statusCode)
                 }
 
                 guard (200..<300).contains(statusCode) else {

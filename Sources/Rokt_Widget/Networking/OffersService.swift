@@ -124,30 +124,25 @@ internal struct OffersService {
 
         httpClient.updateTimeout(timeout: requestTimeout)
 
+        // One request identity and page-instance guid per placement, stable across 5xx retries.
+        let pageInstanceGuid = makePageInstanceGuid()
+        let requestId = makeRequestId()
+
         let authToken = await sessionManager.authorizationHeader
-        let client = OffersClient(
-            baseURL: baseURL,
-            accountId: accountId,
-            authToken: authToken,
-            sdkVersion: sdkVersion,
-            layoutSchemaVersion: layoutSchemaVersion,
-            pageInstanceGuid: makePageInstanceGuid(),
-            deviceHeaders: deviceHeaders,
-            httpClient: httpClient
-        )
+        let client = makeOffersClient(baseURL: baseURL, pageInstanceGuid: pageInstanceGuid, authToken: authToken)
         // Forward events triggered during the previous placement; read once, before retries,
         // and only with a live session to attribute them to (matching Android). As on the v1
         // path, triggered events are not cleared after forwarding — they ride subsequent
         // requests until session invalidation; re-send is expected (the "only adds, no clear"
         // note elsewhere is about the untriggered response-capture, not this read).
         let forwardedEvents = authToken != nil ? SelectEventMapper.requestEvents(from: triggeredEvents()) : []
-        let input = OffersInput(
-            requestId: makeRequestId(),
+        let input = makeOffersInput(
+            requestId: requestId,
             pageIdentifier: pageIdentifier,
             attributes: attributes,
             privacyControl: privacyControl,
             privacy: privacy,
-            events: forwardedEvents.isEmpty ? nil : forwardedEvents
+            forwardedEvents: forwardedEvents
         )
 
         var attempt = 0
@@ -155,6 +150,17 @@ internal struct OffersService {
             do {
                 let (data, response) = try await client.fetchOffers(input: input)
                 let statusCode = response?.statusCode ?? 0
+
+                // A 401 from offers is not expected — the gateway mints a fresh session even
+                // without a token. Defensive handling: if it happens, drop the stored session so
+                // the next offers call starts clean, and surface the failure for this placement.
+                if statusCode == HTTPStatusCode.unauthorized.rawValue {
+                    RoktLogger.shared.error(
+                        "Offers returned 401 (unexpected); dropping session so the next offers call re-mints"
+                    )
+                    await sessionManager.clear()
+                    throw OffersError.unexpectedStatusCode(statusCode)
+                }
 
                 if isRetryable(statusCode: statusCode), attempt < maxRetries {
                     try await sleep(backoffDelay(attempt: attempt))
@@ -183,6 +189,37 @@ internal struct OffersService {
                 continue
             }
         }
+    }
+
+    private func makeOffersClient(baseURL: URL, pageInstanceGuid: String, authToken: String?) -> OffersClient {
+        OffersClient(
+            baseURL: baseURL,
+            accountId: accountId,
+            authToken: authToken,
+            sdkVersion: sdkVersion,
+            layoutSchemaVersion: layoutSchemaVersion,
+            pageInstanceGuid: pageInstanceGuid,
+            deviceHeaders: deviceHeaders,
+            httpClient: httpClient
+        )
+    }
+
+    private func makeOffersInput(
+        requestId: String,
+        pageIdentifier: String,
+        attributes: [String: String],
+        privacyControl: SelectPrivacyControl?,
+        privacy: SelectPrivacy?,
+        forwardedEvents: [SelectEvent]
+    ) -> OffersInput {
+        OffersInput(
+            requestId: requestId,
+            pageIdentifier: pageIdentifier,
+            attributes: attributes,
+            privacyControl: privacyControl,
+            privacy: privacy,
+            events: forwardedEvents.isEmpty ? nil : forwardedEvents
+        )
     }
 
     // Both builders read the same parsed payload; getExperienceData computes it once.
