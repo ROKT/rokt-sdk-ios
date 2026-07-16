@@ -38,7 +38,8 @@ final class TestTxnEventMapper: XCTestCase {
             (.SignalUserInteraction, "user_interaction"),
             (.SignalCartItemInstantPurchaseInitiated, "cart_item_instant_purchase_initiated"),
             (.SignalCartItemInstantPurchase, "cart_item_instant_purchase"),
-            (.SignalCartItemInstantPurchaseFailure, "cart_item_instant_purchase_failure")
+            (.SignalCartItemInstantPurchaseFailure, "cart_item_instant_purchase_failure"),
+            (.SignalInstantPurchaseDismissal, "instant_purchase_dismissal")
         ]
 
         for (eventType, expected) in cases {
@@ -61,9 +62,14 @@ final class TestTxnEventMapper: XCTestCase {
         XCTAssertEqual(event?.data?["interactionType"], .string("activation"))
     }
 
-    func test_diagnosticAndInstantPurchaseDismissal_areDropped() {
+    func test_diagnostic_isDropped() {
         XCTAssertNil(TxnEventMapper.event(from: makeRequest(eventType: .SignalSdkDiagnostic)))
-        XCTAssertNil(TxnEventMapper.event(from: makeRequest(eventType: .SignalInstantPurchaseDismissal)))
+    }
+
+    func test_instantPurchaseDismissal_mapsToInstantPurchaseDismissal() {
+        let event = TxnEventMapper.event(from: makeRequest(eventType: .SignalInstantPurchaseDismissal))
+
+        XCTAssertEqual(event?.eventType, "instant_purchase_dismissal")
     }
 
     func test_instanceIdAndTimestampAreCarried() {

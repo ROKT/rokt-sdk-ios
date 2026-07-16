@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'Rokt-Widget'
-  s.version          = '5.2.2'
+  s.version          = '5.2.6'
   s.summary          = 'Rokt Mobile SDK for iOS'
   s.swift_version    = '5.9'
 
@@ -20,5 +20,5 @@ Pod::Spec.new do |s|
   s.frameworks       = 'Foundation', 'UIKit', 'SwiftUI', 'Combine'
 
   s.dependency 'RoktContracts', '>= 2.0.2', '< 3.0'
-  s.dependency 'RoktUXHelper', '>= 0.10.12', '< 1.0'
+  s.dependency 'RoktUXHelper', '>= 0.13.0', '< 1.0'
 end

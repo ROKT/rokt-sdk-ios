@@ -69,9 +69,9 @@ final class PaymentOrchestrator {
         let completion: (PaymentSheetResult) -> Void
     }
 
-    /// Card Step-1 cache: just the deferred completion. Step-2 dispatch lives in
-    /// ``RoktInternalImplementation.handleForwardPayment`` (POST `/v1/cart/purchase`); the
-    /// orchestrator only holds the completion so it can fire alongside ``forwardPaymentFinalized``.
+    /// Card Step-1 cache: just the deferred completion. Forward-payment cart purchase (POST `/v1/cart/purchase`)
+    /// runs in ``ForwardPaymentCartPurchaseCoordinator`` via ``RoktInternalImplementation.handleForwardPayment``;
+    /// the orchestrator only holds the completion so it can fire alongside ``forwardPaymentFinalized``.
     private struct PendingBuiltInCardCheckout {
         weak var owner: PaymentOrchestrator?
         let completion: (PaymentSheetResult) -> Void
@@ -79,7 +79,10 @@ final class PaymentOrchestrator {
 
     private enum PendingBuiltInTwoStepCheckout {
         case paypal(PendingBuiltInPayPalWebCheckout)
+        /// Card confirm is shown; buyer has not yet started `/v1/cart/purchase` for this session.
         case card(PendingBuiltInCardCheckout)
+        /// Forward-payment cart purchase POST (built-in two-step) is in flight; same snapshot as ``card`` until terminal or retryable restore.
+        case cardInFlight(PendingBuiltInCardCheckout)
     }
 
     private static var pendingBuiltInTwoStepCheckout: PendingBuiltInTwoStepCheckout?
@@ -370,6 +373,11 @@ final class PaymentOrchestrator {
     /// backend webhook finalizes the purchase from the PayPal redirect; the SDK only needs
     /// to surface success/cancel/failure to the UXHelper.
     ///
+    /// If the buyer cancels the hosted step (Safari dismissed or cancel deep link), the SDK
+    /// does **not** invoke `onCompletion` or the deferred Step-1 `completion`; it re-queues the
+    /// same pending checkout so the confirmation UI can stay up and ``presentPendingBuiltInPayPalForForwardPayment``
+    /// can run again.
+    ///
     /// - Parameter onCompletion: called on the main queue with the coordinator outcome.
     /// - Returns: `true` when a pending PayPal checkout existed and was presented; `false`
     ///   when the caller should fall through to the non-PayPal `/v1/cart/purchase` flow.
@@ -378,7 +386,7 @@ final class PaymentOrchestrator {
         onCompletion: @escaping (PaymentSheetResult) -> Void
     ) -> Bool {
         Self.pendingBuiltInTwoStepLock.lock()
-        // Only consume PayPal entries; leave a card entry intact for ``popPendingBuiltInCardCompletion``.
+        // Only consume PayPal entries; leave built-in card entries (``card`` / ``cardInFlight``) intact.
         guard case let .paypal(snapshot) = Self.pendingBuiltInTwoStepCheckout,
               snapshot.owner === self
         else {
@@ -410,6 +418,18 @@ final class PaymentOrchestrator {
                 cancelURLString: snapshot.cancelURLString,
                 completion: { [weak self] result in
                     self?.activePayPalCheckout = nil
+                    if result.outcome == .canceled {
+                        if let self {
+                            Self.requeuePendingBuiltInPayPalAfterForwardPaymentCancel(
+                                snapshot: snapshot,
+                                owner: self
+                            )
+                        } else {
+                            snapshot.completion(result)
+                            onCompletion(result)
+                        }
+                        return
+                    }
                     snapshot.completion(result)
                     onCompletion(result)
                 }
@@ -424,6 +444,23 @@ final class PaymentOrchestrator {
         return true
     }
 
+    private static func requeuePendingBuiltInPayPalAfterForwardPaymentCancel(
+        snapshot: PendingBuiltInPayPalWebCheckout,
+        owner: PaymentOrchestrator
+    ) {
+        let restored = PendingBuiltInPayPalWebCheckout(
+            owner: owner,
+            approvalURL: snapshot.approvalURL,
+            returnURLString: snapshot.returnURLString,
+            cancelURLString: snapshot.cancelURLString,
+            presentingViewController: snapshot.presentingViewController,
+            completion: snapshot.completion
+        )
+        pendingBuiltInTwoStepLock.lock()
+        pendingBuiltInTwoStepCheckout = .paypal(restored)
+        pendingBuiltInTwoStepLock.unlock()
+    }
+
     /// Called when forward-payment fails or cannot run, so a deferred two-step session does not leak.
     /// Fires the cached completion with a provider-appropriate cancellation message.
     func cancelPendingBuiltInTwoStepIfNeeded() {
@@ -436,7 +473,7 @@ final class PaymentOrchestrator {
             switch snapshot {
             case .paypal(let pending):
                 pending.completion(.failed(error: "PayPal checkout was canceled."))
-            case .card(let pending):
+            case .card(let pending), .cardInFlight(let pending):
                 pending.completion(.failed(error: "Card checkout was canceled."))
             }
         }
@@ -444,13 +481,13 @@ final class PaymentOrchestrator {
 
     // MARK: - Built-in Card forwarding (no PaymentExtension)
 
-    /// Entry point for Card device-pay (Step-1 of the two-step Card forward-payment flow).
+    /// Entry point for Card device-pay (Step-1 of the two-step card forwarding flow).
     ///
     /// Runs the same cart ``initializePurchase`` preparation as PayPal but without return/cancel URLs
     /// (no hosted approval step). Passes `paymentMethodType` / `paymentProvider` as `Card` / `Card`.
     /// After cart prepare, triggers ``RoktUX/devicePayShowConfirmation`` so the layout transitions
     /// to the Step-2 confirm button, and caches `completion` so it can fire alongside
-    /// ``forwardPaymentFinalized`` once ``handleForwardPayment`` posts to `/v1/cart/purchase`.
+    /// ``forwardPaymentFinalized`` once card forwarding completes in ``handleForwardPayment``.
     private func processBuiltInCardPayment(
         item: PaymentItem,
         context: PaymentContext,
@@ -485,16 +522,13 @@ final class PaymentOrchestrator {
         }
     }
 
-    /// Card-only forward-payment hook: pop the cached Step-1 completion so the caller can
-    /// fire it after `/v1/cart/purchase` resolves.
+    /// Begins a built-in card forwarding cart purchase attempt: moves ``card`` → ``cardInFlight`` and returns
+    /// the Step-1 completion to invoke only after a **terminal** `/v1/cart/purchase` outcome.
     ///
-    /// Card has no orchestrator-driven Step-2 (no WebView). ``handleForwardPayment`` runs the
-    /// standard `/v1/cart/purchase` path; this method just hands back the deferred completion
-    /// so device-pay finalization can chain off the same response.
-    ///
-    /// - Returns: the cached completion when the pending checkout was a card flow owned by
-    ///   this orchestrator; `nil` otherwise (so PayPal entries are left intact).
-    func popPendingBuiltInCardCompletion() -> ((PaymentSheetResult) -> Void)? {
+    /// - Returns: the deferred Step-1 completion when state was ``card`` for this orchestrator;
+    ///   `nil` if there is no card session, PayPal is cached instead, or a card attempt is already
+    ///   ``cardInFlight`` for this owner (avoid duplicate POSTs).
+    func beginBuiltInCardForwardPaymentIfReady() -> ((PaymentSheetResult) -> Void)? {
         Self.pendingBuiltInTwoStepLock.lock()
         defer { Self.pendingBuiltInTwoStepLock.unlock() }
         guard case let .card(snapshot) = Self.pendingBuiltInTwoStepCheckout,
@@ -502,8 +536,48 @@ final class PaymentOrchestrator {
         else {
             return nil
         }
-        Self.pendingBuiltInTwoStepCheckout = nil
+        Self.pendingBuiltInTwoStepCheckout = .cardInFlight(snapshot)
         return snapshot.completion
+    }
+
+    /// `true` when built-in card forwarding has begun (``cardInFlight``) for this orchestrator.
+    func isBuiltInCardForwardPaymentInFlight() -> Bool {
+        Self.pendingBuiltInTwoStepLock.lock()
+        defer { Self.pendingBuiltInTwoStepLock.unlock() }
+        guard case let .cardInFlight(snapshot) = Self.pendingBuiltInTwoStepCheckout else {
+            return false
+        }
+        return snapshot.owner === self
+    }
+
+    /// After a retryable card forwarding `/v1/cart/purchase` failure, move ``cardInFlight`` back to ``card`` so the
+    /// buyer can tap confirm again without re-running Step-1 ``initializePurchase``.
+    func restoreBuiltInCardForwardPaymentAfterRetryableFailure() {
+        Self.pendingBuiltInTwoStepLock.lock()
+        defer { Self.pendingBuiltInTwoStepLock.unlock() }
+        guard case let .cardInFlight(snapshot) = Self.pendingBuiltInTwoStepCheckout,
+              snapshot.owner === self
+        else {
+            return
+        }
+        Self.pendingBuiltInTwoStepCheckout = .card(snapshot)
+    }
+
+    /// Ends a built-in card forwarding attempt: clears ``cardInFlight`` and delivers ``result`` to the
+    /// Step-1 ``processPayment`` completion on the main queue.
+    func finishBuiltInCardForwardPaymentAttempt(result: PaymentSheetResult) {
+        var completion: ((PaymentSheetResult) -> Void)?
+        Self.pendingBuiltInTwoStepLock.lock()
+        if case let .cardInFlight(snapshot) = Self.pendingBuiltInTwoStepCheckout,
+           snapshot.owner === self {
+            completion = snapshot.completion
+            Self.pendingBuiltInTwoStepCheckout = nil
+        }
+        Self.pendingBuiltInTwoStepLock.unlock()
+        guard let completion else { return }
+        DispatchQueue.main.async {
+            completion(result)
+        }
     }
 
     // Clears static deferred state without invoking a completion (unit tests).
@@ -512,6 +586,17 @@ final class PaymentOrchestrator {
         pendingBuiltInTwoStepLock.lock()
         pendingBuiltInTwoStepCheckout = nil
         pendingBuiltInTwoStepLock.unlock()
+    }
+
+    // Unit test hook: installs deferred built-in card Step-1 without calling `initializePurchase`.
+    // Use the same `PaymentOrchestrator` instance as production when exercising `handleForwardPayment`
+    // together with `beginBuiltInCardForwardPaymentIfReady`.
+    // periphery:ignore
+    internal func unitTest_seedDeferredBuiltInCardForwardPayment(completion: @escaping (PaymentSheetResult) -> Void) {
+        let pending = PendingBuiltInCardCheckout(owner: self, completion: completion)
+        Self.pendingBuiltInTwoStepLock.lock()
+        Self.pendingBuiltInTwoStepCheckout = .card(pending)
+        Self.pendingBuiltInTwoStepLock.unlock()
     }
 
     private static func clearPendingBuiltInTwoStepStateUnderLock() {

@@ -64,7 +64,7 @@ internal actor TxnSessionManager {
         persist(includeSessionId: true)
     }
 
-    // Token-only refresh for offers/events responses, keeping the session id.
+    // Token-only refresh for events responses (they carry no session id), keeping the session id.
     func update(sessionToken: TxnSessionToken) {
         token = sessionToken.token
         expiresAt = sessionToken.expiresAtDate
@@ -108,11 +108,12 @@ internal actor TxnSessionManager {
 
     private func persist(includeSessionId: Bool) {
         guard let store, let roktTagId else { return }
-        if includeSessionId {
-            store.setString(roktTagId, forKey: Keys.tagId)
-            if let sessionId {
-                store.setString(sessionId, forKey: Keys.sessionId)
-            }
+        // Always record the tag-id binding: restoreFromStore treats a missing/mismatched
+        // tag id as another account's data and clears the session, so a token persisted
+        // without it would never survive a reload.
+        store.setString(roktTagId, forKey: Keys.tagId)
+        if includeSessionId, let sessionId {
+            store.setString(sessionId, forKey: Keys.sessionId)
         }
         if let token {
             store.setString(token, forKey: Keys.token)

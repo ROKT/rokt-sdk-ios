@@ -14,6 +14,7 @@ internal struct OffersService {
     let environment: Environment
     let accountId: String
     let sdkVersion: String
+    let layoutSchemaVersion: String
     let sessionManager: TxnSessionManager
     let httpClient: HTTPClientAdapter
     let attributeEnrichment: AttributeEnrichment
@@ -35,6 +36,7 @@ internal struct OffersService {
         environment: Environment,
         accountId: String,
         sdkVersion: String,
+        layoutSchemaVersion: String,
         sessionManager: TxnSessionManager,
         httpClient: HTTPClientAdapter = RoktHTTPClient(),
         attributeEnrichment: AttributeEnrichment = .shared,
@@ -58,6 +60,7 @@ internal struct OffersService {
         self.environment = environment
         self.accountId = accountId
         self.sdkVersion = sdkVersion
+        self.layoutSchemaVersion = layoutSchemaVersion
         self.sessionManager = sessionManager
         self.httpClient = httpClient
         self.attributeEnrichment = attributeEnrichment
@@ -127,6 +130,7 @@ internal struct OffersService {
             accountId: accountId,
             authToken: authToken,
             sdkVersion: sdkVersion,
+            layoutSchemaVersion: layoutSchemaVersion,
             pageInstanceGuid: makePageInstanceGuid(),
             deviceHeaders: deviceHeaders,
             httpClient: httpClient
@@ -166,8 +170,8 @@ internal struct OffersService {
                 }
 
                 let decoded = try JSONDecoder().decode(SelectResponse.self, from: data)
-                // Roll the refreshed token forward for the next offers/events call.
-                await sessionManager.update(sessionToken: decoded.sessionToken)
+                // Roll the session id and refreshed token forward for the next offers/events call.
+                await sessionManager.update(sessionId: decoded.sessionId, sessionToken: decoded.sessionToken)
                 // Capture the echoed events so the next placement can forward them back.
                 if let eventData = decoded.eventData {
                     captureEvents(SelectEventMapper.untriggeredEvents(from: eventData))

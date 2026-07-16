@@ -71,6 +71,10 @@ internal enum TxnEventMapper {
         case .SignalCartItemInstantPurchaseInitiated: return MappedType("cart_item_instant_purchase_initiated")
         case .SignalCartItemInstantPurchase: return MappedType("cart_item_instant_purchase")
         case .SignalCartItemInstantPurchaseFailure: return MappedType("cart_item_instant_purchase_failure")
+        case .SignalInstantPurchaseDismissal: return MappedType("instant_purchase_dismissal")
+        // NOTE: a `time_on_site` wire type also exists, but there is no corresponding
+        // case in RoktUXEventType in the pinned RoktUXHelper dependency, so it cannot
+        // be handled here yet. See PR notes.
         default: return nil
         }
     }

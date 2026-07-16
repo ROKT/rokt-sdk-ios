@@ -25,6 +25,12 @@ class TestFontManager: XCTestCase {
 
     override func tearDown() {
         XCTestCase.deleteAllTestFiles()
+        Rokt.shared.roktImplementation.initFeatureFlags = InitFeatureFlags(
+            roktTrackingStatus: true,
+            shouldLogFontHappyPath: false,
+            shouldUseFontRegisterWithUrl: false,
+            featureFlags: [:]
+        )
 
         super.tearDown()
     }
@@ -75,8 +81,8 @@ class TestFontManager: XCTestCase {
     }
 
     func test_getFileURL_returnsMappedURL() throws {
-        let documentsUrl = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let expectedURL = documentsUrl.appendingPathComponent("test.ttf")
+        let cacheDirectoryUrl = try XCTUnwrap(FontRepository.getCacheDirectoryUrl())
+        let expectedURL = cacheDirectoryUrl.appendingPathComponent("test.ttf")
 
         let url = try XCTUnwrap(FontManager.getFileUrl(name: "test"))
 
@@ -130,6 +136,113 @@ class TestFontManager: XCTestCase {
         let font = FontModel(name: "some other font", url: "")
 
         XCTAssertFalse(FontManager.isSystemFont(font: font))
+    }
+
+    func test_isFontFileExist_returnsFalseWhenFileMissing() {
+        XCTAssertFalse(FontManager.isFontFileExist(name: "missing-font-file"))
+    }
+
+    func test_isFontFileExist_returnsTrueWhenFileExists() throws {
+        try XCTestCase.writeFontFileToCache(named: "cached-font-file")
+
+        XCTAssertTrue(FontManager.isFontFileExist(name: "cached-font-file"))
+    }
+
+    func test_isDownloadingFontRequired_withValidCachedFont_returnsFalse() throws {
+        let font = FontModel(name: "cached-font", url: "https://font.test/cached.ttf")
+        let saveExpectation = expectation(description: "save font details")
+
+        FontRepository.saveFontDetail(
+            key: font.url,
+            values: [
+                FontManager.keyName: "cached-font",
+                FontManager.keyTimestamp: "\(Date().timeIntervalSince1970)"
+            ]
+        ) {
+            saveExpectation.fulfill()
+        }
+
+        waitForExpectations(timeout: 15)
+        try XCTestCase.writeFontFileToCache(named: "cached-font")
+
+        XCTAssertFalse(FontManager.isDownloadingFontRequired(font: font))
+    }
+
+    func test_isDownloadingFontRequired_withExpiredCacheAndTemporaryFlag_returnsTrue() throws {
+        Rokt.shared.roktImplementation.initFeatureFlags = InitFeatureFlags(
+            featureFlags: ["mobile-sdk-use-temporary-font-cache": FeatureFlagItem(match: true)]
+        )
+
+        let font = FontModel(name: "expired-font", url: "https://font.test/expired.ttf")
+        let expiredTimestamp = Calendar.current.date(byAdding: .day, value: -10, to: Date())!.timeIntervalSince1970
+        let saveExpectation = expectation(description: "save font details")
+
+        FontRepository.saveFontDetail(
+            key: font.url,
+            values: [
+                FontManager.keyName: "expired-font",
+                FontManager.keyTimestamp: "\(expiredTimestamp)"
+            ]
+        ) {
+            saveExpectation.fulfill()
+        }
+
+        waitForExpectations(timeout: 15)
+        try XCTestCase.writeFontFileToCache(named: "expired-font")
+
+        XCTAssertTrue(FontManager.isDownloadingFontRequired(font: font))
+    }
+
+    func test_removeUnusedFonts_removesFontsNotInProvidedList() throws {
+        let keepFont = FontModel(name: "keep-font", url: "https://font.test/keep.ttf")
+        let removeFont = FontModel(name: "remove-font", url: "https://font.test/remove.ttf")
+
+        let saveKeepExpectation = expectation(description: "save keep url")
+        let saveRemoveExpectation = expectation(description: "save remove url")
+        let saveRemoveDetailExpectation = expectation(description: "save remove detail")
+
+        FontRepository.saveFontUrl(key: keepFont.url) {
+            saveKeepExpectation.fulfill()
+        }
+        FontRepository.saveFontUrl(key: removeFont.url) {
+            saveRemoveExpectation.fulfill()
+        }
+        FontRepository.saveFontDetail(
+            key: removeFont.url,
+            values: [
+                FontManager.keyName: "remove-font",
+                FontManager.keyTimestamp: "\(Date().timeIntervalSince1970)"
+            ]
+        ) {
+            saveRemoveDetailExpectation.fulfill()
+        }
+
+        waitForExpectations(timeout: 15)
+        try XCTestCase.writeFontFileToCache(named: "remove-font")
+
+        FontManager.removeUnusedFonts(fonts: [keepFont])
+
+        let waitExpectation = expectation(description: "wait for async cleanup")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            waitExpectation.fulfill()
+        }
+        waitForExpectations(timeout: 2)
+
+        let remainingURLs = try XCTUnwrap(FontRepository.loadAllFontURLs())
+
+        XCTAssertEqual(remainingURLs, [keepFont.url])
+        XCTAssertNil(FontRepository.loadFontDetail(key: removeFont.url))
+        XCTAssertFalse(FontManager.isFontFileExist(name: "remove-font"))
+    }
+
+    func test_reRegisterFonts_withNoPendingFonts_callsCompletion() {
+        let expectation = expectation(description: "reRegisterFonts completion")
+
+        FontManager.reRegisterFonts {
+            expectation.fulfill()
+        }
+
+        waitForExpectations(timeout: 1)
     }
 
     func test_downloadFonts_should_call_onFontDownloadComplete_when_fonts_are_empty() {

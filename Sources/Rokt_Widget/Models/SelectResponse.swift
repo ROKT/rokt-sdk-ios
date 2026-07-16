@@ -230,8 +230,8 @@ internal struct SelectLayoutVariant: Decodable, Equatable {
 internal struct SelectOffer: Decodable, Equatable {
     let campaignId: String?
     let creative: SelectCreative?
-    // Shoppable-ad catalog items; surfacing them to the render models is
-    // deferred to the mapper in a follow-up.
+    // Shoppable-ad catalog items, mapped to the renderer via `RenderCatalogItem`
+    // (see RenderExperience) so instant-purchase layouts render their content.
     let catalogItems: [SelectCatalogItem]?
 
     enum CodingKeys: String, CodingKey {

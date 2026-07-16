@@ -108,6 +108,7 @@ final class TestOffersService: XCTestCase {
             environment: .Prod,
             accountId: "account-1",
             sdkVersion: "1.0.0",
+            layoutSchemaVersion: "2.8",
             sessionManager: sessionManager,
             httpClient: stub,
             deviceHeaders: deviceHeaders,
@@ -134,9 +135,11 @@ final class TestOffersService: XCTestCase {
         })
 
         await fulfillment(of: [completed], timeout: 5)
-        // The refreshed token is rolled forward for the next call.
+        // The session id and refreshed token are rolled forward for the next call.
         let header = await sessionManager.authorizationHeader
+        let sessionId = await sessionManager.currentSessionId
         XCTAssertEqual(header, "Bearer rolled-token")
+        XCTAssertEqual(sessionId, "session-1")
     }
 
     func test_getExperienceData_retriesRetryableStatusThenSucceeds() {
@@ -397,6 +400,7 @@ final class TestOffersService: XCTestCase {
             environment: .Prod,
             accountId: "account-1",
             sdkVersion: "1.0.0",
+            layoutSchemaVersion: "2.8",
             sessionManager: TxnSessionManager(),
             httpClient: stub,
             maxRetries: 1,

@@ -10,10 +10,12 @@ class ConcurrentQueueFileStorageDecorator: FileStorage {
     }
 
     // WRITES should be asynchronous and use a `barrier`
-    func write<T: Encodable>(payload: T,
-                             to fileURL: URL,
-                             options: [RoktDownloadOptions]? = nil,
-                             completion: ((Result<Void, Error>) -> Void)?) {
+    func write<T: Encodable>(
+        payload: T,
+        to fileURL: URL,
+        options: [RoktDownloadOptions]? = nil,
+        completion: ((Result<Void, Error>) -> Void)?
+    ) {
         concurrentQueue.async(flags: .barrier) { [weak self] in
             self?.decoratee.write(payload: payload, to: fileURL, options: options, completion: completion)
         }
@@ -63,7 +65,12 @@ class ConcurrentQueueFileStorageDecorator: FileStorage {
             let newValue = transform(currentValue)
 
             // Write back
-            self.decoratee.write(payload: newValue, to: url, options: nil, completion: completion)
+            self.decoratee.write(
+                payload: newValue,
+                to: url,
+                options: [.createIntermediateDirectories],
+                completion: completion
+            )
         }
     }
 }

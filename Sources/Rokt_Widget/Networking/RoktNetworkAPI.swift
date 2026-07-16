@@ -10,6 +10,7 @@ var experiencesResourceURL: String { "\(baseURL)/\(mobileAPIPathPrefix)/v1/exper
 var eventResourceURL: String { "\(baseURL)/\(mobileAPIPathPrefix)/v2/events" }
 var diagnosticsResourceURL: String { "\(baseURL)/\(mobileAPIPathPrefix)/v1/diagnostics" }
 var timingsResourceURL: String { "\(baseURL)/\(mobileAPIPathPrefix)/v1/timings" }
+var timingsEventsResourceURL: String { "\(baseURL)/\(mobileAPIPathPrefix)/v1/timings/events" }
 var initializePurchaseResourceURL: String { "\(baseURL)/\(mobileAPIPathPrefix)/v1/cart/initialize-purchase" }
 var purchaseResourceURL: String { "\(baseURL)/\(mobileAPIPathPrefix)/v1/cart/purchase" }
 
@@ -175,7 +176,7 @@ internal class RoktNetWorkAPI {
 
                     return
                 } else {
-                    Rokt.shared.roktImplementation.isInitialized = false
+                    // Best-effort: mark for diagnostics, don't un-initialise.
                     Rokt.shared.roktImplementation.isInitFailedForFont = true
                     let callstack = "\(fontErrorMessage) \(font.url), " +
                         "error: \(String(describing: downloadResponse.downloadError.debugDescription))"
@@ -281,7 +282,9 @@ internal class RoktNetWorkAPI {
         }
     }
 
-    private class func getTimingsRequestHeaders(tagId: String, timingsRequest: TimingsRequest,
+    private class func getTimingsRequestHeaders(tagId: String,
+                                                pageInstanceGuid: String?,
+                                                pageId: String?,
                                                 selectionId: String) -> [String: String] {
         var headers: [String: String] = getDefaultHeaders(tagId: tagId)
 
@@ -289,11 +292,11 @@ internal class RoktNetWorkAPI {
         headers[headerIntegrationTypeKey] = timingsSdkType
         headers["x-rokt-trace-id"] = selectionId
 
-        if let pageInstanceGuid = timingsRequest.pageInstanceGuid {
+        if let pageInstanceGuid {
             headers[headerPageInstanceGuidKey] = pageInstanceGuid
         }
 
-        if let pageId = timingsRequest.pageId {
+        if let pageId {
             headers[headerPageIdKey] = pageId
         }
 
@@ -368,10 +371,44 @@ internal class RoktNetWorkAPI {
                            selectionId: String) {
         guard let tagId = Rokt.shared.roktImplementation.roktTagId else { return }
 
-        let timingsHeaders = getTimingsRequestHeaders(tagId: tagId, timingsRequest: timingsRequest, selectionId: selectionId)
+        let timingsHeaders = getTimingsRequestHeaders(tagId: tagId,
+                                                      pageInstanceGuid: timingsRequest.pageInstanceGuid,
+                                                      pageId: timingsRequest.pageId,
+                                                      selectionId: selectionId)
 
         NetworkingHelper.performPost(url: timingsResourceURL,
                                      body: timingsRequest.toDictionary(),
+                                     headers: timingsHeaders,
+                                     failure: { (error, statusCode, response) in
+                                        let callStack = String(format: timingsAPIFailureMsg,
+                                                               response,
+                                                               String(describing: statusCode),
+                                                               error.localizedDescription)
+                                        RoktAPIHelper.sendDiagnostics(
+                                            message: timingsDiagnosticCode,
+                                            callStack: callStack,
+                                            sessionId: sessionId)
+                                        RoktLogger.shared.verbose(callStack) })
+    }
+
+    /// Rokt timing events collection API call (performance metrics)
+    ///
+    /// - Parameters:
+    ///   - timingEventsRequest: TimingEventsRequest object containing metadata and collected timing metrics
+    ///   - sessionId: Session identifier for the request
+    ///   - selectionId: Selection identifier (UUID) to be sent as x-rokt-trace-id header
+    class func sendTimingEvents(timingEventsRequest: TimingEventsRequest,
+                                sessionId: String?,
+                                selectionId: String) {
+        guard let tagId = Rokt.shared.roktImplementation.roktTagId else { return }
+
+        let timingsHeaders = getTimingsRequestHeaders(tagId: tagId,
+                                                      pageInstanceGuid: timingEventsRequest.pageInstanceGuid,
+                                                      pageId: timingEventsRequest.pageId,
+                                                      selectionId: selectionId)
+
+        NetworkingHelper.performPost(url: timingsEventsResourceURL,
+                                     body: timingEventsRequest.toDictionary(),
                                      headers: timingsHeaders,
                                      failure: { (error, statusCode, response) in
                                         let callStack = String(format: timingsAPIFailureMsg,

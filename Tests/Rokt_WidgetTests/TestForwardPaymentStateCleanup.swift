@@ -128,15 +128,37 @@ final class TestForwardPaymentStateCleanup: XCTestCase {
     func test_forwardPaymentFinalized_clearsInstantPurchaseState_onNetworkFailure() {
         let (impl, bag) = makeImplementation()
 
-        registerPurchaseMock(statusCode: 500, body: "{}")
+        // Non-retryable HTTP status (4xx): extension-routed forward payment must still finalize and clear state.
+        // Retryable 5xx skips `forwardPaymentFinalized` so the buyer can confirm again (see retryable-business test).
+        registerPurchaseMock(statusCode: 400, body: "{}")
         installMockingHTTPClient()
 
         let cleared = expectFlagCleared(bag)
 
         impl.handleForwardPayment(executeId: executeId, event: makeEvent())
 
-        wait(for: [cleared], timeout: 5.0)
+        wait(for: [cleared], timeout: 2.0)
         XCTAssertFalse(bag.instantPurchaseInitiated)
+    }
+
+    func test_forwardPaymentFinalized_skipsClear_onRetryableBusinessFailure_extensionRoutedPath() {
+        let (impl, bag) = makeImplementation()
+
+        registerPurchaseMock(statusCode: 200, body: #"{"success":false,"reason":"Upstream timeout"}"#)
+        installMockingHTTPClient()
+
+        impl.handleForwardPayment(executeId: executeId, event: makeEvent())
+
+        let settled = expectation(description: "network callback settled")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            settled.fulfill()
+        }
+        wait(for: [settled], timeout: 2.0)
+
+        XCTAssertTrue(
+            bag.instantPurchaseInitiated,
+            "Retryable business failure must skip forwardPaymentFinalized for extension-routed forward payment"
+        )
     }
 
     func test_forwardPaymentFinalized_clearsInstantPurchaseState_onMissingPriceEarlyReturn() {

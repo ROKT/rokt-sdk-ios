@@ -11,6 +11,8 @@ final class MockTxnEventsHTTPClient: HTTPClientAdapter {
     var results: [Response] = []
     private(set) var callCount = 0
     private(set) var capturedHeaders: [RoktHTTPHeaders] = []
+    // Number of events in each request body, in the order requests were made.
+    private(set) var capturedEventCounts: [Int] = []
 
     func updateTimeout(timeout: Double) {}
 
@@ -27,6 +29,7 @@ final class MockTxnEventsHTTPClient: HTTPClientAdapter {
         completionHandler: ((RoktHTTPRequestResult) -> Void)?
     ) -> URLRequest? {
         capturedHeaders.append(headers ?? [:])
+        capturedEventCounts.append((parameters?["events"] as? [Any])?.count ?? 0)
         let response = results.isEmpty
             ? .success(status: 202, data: Data(#"{ "event_ids": ["event-1"] }"#.utf8))
             : results[min(callCount, results.count - 1)]

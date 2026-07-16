@@ -88,6 +88,13 @@ class TimingsRequestProcessor {
         timingData.experiencesRequestEnd = RoktSDKDateHandler.currentDate()
     }
 
+    /// Records the experience JSON parse window reported by the UX helper.
+    func setExperienceJsonParseTimes(selectionId: String, start: Date, end: Date) {
+        let timingData = getOrCreateTimingData(selectionId: selectionId)
+        timingData.experienceJsonParseStart = start
+        timingData.experienceJsonParseEnd = end
+    }
+
     func setPlacementInteractiveTime(selectionId: String, _ time: Date? = RoktSDKDateHandler.currentDate()) {
         let timingData = getOrCreateTimingData(selectionId: selectionId)
         timingData.placementInteractive = time
@@ -120,6 +127,16 @@ class TimingsRequestProcessor {
         let timingsRequest = buildTimingsRequest(timingData: timingData)
         if isUniqueTimingsRequest(timingsRequest) {
             apiHelper.sendTimings(timingsRequest, sessionId: timingData.sessionId, selectionId: selectionId)
+
+            // Performance metrics (experiences request latency + experience JSON parse
+            // duration) go to the timings events endpoint. Shares the uniqueness gate
+            // above so both requests are sent exactly once per page instance.
+            let timingEventsRequest = buildTimingEventsRequest(timingData: timingData)
+            if !timingEventsRequest.timings.isEmpty {
+                apiHelper.sendTimingEvents(timingEventsRequest,
+                                           sessionId: timingData.sessionId,
+                                           selectionId: selectionId)
+            }
         }
     }
 
@@ -128,6 +145,8 @@ class TimingsRequestProcessor {
         let timingData = getOrCreateTimingData(selectionId: selectionId)
         timingData.experiencesRequestStart = nil
         timingData.experiencesRequestEnd = nil
+        timingData.experienceJsonParseStart = nil
+        timingData.experienceJsonParseEnd = nil
         timingData.selectionStart = nil
         timingData.selectionEnd = nil
         timingData.pageInit = nil
@@ -141,6 +160,29 @@ class TimingsRequestProcessor {
                               pluginId: timingData.pluginId,
                               pluginName: timingData.pluginName,
                               timings: buildTimingMetricArray(timingData))
+    }
+
+    private func buildTimingEventsRequest(timingData: TimingData) -> TimingEventsRequest {
+        var metrics = [TimingMetric]()
+
+        if let experiencesRequestStart = timingData.experiencesRequestStart {
+            metrics.append(TimingMetric(name: .experiencesRequestStart, value: experiencesRequestStart))
+        }
+        if let experiencesRequestEnd = timingData.experiencesRequestEnd {
+            metrics.append(TimingMetric(name: .experiencesRequestEnd, value: experiencesRequestEnd))
+        }
+        if let experienceJsonParseStart = timingData.experienceJsonParseStart {
+            metrics.append(TimingMetric(name: .experienceJsonParseStart, value: experienceJsonParseStart))
+        }
+        if let experienceJsonParseEnd = timingData.experienceJsonParseEnd {
+            metrics.append(TimingMetric(name: .experienceJsonParseEnd, value: experienceJsonParseEnd))
+        }
+
+        return TimingEventsRequest(pageId: timingData.pageId,
+                                   pageInstanceGuid: timingData.pageInstanceGuid,
+                                   pluginId: timingData.pluginId,
+                                   pluginName: timingData.pluginName,
+                                   timings: metrics)
     }
 
     private func isUniqueTimingsRequest(_ req: TimingsRequest) -> Bool {
