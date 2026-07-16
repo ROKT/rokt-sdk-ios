@@ -25,8 +25,7 @@ internal class RoktAPIHelper {
     /// - Parameters:
     ///   - eventRequest: The EventRequest related to the event
     class func sendEvent(eventRequest: EventRequest,
-                         success: (() -> Void)? = nil,
-                         failure: ((Error, Int?, String) -> Void)? = nil) {
+                         success: (() -> Void)? = nil) {
         guard Rokt.shared.roktImplementation.roktTagId != nil,
               Rokt.shared.roktImplementation.processedEvents?.insertProcessedEvent(eventRequest) == true
         else { return }
