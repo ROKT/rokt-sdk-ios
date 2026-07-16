@@ -40,8 +40,8 @@ private struct RawEvent: Decodable, RealTimeEventSignal {
 }
 
 // A decoded real-time-event signal: the minimal shape (event_type + payload) shared by the
-// v1 (camelCase RawEvent) and v2 (snake_case SelectRealTimeEvent) decode types. They stay
-// separate Decodables for the casing difference, but flatten/validate through one path.
+// camelCase (RawEvent) and snake_case (SelectRealTimeEvent) decode types. They stay separate
+// Decodables for the casing difference, but flatten/validate through one path.
 internal protocol RealTimeEventSignal {
     var eventType: String? { get }
     var payload: String? { get }
@@ -49,7 +49,8 @@ internal protocol RealTimeEventSignal {
 
 extension UntriggeredRealTimeEvent {
     /// Flatten a decoded event_data envelope (parentGuid -> signalKey -> signal) into untriggered
-    /// events, dropping invalid entries. Single home for the validity rule so v1/v2 can't drift.
+    /// events, dropping invalid entries. Single home for the validity rule so the two decode
+    /// types can't drift.
     static func flattenedValid<Signal: RealTimeEventSignal>(
         from eventData: [String: [String: Signal]?]
     ) -> [UntriggeredRealTimeEvent] {

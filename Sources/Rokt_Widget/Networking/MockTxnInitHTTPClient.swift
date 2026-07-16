@@ -7,7 +7,7 @@ import Foundation
 internal final class MockTxnInitHTTPClient: HTTPClientAdapter {
     private static let fixtureName = "txn_init"
 
-    // Guaranteed success response, mirroring the hard-coded init the legacy mock path returned.
+    // Guaranteed success response so Mock init always succeeds.
     private static let defaultResponse = Data(
         """
         {

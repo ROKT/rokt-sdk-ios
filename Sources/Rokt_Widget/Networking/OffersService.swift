@@ -27,8 +27,8 @@ internal struct OffersService {
     let makePageInstanceGuid: () -> String
     let completionQueue: DispatchQueue
     // Real-time event store seams (injected for tests). `captureEvents` stores the response's
-    // events for the next call; it only adds (no global clear) to mirror the v1 capture and
-    // avoid wiping triggered events the events/v1 paths share in RealTimeEventManager.shared.
+    // events for the next call; it only adds (no global clear) to avoid wiping triggered
+    // events shared in RealTimeEventManager.shared.
     let triggeredEvents: () -> [TriggeredRealTimeEvent]
     let captureEvents: ([UntriggeredRealTimeEvent]) -> Void
 
@@ -131,10 +131,10 @@ internal struct OffersService {
         let authToken = await sessionManager.authorizationHeader
         let client = makeOffersClient(baseURL: baseURL, pageInstanceGuid: pageInstanceGuid, authToken: authToken)
         // Forward events triggered during the previous placement; read once, before retries,
-        // and only with a live session to attribute them to (matching Android). As on the v1
-        // path, triggered events are not cleared after forwarding — they ride subsequent
-        // requests until session invalidation; re-send is expected (the "only adds, no clear"
-        // note elsewhere is about the untriggered response-capture, not this read).
+        // and only with a live session to attribute them to (matching Android). Triggered
+        // events are not cleared after forwarding — they ride subsequent requests until
+        // session invalidation; re-send is expected (the "only adds, no clear" note elsewhere
+        // is about the untriggered response-capture, not this read).
         let forwardedEvents = authToken != nil ? SelectEventMapper.requestEvents(from: triggeredEvents()) : []
         let input = makeOffersInput(
             requestId: requestId,

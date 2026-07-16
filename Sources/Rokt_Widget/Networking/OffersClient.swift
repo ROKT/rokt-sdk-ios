@@ -37,10 +37,10 @@ internal struct OffersClient {
         var headers = TxnRequestHeaders.common(accountId: accountId, authToken: authToken)
         headers["x-request-id"] = input.requestId
         headers["rokt-page-instance-guid"] = pageInstanceGuid
-        // Advertise the DCUI layout schema version this client can render, matching the v2 init
-        // (TxnInitClient.swift) and v1 (RoktNetworkAPI.swift) requests. Without it the gateway
-        // serves a legacy layout schema the pinned DcuiSchema decoder cannot parse, so the
-        // placement fails to render (see the layout_schema_version negotiation contract).
+        // Advertise the DCUI layout schema version this client can render, matching the init
+        // request (TxnInitClient.swift). Without it the gateway serves a layout schema the
+        // pinned DcuiSchema decoder cannot parse, so the placement fails to render (see the
+        // layout_schema_version negotiation contract).
         headers["rokt-layout-schema-version"] = layoutSchemaVersion
         // Device headers (os, model, locale, app version) and the load-bearing
         // rokt-package-name ride in via NetworkingHelper.txnDeviceHeaders — the

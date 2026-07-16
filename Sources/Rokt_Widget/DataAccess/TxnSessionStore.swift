@@ -8,7 +8,7 @@ internal protocol TxnSessionStore: AnyObject {
 }
 
 // Plain UserDefaults rather than the Keychain: the token is short-lived and
-// sandbox-protected, matching the legacy SessionManager and the other SDK platforms.
+// sandbox-protected, matching the other SDK platforms.
 internal final class UserDefaultsTxnSessionStore: TxnSessionStore {
     private let defaults: UserDefaults
 

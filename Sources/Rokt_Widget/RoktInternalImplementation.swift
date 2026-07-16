@@ -51,14 +51,9 @@ class RoktInternalImplementation {
 
     // MARK: - v2 Transactions init (isolated)
 
-    // v2 is the only active init path; v1 is retained but inactive (flag keeps v1 code reachable for periphery)
-    // swiftlint:disable:next todo
-    // TODO: Remove once v2 is fully rolled out.
     private static let useTxnInit = true
-    // Offers source: v2 by default; v1 is retained as the alternative until the
-    // v1/v2 selection is finalised.
     private static let useV2Offers = true
-    // Layout schema version sent to the v2 init endpoint, matching the legacy header.
+    // Layout schema version sent to the v2 init endpoint.
     private static var txnLayoutSchemaVersion: String {
         RoktUX.integrationInfo.integration.layoutSchemaVersion
             .split(separator: ".").prefix(2).joined(separator: ".")
@@ -68,9 +63,6 @@ class RoktInternalImplementation {
     // Test-only override for the offers service factory; nil uses the real builder.
     var makeOffersServiceOverride: ((String) -> OffersService)?
 
-    // v2 events is the only active events path; v1 is retained but inactive (flag keeps v1 code reachable for periphery)
-    // swiftlint:disable:next todo
-    // TODO: Remove once v2 is fully rolled out.
     private static let useTxnEvents = true
     var isTxnEventsEnabled: Bool { Self.useTxnEvents }
     // Test-only override for the events service factory; nil uses the real builder.
@@ -879,10 +871,9 @@ class RoktInternalImplementation {
         performInit(roktTagId: roktTagId, initStartTime: initStartTime)
     }
 
-    // The transactions path is the only active one; the legacy `else` is retained but inactive until it is removed.
     private func performInit(roktTagId: String, initStartTime: Date) {
         guard Self.useTxnInit else {
-            // Legacy path: fonts gate render/init completion, so observe font load state.
+            // Fonts gate render/init completion, so observe font load state.
             setupFontObservers()
             RoktAPIHelper.initialize(
                 roktTagId: roktTagId,
@@ -1214,8 +1205,8 @@ class RoktInternalImplementation {
                         }
 
                         if Self.useV2Offers {
-                            // pageInit timing travels in attributes; record it here for parity
-                            // with the v1 path, since the offers service doesn't own timing extraction.
+                            // pageInit timing travels in attributes; record it here since the
+                            // offers service doesn't own timing extraction.
                             if let pageInitAttr = RoktAPIHelper.getPageInitData(attributes: attributes),
                                let validPageInitTime = self.processedTimingsRequests?.getValidPageInitTime(
                                    selectionId: selectionId,
