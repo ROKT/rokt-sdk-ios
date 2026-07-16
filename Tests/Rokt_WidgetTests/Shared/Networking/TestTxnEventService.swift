@@ -146,41 +146,26 @@ final class TestTxnEventService: XCTestCase {
         }
     }
 
-    func test_send_unauthorized_reMintsTokenlessAndDelivers() async throws {
+    func test_send_unauthorized_dropsSessionAndDoesNotRetry() async {
         await storeValidToken()
-        // First call (with the stale token) 401s; the token-less re-mint succeeds and the events
-        // endpoint mints a fresh session, rotating in a new token.
-        httpClient.results = [.status(401), .success(status: 202, data: rotatedResponse(token: "fresh-jwt"))]
-
-        try await makeService().send(events: sampleEvents())
-
-        // Original (401) + one token-less re-mint.
-        XCTAssertEqual(httpClient.callCount, 2)
-        // The re-mint carried no Authorization (session was cleared before retrying).
-        XCTAssertNil(httpClient.capturedHeaders.last?["Authorization"])
-        // The minted session token is stored for subsequent calls.
-        let header = await sessionManager.authorizationHeader
-        XCTAssertEqual(header, "Bearer fresh-jwt")
-    }
-
-    func test_send_persistentUnauthorized_dropsAfterReMint() async {
-        await storeValidToken()
-        httpClient.results = [.status(401)] // repeats: both the original and the re-mint 401
+        // A 401 is a forged/corrupted token (the recoverable expired case returns 200), so it is
+        // not retried: the batch is dropped and the bad session cleared.
+        httpClient.results = [.status(401)]
 
         do {
             try await makeService().send(events: sampleEvents())
-            XCTFail("Expected persistent 401 to throw")
+            XCTFail("Expected send to fail on 401")
         } catch let error as TxnEventService.TxnEventError {
             XCTAssertEqual(error, .unexpectedStatusCode(401))
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
 
-        // Original + one token-less re-mint, then give up (no loop).
-        XCTAssertEqual(httpClient.callCount, 2)
-        // Session cleared so the next offers call re-mints.
+        let header = await sessionManager.authorizationHeader
         let sessionId = await sessionManager.currentSessionId
+        XCTAssertNil(header)
         XCTAssertNil(sessionId)
+        XCTAssertEqual(httpClient.callCount, 1)
     }
 
     private func events(_ count: Int) -> [TxnEvent] {

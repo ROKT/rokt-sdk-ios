@@ -67,26 +67,13 @@ internal struct TxnEventService {
     private func sendBatch(events: [TxnEvent]) async throws {
         guard let client else { throw TxnEventError.invalidBaseURL }
 
-        var authToken = await sessionManager.authorizationHeader
+        let authToken = await sessionManager.authorizationHeader
 
         var attempt = 0
-        var didReMintAfterUnauthorized = false
         while true {
             do {
                 let (data, response) = try await client.recordEvents(events: events, authToken: authToken)
                 let statusCode = response?.statusCode ?? 0
-
-                // Token rejected: drop the stale session and re-mint once by retrying with no
-                // Authorization. A token-less events request mints a fresh session on the sync
-                // (single_session) path and returns a session_token whose `sub` is the new session
-                // id, so the events are recorded under the new session instead of being dropped.
-                if statusCode == HTTPStatusCode.unauthorized.rawValue, !didReMintAfterUnauthorized {
-                    RoktLogger.shared.verbose("Events returned 401; dropping session and re-minting")
-                    await sessionManager.clear()
-                    authToken = nil
-                    didReMintAfterUnauthorized = true
-                    continue
-                }
 
                 if isRetryable(statusCode: statusCode), attempt < maxRetries {
                     try await sleep(backoffDelay(attempt: attempt))
@@ -94,13 +81,16 @@ internal struct TxnEventService {
                     continue
                 }
 
-                // Still 401 after the token-less re-mint: unexpected (a missing Bearer should mint,
-                // not reject). Drop the batch and report a diagnostic so a backend change surfaces.
+                // A 401 here means a forged/corrupted token (invalid_signature, invalid_issuer,
+                // etc.) — the recoverable `expired`/`unknown_kid` cases return 200 with a fresh
+                // token bound to the same session id, handled by the success path below. These 401s
+                // are exceptional and not recoverable (re-minting would attach the events to a new,
+                // unlinked session), so drop the batch, clear the bad session, and diagnose.
                 if statusCode == HTTPStatusCode.unauthorized.rawValue {
-                    RoktLogger.shared.error("Events still 401 after re-mint; dropping \(events.count) event(s)")
+                    RoktLogger.shared.error("Events returned 401; dropping session and \(events.count) event(s)")
                     RoktAPIHelper.sendDiagnostics(
                         message: Self.unauthorizedDiagnosticCode,
-                        callStack: "401 persisted through token-less re-mint; dropped \(events.count) event(s)"
+                        callStack: "Dropped \(events.count) event(s) after 401 on /v2/sessions/events"
                     )
                     await sessionManager.clear()
                     throw TxnEventError.unexpectedStatusCode(statusCode)
