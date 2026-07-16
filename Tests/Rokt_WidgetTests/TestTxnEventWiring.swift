@@ -36,10 +36,6 @@ final class TestTxnEventWiring: XCTestCase {
         TxnEvent(eventType: "impression", instanceId: "instance-1", timestamp: 1_700_000_000_000, data: ["k": "v"])
     }
 
-    func test_txnEvents_isEnabled() {
-        XCTAssertTrue(impl.isTxnEventsEnabled)
-    }
-
     func test_dispatch_withTagId_sendsThroughService() {
         injectService()
         impl.roktTagId = "tag-1"

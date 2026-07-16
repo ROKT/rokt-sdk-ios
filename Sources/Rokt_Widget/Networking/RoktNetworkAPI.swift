@@ -4,7 +4,6 @@ import Foundation
 
 let mobileAPIPathPrefix = "rokt-mobile"
 
-var eventResourceURL: String { "\(baseURL)/\(mobileAPIPathPrefix)/v2/events" }
 var diagnosticsResourceURL: String { "\(baseURL)/\(mobileAPIPathPrefix)/v1/diagnostics" }
 var timingsResourceURL: String { "\(baseURL)/\(mobileAPIPathPrefix)/v1/timings" }
 var timingsEventsResourceURL: String { "\(baseURL)/\(mobileAPIPathPrefix)/v1/timings/events" }
@@ -19,7 +18,6 @@ let headerPageIdKey = "rokt-page-id"
 internal class RoktNetWorkAPI {
     // MARK: - API failure messages
 
-    private static let eventAPIFailureMsg = "response: %@ ,statusCode: %@ ,error: %@"
     private static let timingsAPIFailureMsg = "response: %@, statusCode: %@, error: %@"
 
     // MARK: - Header keys
@@ -31,7 +29,6 @@ internal class RoktNetWorkAPI {
 
     private static let headerTagIdKey = "rokt-tag-id"
     private static let headerSdkFrameworkType = "rokt-sdk-framework-type"
-    private static let eventDiagnosticCode = "[EVENT]"
     private static let fontErrorMessage = "Error downloading font: "
     private static let timingsDiagnosticCode = "[TIMINGS]"
     private static let timingsSdkType = "msdk"
@@ -99,43 +96,6 @@ internal class RoktNetWorkAPI {
                 NotificationCenter.default.post(Notification(name: Notification.Name(finishedDownloadingFonts)))
             }
         }
-    }
-
-    /// Rokt event API call
-    ///
-    /// - Parameters:
-    ///   - params: A string dictionary containing the parameters that should be displayed in the widget
-    ///   - success: Function to execute after a successfull call to the API
-    ///   - failure: Function to execute after an unseccessfull call to the API
-    class func sendEvent(paramsArray: [[String: Any]],
-                         sessionId: String?,
-                         success: (() -> Void)? = nil,
-                         failure: ((Error, Int?, String) -> Void)? = nil) {
-
-        guard let tagId = Rokt.shared.roktImplementation.roktTagId else { return }
-        NetworkingHelper.performPost(urlString: eventResourceURL,
-                                     bodyArray: paramsArray,
-                                     headers: getDefaultHeaders(tagId: tagId),
-                                     success: { (_, _, _) in
-                                        success?()
-                                     },
-                                     failure: { (error, statusCode, response) in
-                                        // Don't report diagnostics for 429 (Too Many Requests) status code
-                                        if let code = statusCode, code != 429 {
-                                            let callStack = String(format: eventAPIFailureMsg,
-                                                                   response,
-                                                                   String(describing: statusCode),
-                                                                   error.localizedDescription)
-
-                                            RoktAPIHelper.sendDiagnostics(
-                                                message: eventDiagnosticCode,
-                                                callStack: callStack,
-                                                sessionId: sessionId)
-
-                                            RoktLogger.shared.verbose(callStack)
-                                        }
-                                        failure?(error, statusCode, response)
-                                     })
     }
 
     /// Rokt diagnostics API call
