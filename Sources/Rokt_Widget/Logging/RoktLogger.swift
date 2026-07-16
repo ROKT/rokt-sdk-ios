@@ -17,9 +17,8 @@ final class RoktLogger: @unchecked Sendable {
     /// Replaces the shared instance. Primarily for testing.
     /// - Parameter logger: The logger instance to use as shared
     /// - Returns: The previous shared instance for restoration
-    // periphery:ignore - used by tests
     @discardableResult
-    internal static func setShared(_ logger: RoktLogger) -> RoktLogger {
+    internal static func setShared(_ logger: RoktLogger) -> RoktLogger { // periphery:ignore - used by tests
         let previous = shared
         shared = logger
         return previous
