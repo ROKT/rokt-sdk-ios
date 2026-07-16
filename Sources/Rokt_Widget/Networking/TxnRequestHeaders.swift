@@ -1,10 +1,8 @@
-// periphery:ignore:all - shared v2 transactions request headers
+// periphery:ignore:all
 
 import Foundation
 
-/// Single owner for the headers common to every v2 transactions request
-/// (init / events / offers): the account id, content type, and the optional
-/// Authorization. Centralised so the auth rule can't drift between the three clients.
+/// Common headers for init, offers, and events requests.
 internal enum TxnRequestHeaders {
     static func common(accountId: String, authToken: String?) -> RoktHTTPHeaders {
         var headers: RoktHTTPHeaders = [

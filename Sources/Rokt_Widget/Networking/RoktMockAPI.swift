@@ -7,6 +7,7 @@ internal class RoktMockAPI {
     class func sendDiagnostics(params: [String: Any],
                                success: (() -> Void)? = nil,
                                failure: ((Error, Int?, String) -> Void)? = nil) {
+        _ = failure
         do {
             let params = try JSONSerialization.data(withJSONObject: params, options: [])
             RoktLogger.shared.verbose(String(bytes: params, encoding: .utf8) ?? "")

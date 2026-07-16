@@ -45,7 +45,7 @@ class RoktInternalImplementation {
 
     var stateManager: StateBagManaging = StateBagManager()
 
-    // Layout schema version sent to the v2 init endpoint.
+    // Layout schema version sent on init requests.
     private static var txnLayoutSchemaVersion: String {
         RoktUX.integrationInfo.integration.layoutSchemaVersion
             .split(separator: ".").prefix(2).joined(separator: ".")
@@ -186,8 +186,8 @@ class RoktInternalImplementation {
         )
     }
 
-    /// Legacy fallback: build a `ContactAddress` from partner-supplied attributes
-    /// for backends that do not yet populate `TransactionData`. Returns `nil` if
+    /// Fallback: build a `ContactAddress` from partner-supplied attributes
+    /// when `TransactionData` has no address. Returns `nil` if
     /// no address attributes were provided.
     func buildContactAddressFromAttributes() -> ContactAddress? {
         let line1 = attributes["shippingaddress1"] ?? ""

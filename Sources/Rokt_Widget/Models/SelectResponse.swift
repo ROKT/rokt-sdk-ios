@@ -1,14 +1,9 @@
-// periphery:ignore:all - offers network models; some fields are decode-only
+// periphery:ignore:all
 import Foundation
 
 // MARK: - Request
 
-/// Request body for `POST /v2/sessions/offers` on the Transactions API.
-///
-/// The session is identified solely by the JWT `sub` claim in the
-/// `Authorization` header — there is intentionally no `session_id` in the body.
-/// Platform/channel context travels in ``channel``. `customer` and `page.url`
-/// are accepted by the provider but intentionally omitted to match Android.
+/// Offers request body. Session identity is the JWT in the Authorization header.
 internal struct SelectRequest: Encodable, Equatable {
     let page: SelectPage
     let channel: SelectChannel
@@ -80,9 +75,7 @@ internal struct SelectPrivacy: Encodable, Equatable {
     }
 }
 
-/// A real-time event forwarded on the offers request: the provider's typed event
-/// plus its echoed `payload`, stamped with an epoch-ms `timestamp`. Encodes to the
-/// `/v2/sessions/events` element shape (`event_type`, `timestamp`, `data.payload`).
+/// Real-time event forwarded on an offers request.
 internal struct SelectEvent: Encodable, Equatable {
     let eventType: String
     let timestamp: Int64
@@ -109,16 +102,7 @@ internal struct SelectEvent: Encodable, Equatable {
 
 // MARK: - Response
 
-/// Response body for `POST /v2/sessions/offers` on the Transactions API.
-///
-/// Fields are optional / defaulted because the provider emits `omitempty`
-/// throughout. `JSONDecoder` ignores unknown keys by default, so additional
-/// provider fields don't fail the decode.
-///
-/// The DCUI schemas (``SelectPluginConfig/outerLayoutSchema``,
-/// ``SelectLayoutVariant/layoutVariantSchema``) arrive as pre-serialized JSON
-/// strings — the shape the render layer expects — so they are kept as `String`
-/// with no re-encoding.
+/// Offers response body.
 internal struct SelectResponse: Decodable, Equatable {
     let sessionId: String
     let sessionToken: TxnSessionToken
@@ -373,7 +357,7 @@ internal struct SelectIcon: Decodable, Equatable {
     let name: String?
 }
 
-/// Token lookup for a trackable entity, echoed back on `/v2/sessions/events`.
+/// Token lookup for a trackable entity, echoed back on events.
 internal struct SelectEventDataEntry: Decodable, Equatable {
     let token: String
     let events: [String: SelectRealTimeEvent]?

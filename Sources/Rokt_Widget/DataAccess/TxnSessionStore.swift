@@ -7,8 +7,7 @@ internal protocol TxnSessionStore: AnyObject {
     func removeValue(forKey key: String)
 }
 
-// Plain UserDefaults rather than the Keychain: the token is short-lived and
-// sandbox-protected, matching the legacy SessionManager and the other SDK platforms.
+// Plain UserDefaults rather than the Keychain: the token is short-lived and sandbox-protected.
 internal final class UserDefaultsTxnSessionStore: TxnSessionStore {
     private let defaults: UserDefaults
 

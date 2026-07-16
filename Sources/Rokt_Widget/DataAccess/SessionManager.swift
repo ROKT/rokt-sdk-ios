@@ -8,8 +8,7 @@ private enum SessionInvalidationReason: String {
     case sessionIdUpdated = "session_id_updated"
 }
 
-/// Persists the legacy `rokt-session-id` used by diagnostics, timings, and cart headers.
-/// Session continuity for init/offers/events is owned by `TxnSessionManager` instead.
+/// Session id for diagnostics and timings. Offers and events use `TxnSessionManager`.
 class SessionManager {
     private let managedSessions: [ManagedSession]
     private let userDefaults: UserDefaults
