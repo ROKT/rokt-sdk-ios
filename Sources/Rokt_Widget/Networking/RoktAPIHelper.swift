@@ -20,44 +20,10 @@ internal class RoktAPIHelper {
         FontManager.downloadFonts(fonts, onFontDownloadComplete)
     }
 
-    /// Rokt event API call
+    /// Rokt event API call — routes through the transactions events client.
     ///
     /// - Parameters:
-    ///   - evenRequest: The EventRequest related to the event
-    ///   - success: Function to execute after a successfull call to the API
-    ///   - failure: Function to execute after an unseccessfull call to the API
-    class func sendEvents(events: [[String: Any]],
-                          success: (() -> Void)? = nil,
-                          failure: ((Error, Int?, String) -> Void)? = nil) {
-        guard Rokt.shared.roktImplementation.roktTagId != nil else { return }
-        let sessionId = events.first.flatMap { eventRequests in
-            eventRequests.first { $0.key == sessionIdKey }?.value as? String
-        }
-        for event in events {
-            if let eventType = event[eventTypeKey] as? String {
-                RoktLogger.shared.debug("Sending event: \(eventType)")
-            }
-            if RoktLogger.shared.logLevel <= .verbose,
-               let eventData = try? JSONSerialization.data(withJSONObject: event),
-               let eventLog = String(data: eventData, encoding: .utf8) {
-                RoktLogger.shared.verbose("RoktEventLog: \(eventLog)")
-            }
-        }
-        if isMock() {
-            RoktMockAPI.sendEvent(paramsArray: events, sessionId: sessionId,
-                                  success: success, failure: failure)
-        } else {
-            RoktNetWorkAPI.sendEvent(paramsArray: events, sessionId: sessionId,
-                                     success: success, failure: failure)
-        }
-    }
-
-    /// Rokt event API call
-    ///
-    /// - Parameters:
-    ///   - evenRequest: The EventRequest related to the event
-    ///   - success: Function to execute after a successfull call to the API
-    ///   - failure: Function to execute after an unseccessfull call to the API
+    ///   - eventRequest: The EventRequest related to the event
     class func sendEvent(eventRequest: EventRequest,
                          success: (() -> Void)? = nil,
                          failure: ((Error, Int?, String) -> Void)? = nil) {
@@ -66,28 +32,10 @@ internal class RoktAPIHelper {
         else { return }
 
         EventQueue.call(event: eventRequest) { events in
-            let implementation = Rokt.shared.roktImplementation
-            if implementation.isTxnEventsEnabled {
-                implementation.dispatchTxnEvents(events.compactMap { TxnEventMapper.event(from: $0) })
-                return
-            }
-
-            var eventsBody = [[String: Any]]()
-            for event in events {
-                eventsBody.append(event.getParams)
-                RoktLogger.shared.debug("Sending event: \(event.eventType.rawValue)")
-                if RoktLogger.shared.logLevel <= .verbose {
-                    RoktLogger.shared.verbose(event.getLog())
-                }
-            }
-
-            if isMock() {
-                RoktMockAPI.sendEvent(paramsArray: eventsBody, sessionId: eventRequest.sessionId,
-                                      success: success, failure: failure)
-            } else {
-                RoktNetWorkAPI.sendEvent(paramsArray: eventsBody, sessionId: eventRequest.sessionId,
-                                         success: success, failure: failure)
-            }
+            Rokt.shared.roktImplementation.dispatchTxnEvents(
+                events.compactMap { TxnEventMapper.event(from: $0) }
+            )
+            success?()
         }
     }
 

@@ -3,7 +3,6 @@ internal import RoktUXHelper
 
 class PlatformEventProcessor {
     static let pageSignalLoad = "pageSignalLoadStart"
-    private static let eventDataKey = "eventData"
     private static let errorCodeKey = "code"
     private static let errorStackTraceKey = "stackTrace"
 
@@ -31,13 +30,11 @@ class PlatformEventProcessor {
 
             guard let jsonString = String(data: data, encoding: .utf8), !jsonString.isEmpty else {
                 RoktLogger.shared.error("Invalid UTF-8 or empty data in event payload")
-                RoktAPIHelper.sendEvents(events: (eventPayload["events"] as? [[String: Any]]) ?? [])
                 return
             }
 
             guard let validatedData = jsonString.data(using: .utf8) else {
                 RoktLogger.shared.error("Failed to re-encode validated UTF-8 string")
-                RoktAPIHelper.sendEvents(events: (eventPayload["events"] as? [[String: Any]]) ?? [])
                 return
             }
 
@@ -52,18 +49,7 @@ class PlatformEventProcessor {
         } catch {
             RoktLogger.shared.error("Failed to process platform events", error: error)
             RoktLogger.shared.debug("Event payload that failed: \(eventPayload)")
-            RoktAPIHelper.sendEvents(events: (eventPayload["events"] as? [[String: Any]]) ?? [])
         }
-    }
-
-    func getEventParams(_ event: RoktEventRequest) -> [String: Any] {
-        var params: [String: Any] = event.getParams
-        // If eventData is present, move it to attributes
-        if let eventData = params[Self.eventDataKey] {
-            params[attributesKey] = eventData
-        }
-        params.removeValue(forKey: Self.eventDataKey)
-        return params
     }
 
     private func processInstantPurchase(eventRequests: [RoktEventRequest], executeId: String) {
@@ -133,15 +119,11 @@ class PlatformEventProcessor {
                                     cacheProperties: LayoutPageCacheProperties?) {
         let nonDiagnosticEvents = eventRequests.filter { $0.eventType != .SignalSdkDiagnostic }
 
-        let sendEvents = { [weak self] (events: [RoktEventRequest]) in
-            guard let self else { return }
+        let sendEvents = { (events: [RoktEventRequest]) in
             RealTimeEventManager.shared.markEventsAsTriggered(triggeredEvents: events)
-            let implementation = Rokt.shared.roktImplementation
-            if implementation.isTxnEventsEnabled {
-                implementation.dispatchTxnEvents(events.compactMap { TxnEventMapper.event(from: $0) })
-            } else {
-                RoktAPIHelper.sendEvents(events: events.map { self.getEventParams($0)})
-            }
+            Rokt.shared.roktImplementation.dispatchTxnEvents(
+                events.compactMap { TxnEventMapper.event(from: $0) }
+            )
         }
 
         guard !nonDiagnosticEvents.isEmpty else { return }

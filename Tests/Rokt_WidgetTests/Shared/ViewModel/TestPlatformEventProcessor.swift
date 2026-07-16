@@ -89,36 +89,6 @@ class TestPlatformEventProcessor: XCTestCase {
         XCTAssertEqual(sut.processedEvents.count, 1)
     }
 
-    func test_GetEventParams_valid() {
-        let eventRequest = RoktEventRequest(
-            sessionId: "session1",
-            eventType: .SignalImpression,
-            parentGuid: "parent1",
-            eventData: ["dataKey": "dataValue"],
-            pageInstanceGuid: "page1",
-            jwtToken: "jwt1"
-        )
-        let params = sut.getEventParams(eventRequest)
-        XCTAssertEqual(params["sessionId"] as? String, "session1")
-        XCTAssertEqual((params["attributes"] as? [[String: Any]])?.first?["name"] as? String, "dataKey")
-        XCTAssertEqual((params["attributes"] as? [[String: Any]])?.first?["value"] as? String, "dataValue")
-        XCTAssertNil((params["eventData"] as? [[String: Any]]))
-    }
-
-    func test_GetEventParams_empty() {
-        let eventRequest = RoktEventRequest(
-            sessionId: "session1",
-            eventType: .SignalImpression,
-            parentGuid: "parent1",
-            pageInstanceGuid: "page1",
-            jwtToken: "jwt1"
-        )
-        let params = sut.getEventParams(eventRequest)
-        XCTAssertEqual(params["sessionId"] as? String, "session1")
-        XCTAssertTrue((params["attributes"] as? [[String: Any]])?.isEmpty == true)
-        XCTAssertNil(params["eventData"] as? [[String: Any]])
-    }
-
     // MARK: - ProcessTimingRequests Tests
 
     func test_processTimingRequests_WithValidEvent() {

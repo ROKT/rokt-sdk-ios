@@ -4,17 +4,6 @@ internal class RoktMockAPI {
 
     class func downloadFonts(_ fonts: [FontModel]) {}
 
-    class func sendEvent(paramsArray: [[String: Any]],
-                         sessionId: String?,
-                         success: (() -> Void)? = nil,
-                         failure: ((Error, Int?, String) -> Void)? = nil) {
-        do {
-            let params = try JSONSerialization.data(withJSONObject: paramsArray, options: [])
-            RoktLogger.shared.verbose(String(bytes: params, encoding: .utf8) ?? "")
-        } catch {}
-        success?()
-    }
-
     class func sendDiagnostics(params: [String: Any],
                                success: (() -> Void)? = nil,
                                failure: ((Error, Int?, String) -> Void)? = nil) {

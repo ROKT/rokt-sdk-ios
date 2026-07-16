@@ -298,27 +298,6 @@ extension StubMethodsProvider {
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        var mock = Mock(url: URL(string: eventResourceURL)!,
-                        dataType: .json, statusCode: 200, data: [.post: Data()])
-
-        mock.onRequest = { request, _ in
-            if let reqestDatas = request.httpBodyStream?.readfully() {
-                do {
-                    let jsonArray = try JSONSerialization.jsonObject(with: reqestDatas, options: []) as? [[String: Any]]
-                    for json in jsonArray! {
-                        onEventReceive?(
-                            EventModel(eventType: json["eventType"] as! String,
-                                       parentGuid: json["parentGuid"] as! String,
-                                       pageInstanceGuid: json["pageInstanceGuid"] as? String,
-                                       metadata: json["metadata"] as? [[String: String]],
-                                       attributes: json["attributes"] as? [[String: String]])
-                        )
-                    }
-                } catch {
-                }
-            }
-        }
-        mock.register()
         registerTxnEventsStub(onEventReceive: onEventReceive)
     }
 
@@ -459,27 +438,6 @@ extension XCTestCase: StubMethodsProvider {
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        var mock = Mock(url: URL(string: eventResourceURL)!,
-                        dataType: .json, statusCode: 200, data: [.post: Data()])
-
-        mock.onRequest = { request, _ in
-            if let reqestDatas = request.httpBodyStream?.readfully() {
-                do {
-                    let jsonArray = try JSONSerialization.jsonObject(with: reqestDatas, options: []) as? [[String: Any]]
-                    for json in jsonArray! {
-                        onEventReceive?(
-                            EventModel(eventType: json["eventType"] as! String,
-                                       parentGuid: json["parentGuid"] as! String,
-                                       pageInstanceGuid: json["pageInstanceGuid"] as? String,
-                                       metadata: json["metadata"] as? [[String: String]],
-                                       attributes: json["attributes"] as? [[String: String]])
-                        )
-                    }
-                } catch {
-                }
-            }
-        }
-        mock.register()
         registerTxnEventsStub(onEventReceive: onEventReceive)
     }
 

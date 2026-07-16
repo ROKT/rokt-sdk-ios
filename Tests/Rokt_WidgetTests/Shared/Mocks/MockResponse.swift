@@ -2,37 +2,34 @@ import XCTest
 import Mocker
 @testable import Rokt_Widget
 
+private var txnEventResourceURL: String {
+    config.environment.gatewayBaseURL + "/v2/sessions/events"
+}
+
 extension XCTestCase {
     func stubEvents(onEventReceive: ((EventModel) -> Void)? = nil) {
         let configuration = URLSessionConfiguration.default
             configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        guard let originalURL = URL(string: eventResourceURL) else { return }
-
-        var mock = Mock(url: originalURL,
-                        dataType: .json, statusCode: 200, data: [.post: Data()])
+        guard let url = URL(string: txnEventResourceURL) else { return }
+        var mock = Mock(url: url, dataType: .json, statusCode: 200, data: [.post: Data()])
 
         mock.onRequest = { request, _ in
-            if let reqestDatas = request.httpBodyStream?.readfully() {
-                do {
-                    let jsonArray = try JSONSerialization.jsonObject(with: reqestDatas, options: []) as? [[String: Any]]
-                    for json in jsonArray! {
-                        onEventReceive?(
-                            EventModel(eventType: json[eventTypeKey] as! String,
-                                       parentGuid: json[parentGuidKey] as! String,
-                                       pageInstanceGuid: json[pageInstanceGuidKey] as? String,
-                                       metadata: json[metadataKey] as? [[String: String]],
-                                       attributes: json[attributesKey] as? [[String: String]],
-                                       jwtToken: json["token"] as! String)
-                        )
-                    }
-                } catch {
-                }
+            guard let body = request.httpBodyStream?.readfully(),
+                  let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+                  let events = json["events"] as? [[String: Any]] else { return }
+            for event in events {
+                let data = event["data"] as? [String: Any]
+                onEventReceive?(
+                    EventModel(eventType: event["event_type"] as? String ?? "",
+                               parentGuid: data?["parent_id"] as? String ?? "",
+                               pageInstanceGuid: data?["page_instance_guid"] as? String,
+                               jwtToken: "")
+                )
             }
         }
         mock.register()
-
     }
 
     func stubDiagnostics(onDiagnosticsReceive: ((String) -> Void)? = nil) {

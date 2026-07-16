@@ -55,11 +55,6 @@ class RoktInternalImplementation {
     // Test-only override for the offers service factory; nil uses the real builder.
     var makeOffersServiceOverride: ((String) -> OffersService)?
 
-    // v2 events is the only active events path; v1 is retained but inactive (flag keeps v1 code reachable for periphery)
-    // swiftlint:disable:next todo
-    // TODO: Remove once v2 is fully rolled out.
-    private static let useTxnEvents = true
-    var isTxnEventsEnabled: Bool { Self.useTxnEvents }
     // Test-only override for the events service factory; nil uses the real builder.
     var makeTxnEventServiceOverride: ((String) -> TxnEventService)?
     private var pendingPayload: ExecutePayload?
@@ -887,9 +882,6 @@ class RoktInternalImplementation {
         initResponse.timeout : self.clientTimeoutMilliseconds
         self.defaultLaunchDelayMilliseconds = initResponse.delay != 0 ?
         initResponse.delay : self.defaultLaunchDelayMilliseconds
-        if let clientSessionTimeoutMilliseconds = initResponse.clientSessionTimeout {
-            self.sessionManager.currentSessionDurationSeconds = clientSessionTimeoutMilliseconds/1000
-        }
         NetworkingHelper.updateTimeout(timeout: self.clientTimeoutMilliseconds/1000)
         self.processedTimingsRequests?.setInitEndTime()
 
