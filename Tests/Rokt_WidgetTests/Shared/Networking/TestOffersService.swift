@@ -419,4 +419,37 @@ final class TestOffersService: XCTestCase {
         wait(for: [completed], timeout: 5)
         XCTAssertEqual(stub.requestCount, 2)
     }
+
+    func test_getExperienceData_onUnauthorized_dropsSessionAndFails() async {
+        // First 200 rolls a live token forward; the second call sends it, gets 401, so the
+        // session is dropped and the failure surfaces — no inline re-mint (the next offers call
+        // would send no token and re-mint a fresh session).
+        let stub = StubHTTPClient(responses: [
+            (Data(offersResponse.utf8), 200), // call 1: roll a live token forward
+            (nil, 401) // call 2: token rejected
+        ])
+        let sessionManager = TxnSessionManager()
+        let service = makeService(stub, sessionManager: sessionManager)
+
+        let first = expectation(description: "first call rolls token")
+        service.getExperienceData(viewName: "checkout", attributes: [:], config: nil, successLayout: { _ in
+            first.fulfill()
+        }, failure: { error, _, _ in XCTFail("unexpected failure: \(error)") })
+        await fulfillment(of: [first], timeout: 5)
+
+        let failed = expectation(description: "401 drops session and fails")
+        service.getExperienceData(viewName: "checkout", attributes: [:], config: nil, successLayout: { _ in
+            XCTFail("unexpected success")
+        }, failure: { _, statusCode, _ in
+            XCTAssertEqual(statusCode, 401)
+            failed.fulfill()
+        })
+        await fulfillment(of: [failed], timeout: 5)
+
+        // No inline re-mint: only the original call + the 401 call.
+        XCTAssertEqual(stub.requestCount, 2)
+        // Session was cleared, so a subsequent offers call would send no Authorization and re-mint.
+        let header = await sessionManager.authorizationHeader
+        XCTAssertNil(header)
+    }
 }

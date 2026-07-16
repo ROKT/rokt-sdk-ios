@@ -146,6 +146,28 @@ final class TestTxnEventService: XCTestCase {
         }
     }
 
+    func test_send_unauthorized_dropsSessionAndDoesNotRetry() async {
+        await storeValidToken()
+        // A 401 is a forged/corrupted token (the recoverable expired case returns 200), so it is
+        // not retried: the batch is dropped and the bad session cleared.
+        httpClient.results = [.status(401)]
+
+        do {
+            try await makeService().send(events: sampleEvents())
+            XCTFail("Expected send to fail on 401")
+        } catch let error as TxnEventService.TxnEventError {
+            XCTAssertEqual(error, .unexpectedStatusCode(401))
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        let header = await sessionManager.authorizationHeader
+        let sessionId = await sessionManager.currentSessionId
+        XCTAssertNil(header)
+        XCTAssertNil(sessionId)
+        XCTAssertEqual(httpClient.callCount, 1)
+    }
+
     private func events(_ count: Int) -> [TxnEvent] {
         (0..<count).map { index in
             TxnEvent(eventType: "impression", instanceId: "instance-\(index)", timestamp: 1_700_000_000_000, data: ["k": "v"])
