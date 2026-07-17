@@ -81,85 +81,6 @@ class NetworkingHelper {
         )
     }
 
-    class func performPost(urlString: String,
-                           bodyArray: [[String: Any]]?,
-                           headers: [String: String]? = nil,
-                           extraErrorCheck: Bool = false,
-                           onRequestStart: (() -> Void)? = nil,
-                           success: ((NSDictionary, Data?, ResponseHeaders?) -> Void)? = nil,
-                           failure: ((Error, Int?, String) -> Void)? = nil,
-                           retryCount: Int = 0) {
-        guard let resolvedClient = shared.httpClient as? RoktHTTPClient else { return }
-
-        resolvedClient.startRequestWith(
-            urlAddress: urlString,
-            method: .post,
-            parameters: nil,
-            parameterArray: bodyArray,
-            headers: getCommonHeaders(headers),
-            onRequestStart: onRequestStart
-        ) { requestResult in
-            processHTTPRequestResult(httpResult: requestResult, success: success) { error, errorCode, errorReponse in
-                if retriableResponse(
-                    error: error,
-                    code: errorCode,
-                    extraErrorCheck: extraErrorCheck
-                ) && retryCount < maxRetries {
-                    performPost(urlString: urlString,
-                                bodyArray: bodyArray,
-                                headers: headers,
-                                extraErrorCheck: extraErrorCheck,
-                                onRequestStart: onRequestStart,
-                                success: success,
-                                failure: failure,
-                                retryCount: retryCount + 1)
-                } else {
-                    failure?(error, errorCode, errorReponse)
-                }
-            }
-        }
-    }
-
-    class func performGet(
-        url: String,
-        params: [String: Any]?,
-        headers: [String: String]? = nil,
-        extraErrorCheck: Bool = false,
-        success: ((NSDictionary, Data?, ResponseHeaders?) -> Void)? = nil,
-        failure: ((Error, Int?, String) -> Void)? = nil,
-        retryCount: Int = 0
-    ) {
-        guard let resolvedClient = shared.httpClient as? RoktHTTPClient else { return }
-
-        resolvedClient.startRequestWith(
-            urlAddress: url,
-            method: .get,
-            parameters: params,
-            parameterArray: nil,
-            headers: getCommonHeaders(headers),
-            completionHandler: { requestResult in
-                processHTTPRequestResult(httpResult: requestResult,
-                                         success: success) { error, errorCode, errorReponse in
-                    if retriableResponse(
-                        error: error,
-                        code: errorCode,
-                        extraErrorCheck: extraErrorCheck
-                    ) && retryCount < maxRetries {
-                        performGet(url: url,
-                                   params: params,
-                                   headers: headers,
-                                   extraErrorCheck: extraErrorCheck,
-                                   success: success,
-                                   failure: failure,
-                                   retryCount: retryCount + 1)
-                    } else {
-                        failure?(error, errorCode, errorReponse)
-                    }
-                }
-            }
-        )
-    }
-
     class internal func retriableResponse(error: Error, code: Int?, extraErrorCheck: Bool = false) -> Bool {
         if error._code == NSURLErrorTimedOut {
             return true
@@ -223,6 +144,22 @@ class NetworkingHelper {
         }
 
         return headersDict
+    }
+
+    // Device and app context headers; sdk_version travels in the request body.
+    class internal func txnDeviceHeaders() -> [String: String] {
+        var headers = [String: String]()
+        headers[RoktHeaderKeys.osType] = "iOS"
+        headers[RoktHeaderKeys.osVersion] = UIDevice.current.systemVersion
+        headers[RoktHeaderKeys.deviceModel] = UIDevice.modelName
+        if let bundleIdentifier = Bundle.main.bundleIdentifier {
+            headers[RoktHeaderKeys.packageName] = bundleIdentifier
+        }
+        headers[RoktHeaderKeys.uiLocale] = Locale.current.identifier
+        if let version = Bundle.main.infoDictionary?[bundleShortVersionKey] as? String {
+            headers[RoktHeaderKeys.packageVersion] = version
+        }
+        return headers
     }
 
     // Gets the response dictionary from the response and calls the appropiate callback

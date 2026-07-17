@@ -88,7 +88,7 @@ internal class FontManager {
 
                 // additional check if font can be created in local caches directory
                 guard let fileUrl = getFileUrl(name: registeredFontName) else {
-                    Rokt.shared.roktImplementation.isInitialized = false
+                    // Best-effort: mark for diagnostics, don't un-initialise.
                     Rokt.shared.roktImplementation.isInitFailedForFont = true
                     RoktAPIHelper.sendDiagnostics(message: fontDiagnosticCode,
                                                   callStack: "font: \(font.url), error: FileManager default urls")
@@ -155,14 +155,14 @@ internal class FontManager {
                     saveFontDetails(font: font)
                 }
             } else {
-                Rokt.shared.roktImplementation.isInitialized = false
+                // Best-effort: mark for diagnostics, don't un-initialise.
                 Rokt.shared.roktImplementation.isInitFailedForFont = true
                 RoktLogger.shared.error("Error registering font on device: \(font.url)")
                 RoktAPIHelper.sendDiagnostics(message: fontDiagnosticCode,
                                               callStack: "font: \(font.url), error: registering font on device")
             }
         } else {
-            Rokt.shared.roktImplementation.isInitialized = false
+            // Best-effort: mark for diagnostics, don't un-initialise.
             Rokt.shared.roktImplementation.isInitFailedForFont = true
             RoktLogger.shared.error("Error reading font data: \(font.url)")
             RoktAPIHelper.sendDiagnostics(message: fontDiagnosticCode,

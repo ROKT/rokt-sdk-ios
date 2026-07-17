@@ -2,10 +2,8 @@ import XCTest
 import PactSwift
 @testable import Rokt_Widget
 
-/// Consumer-driven pact spec for `POST /v2/sessions/init`. Drives
-/// `V2SessionsInitClient.initSession` through the pact mock service so any drift
-/// in the client's wire shape fails here.
-class V2SessionsInitClientPactSpec: XCTestCase {
+/// Consumer-driven pact spec for the config-only `GET /v2/init`.
+class TxnInitClientPactSpec: XCTestCase {
     static var mockService: MockService!
 
     override class func setUp() {
@@ -21,38 +19,28 @@ class V2SessionsInitClientPactSpec: XCTestCase {
         )
     }
 
-    func test_sessionInitHappyPath_returnsSessionAndFeatureFlags() {
+    func test_initHappyPath_returnsFeatureFlags() {
         Self.mockService
-            .uponReceiving("a v2 sessions init request from rokt-sdk-ios initializes a session and returns feature flags")
-            .given(ProviderState(description: "a valid session initialization request is submitted", params: [:]))
+            .uponReceiving("a v2 init request from rokt-sdk-ios returns feature flags and fonts")
+            .given(ProviderState(description: "a valid init request is submitted", params: [:]))
+            // Body-less GET: inputs as headers, no Authorization (cacheable).
             .withRequest(
-                method: .POST,
-                path: "/v2/sessions/init",
+                method: .GET,
+                path: "/v2/init",
                 headers: [
                     "rokt-account-id": Matcher.RegexLike("account-456", term: #".+"#),
-                    "Authorization": Matcher.RegexLike("Bearer session-token-abc", term: #".+"#),
-                    "rokt-platform-type": "iOS",
-                    "rokt-integration-type": "msdk-ios",
-                    "x-request-id": Matcher.RegexLike("request-id-123", term: #".+"#),
-                    "Content-Type": "application/json"
-                ],
-                body: [
-                    "operating_system": "ios",
-                    "sdk_version": Matcher.SomethingLike("5.2.2"),
-                    "layout_schema_version": Matcher.SomethingLike("2.1.0")
+                    "rokt-os-type": "ios",
+                    "rokt-sdk-version": Matcher.SomethingLike("5.2.2"),
+                    "rokt-layout-schema-version": Matcher.SomethingLike("2.1.0"),
+                    "x-request-id": Matcher.RegexLike("request-id-123", term: #".+"#)
                 ]
             )
-            // fonts is a literal `[]` (exact match), not EachLike: the provider always
-            // returns empty today, and EachLike's default min:1 would demand a non-empty array.
+            // Config-only response: no session. fonts is a literal `[]` (exact
+            // match, not EachLike) — the provider returns empty today.
             .willRespondWith(
                 status: 200,
                 headers: ["Content-Type": Matcher.RegexLike("application/json; charset=utf-8", term: #"application/json(;.*)?"#)],
                 body: [
-                    "session_id": Matcher.SomethingLike("550e8400-e29b-41d4-a716-446655440000"),
-                    "session_token": [
-                        "token": Matcher.SomethingLike("pact-stub-session-token"),
-                        "expires_at": Matcher.SomethingLike(1_774_474_053_000)
-                    ],
                     "feature_flags": [
                         "rokt-tracking-status": Matcher.SomethingLike(true),
                         "client-timeout-ms": Matcher.SomethingLike(30_000),
@@ -71,28 +59,26 @@ class V2SessionsInitClientPactSpec: XCTestCase {
                 ]
             )
 
-        let expectation = expectation(description: "v2 sessions init request completes")
+        let expectation = expectation(description: "v2 init request completes")
 
-        // Timeout sized for CI cold-start. See V2EventsClientPactSpec.
+        // Timeout sized for CI cold-start. See TxnEventsClientPactSpec.
         Self.mockService.run(timeout: 30) { baseURL, done in
             Task {
                 defer { done() }
                 do {
                     let url = try XCTUnwrap(URL(string: baseURL))
-                    let client = V2SessionsInitClient(
+                    let client = TxnInitClient(
                         baseURL: url,
                         accountId: "account-456",
-                        authToken: "Bearer session-token-abc",
                         sdkVersion: "5.2.2"
                     )
                     let (_, httpResponse) = try await client.initSession(
                         operating_system: "ios",
-                        sdk_version: "5.2.2",
                         layout_schema_version: "2.1.0"
                     )
                     XCTAssertEqual(httpResponse?.statusCode, 200)
                 } catch {
-                    XCTFail("V2SessionsInitClient request failed: \(error)")
+                    XCTFail("TxnInitClient request failed: \(error)")
                 }
                 expectation.fulfill()
             }
