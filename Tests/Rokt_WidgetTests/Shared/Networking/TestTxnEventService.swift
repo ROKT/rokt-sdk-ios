@@ -24,7 +24,8 @@ final class TestTxnEventService: XCTestCase {
     private func makeService(
         environment: Environment = .Prod,
         deviceHeaders: [String: String] = ["rokt-os-type": "iOS"],
-        maxRetries: Int = 3
+        maxRetries: Int = 3,
+        sleep: @escaping (TimeInterval) async throws -> Void = { _ in }
     ) -> TxnEventService {
         TxnEventService(
             environment: environment,
@@ -35,7 +36,7 @@ final class TestTxnEventService: XCTestCase {
             deviceHeaders: deviceHeaders,
             maxRetries: maxRetries,
             baseBackoff: 0,
-            sleep: { _ in }
+            sleep: sleep
         )
     }
 
@@ -107,6 +108,48 @@ final class TestTxnEventService: XCTestCase {
         try await makeService().send(events: sampleEvents())
 
         XCTAssertEqual(httpClient.callCount, 3)
+    }
+
+    func test_send_retriesOn429_thenSucceeds() async throws {
+        httpClient.results = [.status(429), .success(status: 202, data: rotatedResponse())]
+
+        try await makeService().send(events: sampleEvents())
+
+        XCTAssertEqual(httpClient.callCount, 2)
+    }
+
+    func test_send_retriesOn408_thenSucceeds() async throws {
+        httpClient.results = [.status(408), .success(status: 202, data: rotatedResponse())]
+
+        try await makeService().send(events: sampleEvents())
+
+        XCTAssertEqual(httpClient.callCount, 2)
+    }
+
+    func test_send_honorsRetryAfterHeader_overExponentialBackoff() async throws {
+        var recordedDelays: [TimeInterval] = []
+        let service = makeService(sleep: { recordedDelays.append($0) })
+        httpClient.results = [.statusWithHeaders(429, ["Retry-After": "2"]),
+                              .success(status: 202, data: rotatedResponse())]
+
+        try await service.send(events: sampleEvents())
+
+        XCTAssertEqual(httpClient.callCount, 2)
+        XCTAssertEqual(recordedDelays, [2.0])
+    }
+
+    func test_send_retryAfterMalformed_fallsBackToBackoff() async throws {
+        var recordedDelays: [TimeInterval] = []
+        let service = makeService(sleep: { recordedDelays.append($0) })
+        // Non-numeric (HTTP-date) Retry-After is not honored; backoff is used instead.
+        // baseBackoff is 0 in tests, so the fallback delay is 0 rather than the header value.
+        httpClient.results = [.statusWithHeaders(503, ["Retry-After": "Wed, 21 Oct 2025 07:28:00 GMT"]),
+                              .success(status: 202, data: rotatedResponse())]
+
+        try await service.send(events: sampleEvents())
+
+        XCTAssertEqual(httpClient.callCount, 2)
+        XCTAssertEqual(recordedDelays, [0.0])
     }
 
     func test_send_retriesOnTimeout_thenSucceeds() async throws {

@@ -75,7 +75,9 @@ internal struct TxnEventService {
                 let statusCode = response?.statusCode ?? 0
 
                 if isRetryable(statusCode: statusCode), attempt < maxRetries {
-                    try await sleep(backoffDelay(attempt: attempt))
+                    // A rate-limited/overloaded gateway (429/503) can pace us via `Retry-After`;
+                    // honor it when present, otherwise fall back to exponential backoff.
+                    try await sleep(retryAfterDelay(from: response) ?? backoffDelay(attempt: attempt))
                     attempt += 1
                     continue
                 }
@@ -113,8 +115,20 @@ internal struct TxnEventService {
         }
     }
 
+    // 408 (request timeout) and 429 (too many requests) are transient and safe to replay,
+    // matching the web + Android recoverable-code set.
     private func isRetryable(statusCode: Int) -> Bool {
-        [500, 502, 503, 504].contains(statusCode)
+        [408, 429, 500, 502, 503, 504].contains(statusCode)
+    }
+
+    // Reads the `Retry-After` header in delta-seconds form (fractional allowed, mirroring web).
+    // The HTTP-date form is not honored; callers fall back to exponential backoff.
+    private func retryAfterDelay(from response: HTTPURLResponse?) -> TimeInterval? {
+        guard let raw = response?.value(forHTTPHeaderField: "Retry-After")?
+            .trimmingCharacters(in: .whitespaces),
+              let seconds = Double(raw), seconds >= 0
+        else { return nil }
+        return seconds
     }
 
     // Transient transport failures only; a hard-offline device fails fast.

@@ -5,6 +5,7 @@ final class MockTxnEventsHTTPClient: HTTPClientAdapter {
     enum Response {
         case success(status: Int, data: Data)
         case status(Int)
+        case statusWithHeaders(Int, [String: String])
         case transport(Error)
     }
 
@@ -48,6 +49,13 @@ final class MockTxnEventsHTTPClient: HTTPClientAdapter {
         case .status(let code):
             result = RoktHTTPRequestResult(
                 httpURLResponse: HTTPURLResponse(url: url, statusCode: code, httpVersion: nil, headerFields: nil),
+                responseData: nil,
+                responseError: nil,
+                jsonSerialisedResponseData: .success(NSNull())
+            )
+        case .statusWithHeaders(let code, let headers):
+            result = RoktHTTPRequestResult(
+                httpURLResponse: HTTPURLResponse(url: url, statusCode: code, httpVersion: nil, headerFields: headers),
                 responseData: nil,
                 responseError: nil,
                 jsonSerialisedResponseData: .success(NSNull())
