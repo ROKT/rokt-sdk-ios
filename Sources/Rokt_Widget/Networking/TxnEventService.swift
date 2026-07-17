@@ -153,13 +153,15 @@ internal struct TxnEventService {
         return seconds
     }
 
-    // Transient transport failures only; a hard-offline device fails fast.
+    // Transient transport failures worth retrying, including a device that is offline
+    // (matches ForwardPaymentRetryRules and the web/Android recoverable-transport set).
     private func isRetryable(error: Error) -> Bool {
         let nsError = error as NSError
         guard nsError.domain == NSURLErrorDomain else { return false }
         switch nsError.code {
         case NSURLErrorTimedOut,
              NSURLErrorNetworkConnectionLost,
+             NSURLErrorNotConnectedToInternet,
              NSURLErrorCannotConnectToHost,
              NSURLErrorCannotFindHost,
              NSURLErrorDNSLookupFailed:
