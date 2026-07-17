@@ -48,11 +48,11 @@ final class TestTxnEventMapper: XCTestCase {
         }
     }
 
-    func test_gatedResponse_mapsToSignalResponseWithMarker() {
+    func test_gatedResponse_mapsToOwnWireType() {
         let event = TxnEventMapper.event(from: makeRequest(eventType: .SignalGatedResponse))
 
-        XCTAssertEqual(event?.eventType, "signal_response")
-        XCTAssertEqual(event?.data?["gated"], .string("true"))
+        XCTAssertEqual(event?.eventType, "signal_gated_response")
+        XCTAssertNil(event?.data?["gated"])
     }
 
     func test_activation_mapsToUserInteractionWithType() {
