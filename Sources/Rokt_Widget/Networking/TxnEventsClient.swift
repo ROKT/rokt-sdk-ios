@@ -95,7 +95,7 @@ internal struct TxnEventsChannel: Encodable {
     }
 }
 
-internal struct TxnEvent: Encodable, Equatable {
+internal struct TxnEvent: Codable, Equatable {
     // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
     let eventType: String
     // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
