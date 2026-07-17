@@ -69,6 +69,9 @@ class RoktInternalImplementation {
     private var linkHandler: LinkHandler = .init()
     var sentEventHashes: ThreadSafeSet<String> = .init()
 
+    // Flushes buffered events when the app backgrounds so they are not lost in the debounce window.
+    private let eventFlushLifecycleObserver = EventFlushLifecycleObserver()
+
     // store callback for partner event integration
     private var roktEvent: ((RoktEvent) -> Void)?
     private var roktEventMap: [String: ((RoktEvent) -> Void)?] = [:]
