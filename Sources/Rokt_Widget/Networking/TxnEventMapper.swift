@@ -125,14 +125,21 @@ internal enum TxnEventMapper {
         return data.isEmpty ? nil : data
     }
 
+    // The transactions gateway rejects a whole events batch if any timestamp falls outside the
+    // year range [2000, 2100], so an out-of-range value (e.g. from a device with a misconfigured
+    // clock) is stripped rather than sent — the gateway then defaults to receive-time. Bounds
+    // mirror web's `Date.UTC(2000, 0, 1)` / `Date.UTC(2101, 0, 1)`.
+    private static let minAcceptedTimestampMs: Int64 = 946_684_800_000 // 2000-01-01T00:00:00Z
+    private static let maxAcceptedTimestampMs: Int64 = 4_133_980_800_000 // 2101-01-01T00:00:00Z (exclusive)
+
     // Returns nil (so the timestamp is dropped from the wire) when the capture time is
-    // missing/unparseable or non-positive. The gateway then defaults to receive-time
-    // rather than us sending a misleading value (mirrors web + Android).
+    // missing/unparseable or outside the accepted year range. The gateway then defaults to
+    // receive-time rather than us sending a value it would reject (mirrors web + Android).
     private static func epochMilliseconds(from eventTime: String) -> Int64? {
         guard let date = EventDateFormatter.dateFormatter.date(from: eventTime) else {
             return nil
         }
         let ms = Int64(date.timeIntervalSince1970 * 1000)
-        return ms > 0 ? ms : nil
+        return (minAcceptedTimestampMs..<maxAcceptedTimestampMs).contains(ms) ? ms : nil
     }
 }
