@@ -1,9 +1,6 @@
 import Foundation
 
-/// Fetches an offers experience from `POST /v2/sessions/offers`, rolls the session
-/// token forward, and adapts the response into the experience string the renderer
-/// consumes. Mirrors ``TxnInitService``'s retry/backoff and reports back through the
-/// same `successLayout`/`failure` callbacks the offers call site already uses.
+/// Fetches offers, rolls the session forward, and adapts the response for rendering.
 internal struct OffersService {
     enum OffersError: Error, Equatable {
         case invalidBaseURL
@@ -26,9 +23,7 @@ internal struct OffersService {
     let makeRequestId: () -> String
     let makePageInstanceGuid: () -> String
     let completionQueue: DispatchQueue
-    // Real-time event store seams (injected for tests). `captureEvents` stores the response's
-    // events for the next call; it only adds (no global clear) to mirror the v1 capture and
-    // avoid wiping triggered events the events/v1 paths share in RealTimeEventManager.shared.
+    // Real-time event store seams (injected for tests).
     let triggeredEvents: () -> [TriggeredRealTimeEvent]
     let captureEvents: ([UntriggeredRealTimeEvent]) -> Void
 
@@ -130,11 +125,7 @@ internal struct OffersService {
 
         let authToken = await sessionManager.authorizationHeader
         let client = makeOffersClient(baseURL: baseURL, pageInstanceGuid: pageInstanceGuid, authToken: authToken)
-        // Forward events triggered during the previous placement; read once, before retries,
-        // and only with a live session to attribute them to (matching Android). As on the v1
-        // path, triggered events are not cleared after forwarding — they ride subsequent
-        // requests until session invalidation; re-send is expected (the "only adds, no clear"
-        // note elsewhere is about the untriggered response-capture, not this read).
+        // Forward events triggered during the previous placement.
         let forwardedEvents = authToken != nil ? SelectEventMapper.requestEvents(from: triggeredEvents()) : []
         let input = makeOffersInput(
             requestId: requestId,

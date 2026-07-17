@@ -185,7 +185,7 @@ protocol StubMethodsProvider: AnyObject {
 
 extension StubMethodsProvider {
 
-    // Stubs the v2 endpoint alongside the legacy one; nil legacyData yields a body-less error.
+    // Stubs the v2 init endpoint; nil legacyData yields a body-less error response.
     func registerTxnInitStub(legacyData: Data?, statusCode: Int) {
         guard let url = URL(string: txnInitResourceURL) else { return }
         let v2Data = legacyData.flatMap(makeTxnInitData(fromLegacy:)) ?? Data()
@@ -222,19 +222,10 @@ extension StubMethodsProvider {
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
         if fileName == invalidInitFilename {
-            let mock = Mock(url: URL(string: initResourceURL)!, dataType: .json, statusCode: 500, data: [
-                .get: Data()
-            ])
-            mock.register()
             registerTxnInitStub(legacyData: nil, statusCode: 500)
         } else {
             let initPath = testBundle.path(forResource: fileName, ofType: "json")!
             let initData = NSData(contentsOfFile: initPath)!
-
-            let mock = Mock(url: URL(string: initResourceURL)!, dataType: .json, statusCode: 200, data: [
-                .get: initData as Data // Data containing the JSON response
-            ])
-            mock.register()
             registerTxnInitStub(legacyData: initData as Data, statusCode: 200)
         }
     }
@@ -246,11 +237,6 @@ extension StubMethodsProvider {
 
         let initPath = testBundle.path(forResource: widgetFileName, ofType: "json")!
         let initData = NSData(contentsOfFile: initPath)!
-
-        let mock = Mock(url: URL(string: initResourceURL)!, dataType: .json, statusCode: 200, data: [
-            .get: initData as Data // Data containing the JSON response
-        ])
-        mock.register()
         registerTxnInitStub(legacyData: initData as Data, statusCode: 200)
     }
 
@@ -268,24 +254,11 @@ extension StubMethodsProvider {
                              delay: Int = 0,
                              isLayout: Bool = false,
                              onSessionReceive: ((String) -> Void)?) {
+        _ = (isLayout, onSessionReceive)
         let configuration = URLSessionConfiguration.default
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        var mock = Mock(url: URL(string: experiencesResourceURL)!,
-                        dataType: .json,
-                        statusCode: 200,
-                        data: [.post: data],
-                        additionalHeaders: [experienceTypeHeader: isLayout ? layoutsValue : placementsValue])
-
-        mock.onRequest = { request, _ in
-            let header = request.allHTTPHeaderFields
-            onSessionReceive?(header?["rokt-session-id"] ?? "")
-        }
-        mock.delay = DispatchTimeInterval.seconds(delay)
-        mock.register()
-
-        // The v2 offers path is the active runtime; stub it from the same fixture.
         registerOffersStub(fromV1ExperienceData: data, statusCode: 200, delay: delay)
 
         Mocker.ignore(URL(string: "https://avatars.githubusercontent.com/u/6335212")!)
@@ -296,12 +269,6 @@ extension StubMethodsProvider {
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        let mock = Mock(url: URL(string: experiencesResourceURL)!, dataType: .json, statusCode: 500,
-                        data: [.get: Data()])
-
-        mock.register()
-
-        // The v2 offers path is the active runtime; fail it the same way.
         registerOffersStub(fromV1ExperienceData: nil, statusCode: 500)
     }
 
@@ -331,27 +298,6 @@ extension StubMethodsProvider {
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        var mock = Mock(url: URL(string: eventResourceURL)!,
-                        dataType: .json, statusCode: 200, data: [.post: Data()])
-
-        mock.onRequest = { request, _ in
-            if let reqestDatas = request.httpBodyStream?.readfully() {
-                do {
-                    let jsonArray = try JSONSerialization.jsonObject(with: reqestDatas, options: []) as? [[String: Any]]
-                    for json in jsonArray! {
-                        onEventReceive?(
-                            EventModel(eventType: json["eventType"] as! String,
-                                       parentGuid: json["parentGuid"] as! String,
-                                       pageInstanceGuid: json["pageInstanceGuid"] as? String,
-                                       metadata: json["metadata"] as? [[String: String]],
-                                       attributes: json["attributes"] as? [[String: String]])
-                        )
-                    }
-                } catch {
-                }
-            }
-        }
-        mock.register()
         registerTxnEventsStub(onEventReceive: onEventReceive)
     }
 
@@ -414,20 +360,11 @@ extension XCTestCase: StubMethodsProvider {
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
         if fileName == invalidInitFilename {
-            let mock = Mock(url: URL(string: initResourceURL)!, dataType: .json, statusCode: 500, data: [
-                .get: Data()
-            ])
-            mock.register()
             registerTxnInitStub(legacyData: nil, statusCode: 500)
         } else {
             let initPath = Bundle(for: type(of: self))
                 .path(forResource: fileName, ofType: "json")!
             let initData = NSData(contentsOfFile: initPath)!
-
-            let mock = Mock(url: URL(string: initResourceURL)!, dataType: .json, statusCode: 200, data: [
-                .get: initData as Data // Data containing the JSON response
-            ])
-            mock.register()
             registerTxnInitStub(legacyData: initData as Data, statusCode: 200)
         }
     }
@@ -440,11 +377,6 @@ extension XCTestCase: StubMethodsProvider {
         let initPath = Bundle(for: type(of: self))
             .path(forResource: widgetFileName, ofType: "json")!
         let initData = NSData(contentsOfFile: initPath)!
-
-        let mock = Mock(url: URL(string: initResourceURL)!, dataType: .json, statusCode: 200, data: [
-            .get: initData as Data // Data containing the JSON response
-        ])
-        mock.register()
         registerTxnInitStub(legacyData: initData as Data, statusCode: 200)
     }
 
@@ -462,24 +394,11 @@ extension XCTestCase: StubMethodsProvider {
                              delay: Int = 0,
                              isLayout: Bool = false,
                              onSessionReceive: ((String) -> Void)?) {
+        _ = (isLayout, onSessionReceive)
         let configuration = URLSessionConfiguration.default
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        var mock = Mock(url: URL(string: experiencesResourceURL)!,
-                        dataType: .json,
-                        statusCode: 200,
-                        data: [.post: data],
-                        additionalHeaders: [experienceTypeHeader: isLayout ? layoutsValue : placementsValue])
-
-        mock.onRequest = { request, _ in
-            let header = request.allHTTPHeaderFields
-            onSessionReceive?(header?["rokt-session-id"] ?? "")
-        }
-        mock.delay = DispatchTimeInterval.seconds(delay)
-        mock.register()
-
-        // The v2 offers path is the active runtime; stub it from the same fixture.
         registerOffersStub(fromV1ExperienceData: data, statusCode: 200, delay: delay)
 
         Mocker.ignore(URL(string: "https://avatars.githubusercontent.com/u/6335212")!)
@@ -490,12 +409,6 @@ extension XCTestCase: StubMethodsProvider {
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        let mock = Mock(url: URL(string: experiencesResourceURL)!, dataType: .json, statusCode: 500,
-                        data: [.get: Data()])
-
-        mock.register()
-
-        // The v2 offers path is the active runtime; fail it the same way.
         registerOffersStub(fromV1ExperienceData: nil, statusCode: 500)
     }
 
@@ -525,27 +438,6 @@ extension XCTestCase: StubMethodsProvider {
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        var mock = Mock(url: URL(string: eventResourceURL)!,
-                        dataType: .json, statusCode: 200, data: [.post: Data()])
-
-        mock.onRequest = { request, _ in
-            if let reqestDatas = request.httpBodyStream?.readfully() {
-                do {
-                    let jsonArray = try JSONSerialization.jsonObject(with: reqestDatas, options: []) as? [[String: Any]]
-                    for json in jsonArray! {
-                        onEventReceive?(
-                            EventModel(eventType: json["eventType"] as! String,
-                                       parentGuid: json["parentGuid"] as! String,
-                                       pageInstanceGuid: json["pageInstanceGuid"] as? String,
-                                       metadata: json["metadata"] as? [[String: String]],
-                                       attributes: json["attributes"] as? [[String: String]])
-                        )
-                    }
-                } catch {
-                }
-            }
-        }
-        mock.register()
         registerTxnEventsStub(onEventReceive: onEventReceive)
     }
 

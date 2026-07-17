@@ -18,8 +18,7 @@ internal struct TxnInitClient {
         self.httpClient = httpClient
     }
 
-    /// Config-only `GET /v2/init`: inputs as headers, no body/auth, no session
-    /// in the response (session comes from offers/select).
+    /// Fetches init config (headers only, no session in the response).
     func initSession(
         operating_system: String,
         layout_schema_version: String

@@ -1,4 +1,4 @@
-// periphery:ignore:all - net-new v2 init configuration, not yet wired into the live path
+// periphery:ignore:all
 import Foundation
 
 extension Environment {

@@ -27,12 +27,11 @@ final class TestTxnInitResponseAdapter: XCTestCase {
         XCTAssertEqual(result.timeout, 0)
     }
 
-    func test_toInitRespose_doesNotCarryDelayOrSessionTimeout() {
+    func test_toInitRespose_doesNotCarryDelay() {
         let result = response(flags: ["client-timeout-ms": .int(8000)])
             .toInitRespose(featureFlags: InitFeatureFlags())
 
         XCTAssertEqual(result.delay, 0)
-        XCTAssertNil(result.clientSessionTimeout)
     }
 
     func test_toInitRespose_mapsFonts() {

@@ -1,4 +1,4 @@
-// periphery:ignore:all - net-new v2 init response models, not yet wired into the live path
+// periphery:ignore:all
 import Foundation
 
 internal struct TxnInitResponse: Decodable, Equatable {

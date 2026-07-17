@@ -1,8 +1,7 @@
 import Foundation
 internal import RoktUXHelper
 
-// Maps domain events to the v2 wire shape. Reserved keys (parent_id, token, page_instance_guid)
-// are written last so partner attributes cannot overwrite them.
+// Maps domain events to the wire event shape.
 internal enum TxnEventMapper {
     private static let clientTimeStampKey = "clientTimeStamp"
     private static let captureMethodKey = "captureMethod"

@@ -1,8 +1,7 @@
 import Foundation
 
 internal struct TxnEventService {
-    // Cap events per POST /v2/sessions/events so a large backlog is split across
-    // several requests instead of one oversized payload.
+    // Cap events per request so large backlogs are split across batches.
     static let maxEventsPerBatch = 25
 
     static let unauthorizedDiagnosticCode = "[TXN_EVENTS_401]"
@@ -90,7 +89,7 @@ internal struct TxnEventService {
                     RoktLogger.shared.error("Events returned 401; dropping session and \(events.count) event(s)")
                     RoktAPIHelper.sendDiagnostics(
                         message: Self.unauthorizedDiagnosticCode,
-                        callStack: "Dropped \(events.count) event(s) after 401 on /v2/sessions/events"
+                        callStack: "Dropped \(events.count) event(s) after events 401"
                     )
                     await sessionManager.clear()
                     throw TxnEventError.unexpectedStatusCode(statusCode)

@@ -1,7 +1,6 @@
 import Foundation
 
-/// Request body for `v1/timings/events`: the performance `timingMetrics` the SDK sends
-/// (experiences-request latency and experience JSON-parse duration).
+/// Request body for timing events.
 class TimingEventsRequest: Codable {
     static let timingMetricsKey = "timingMetrics"
 
