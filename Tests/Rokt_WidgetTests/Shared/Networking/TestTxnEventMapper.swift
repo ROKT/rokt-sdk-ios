@@ -12,13 +12,14 @@ final class TestTxnEventMapper: XCTestCase {
         objectData: [String: String]? = nil,
         parentGuid: String = "parent-1",
         pageInstanceGuid: String = "page-1",
-        jwtToken: String = "jwt-1"
+        jwtToken: String = "jwt-1",
+        eventTime: Date? = nil
     ) -> RoktEventRequest {
         RoktEventRequest(
             sessionId: "session-1",
             eventType: eventType,
             parentGuid: parentGuid,
-            eventTime: eventTime,
+            eventTime: eventTime ?? self.eventTime,
             eventData: eventData,
             objectData: objectData,
             pageInstanceGuid: pageInstanceGuid,
@@ -48,11 +49,11 @@ final class TestTxnEventMapper: XCTestCase {
         }
     }
 
-    func test_gatedResponse_mapsToSignalResponseWithMarker() {
+    func test_gatedResponse_mapsToOwnWireType() {
         let event = TxnEventMapper.event(from: makeRequest(eventType: .SignalGatedResponse))
 
-        XCTAssertEqual(event?.eventType, "signal_response")
-        XCTAssertEqual(event?.data?["gated"], .string("true"))
+        XCTAssertEqual(event?.eventType, "signal_gated_response")
+        XCTAssertNil(event?.data?["gated"])
     }
 
     func test_activation_mapsToUserInteractionWithType() {
@@ -103,6 +104,34 @@ final class TestTxnEventMapper: XCTestCase {
         XCTAssertNotNil(event)
         // Dropped from the wire so the gateway defaults to receive-time (mirrors web + Android).
         XCTAssertNil(event?.timestamp)
+    }
+
+    func test_stripsTimestampBefore2000() {
+        // 1999-12-31 — before the accepted range.
+        let request = makeRequest(eventType: .SignalImpression,
+                                  eventTime: Date(timeIntervalSince1970: 946_684_800 - 86_400))
+        XCTAssertNil(TxnEventMapper.event(from: request)?.timestamp)
+    }
+
+    func test_stripsTimestampAtOrAfter2101() {
+        // 2101-01-01T00:00:00Z — the exclusive upper bound.
+        let request = makeRequest(eventType: .SignalImpression,
+                                  eventTime: Date(timeIntervalSince1970: 4_133_980_800))
+        XCTAssertNil(TxnEventMapper.event(from: request)?.timestamp)
+    }
+
+    func test_keepsTimestampAtLowerBound2000() {
+        // 2000-01-01T00:00:00Z — inclusive lower bound.
+        let request = makeRequest(eventType: .SignalImpression,
+                                  eventTime: Date(timeIntervalSince1970: 946_684_800))
+        XCTAssertEqual(TxnEventMapper.event(from: request)?.timestamp, 946_684_800_000)
+    }
+
+    func test_keepsTimestampWithinRange2100() {
+        // 2100-12-31 — inside the accepted range.
+        let request = makeRequest(eventType: .SignalImpression,
+                                  eventTime: Date(timeIntervalSince1970: 4_133_980_800 - 86_400))
+        XCTAssertEqual(TxnEventMapper.event(from: request)?.timestamp, (4_133_980_800 - 86_400) * 1000)
     }
 
     func test_attributesAreFlattenedAndMetadataMapped() {

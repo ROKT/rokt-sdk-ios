@@ -1,12 +1,26 @@
 import Foundation
 
 // Event `data` values are either flat strings or nested string maps (capture-attributes partner snapshot).
-internal enum TxnEventDataValue: Encodable, Equatable, ExpressibleByStringLiteral {
+internal enum TxnEventDataValue: Codable, Equatable, ExpressibleByStringLiteral {
     case string(String)
     case object([String: String])
 
     init(stringLiteral value: String) {
         self = .string(value)
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let value = try? container.decode(String.self) {
+            self = .string(value)
+        } else if let value = try? container.decode([String: String].self) {
+            self = .object(value)
+        } else {
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "TxnEventDataValue is neither a String nor a [String: String]"
+            )
+        }
     }
 
     func encode(to encoder: Encoder) throws {

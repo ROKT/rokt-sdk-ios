@@ -22,8 +22,18 @@ class EventQueue: NSObject {
 
     @objc static func fireNow() {
         DispatchQueue(label: eventQueueLabel).sync {
+            guard !EventQueue.events.isEmpty else { return }
             EventQueue.callback?(EventQueue.events)
             EventQueue.events = [EventRequest]()
         }
+    }
+
+    /// Drains the buffer immediately, cancelling the pending debounce timer. A no-op when the
+    /// buffer is empty. Used to flush queued events when the app backgrounds so they are not
+    /// lost inside the debounce window (analog of web's pagehide/visibilitychange flush).
+    static func flush() {
+        timer?.invalidate()
+        timer = nil
+        fireNow()
     }
 }

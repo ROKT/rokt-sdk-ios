@@ -1,8 +1,7 @@
 import Foundation
 
 internal struct TxnEventService {
-    // Cap events per POST /v2/sessions/events so a large backlog is split across
-    // several requests instead of one oversized payload.
+    // Cap events per request so large backlogs are split across batches.
     static let maxEventsPerBatch = 25
 
     static let unauthorizedDiagnosticCode = "[TXN_EVENTS_401]"
@@ -18,6 +17,7 @@ internal struct TxnEventService {
     let sleep: (TimeInterval) async throws -> Void
 
     private let client: TxnEventsClient?
+    private let pendingStore: TxnPendingEventStoring?
 
     init(
         environment: Environment,
@@ -29,6 +29,7 @@ internal struct TxnEventService {
         maxRetries: Int = 3,
         requestTimeout: TimeInterval = 7,
         baseBackoff: TimeInterval = 0.2,
+        pendingStore: TxnPendingEventStoring? = nil,
         sleep: @escaping (TimeInterval) async throws -> Void = { seconds in
             try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
         }
@@ -36,6 +37,7 @@ internal struct TxnEventService {
         self.sessionManager = sessionManager
         self.maxRetries = maxRetries
         self.baseBackoff = baseBackoff
+        self.pendingStore = pendingStore
         self.sleep = sleep
 
         if let baseURL = URL(string: environment.gatewayBaseURL) {
@@ -60,8 +62,27 @@ internal struct TxnEventService {
         // session token refreshed by one batch is picked up by the next.
         for start in stride(from: 0, to: events.count, by: Self.maxEventsPerBatch) {
             let end = min(start + Self.maxEventsPerBatch, events.count)
-            try await sendBatch(events: Array(events[start..<end]))
+            let batch = Array(events[start..<end])
+            do {
+                try await sendBatch(events: batch)
+            } catch {
+                // Persist recoverable failures (exhausted 5xx/transport) for replay on the next
+                // init instead of dropping them; permanent failures (400/401) are not replayed.
+                if shouldPersistOnFailure(error) {
+                    pendingStore?.persist(events: batch)
+                }
+                throw error
+            }
         }
+    }
+
+    // A recoverable failure that exhausted retries (or a transient transport error) is worth
+    // replaying; a 400/401 is permanent and must not be re-sent.
+    private func shouldPersistOnFailure(_ error: Error) -> Bool {
+        if let txnError = error as? TxnEventError, case .unexpectedStatusCode(let code) = txnError {
+            return isRetryable(statusCode: code)
+        }
+        return isRetryable(error: error)
     }
 
     private func sendBatch(events: [TxnEvent]) async throws {
@@ -76,7 +97,9 @@ internal struct TxnEventService {
                 let statusCode = response?.statusCode ?? 0
 
                 if isRetryable(statusCode: statusCode), attempt < maxRetries {
-                    try await sleep(backoffDelay(attempt: attempt))
+                    // A rate-limited/overloaded gateway (429/503) can pace us via `Retry-After`;
+                    // honor it when present, otherwise fall back to exponential backoff.
+                    try await sleep(retryAfterDelay(from: response) ?? backoffDelay(attempt: attempt))
                     attempt += 1
                     continue
                 }
@@ -90,7 +113,7 @@ internal struct TxnEventService {
                     RoktLogger.shared.error("Events returned 401; dropping session and \(events.count) event(s)")
                     RoktAPIHelper.sendDiagnostics(
                         message: Self.unauthorizedDiagnosticCode,
-                        callStack: "Dropped \(events.count) event(s) after 401 on /v2/sessions/events"
+                        callStack: "Dropped \(events.count) event(s) after events 401"
                     )
                     await sessionManager.clear()
                     throw TxnEventError.unexpectedStatusCode(statusCode)
@@ -114,8 +137,20 @@ internal struct TxnEventService {
         }
     }
 
+    // 408 (request timeout) and 429 (too many requests) are transient and safe to replay,
+    // matching the web + Android recoverable-code set.
     private func isRetryable(statusCode: Int) -> Bool {
-        [500, 502, 503, 504].contains(statusCode)
+        [408, 429, 500, 502, 503, 504].contains(statusCode)
+    }
+
+    // Reads the `Retry-After` header in delta-seconds form (fractional allowed, mirroring web).
+    // The HTTP-date form is not honored; callers fall back to exponential backoff.
+    private func retryAfterDelay(from response: HTTPURLResponse?) -> TimeInterval? {
+        guard let raw = response?.value(forHTTPHeaderField: "Retry-After")?
+            .trimmingCharacters(in: .whitespaces),
+              let seconds = Double(raw), seconds >= 0
+        else { return nil }
+        return seconds
     }
 
     // Transient transport failures only; a hard-offline device fails fast.

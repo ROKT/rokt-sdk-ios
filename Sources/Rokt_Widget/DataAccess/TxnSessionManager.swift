@@ -1,8 +1,7 @@
-// periphery:ignore:all - v2 session store; token-refresh/session-id members are consumed by the upcoming v2 offers/events path
+// periphery:ignore:all
 import Foundation
 
 internal actor TxnSessionManager {
-    // Persistence keys for the v2 path, separate from the legacy SessionManager's `rokt.*` keys.
     private enum Keys {
         static let tagId = "ROKT_TXN_TAG_ID"
         static let sessionId = "ROKT_TXN_SESSION_ID"
