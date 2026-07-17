@@ -161,6 +161,17 @@ final class TestTxnEventService: XCTestCase {
         XCTAssertEqual(httpClient.callCount, 2)
     }
 
+    func test_send_retriesWhenOffline_thenSucceeds() async throws {
+        // A device that is offline surfaces NSURLErrorNotConnectedToInternet; treat it as a
+        // transient transport failure so the batch is retried rather than dropped.
+        httpClient.results = [.transport(NSError(domain: NSURLErrorDomain, code: NSURLErrorNotConnectedToInternet)),
+                              .success(status: 202, data: rotatedResponse())]
+
+        try await makeService().send(events: sampleEvents())
+
+        XCTAssertEqual(httpClient.callCount, 2)
+    }
+
     func test_send_exhaustsRetries_throwsUnexpectedStatus() async {
         httpClient.results = [.status(503)]
 
