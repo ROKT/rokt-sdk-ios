@@ -72,6 +72,10 @@ class RoktInternalImplementation {
     // Persists unsent event batches so an offline/rate-limited failure is replayed on the next init.
     private let txnPendingEventStore: TxnPendingEventStoring = TxnPendingEventStore()
 
+    // Flushes buffered events when the app backgrounds so they are not lost in the debounce window.
+    // periphery:ignore - held only for its side effect (registers the didEnterBackground observer); never read.
+    private let eventFlushLifecycleObserver = EventFlushLifecycleObserver()
+
     // store callback for partner event integration
     private var roktEvent: ((RoktEvent) -> Void)?
     private var roktEventMap: [String: ((RoktEvent) -> Void)?] = [:]
