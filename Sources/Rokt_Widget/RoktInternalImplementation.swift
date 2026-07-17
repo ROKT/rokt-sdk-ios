@@ -69,6 +69,9 @@ class RoktInternalImplementation {
     private var linkHandler: LinkHandler = .init()
     var sentEventHashes: ThreadSafeSet<String> = .init()
 
+    // Persists unsent event batches so an offline/rate-limited failure is replayed on the next init.
+    private let txnPendingEventStore: TxnPendingEventStoring = TxnPendingEventStore()
+
     // Flushes buffered events when the app backgrounds so they are not lost in the debounce window.
     // periphery:ignore - held only for its side effect (registers the didEnterBackground observer); never read.
     private let eventFlushLifecycleObserver = EventFlushLifecycleObserver()
@@ -899,6 +902,9 @@ class RoktInternalImplementation {
             showNow(payload: page)
         }
 
+        // Replay event batches that failed to send in a previous session.
+        replayPendingTxnEvents()
+
         let initFonts = initResponse.fonts
         FontManager.removeUnusedFonts(fonts: initFonts)
         RoktAPIHelper.downloadFonts(initFonts) {
@@ -963,6 +969,15 @@ class RoktInternalImplementation {
         Task { try? await service.send(events: events) }
     }
 
+    // Replays event batches that failed to send in a previous session (offline / rate-limited),
+    // dropping any past their 30-minute TTL. Called once init succeeds.
+    func replayPendingTxnEvents() {
+        guard roktTagId != nil else { return }
+        for batch in txnPendingEventStore.drainValid() {
+            dispatchTxnEvents(batch)
+        }
+    }
+
     private func defaultTxnEventService(roktTagId: String) -> TxnEventService {
         let httpClient: HTTPClientAdapter = config.environment == .Mock
             ? MockTxnInitHTTPClient()
@@ -973,7 +988,8 @@ class RoktInternalImplementation {
             sdkVersion: libraryVersion,
             sessionManager: TxnSessionManager(roktTagId: roktTagId),
             httpClient: httpClient,
-            deviceHeaders: NetworkingHelper.txnDeviceHeaders()
+            deviceHeaders: NetworkingHelper.txnDeviceHeaders(),
+            pendingStore: txnPendingEventStore
         )
     }
 

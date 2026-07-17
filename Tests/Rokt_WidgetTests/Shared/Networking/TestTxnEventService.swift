@@ -25,6 +25,7 @@ final class TestTxnEventService: XCTestCase {
         environment: Environment = .Prod,
         deviceHeaders: [String: String] = ["rokt-os-type": "iOS"],
         maxRetries: Int = 3,
+        pendingStore: TxnPendingEventStoring? = nil,
         sleep: @escaping (TimeInterval) async throws -> Void = { _ in }
     ) -> TxnEventService {
         TxnEventService(
@@ -36,6 +37,7 @@ final class TestTxnEventService: XCTestCase {
             deviceHeaders: deviceHeaders,
             maxRetries: maxRetries,
             baseBackoff: 0,
+            pendingStore: pendingStore,
             sleep: sleep
         )
     }
@@ -247,6 +249,53 @@ final class TestTxnEventService: XCTestCase {
         }
     }
 
+    func test_send_exhaustedRecoverableFailure_persistsBatchForReplay() async {
+        let store = SpyTxnPendingEventStore()
+        httpClient.results = [.status(503)]
+
+        do {
+            try await makeService(pendingStore: store).send(events: sampleEvents())
+            XCTFail("Expected send to fail after exhausting retries")
+        } catch {
+            XCTAssertEqual(store.persistedBatches.count, 1)
+            XCTAssertEqual(store.persistedBatches.first?.first?.instanceId, "instance-1")
+        }
+    }
+
+    func test_send_nonRetryableFailure_doesNotPersist() async {
+        let store = SpyTxnPendingEventStore()
+        httpClient.results = [.status(400)]
+
+        do {
+            try await makeService(pendingStore: store).send(events: sampleEvents())
+            XCTFail("Expected send to fail on 400")
+        } catch {
+            XCTAssertTrue(store.persistedBatches.isEmpty)
+        }
+    }
+
+    func test_send_unauthorized_doesNotPersist() async {
+        await storeValidToken()
+        let store = SpyTxnPendingEventStore()
+        httpClient.results = [.status(401)]
+
+        do {
+            try await makeService(pendingStore: store).send(events: sampleEvents())
+            XCTFail("Expected send to fail on 401")
+        } catch {
+            XCTAssertTrue(store.persistedBatches.isEmpty)
+        }
+    }
+
+    func test_send_success_doesNotPersist() async throws {
+        let store = SpyTxnPendingEventStore()
+        httpClient.results = [.success(status: 202, data: rotatedResponse())]
+
+        try await makeService(pendingStore: store).send(events: sampleEvents())
+
+        XCTAssertTrue(store.persistedBatches.isEmpty)
+    }
+
     func test_send_emptyEvents_skipsRequest() async throws {
         try await makeService().send(events: [])
 
@@ -265,5 +314,19 @@ final class TestTxnEventService: XCTestCase {
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
+    }
+}
+
+private final class SpyTxnPendingEventStore: TxnPendingEventStoring {
+    private(set) var persistedBatches: [[TxnEvent]] = []
+    var batchesToDrain: [[TxnEvent]] = []
+
+    func persist(events: [TxnEvent]) {
+        persistedBatches.append(events)
+    }
+
+    func drainValid() -> [[TxnEvent]] {
+        defer { batchesToDrain = [] }
+        return batchesToDrain
     }
 }
