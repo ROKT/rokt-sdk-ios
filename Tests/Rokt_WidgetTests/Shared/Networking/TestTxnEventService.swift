@@ -25,6 +25,7 @@ final class TestTxnEventService: XCTestCase {
         environment: Environment = .Prod,
         deviceHeaders: [String: String] = ["rokt-os-type": "iOS"],
         maxRetries: Int = 3,
+        baseBackoff: TimeInterval = 0,
         sleep: @escaping (TimeInterval) async throws -> Void = { _ in }
     ) -> TxnEventService {
         TxnEventService(
@@ -35,7 +36,7 @@ final class TestTxnEventService: XCTestCase {
             httpClient: httpClient,
             deviceHeaders: deviceHeaders,
             maxRetries: maxRetries,
-            baseBackoff: 0,
+            baseBackoff: baseBackoff,
             sleep: sleep
         )
     }
@@ -150,6 +151,24 @@ final class TestTxnEventService: XCTestCase {
 
         XCTAssertEqual(httpClient.callCount, 2)
         XCTAssertEqual(recordedDelays, [0.0])
+    }
+
+    func test_backoffDelay_followsWebCurveWithJitterCap() async throws {
+        var delays: [TimeInterval] = []
+        let service = makeService(baseBackoff: 1.0, sleep: { delays.append($0) })
+        // Three retryable failures then success -> backoff sleeps for attempts 0, 1, 2.
+        httpClient.results = [.status(503), .status(503), .status(503),
+                              .success(status: 202, data: rotatedResponse())]
+
+        try await service.send(events: sampleEvents())
+
+        XCTAssertEqual(delays.count, 3)
+        // Web curve: base = 1000·4^n ms (== 4^n s here); jitter adds 0...25%.
+        for (n, delay) in delays.enumerated() {
+            let base = pow(4.0, Double(n)) // 1s, 4s, 16s
+            XCTAssertGreaterThanOrEqual(delay, base)
+            XCTAssertLessThanOrEqual(delay, base * 1.25)
+        }
     }
 
     func test_send_retriesOnTimeout_thenSucceeds() async throws {

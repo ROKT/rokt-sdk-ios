@@ -27,7 +27,7 @@ internal struct TxnEventService {
         deviceHeaders: [String: String] = [:],
         maxRetries: Int = 3,
         requestTimeout: TimeInterval = 7,
-        baseBackoff: TimeInterval = 0.2,
+        baseBackoff: TimeInterval = 1.0,
         sleep: @escaping (TimeInterval) async throws -> Void = { seconds in
             try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
         }
@@ -147,9 +147,11 @@ internal struct TxnEventService {
         }
     }
 
-    // Exponential backoff with jitter to avoid hammering a struggling gateway.
+    // Exponential backoff with jitter to avoid hammering a struggling gateway. The `1000·4^n`
+    // curve and ≤25% jitter mirror web (`BASE_DELAY_MS * 4^(retryCount-1)` + `random·0.25`);
+    // `attempt` is 0-based here, so the first retry waits `baseBackoff` (1s).
     private func backoffDelay(attempt: Int) -> TimeInterval {
-        let base = baseBackoff * pow(2, Double(attempt))
-        return base + Double.random(in: 0...(base/2))
+        let base = baseBackoff * pow(4, Double(attempt))
+        return base + Double.random(in: 0...(base * 0.25))
     }
 }
