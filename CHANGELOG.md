@@ -14,6 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 - Store font files and font cache metadata in the Caches directory instead of Documents, avoiding write failures when Documents is unavailable (e.g. background or locked device)
 - Downgrade font cache metadata diagnostics to informational severity since cache write failures do not block placement rendering
 
+## [5.3.0] - 2026-07-17
+
+### Core
+
+#### Added
+
+- Merge v2 transactions architecture (init, offers, events) into main ([#255](https://github.com/ROKT/rokt-sdk-ios/pull/255))
+
 ## [5.2.6] - 2026-07-07
 
 ### Core
@@ -486,7 +494,8 @@ For a complete migration walkthrough with before/after code examples, see the [v
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.6...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.0...HEAD
+[5.3.0]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.6...5.3.0
 [5.2.6]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.5...5.2.6
 [5.2.5]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.4...5.2.5
 [5.2.4]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.3...5.2.4
