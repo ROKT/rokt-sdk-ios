@@ -9,10 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
-### Fixed
+## [5.3.0] - 2026-07-17
 
-- Store font files and font cache metadata in the Caches directory instead of Documents, avoiding write failures when Documents is unavailable (e.g. background or locked device)
-- Downgrade font cache metadata diagnostics to informational severity since cache write failures do not block placement rendering
+### Core
+
+#### Added
+
+- Introduce the v2 transactions architecture for init, offers, and events ([#255](https://github.com/ROKT/rokt-sdk-ios/pull/255))
 
 ## [5.2.6] - 2026-07-07
 
@@ -28,7 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 #### Fixed
 
-- Store font cache in Caches directory instead of Documents ([#235](https://github.com/ROKT/rokt-sdk-ios/pull/235))
+- Store font files and font cache metadata in the Caches directory instead of Documents, avoiding write failures when Documents is unavailable (e.g. background or locked device) ([#235](https://github.com/ROKT/rokt-sdk-ios/pull/235))
+- Downgrade font cache metadata diagnostics to informational severity since cache write failures do not block placement rendering ([#235](https://github.com/ROKT/rokt-sdk-ios/pull/235))
 - Retryable Stripe Support ([#229](https://github.com/ROKT/rokt-sdk-ios/pull/229))
 - Use iPhone 17 Pro simulator in pull-request workflow ([#232](https://github.com/ROKT/rokt-sdk-ios/pull/232))
 
@@ -486,7 +490,8 @@ For a complete migration walkthrough with before/after code examples, see the [v
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.6...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.0...HEAD
+[5.3.0]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.6...5.3.0
 [5.2.6]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.5...5.2.6
 [5.2.5]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.4...5.2.5
 [5.2.4]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.3...5.2.4
