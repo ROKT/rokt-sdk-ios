@@ -1,6 +1,8 @@
+#if DEBUG
 import Foundation
 
-// Offline mock transport for init responses.
+// Offline mock transport for init responses. Development-only (Environment.Mock);
+// compiled out of release builds so it never ships in the SDK.
 internal final class MockTxnInitHTTPClient: HTTPClientAdapter {
     private static let fixtureName = "txn_init"
 
@@ -73,3 +75,4 @@ internal final class MockTxnInitHTTPClient: HTTPClientAdapter {
         completionHandler: ((RoktDownloadResult) -> Void)?
     ) {}
 }
+#endif
