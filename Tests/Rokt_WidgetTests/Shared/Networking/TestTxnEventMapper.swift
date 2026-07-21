@@ -57,10 +57,32 @@ final class TestTxnEventMapper: XCTestCase {
     }
 
     func test_activation_mapsToUserInteractionWithType() {
-        let event = TxnEventMapper.event(from: makeRequest(eventType: .SignalActivation))
+        let event = TxnEventMapper.event(from: makeRequest(
+            eventType: .SignalActivation,
+            objectData: [
+                "action": "MainImageScrollIconRightClick",
+                "interactionType": "stale"
+            ]
+        ))
 
         XCTAssertEqual(event?.eventType, "user_interaction")
         XCTAssertEqual(event?.data?["interactionType"], .string("activation"))
+    }
+
+    func test_userInteraction_mirrorsActionToInteractionType() {
+        let event = TxnEventMapper.event(from: makeRequest(
+            eventType: .SignalUserInteraction,
+            objectData: [
+                "action": "MainImageScrollIconRightClick",
+                "context": "CatalogImageGallery",
+                "interactionType": "stale"
+            ]
+        ))
+
+        XCTAssertEqual(event?.eventType, "user_interaction")
+        XCTAssertEqual(event?.data?["action"], .string("MainImageScrollIconRightClick"))
+        XCTAssertEqual(event?.data?["context"], .string("CatalogImageGallery"))
+        XCTAssertEqual(event?.data?["interactionType"], .string("MainImageScrollIconRightClick"))
     }
 
     func test_diagnostic_isDropped() {
