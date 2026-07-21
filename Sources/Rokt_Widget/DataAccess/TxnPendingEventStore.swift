@@ -71,6 +71,10 @@ internal final class TxnPendingEventStore: TxnPendingEventStoring {
 
     private func save(_ batches: [TxnPendingEventBatch], to url: URL) {
         guard let data = try? JSONEncoder().encode(batches) else { return }
-        try? data.write(to: url, options: .atomic)
+        // Encrypt at rest with iOS Data Protection. Use `.completeFileProtectionUntilFirstUserAuthentication`
+        // (not `.completeFileProtection`): persist() runs from network-failure callbacks that can fire while
+        // the app is backgrounded and the device is locked, and this write is best-effort (try?). A stricter
+        // class would make those writes fail silently and drop pending batches, defeating the replay store.
+        try? data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
     }
 }

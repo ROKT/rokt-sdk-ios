@@ -52,20 +52,25 @@ class RealTimeEventStoreFile: RealTimeEventStore {
     private let debounceInterval: TimeInterval = 0.5
     private let eventProcessingQueue = DispatchQueue(label: "com.rokt.RealTimeEventManager.eventProcessingQueue")
 
-    init() {
+    // File paths are injectable so tests can isolate each case to its own temporary files.
+    // Production uses the document-directory defaults.
+    init(
+        triggeredEventsFilePath: URL? = RealTimeEventStoreFile.defaultFileURL(named: "triggered_events.json"),
+        untriggeredEventsFilePath: URL? = RealTimeEventStoreFile.defaultFileURL(named: "untriggered_events.json")
+    ) {
+        self.triggeredEventsFilePath = triggeredEventsFilePath
+        self.untriggeredEventsFilePath = untriggeredEventsFilePath
+    }
+
+    private static func defaultFileURL(named name: String) -> URL? {
         guard let directory = FileManager
             .default
-            .urls(
-                for: .documentDirectory,
-                in: .userDomainMask
-            ).first else {
+            .urls(for: .documentDirectory, in: .userDomainMask)
+            .first else {
             RoktLogger.shared.error("Document directory unavailable - RealTimeEventStore will not persist events")
-            self.triggeredEventsFilePath = nil
-            self.untriggeredEventsFilePath = nil
-            return
+            return nil
         }
-        self.triggeredEventsFilePath = directory.appendingPathComponent("triggered_events.json")
-        self.untriggeredEventsFilePath = directory.appendingPathComponent("untriggered_events.json")
+        return directory.appendingPathComponent(name)
     }
 
     func addUntriggeredEvents(_ events: [UntriggeredRealTimeEvent]) {
@@ -152,6 +157,23 @@ class RealTimeEventStoreFile: RealTimeEventStore {
         }
     }
 
+    #if DEBUG
+    // Test hook: cancels any pending debounce and drops accumulated marks so a scheduled
+    // write cannot fire after a test finishes. Not referenced in production code.
+    func cancelPendingWorkForTesting() {
+        let invalidate = {
+            self.debounceTimer?.invalidate()
+            self.debounceTimer = nil
+        }
+        if Thread.isMainThread {
+            invalidate()
+        } else {
+            DispatchQueue.main.sync(execute: invalidate)
+        }
+        eventProcessingQueue.sync { self.accumulatedEventsToMark.removeAll() }
+    }
+    #endif
+
     private func getUntriggeredEvents() -> [UntriggeredRealTimeEvent] {
         guard let untriggeredEventsFilePath else { return [] }
         return load(from: untriggeredEventsFilePath)
@@ -161,7 +183,11 @@ class RealTimeEventStoreFile: RealTimeEventStore {
         do {
             let encoder = JSONEncoder()
             let data = try encoder.encode(value)
-            try data.write(to: url, options: .atomic)
+            // Encrypt at rest with iOS Data Protection. Use `.completeFileProtectionUntilFirstUserAuthentication`
+            // (not `.completeFileProtection`): events are persisted during normal app runtime, including while
+            // backgrounded and the device is locked. A stricter class would make those writes fail and drop
+            // events. This mirrors the protection level used by TxnPendingEventStore.
+            try data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
         } catch {
             RoktLogger.shared.error("Failed to save real-time events", error: error)
         }

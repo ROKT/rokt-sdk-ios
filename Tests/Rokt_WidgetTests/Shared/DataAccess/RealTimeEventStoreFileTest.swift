@@ -4,6 +4,8 @@ internal import RoktUXHelper
 
 class RealTimeEventStoreFileTest: XCTestCase {
     var sut: RealTimeEventStoreFile!
+    private var triggeredFileURL: URL!
+    private var untriggeredFileURL: URL!
     let debounceInterval: TimeInterval = 0.5
     let expectationTimeout: TimeInterval = 1.0
 
@@ -35,12 +37,26 @@ class RealTimeEventStoreFileTest: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        sut = RealTimeEventStoreFile()
+        // Isolate each test to its own temporary files so a debounced write from one test
+        // cannot leak into the next (the production store shares fixed document-directory files).
+        let tmp = FileManager.default.temporaryDirectory
+        triggeredFileURL = tmp.appendingPathComponent("triggered_\(UUID().uuidString).json")
+        untriggeredFileURL = tmp.appendingPathComponent("untriggered_\(UUID().uuidString).json")
+        sut = RealTimeEventStoreFile(
+            triggeredEventsFilePath: triggeredFileURL,
+            untriggeredEventsFilePath: untriggeredFileURL
+        )
     }
 
     override func tearDown() {
+        // Cancel any in-flight debounce so a pending write cannot fire after the test ends.
+        sut.cancelPendingWorkForTesting()
         sut.clear()
         sut = nil
+        try? FileManager.default.removeItem(at: triggeredFileURL)
+        try? FileManager.default.removeItem(at: untriggeredFileURL)
+        triggeredFileURL = nil
+        untriggeredFileURL = nil
         super.tearDown()
     }
 
@@ -463,6 +479,26 @@ class RealTimeEventStoreFileTest: XCTestCase {
             markExpectation1.fulfill()
         })
         wait(for: [markExpectation1], timeout: expectationTimeout + 0.5)
+    }
+
+    // MARK: - Tests for Data Protection
+
+    func test_addUntriggeredEvents_writesFileWithDataProtection() throws {
+        let untriggeredEvent = createRoktUXRealTimeEventResponse(
+            triggerGuid: guid1,
+            triggerEvent: signalImpressionRawValue,
+            eventType: finalType1,
+            payload: payload1
+        )
+        sut.addUntriggeredEvents([untriggeredEvent])
+
+        let attributes = try FileManager.default.attributesOfItem(atPath: untriggeredFileURL.path)
+        let protection = attributes[.protectionKey] as? FileProtectionType
+
+        // The iOS Simulator does not enforce or report Data Protection, so the attribute is nil there.
+        // Assert only where it is reported (real device); skip otherwise so CI stays green.
+        try XCTSkipUnless(protection != nil, "Data Protection is not reported on this environment (simulator)")
+        XCTAssertEqual(protection, .completeUntilFirstUserAuthentication)
     }
 
     // MARK: - Tests for clear
