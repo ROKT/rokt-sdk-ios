@@ -157,23 +157,6 @@ class RealTimeEventStoreFile: RealTimeEventStore {
         }
     }
 
-    #if DEBUG
-    // Test hook: cancels any pending debounce and drops accumulated marks so a scheduled
-    // write cannot fire after a test finishes. Not referenced in production code.
-    func cancelPendingWorkForTesting() {
-        let invalidate = {
-            self.debounceTimer?.invalidate()
-            self.debounceTimer = nil
-        }
-        if Thread.isMainThread {
-            invalidate()
-        } else {
-            DispatchQueue.main.sync(execute: invalidate)
-        }
-        eventProcessingQueue.sync { self.accumulatedEventsToMark.removeAll() }
-    }
-    #endif
-
     private func getUntriggeredEvents() -> [UntriggeredRealTimeEvent] {
         guard let untriggeredEventsFilePath else { return [] }
         return load(from: untriggeredEventsFilePath)

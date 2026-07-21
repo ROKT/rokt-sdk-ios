@@ -49,10 +49,10 @@ class RealTimeEventStoreFileTest: XCTestCase {
     }
 
     override func tearDown() {
-        // Cancel any in-flight debounce so a pending write cannot fire after the test ends.
-        sut.cancelPendingWorkForTesting()
         sut.clear()
         sut = nil
+        // Per-test unique files (see setUp) keep each case isolated, so a debounced write left
+        // in flight lands in this test's own file and cannot leak into the next.
         try? FileManager.default.removeItem(at: triggeredFileURL)
         try? FileManager.default.removeItem(at: untriggeredFileURL)
         triggeredFileURL = nil
