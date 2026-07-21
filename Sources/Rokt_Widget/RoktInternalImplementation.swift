@@ -939,7 +939,8 @@ class RoktInternalImplementation {
             accountId: roktTagId,
             sdkVersion: libraryVersion,
             layoutSchemaVersion: Self.txnLayoutSchemaVersion,
-            httpClient: httpClient
+            httpClient: httpClient,
+            deviceHeaders: NetworkingHelper.txnDeviceHeaders()
         )
     }
 
