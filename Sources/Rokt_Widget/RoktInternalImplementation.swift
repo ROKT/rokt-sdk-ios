@@ -928,9 +928,12 @@ class RoktInternalImplementation {
     }
 
     private func defaultTxnInitService(roktTagId: String) -> TxnInitService {
-        let httpClient: HTTPClientAdapter = config.environment == .Mock
-            ? MockTxnInitHTTPClient()
-            : NetworkingHelper.shared.httpClient
+        // Mock transports are a development-only convenience (Environment.Mock) and
+        // are compiled out of release builds to keep them off the shipped SDK.
+        var httpClient: HTTPClientAdapter = NetworkingHelper.shared.httpClient
+        #if DEBUG
+        if config.environment == .Mock { httpClient = MockTxnInitHTTPClient() }
+        #endif
         return TxnInitService(
             environment: config.environment,
             accountId: roktTagId,
@@ -941,9 +944,10 @@ class RoktInternalImplementation {
     }
 
     private func defaultOffersService(roktTagId: String) -> OffersService {
-        let httpClient: HTTPClientAdapter = config.environment == .Mock
-            ? MockOffersHTTPClient()
-            : NetworkingHelper.shared.httpClient
+        var httpClient: HTTPClientAdapter = NetworkingHelper.shared.httpClient
+        #if DEBUG
+        if config.environment == .Mock { httpClient = MockOffersHTTPClient() }
+        #endif
         return OffersService(
             environment: config.environment,
             accountId: roktTagId,
@@ -979,9 +983,10 @@ class RoktInternalImplementation {
     }
 
     private func defaultTxnEventService(roktTagId: String) -> TxnEventService {
-        let httpClient: HTTPClientAdapter = config.environment == .Mock
-            ? MockTxnInitHTTPClient()
-            : NetworkingHelper.shared.httpClient
+        var httpClient: HTTPClientAdapter = NetworkingHelper.shared.httpClient
+        #if DEBUG
+        if config.environment == .Mock { httpClient = MockTxnInitHTTPClient() }
+        #endif
         return TxnEventService(
             environment: config.environment,
             accountId: roktTagId,

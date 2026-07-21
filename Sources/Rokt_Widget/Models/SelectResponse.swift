@@ -4,7 +4,7 @@ import Foundation
 // MARK: - Request
 
 /// Offers request body. Session identity is the JWT in the Authorization header.
-internal struct SelectRequest: Encodable, Equatable {
+internal struct SelectRequest: Encodable {
     let page: SelectPage
     let channel: SelectChannel
     var attributes: [String: String] = [:]
@@ -24,7 +24,7 @@ internal struct SelectRequest: Encodable, Equatable {
     }
 }
 
-internal struct SelectPage: Encodable, Equatable {
+internal struct SelectPage: Encodable {
     let pageIdentifier: String
 
     enum CodingKeys: String, CodingKey {
@@ -35,7 +35,7 @@ internal struct SelectPage: Encodable, Equatable {
 /// Channel descriptor. ``type`` (`"msdk"`) tells the backend the channel source
 /// and ``platformType`` (`"iOS"`) the platform; both travel in the body. The
 /// platform refines server-side page detection and targeting.
-internal struct SelectChannel: Encodable, Equatable {
+internal struct SelectChannel: Encodable {
     static let channelTypeMsdk = "msdk"
     static let platformTypeIOS = "iOS"
 
@@ -52,7 +52,7 @@ internal struct SelectChannel: Encodable, Equatable {
 
 /// SDK-side privacy consent signals for offer selection. Mirrors Android's
 /// `privacy_control` block.
-internal struct SelectPrivacyControl: Encodable, Equatable {
+internal struct SelectPrivacyControl: Encodable {
     let noFunctional: Bool?
     let noTargeting: Bool?
     let doNotShareOrSell: Bool?
@@ -67,7 +67,7 @@ internal struct SelectPrivacyControl: Encodable, Equatable {
 /// GPC (Global Privacy Control) signal. A top-level sibling of
 /// ``SelectPrivacyControl`` — `gpc_enabled` rides under `privacy`, not inside
 /// `privacy_control`, matching Android.
-internal struct SelectPrivacy: Encodable, Equatable {
+internal struct SelectPrivacy: Encodable {
     let gpcEnabled: Bool?
 
     enum CodingKeys: String, CodingKey {
@@ -76,7 +76,7 @@ internal struct SelectPrivacy: Encodable, Equatable {
 }
 
 /// Real-time event forwarded on an offers request.
-internal struct SelectEvent: Encodable, Equatable {
+internal struct SelectEvent: Encodable {
     let eventType: String
     let timestamp: Int64
     let payload: String
@@ -103,7 +103,7 @@ internal struct SelectEvent: Encodable, Equatable {
 // MARK: - Response
 
 /// Offers response body.
-internal struct SelectResponse: Decodable, Equatable {
+internal struct SelectResponse: Decodable {
     let sessionId: String
     let sessionToken: TxnSessionToken
     let pageInstanceGuid: String
@@ -131,7 +131,7 @@ internal struct SelectResponse: Decodable, Equatable {
     }
 }
 
-internal struct SelectPageContext: Decodable, Equatable {
+internal struct SelectPageContext: Decodable {
     let pageInstanceGuid: String?
     let pageId: String?
     let language: String?
@@ -145,11 +145,11 @@ internal struct SelectPageContext: Decodable, Equatable {
     }
 }
 
-internal struct SelectPlugin: Decodable, Equatable {
+internal struct SelectPlugin: Decodable {
     let plugin: SelectPluginLayout?
 }
 
-internal struct SelectPluginLayout: Decodable, Equatable {
+internal struct SelectPluginLayout: Decodable {
     let id: String?
     let name: String?
     let targetElementSelector: String?
@@ -163,7 +163,7 @@ internal struct SelectPluginLayout: Decodable, Equatable {
     }
 }
 
-internal struct SelectPluginConfig: Decodable, Equatable {
+internal struct SelectPluginConfig: Decodable {
     let slots: [SelectSlot]
     let instanceGuid: String?
     let outerLayoutSchema: String?
@@ -185,7 +185,7 @@ internal struct SelectPluginConfig: Decodable, Equatable {
     }
 }
 
-internal struct SelectSlot: Decodable, Equatable {
+internal struct SelectSlot: Decodable {
     let instanceGuid: String?
     let layoutVariant: SelectLayoutVariant?
     let offer: SelectOffer?
@@ -199,7 +199,7 @@ internal struct SelectSlot: Decodable, Equatable {
     }
 }
 
-internal struct SelectLayoutVariant: Decodable, Equatable {
+internal struct SelectLayoutVariant: Decodable {
     let layoutVariantId: String?
     let moduleName: String?
     let layoutVariantSchema: String?
@@ -211,7 +211,7 @@ internal struct SelectLayoutVariant: Decodable, Equatable {
     }
 }
 
-internal struct SelectOffer: Decodable, Equatable {
+internal struct SelectOffer: Decodable {
     let campaignId: String?
     let creative: SelectCreative?
     // Shoppable-ad catalog items, mapped to the renderer via `RenderCatalogItem`
@@ -228,7 +228,7 @@ internal struct SelectOffer: Decodable, Equatable {
 /// A shoppable catalog item on an offer. Only the fields the render model
 /// consumes are declared; the lenient decoder skips anything else on the wire.
 /// The `token` is echoed back on purchase events.
-internal struct SelectCatalogItem: Decodable, Equatable {
+internal struct SelectCatalogItem: Decodable {
     let catalogItemId: String?
     let instanceGuid: String?
     let cartItemId: String?
@@ -276,7 +276,7 @@ internal struct SelectCatalogItem: Decodable, Equatable {
     }
 }
 
-internal struct SelectCreative: Decodable, Equatable {
+internal struct SelectCreative: Decodable {
     let referralCreativeId: String?
     let instanceGuid: String?
     let token: String?
@@ -298,7 +298,7 @@ internal struct SelectCreative: Decodable, Equatable {
     }
 }
 
-internal struct SelectResponseOption: Decodable, Equatable {
+internal struct SelectResponseOption: Decodable {
     let id: String?
     let action: String?
     let instanceGuid: String?
@@ -341,31 +341,31 @@ internal struct SelectResponseOption: Decodable, Equatable {
     }
 }
 
-internal struct SelectImage: Decodable, Equatable {
+internal struct SelectImage: Decodable {
     let light: String?
     let dark: String?
     let alt: String?
     let title: String?
 }
 
-internal struct SelectLink: Decodable, Equatable {
+internal struct SelectLink: Decodable {
     let url: String?
     let title: String?
 }
 
-internal struct SelectIcon: Decodable, Equatable {
+internal struct SelectIcon: Decodable {
     let name: String?
 }
 
 /// Token lookup for a trackable entity, echoed back on events.
-internal struct SelectEventDataEntry: Decodable, Equatable {
+internal struct SelectEventDataEntry: Decodable {
     let token: String
     let events: [String: SelectRealTimeEvent]?
 }
 
 /// A pre-serialized real-time event payload, keyed by signal type. Mirrors the
 /// provider's typed event shape (and Android's `SelectRealTimeEvent`).
-internal struct SelectRealTimeEvent: Decodable, Equatable, RealTimeEventSignal {
+internal struct SelectRealTimeEvent: Decodable, RealTimeEventSignal {
     let eventType: String?
     let payload: String?
 

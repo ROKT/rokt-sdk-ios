@@ -1,3 +1,4 @@
+#if DEBUG
 import Foundation
 
 // Offline transport for the Mock environment: serves an offers selection response without
@@ -98,3 +99,4 @@ internal final class MockOffersHTTPClient: HTTPClientAdapter {
         completionHandler: ((RoktDownloadResult) -> Void)?
     ) {}
 }
+#endif
