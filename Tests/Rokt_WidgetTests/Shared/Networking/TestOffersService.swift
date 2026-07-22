@@ -224,7 +224,8 @@ final class TestOffersService: XCTestCase {
         let stub = StubHTTPClient(responseData: Data(offersResponse.utf8), statusCode: 200)
         let service = makeService(stub, deviceHeaders: [
             "rokt-os-type": "iOS",
-            "rokt-package-name": "com.rokt.test"
+            "rokt-package-name": "com.rokt.test",
+            "rokt-package-version": "1.2.3"
         ])
 
         let completed = expectation(description: "offers experience returned")
@@ -235,9 +236,10 @@ final class TestOffersService: XCTestCase {
         })
 
         wait(for: [completed], timeout: 5)
-        // Device headers (incl. the load-bearing rokt-package-name) reach the request.
+        // Device headers (incl. partner app identity) reach the request.
         XCTAssertEqual(stub.lastHeaders?["rokt-os-type"], "iOS")
         XCTAssertEqual(stub.lastHeaders?["rokt-package-name"], "com.rokt.test")
+        XCTAssertEqual(stub.lastHeaders?["rokt-package-version"], "1.2.3")
         // rokt-txn-shadow is no longer sent; mobile shadow routing is session-id-shape driven.
         XCTAssertNil(stub.lastHeaders?["rokt-txn-shadow"])
     }

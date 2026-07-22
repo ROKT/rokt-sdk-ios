@@ -12,7 +12,16 @@ import PactSwift
 /// Mirrors OffersClientPactSpec — see that file's docstring for the
 /// matcher policy (exact-match for hardcoded constants, `SomethingLike`
 /// for per-runtime values).
+///
+/// Device headers from `NetworkingHelper.txnDeviceHeaders` are sent on the live
+/// request; `rokt-package-name` and `rokt-package-version` are asserted here,
+/// supplied via `deviceHeaders` below.
 class TxnEventsClientPactSpec: XCTestCase {
+    private static let pactDeviceHeaders = [
+        "rokt-package-name": "com.rokt.example",
+        "rokt-package-version": "4.0.0"
+    ]
+
     static var mockService: MockService!
 
     override class func setUp() {
@@ -39,6 +48,8 @@ class TxnEventsClientPactSpec: XCTestCase {
                 headers: [
                     "rokt-account-id": Matcher.SomethingLike("account-456"),
                     "Authorization": Matcher.SomethingLike("Bearer session-token-abc"),
+                    "rokt-package-name": Matcher.SomethingLike("com.rokt.example"),
+                    "rokt-package-version": Matcher.SomethingLike("4.0.0"),
                     "Content-Type": "application/json"
                 ],
                 body: [
@@ -91,7 +102,8 @@ class TxnEventsClientPactSpec: XCTestCase {
                     let client = TxnEventsClient(
                         baseURL: url,
                         accountId: "account-456",
-                        sdkVersion: "5.2.2"
+                        sdkVersion: "5.2.2",
+                        deviceHeaders: Self.pactDeviceHeaders
                     )
                     let event = TxnEvent(
                         eventType: "impression",

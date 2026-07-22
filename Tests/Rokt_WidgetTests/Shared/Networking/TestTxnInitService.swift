@@ -15,13 +15,18 @@ final class TestTxnInitService: XCTestCase {
         super.tearDown()
     }
 
-    private func makeService(environment: Environment = .Prod, maxRetries: Int = 3) -> TxnInitService {
+    private func makeService(
+        environment: Environment = .Prod,
+        maxRetries: Int = 3,
+        deviceHeaders: [String: String] = [:]
+    ) -> TxnInitService {
         TxnInitService(
             environment: environment,
             accountId: "account-1",
             sdkVersion: "5.2.2",
             layoutSchemaVersion: "2.3",
             httpClient: httpClient,
+            deviceHeaders: deviceHeaders,
             maxRetries: maxRetries,
             baseBackoff: 0,
             sleep: { _ in }
@@ -67,6 +72,21 @@ final class TestTxnInitService: XCTestCase {
         XCTAssertEqual(headers?["rokt-layout-schema-version"], "2.3")
         // Never send Authorization.
         XCTAssertNil(headers?["Authorization"])
+    }
+
+    func test_initSession_forwardsDeviceHeaders() async throws {
+        httpClient.results = [.success(data: successJSON())]
+
+        _ = try await makeService(deviceHeaders: [
+            "rokt-package-name": "com.rokt.test",
+            "rokt-package-version": "1.2.3"
+        ]).initSession()
+
+        let headers = httpClient.capturedHeaders.first
+        XCTAssertEqual(headers?["rokt-package-name"], "com.rokt.test")
+        XCTAssertEqual(headers?["rokt-package-version"], "1.2.3")
+        // Explicit init headers still win on shared keys.
+        XCTAssertEqual(headers?["rokt-os-type"], "ios")
     }
 
     func test_initSession_retriesOnTransient5xx_thenSucceeds() async throws {
