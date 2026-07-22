@@ -87,6 +87,19 @@ final class TestTxnPendingEventStore: XCTestCase {
         XCTAssertEqual(drained.last?.first?.instanceId, "batch-9")
     }
 
+    func test_persist_writesFileWithDataProtection() throws {
+        let store = makeStore()
+        store.persist(events: batch("a"))
+
+        let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+        let protection = attributes[.protectionKey] as? FileProtectionType
+
+        // The iOS Simulator does not enforce or report Data Protection, so the attribute is nil there.
+        // Assert only where it is reported (real device); skip otherwise so CI stays green.
+        try XCTSkipUnless(protection != nil, "Data Protection is not reported on this environment (simulator)")
+        XCTAssertEqual(protection, .completeUntilFirstUserAuthentication)
+    }
+
     func test_expiredBatchesDoNotConsumeCapacity() {
         let store = makeStore()
         store.persist(events: batch("stale"))
