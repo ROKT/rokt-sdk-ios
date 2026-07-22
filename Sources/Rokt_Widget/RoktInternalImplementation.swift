@@ -1265,6 +1265,13 @@ class RoktInternalImplementation {
             return LayoutPageExecutePayload(pageModel: pageModel,
                                             cacheProperties: cacheProperties)
         } else {
+            // No cache: scope event de-duplication to this execute. The cache branch above
+            // seeds `sentEventHashes` per view; without a reset here the set is only ever
+            // (re)initialised on the cache path, so for non-cached executes it accumulates
+            // hashes for the whole process lifetime — growing unbounded and, when an event
+            // hash repeats across executes (e.g. a reused session id), silently dropping
+            // events that were already "sent" by an earlier, unrelated execute.
+            sentEventHashes = ThreadSafeSet()
             return LayoutPageExecutePayload(pageModel: pageModel,
                                             cacheProperties: nil)
         }
