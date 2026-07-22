@@ -16,6 +16,20 @@ var txnEventResourceURL: String {
     config.environment.gatewayBaseURL + "/v2/sessions/events"
 }
 
+// The UI test harness drives the SDK through Mocker-intercepted network calls. In the
+// `.Mock` environment the SDK swaps in offline transports (init/offers/events) that never
+// touch the network, and diagnostics/timings short-circuit via `RoktAPIHelper.isMock()` —
+// so none of the registered stubs would fire and nothing would render or be captured.
+// Pin a networked environment so every call flows through the stubbed URLs. Both the stub
+// URLs and the SDK's request URLs derive from `config.environment`, so they stay in lockstep.
+//
+// Also clear mocks left over from a previous spec (mocks are global to the process) so each
+// spec starts from its own freshly-registered stubs rather than an earlier spec's.
+func useNetworkedMockEnvironment() {
+    config.environment = .Prod
+    Mocker.removeAll()
+}
+
 // Reverse of TxnEventMapper's vocabulary so the v2 events stub can surface legacy EventModel names.
 let txnEventTypeToLegacyName: [String: String] = [
     "impression": "SignalImpression",
@@ -189,7 +203,10 @@ extension StubMethodsProvider {
     func registerTxnInitStub(legacyData: Data?, statusCode: Int) {
         guard let url = URL(string: txnInitResourceURL) else { return }
         let v2Data = legacyData.flatMap(makeTxnInitData(fromLegacy:)) ?? Data()
-        Mock(url: url, dataType: .json, statusCode: statusCode, data: [.post: v2Data]).register()
+        // The v2 init endpoint is a GET (see TxnInitClient), so the mock must be
+        // registered for .get — a .post mock never matches and the request falls
+        // through to the real network.
+        Mock(url: url, dataType: .json, statusCode: statusCode, data: [.get: v2Data]).register()
     }
 
     // Mirrors the legacy events stub for the v2 endpoint, translating the wire shape back into EventModel
@@ -217,6 +234,7 @@ extension StubMethodsProvider {
     }
 
     func stubInit(fileName: String = validInitFilename) {
+        useNetworkedMockEnvironment()
         let configuration = URLSessionConfiguration.default
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
@@ -231,6 +249,7 @@ extension StubMethodsProvider {
     }
 
     func stubInit(_ widgetFileName: String) {
+        useNetworkedMockEnvironment()
         let configuration = URLSessionConfiguration.default
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
@@ -355,6 +374,7 @@ extension XCTestCase: StubMethodsProvider {
     }
 
     func stubInit(fileName: String = validInitFilename) {
+        useNetworkedMockEnvironment()
         let configuration = URLSessionConfiguration.default
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
@@ -370,6 +390,7 @@ extension XCTestCase: StubMethodsProvider {
     }
 
     func stubInit(_ widgetFileName: String) {
+        useNetworkedMockEnvironment()
         let configuration = URLSessionConfiguration.default
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)

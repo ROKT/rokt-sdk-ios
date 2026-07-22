@@ -17,6 +17,7 @@ internal struct TxnInitService {
     let sdkVersion: String
     let layoutSchemaVersion: String
     let httpClient: HTTPClientAdapter
+    let deviceHeaders: [String: String]
     let maxRetries: Int
     let requestTimeout: TimeInterval
     let baseBackoff: TimeInterval
@@ -28,6 +29,7 @@ internal struct TxnInitService {
         sdkVersion: String,
         layoutSchemaVersion: String,
         httpClient: HTTPClientAdapter = RoktHTTPClient(),
+        deviceHeaders: [String: String] = [:],
         maxRetries: Int = 3,
         requestTimeout: TimeInterval = 7,
         baseBackoff: TimeInterval = 0.2,
@@ -40,6 +42,7 @@ internal struct TxnInitService {
         self.sdkVersion = sdkVersion
         self.layoutSchemaVersion = layoutSchemaVersion
         self.httpClient = httpClient
+        self.deviceHeaders = deviceHeaders
         self.maxRetries = maxRetries
         self.requestTimeout = requestTimeout
         self.baseBackoff = baseBackoff
@@ -57,7 +60,8 @@ internal struct TxnInitService {
             baseURL: baseURL,
             accountId: accountId,
             sdkVersion: sdkVersion,
-            httpClient: httpClient
+            httpClient: httpClient,
+            deviceHeaders: deviceHeaders
         )
 
         var attempt = 0

@@ -113,6 +113,10 @@ internal enum TxnEventMapper {
             for (key, value) in objectData { data[key] = .string(value) }
         }
 
+        if eventType == .SignalUserInteraction, let action = objectData?["action"] {
+            data["interactionType"] = .string(action)
+        }
+
         // Written last so these win over any colliding partner attribute.
         data["parent_id"] = .string(parentGuid)
         data["token"] = .string(token)
