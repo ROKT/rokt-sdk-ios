@@ -27,9 +27,14 @@ import PactSwift
 /// Per-runtime values (account id, auth token, request id, page identifier,
 /// etc.) stay as `SomethingLike` because they legitimately vary per call.
 /// Device headers from `NetworkingHelper.txnDeviceHeaders` are sent on the live
-/// request; only `rokt-package-name` (it gates page detection) is asserted here,
-/// supplied via `deviceHeaders` below.
+/// request; `rokt-package-name` (it gates page detection) and `rokt-package-version`
+/// are asserted here, supplied via `deviceHeaders` below.
 class OffersClientPactSpec: XCTestCase {
+    private static let pactDeviceHeaders = [
+        "rokt-package-name": "com.rokt.example",
+        "rokt-package-version": "4.0.0"
+    ]
+
     static var mockService: MockService!
 
     override class func setUp() {
@@ -61,6 +66,7 @@ class OffersClientPactSpec: XCTestCase {
                     "x-request-id": Matcher.SomethingLike("request-id-123"),
                     "rokt-page-instance-guid": Matcher.SomethingLike("page-instance-guid-123"),
                     "rokt-package-name": Matcher.SomethingLike("com.rokt.example"),
+                    "rokt-package-version": Matcher.SomethingLike("4.0.0"),
                     // Pins the layout-schema-version negotiation: the provider must receive the
                     // version the client can render, else it serves an unparseable legacy layout.
                     "rokt-layout-schema-version": Matcher.SomethingLike("2.8"),
@@ -132,7 +138,7 @@ class OffersClientPactSpec: XCTestCase {
                         sdkVersion: "5.2.2",
                         layoutSchemaVersion: "2.8",
                         pageInstanceGuid: "page-instance-guid-123",
-                        deviceHeaders: ["rokt-package-name": "com.rokt.example"]
+                        deviceHeaders: Self.pactDeviceHeaders
                     )
                     let input = OffersInput(
                         requestId: "request-id-123",
@@ -172,6 +178,7 @@ class OffersClientPactSpec: XCTestCase {
                     "x-request-id": Matcher.SomethingLike("request-id-123"),
                     "rokt-page-instance-guid": Matcher.SomethingLike("page-instance-guid-123"),
                     "rokt-package-name": Matcher.SomethingLike("com.rokt.example"),
+                    "rokt-package-version": Matcher.SomethingLike("4.0.0"),
                     // Pins the layout-schema-version negotiation: the provider must receive the
                     // version the client can render, else it serves an unparseable legacy layout.
                     "rokt-layout-schema-version": Matcher.SomethingLike("2.8"),
@@ -233,7 +240,7 @@ class OffersClientPactSpec: XCTestCase {
                         sdkVersion: "5.2.2",
                         layoutSchemaVersion: "2.8",
                         pageInstanceGuid: "page-instance-guid-123",
-                        deviceHeaders: ["rokt-package-name": "com.rokt.example"]
+                        deviceHeaders: Self.pactDeviceHeaders
                     )
                     let input = OffersInput(
                         requestId: "request-id-123",

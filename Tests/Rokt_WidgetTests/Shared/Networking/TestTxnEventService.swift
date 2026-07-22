@@ -78,11 +78,17 @@ final class TestTxnEventService: XCTestCase {
         await storeValidToken()
         httpClient.results = [.success(status: 202, data: rotatedResponse())]
 
-        try await makeService().send(events: sampleEvents())
+        try await makeService(deviceHeaders: [
+            "rokt-os-type": "iOS",
+            "rokt-package-name": "com.rokt.test",
+            "rokt-package-version": "1.2.3"
+        ]).send(events: sampleEvents())
 
         XCTAssertEqual(httpClient.capturedHeaders.first?["Authorization"], "Bearer stored-jwt")
         XCTAssertEqual(httpClient.capturedHeaders.first?["rokt-account-id"], "account-1")
         XCTAssertEqual(httpClient.capturedHeaders.first?["rokt-os-type"], "iOS")
+        XCTAssertEqual(httpClient.capturedHeaders.first?["rokt-package-name"], "com.rokt.test")
+        XCTAssertEqual(httpClient.capturedHeaders.first?["rokt-package-version"], "1.2.3")
         XCTAssertNil(httpClient.capturedHeaders.first?["rokt-txn-shadow"])
     }
 

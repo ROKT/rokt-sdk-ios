@@ -3,7 +3,15 @@ import PactSwift
 @testable import Rokt_Widget
 
 /// Consumer-driven pact spec for the config-only `GET /v2/init`.
+///
+/// Device headers from `NetworkingHelper.txnDeviceHeaders` are sent in production;
+/// `rokt-package-name` and `rokt-package-version` are asserted here and supplied
+/// via `deviceHeaders` below because they are load-bearing for backend enrichment.
 class TxnInitClientPactSpec: XCTestCase {
+    private static let pactDeviceHeaders = [
+        "rokt-package-name": "com.rokt.example",
+        "rokt-package-version": "4.0.0"
+    ]
     static var mockService: MockService!
 
     override class func setUp() {
@@ -32,6 +40,8 @@ class TxnInitClientPactSpec: XCTestCase {
                     "rokt-os-type": "ios",
                     "rokt-sdk-version": Matcher.SomethingLike("5.2.2"),
                     "rokt-layout-schema-version": Matcher.SomethingLike("2.1.0"),
+                    "rokt-package-name": Matcher.SomethingLike("com.rokt.example"),
+                    "rokt-package-version": Matcher.SomethingLike("4.0.0"),
                     "x-request-id": Matcher.RegexLike("request-id-123", term: #".+"#)
                 ]
             )
@@ -70,7 +80,8 @@ class TxnInitClientPactSpec: XCTestCase {
                     let client = TxnInitClient(
                         baseURL: url,
                         accountId: "account-456",
-                        sdkVersion: "5.2.2"
+                        sdkVersion: "5.2.2",
+                        deviceHeaders: Self.pactDeviceHeaders
                     )
                     let (_, httpResponse) = try await client.initSession(
                         operating_system: "ios",
