@@ -70,16 +70,40 @@ internal final class RoktHTTPClient: HTTPClientAdapter {
     private(set) var downloadSession: URLSession = .shared
     private(set) var encoders: [RoktHTTPParameterEncoder] = []
 
+    /// Ceiling on an entire download, as opposed to the per-request budget, which only has to
+    /// cover idle time. Deliberately far larger than the API client timeout: it exists to stop
+    /// a pathological trickle running forever, not to bound a healthy transfer.
+    static let downloadResourceTimeout: TimeInterval = 300
+
     init(
         sessionConfiguration: URLSessionConfiguration = .default,
         encoders: [RoktHTTPParameterEncoder] = [RoktHTTPURLEncoder(), RoktHTTPBodyEncoder()]
     ) {
         self.session = URLSession(configuration: sessionConfiguration)
-        self.downloadSession = URLSession(configuration: sessionConfiguration)
+        self.downloadSession = URLSession(
+            configuration: Self.downloadConfiguration(from: sessionConfiguration)
+        )
 
         self.encoders = encoders
     }
 
+    /// `timeoutIntervalForResource` caps a whole transfer rather than idle time, so applying
+    /// the API client timeout to it cancels any download that cannot finish inside that
+    /// budget no matter how healthy the connection is. Font files are orders of magnitude
+    /// larger than API payloads, so downloads get their own session and are bounded by the
+    /// per-request idle timeout instead. Derived from the caller's configuration so injected
+    /// protocol classes still apply.
+    private static func downloadConfiguration(
+        from configuration: URLSessionConfiguration
+    ) -> URLSessionConfiguration {
+        let downloadConfiguration = (configuration.copy() as? URLSessionConfiguration) ?? configuration
+        downloadConfiguration.timeoutIntervalForResource = downloadResourceTimeout
+
+        return downloadConfiguration
+    }
+
+    /// Applies to API requests only. Downloads keep their own budget, since the client timeout
+    /// is sized for small JSON payloads and would cancel large files mid-transfer.
     func updateTimeout(timeout: Double) {
         let currentConfiguration = session.configuration
 
@@ -272,7 +296,7 @@ extension RoktHTTPClient {
             return
         }
 
-        session.downloadTask(with: downloadRequest) { [weak self] temporaryURL, downloadResponse, downloadError in
+        downloadSession.downloadTask(with: downloadRequest) { [weak self] temporaryURL, downloadResponse, downloadError in
             guard let self else { return }
 
             if let downloadError {
