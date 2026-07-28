@@ -3,7 +3,7 @@ import CoreText
 @testable import Rokt_Widget
 
 /// Mocker invokes request hooks off the test thread, so attempt counts are guarded.
-private final class Counter {
+private final class Counter: @unchecked Sendable {
     private let lock = NSLock()
     private var count = 0
 
@@ -21,7 +21,7 @@ private final class Counter {
 }
 
 /// Diagnostics are delivered off the test thread, so captured call stacks are guarded.
-private final class Traces {
+private final class Traces: @unchecked Sendable {
     private let lock = NSLock()
     private var values: [String] = []
 
@@ -338,17 +338,17 @@ class TestFontManager: XCTestCase {
         let fonts: [FontModel] = [FontModel(name: "some font", url: fontUrl), FontModel(name: "some other font", url: fontUrl)]
         let expectation = XCTestExpectation(description: "Download complete")
         self.stubFontFileUrl(fontUrl)
-        var callbackCount = 0
+        let callbackCount = Counter()
 
         // Act
         FontManager.downloadFonts(fonts) {
             expectation.fulfill()
-            callbackCount += 1
+            callbackCount.increment()
         }
 
         // Assert
         wait(for: [expectation], timeout: 5)
-        XCTAssertEqual(1, callbackCount)
+        XCTAssertEqual(1, callbackCount.value)
     }
 
     // MARK: - Completion is driven by settled count, not font order

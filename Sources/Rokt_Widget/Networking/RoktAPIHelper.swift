@@ -16,7 +16,7 @@ internal class RoktAPIHelper {
     /// - Parameters:
     ///   - fonts: The fonts that should be downloaded and installed to be used in the widget
     ///   - onFontDownloadComplete - Callback to notify when the font download finishes
-    class func downloadFonts(_ fonts: [FontModel], _ onFontDownloadComplete: @escaping () -> Void) {
+    class func downloadFonts(_ fonts: [FontModel], _ onFontDownloadComplete: @escaping @Sendable () -> Void) {
         FontManager.downloadFonts(fonts, onFontDownloadComplete)
     }
 

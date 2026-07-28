@@ -61,7 +61,7 @@ internal class FontManager {
         completionHandler?()
     }
 
-    class func downloadFonts(_ fonts: [FontModel], _ onFontDownloadComplete: @escaping () -> Void) {
+    class func downloadFonts(_ fonts: [FontModel], _ onFontDownloadComplete: @escaping @Sendable () -> Void) {
         getExistingFontsByPostScriptName()
 
         guard !fonts.isEmpty else {
@@ -74,10 +74,13 @@ internal class FontManager {
         // Each font settles exactly once, whether it was downloaded, loaded from cache,
         // skipped as a system font, or failed outright. Completion is driven by that
         // count so it can never depend on a font's position in `fonts`.
-        let batch = FontDownloadBatch(expected: fonts.count) {
-            getExistingFontsByPostScriptName()
-            NotificationCenter.default.post(Notification(name: Notification.Name(finishedDownloadingFonts)))
-            onFontDownloadComplete()
+        let batch = FontDownloadBatch(expected: fonts.count)
+        let settle = {
+            finish(batch) {
+                getExistingFontsByPostScriptName()
+                NotificationCenter.default.post(Notification(name: Notification.Name(finishedDownloadingFonts)))
+                onFontDownloadComplete()
+            }
         }
 
         for font in fonts {
@@ -86,7 +89,7 @@ internal class FontManager {
             guard !isSystemFont(font: font) else {
                 // Log FFL001
                 sendFullFontLogs("Font retrieved from system \(registeredFontName)", fontLogId: fullFontLogCode1)
-                batch.settle()
+                settle()
                 continue
             }
 
@@ -97,18 +100,30 @@ internal class FontManager {
                 RoktAPIHelper.sendDiagnostics(message: fontDiagnosticCode,
                                               callStack: "font: \(font.url), error: FileManager default urls")
                 RoktLogger.shared.error("Error in font fileManager url for: \(font.url)")
-                batch.settle()
+                settle()
                 continue
             }
 
             if FontManager.isDownloadingFontRequired(font: font) {
                 RoktNetWorkAPI.downloadFont(font: font, destinationURL: fileUrl) {
-                    batch.settle()
+                    settle()
                 }
             } else {
                 registerFont(font: font, fileUrl: fileUrl)
-                batch.settle()
+                settle()
             }
+        }
+    }
+
+    /// Settles one font against `batch` and, for whichever call completes it, runs
+    /// `complete` on the main queue. Download callbacks already land there, so keeping the
+    /// batch completion on main leaves `finishedDownloadingFonts` observers where they were
+    /// and keeps the barrier in `getExistingFontsByPostScriptName` off the cooperative pool.
+    private static func finish(_ batch: FontDownloadBatch, then complete: @escaping @Sendable () -> Void) {
+        Task {
+            guard await batch.settle() else { return }
+
+            DispatchQueue.main.async(execute: complete)
         }
     }
 
@@ -131,7 +146,7 @@ internal class FontManager {
                     saveFontDetails(font: font)
                 }
 
-                clearRecoveryState(for: font)
+                recoveryLedger.clear(font.url)
             } else {
                 handleRegistrationFailure(font: font,
                                           isDownloaded: isDownloaded,
@@ -281,26 +296,14 @@ internal class FontManager {
     static var maxFontRecoveryAttempts = 2
     static var fontRecoveryBackoff: DispatchTimeInterval = .seconds(1)
 
-    private static let recoveryLock = NSLock()
-    private static var fontRecoveryAttempts: [String: Int] = [:]
+    private static let recoveryLedger = FontRecoveryLedger()
 
     static func resetFontRecoveryState() {
-        recoveryLock.lock()
-        fontRecoveryAttempts.removeAll()
-        recoveryLock.unlock()
-    }
-
-    private static func clearRecoveryState(for font: FontModel) {
-        recoveryLock.lock()
-        fontRecoveryAttempts[font.url] = nil
-        recoveryLock.unlock()
+        recoveryLedger.reset()
     }
 
     private static func recoverCachedFont(_ font: FontModel, reason: String) {
-        recoveryLock.lock()
-        let attempt = (fontRecoveryAttempts[font.url] ?? 0) + 1
-        fontRecoveryAttempts[font.url] = attempt
-        recoveryLock.unlock()
+        let attempt = recoveryLedger.recordAttempt(for: font.url)
 
         guard attempt <= maxFontRecoveryAttempts else {
             RoktAPIHelper.sendDiagnostics(
@@ -391,30 +394,61 @@ internal class FontManager {
     }
 }
 
-/// Counts fonts as they settle and fires `onComplete` exactly once, on whichever thread
-/// settles the last one. Fonts settle out of order, so a positional check cannot be used.
-private final class FontDownloadBatch {
+/// Per-font recovery budget for the life of the process.
+///
+/// Deliberately synchronous, and so lock-guarded rather than actor-isolated: the budget is
+/// read and written from `registerFont`, which `reRegisterFonts` calls on the render path.
+/// Isolating it would make that path `async` and defer the execute continuation that drives
+/// the cache lookup and presentation. The lock is owned here so no call site handles one.
+private final class FontRecoveryLedger {
     private let lock = NSLock()
+    private var attempts: [String: Int] = [:]
+
+    func reset() {
+        withLock { $0.removeAll() }
+    }
+
+    func clear(_ fontUrl: String) {
+        withLock { $0[fontUrl] = nil }
+    }
+
+    /// Records an attempt for `fontUrl` and returns its 1-based number.
+    func recordAttempt(for fontUrl: String) -> Int {
+        withLock {
+            let attempt = ($0[fontUrl] ?? 0) + 1
+            $0[fontUrl] = attempt
+            return attempt
+        }
+    }
+
+    private func withLock<T>(_ body: (inout [String: Int]) -> T) -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return body(&attempts)
+    }
+}
+
+/// Counts fonts as they settle. Fonts settle out of order and from whichever thread their
+/// download callback lands on, so a positional check cannot be used and the count needs
+/// serialising; actor isolation lets the compiler enforce that rather than a hand-held lock.
+private actor FontDownloadBatch {
     private let expected: Int
     private var settled = 0
     private var hasCompleted = false
-    private let onComplete: () -> Void
 
-    init(expected: Int, onComplete: @escaping () -> Void) {
+    init(expected: Int) {
         self.expected = expected
-        self.onComplete = onComplete
     }
 
-    func settle() {
-        lock.lock()
+    /// Records one settled font. Returns `true` for the single call that settles the last
+    /// outstanding font and `false` for every other call, so completion work runs off the
+    /// actor and cannot be triggered twice.
+    func settle() -> Bool {
         settled += 1
-        let shouldComplete = !hasCompleted && settled >= expected
-        if shouldComplete {
-            hasCompleted = true
-        }
-        lock.unlock()
 
-        guard shouldComplete else { return }
-        onComplete()
+        guard !hasCompleted, settled >= expected else { return false }
+
+        hasCompleted = true
+        return true
     }
 }
