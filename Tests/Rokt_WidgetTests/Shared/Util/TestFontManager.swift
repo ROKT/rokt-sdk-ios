@@ -20,6 +20,24 @@ private final class Counter {
     }
 }
 
+/// Diagnostics are delivered off the test thread, so captured call stacks are guarded.
+private final class Traces {
+    private let lock = NSLock()
+    private var values: [String] = []
+
+    func append(_ value: String) {
+        lock.lock()
+        values.append(value)
+        lock.unlock()
+    }
+
+    func contains(_ predicate: (String) -> Bool) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return values.contains(where: predicate)
+    }
+}
+
 class TestFontManager: XCTestCase {
     var hasFetched = false
     var errors = [String]()
@@ -420,7 +438,92 @@ class TestFontManager: XCTestCase {
                        "the initial attempt plus every retry should be issued before settling")
     }
 
+    func test_handleFontDownloadResponse_whenResponseHasNeitherErrorNorFile_isReportedSeparately() throws {
+        // This response shape used to fall through every branch and never settle. It now
+        // settles, but it must not be logged as a download failure carrying a nil error.
+        let traces = captureDiagnosticStackTraces()
+
+        let font = FontModel(name: "incomplete-response-font", url: "https://font.test/incomplete.ttf")
+        let settled = expectation(description: "settled")
+
+        RoktNetWorkAPI.handleFontDownloadResponse(
+            font: font,
+            destinationURL: try XCTUnwrap(FontManager.getFileUrl(name: font.name)),
+            downloadResponse: RoktDownloadResult(
+                httpURLResponse: nil,
+                downloadedFileLocalURL: nil,
+                downloadError: nil
+            ),
+            onDownloadComplete: { settled.fulfill() }
+        )
+
+        wait(for: [settled], timeout: 15)
+
+        XCTAssertTrue(waitUntil { traces.contains { $0.contains("missing both error and file") } },
+                      "a malformed response should be reported on its own line")
+        XCTAssertFalse(traces.contains { $0.contains("Error downloading font") },
+                       "it should not masquerade as a download failure with a nil error")
+    }
+
+    func test_handleFontDownloadResponse_withTerminalDownloadError_keepsTheExistingDiagnosticShape() throws {
+        // The `[FONT]` rows for real download failures are already monitored, so splitting
+        // the malformed case out must not change how a genuine failure reads.
+        let traces = captureDiagnosticStackTraces()
+
+        let font = FontModel(name: "terminal-error-font", url: "https://font.test/terminal.ttf")
+        let settled = expectation(description: "settled")
+
+        RoktNetWorkAPI.handleFontDownloadResponse(
+            font: font,
+            destinationURL: try XCTUnwrap(FontManager.getFileUrl(name: font.name)),
+            downloadResponse: RoktDownloadResult(
+                httpURLResponse: nil,
+                downloadedFileLocalURL: nil,
+                downloadError: NSError(domain: "Custom", code: 1)
+            ),
+            onDownloadComplete: { settled.fulfill() },
+            retryCount: maxRetries
+        )
+
+        wait(for: [settled], timeout: 15)
+
+        XCTAssertTrue(waitUntil { traces.contains { $0.contains("Error downloading font") } },
+                      "a genuine download failure should keep its existing diagnostic shape")
+        XCTAssertFalse(traces.contains { $0.contains("missing both error and file") },
+                       "a real error should not be reported as a malformed response")
+    }
+
     // MARK: - Cache recovery
+
+    func test_invalidateCachedFont_alsoRemovesTheDownloadedUrlEntry() throws {
+        // `removeFont` reads the detail before removing the URL entry, so an invalidation
+        // that drops only the detail strands the entry where nothing can clean it up.
+        let name = "invalidated-font"
+        let url = "https://font.test/invalidated.ttf"
+        addTeardownBlock { self.removeCachedFontFile(named: name) }
+
+        let urlSaved = expectation(description: "font url saved")
+        FontRepository.saveFontUrl(key: url) { urlSaved.fulfill() }
+        wait(for: [urlSaved], timeout: 15)
+        try seedCachedFont(name: name, url: url)
+
+        let invalidated = expectation(description: "font invalidated")
+        FontManager.invalidateCachedFont(FontModel(name: name, url: url)) { invalidated.fulfill() }
+        wait(for: [invalidated], timeout: 15)
+
+        XCTAssertFalse(FontManager.isFontFileExist(name: name))
+        XCTAssertNil(FontRepository.loadFontDetail(key: url))
+        XCTAssertFalse(FontRepository.loadAllFontURLs()?.contains(url) ?? false,
+                       "the URL entry has to go too, otherwise removeUnusedFonts can never reclaim it")
+    }
+
+    /// Replaces the default diagnostics stub so a test can read the call stacks rather
+    /// than just the error codes.
+    private func captureDiagnosticStackTraces() -> Traces {
+        let traces = Traces()
+        stubDiagnostics(onDiagnosticsModelReceive: { traces.append($0.stackTrace) })
+        return traces
+    }
 
     func test_registerFont_withUnregisterableCachedFont_invalidatesCacheForReDownload() throws {
         // Keep the re-fetch pending so the assertion sees only the invalidation.

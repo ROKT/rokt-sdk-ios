@@ -319,15 +319,22 @@ internal class FontManager {
         }
     }
 
-    /// Removes the cached file and its metadata so `isDownloadingFontRequired` reports
-    /// the font as missing on the next pass.
+    /// Removes the cached file and both metadata records so `isDownloadingFontRequired`
+    /// reports the font as missing on the next pass.
+    ///
+    /// Dropping the detail alone would be enough to trigger a re-download, but it would
+    /// strand the URL entry: `removeFont` reads the detail first and returns early when it
+    /// is absent, so `removeUnusedFonts` could never clean the entry up afterwards. A
+    /// successful re-download re-adds both records.
     internal static func invalidateCachedFont(_ font: FontModel, completion: (() -> Void)? = nil) {
         if let fileUrl = getFileUrl(name: font.postScriptName ?? font.name),
            FileManager.default.fileExists(atPath: fileUrl.path) {
             try? FileManager.default.removeItem(at: fileUrl)
         }
 
-        FontRepository.removeFontDetail(key: font.url) { completion?() }
+        FontRepository.removeFontDetail(key: font.url) {
+            FontRepository.removeFontUrl(key: font.url) { completion?() }
+        }
     }
 
     #if DEBUG
