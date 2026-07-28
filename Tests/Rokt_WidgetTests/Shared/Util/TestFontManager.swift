@@ -31,6 +31,9 @@ class TestFontManager: XCTestCase {
             shouldUseFontRegisterWithUrl: false,
             featureFlags: [:]
         )
+        FontManager.resetFontRecoveryState()
+        FontManager.maxFontRecoveryAttempts = 2
+        FontManager.fontRecoveryBackoff = .seconds(1)
 
         super.tearDown()
     }
@@ -306,6 +309,138 @@ class TestFontManager: XCTestCase {
         // Assert
         wait(for: [expectation], timeout: 5)
         XCTAssertEqual(1, callbackCount)
+    }
+
+    // MARK: - Completion is driven by settled count, not font order
+
+    func test_downloadFonts_callsCompletion_whenLastFontIsAlreadyCached() throws {
+        // Cache recovery is covered separately below. A stubbed font file cannot register,
+        // and letting it re-fetch here would only race with the assertion.
+        FontManager.maxFontRecoveryAttempts = 0
+
+        let downloadUrl = "https://font.test/needs-download.ttf"
+        let cachedName = "already-cached-font"
+        let cachedUrl = "https://font.test/already-cached.ttf"
+        addTeardownBlock { self.removeCachedFontFile(named: cachedName) }
+
+        stubFontFileUrl(downloadUrl)
+        try seedCachedFont(name: cachedName, url: cachedUrl)
+
+        let completion = expectation(description: "onFontDownloadComplete")
+
+        FontManager.downloadFonts([
+            FontModel(name: "needs-download-font", url: downloadUrl),
+            FontModel(name: cachedName, url: cachedUrl)
+        ]) {
+            completion.fulfill()
+        }
+
+        wait(for: [completion], timeout: 10)
+    }
+
+    func test_downloadFonts_callsCompletion_whenLastFontIsSystemFont() {
+        let downloadUrl = "https://font.test/needs-download.ttf"
+        stubFontFileUrl(downloadUrl)
+
+        let completion = expectation(description: "onFontDownloadComplete")
+
+        FontManager.downloadFonts([
+            FontModel(name: "needs-download-font", url: downloadUrl),
+            FontModel(name: "ArialMT", url: "")
+        ]) {
+            completion.fulfill()
+        }
+
+        wait(for: [completion], timeout: 10)
+    }
+
+    // MARK: - Cache recovery
+
+    func test_registerFont_withUnregisterableCachedFont_invalidatesCacheForReDownload() throws {
+        // Keep the re-fetch pending so the assertion sees only the invalidation.
+        FontManager.fontRecoveryBackoff = .seconds(60)
+
+        let name = "corrupt-cached-font"
+        let url = "https://font.test/corrupt.ttf"
+        addTeardownBlock { self.removeCachedFontFile(named: name) }
+
+        let font = FontModel(name: name, url: url)
+        try seedCachedFont(name: name, url: url)
+        let fileUrl = try XCTUnwrap(FontManager.getFileUrl(name: name))
+
+        FontManager.registerFont(font: font, fileUrl: fileUrl)
+
+        XCTAssertTrue(
+            waitUntil { FontManager.isDownloadingFontRequired(font: font) },
+            "an unregisterable cached font should be queued for download instead of " +
+            "resolving to the fallback font on every render"
+        )
+    }
+
+    func test_registerFont_withUnregisterableCachedFont_stopsRecoveringAtAttemptLimit() throws {
+        FontManager.fontRecoveryBackoff = .seconds(60)
+        FontManager.maxFontRecoveryAttempts = 1
+
+        let name = "repeatedly-bad-font"
+        let url = "https://font.test/repeatedly-bad.ttf"
+        addTeardownBlock { self.removeCachedFontFile(named: name) }
+
+        let font = FontModel(name: name, url: url)
+
+        try seedCachedFont(name: name, url: url)
+        let fileUrl = try XCTUnwrap(FontManager.getFileUrl(name: name))
+        FontManager.registerFont(font: font, fileUrl: fileUrl)
+
+        XCTAssertTrue(
+            waitUntil { !FontManager.isFontFileExist(name: name) },
+            "the first failure should invalidate the cached file"
+        )
+
+        try seedCachedFont(name: name, url: url)
+        FontManager.registerFont(font: font, fileUrl: fileUrl)
+
+        XCTAssertTrue(
+            FontManager.isFontFileExist(name: name),
+            "once the attempt budget is spent the cache should be left alone rather than " +
+            "looping on a font that will not register"
+        )
+    }
+
+    private func seedCachedFont(name: String, url: String) throws {
+        let saved = expectation(description: "font detail saved for \(name)")
+
+        FontRepository.saveFontDetail(
+            key: url,
+            values: [
+                FontManager.keyName: name,
+                FontManager.keyTimestamp: "\(Date().timeIntervalSince1970)"
+            ]
+        ) {
+            saved.fulfill()
+        }
+
+        wait(for: [saved], timeout: 15)
+
+        try XCTestCase.writeFontFileToCache(named: name)
+        XCTAssertFalse(FontManager.isDownloadingFontRequired(font: FontModel(name: name, url: url)))
+    }
+
+    private func removeCachedFontFile(named name: String) {
+        guard let fileUrl = FontManager.getFileUrl(name: name) else { return }
+        try? FileManager.default.removeItem(at: fileUrl)
+    }
+
+    /// The cache metadata is written asynchronously, so conditions that depend on it are
+    /// polled rather than read once.
+    private func waitUntil(timeout: TimeInterval = 5, _ condition: () -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+
+        while Date() < deadline {
+            if condition() { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        }
+
+        return condition()
     }
 
     // MARK: - Thread Safety Tests

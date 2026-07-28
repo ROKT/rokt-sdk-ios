@@ -848,6 +848,7 @@ class RoktInternalImplementation {
         self.roktTagId = roktTagId
         sessionManager.storedTagId = roktTagId
         isInitFailedForFont = false
+        FontManager.resetFontRecoveryState()
         stateManager = StateBagManager()
 
         RoktLogger.shared.debug("Starting API initialization request")

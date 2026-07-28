@@ -40,14 +40,13 @@ internal class RoktNetWorkAPI {
     /// - Parameters:
     ///   - font: The font file that should be downloaded and installed to be used in the widget
     ///   - destination: URL to the file's intended location on the device
-    ///   - isLastFont: if `true`, sends a local Notification that all fonts have been downloaded
-    ///   - onDownloadComplete: Callback to trigger when the download is complete
+    ///   - onDownloadComplete: Callback to trigger once the download has settled, whether
+    ///     it succeeded or failed. Retries settle only after the final attempt.
     ///   - retryCount: number of times that the download request has been attempted
     class func downloadFont(
         font: FontModel,
         destinationURL: URL,
-        isLastFont: Bool,
-        onDownloadComplete: @escaping ((_ isLastFont: Bool) -> Void),
+        onDownloadComplete: @escaping () -> Void,
         retryCount: Int = 0
     ) {
         NetworkingHelper.shared.downloadFile(
@@ -61,40 +60,35 @@ internal class RoktNetWorkAPI {
                     fontLogId: fullFontLogCode3)
 
                 FontManager.registerFont(font: font, fileUrl: downloadedFileLocalURL, isDownloaded: true)
-                onDownloadComplete(isLastFont)
-            } else if let downloadError = downloadResponse.downloadError {
-                if retryCount < maxRetries && NetworkingHelper.retriableResponse(
-                    error: downloadError,
-                    code: downloadResponse.httpURLResponse?.statusCode) {
+            } else if let downloadError = downloadResponse.downloadError,
+                      retryCount < maxRetries,
+                      NetworkingHelper.retriableResponse(
+                          error: downloadError,
+                          code: downloadResponse.httpURLResponse?.statusCode) {
 
-                    // Log FFL4
-                    FontManager.sendFullFontLogs(
-                        "Retry for font file \(destinationURL) error on download \(downloadError)",
-                        fontLogId: fullFontLogCode4)
+                // Log FFL4
+                FontManager.sendFullFontLogs(
+                    "Retry for font file \(destinationURL) error on download \(downloadError)",
+                    fontLogId: fullFontLogCode4)
 
-                    downloadFont(
-                        font: font,
-                        destinationURL: destinationURL,
-                        isLastFont: isLastFont,
-                        onDownloadComplete: onDownloadComplete,
-                        retryCount: retryCount + 1)
+                downloadFont(
+                    font: font,
+                    destinationURL: destinationURL,
+                    onDownloadComplete: onDownloadComplete,
+                    retryCount: retryCount + 1)
 
-                    return
-                } else {
-                    // Best-effort: mark for diagnostics, don't un-initialise.
-                    Rokt.shared.roktImplementation.isInitFailedForFont = true
-                    let callstack = "\(fontErrorMessage) \(font.url), " +
-                        "error: \(String(describing: downloadResponse.downloadError.debugDescription))"
+                return
+            } else {
+                // Best-effort: mark for diagnostics, don't un-initialise.
+                Rokt.shared.roktImplementation.isInitFailedForFont = true
+                let callstack = "\(fontErrorMessage) \(font.url), " +
+                    "error: \(String(describing: downloadResponse.downloadError.debugDescription))"
 
-                    RoktAPIHelper.sendDiagnostics(message: fontDiagnosticCode, callStack: callstack)
-                    RoktLogger.shared.verbose(callstack)
-                    onDownloadComplete(isLastFont)
-                }
+                RoktAPIHelper.sendDiagnostics(message: fontDiagnosticCode, callStack: callstack)
+                RoktLogger.shared.verbose(callstack)
             }
 
-            if isLastFont {
-                NotificationCenter.default.post(Notification(name: Notification.Name(finishedDownloadingFonts)))
-            }
+            onDownloadComplete()
         }
     }
 
