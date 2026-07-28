@@ -53,7 +53,7 @@ internal class RoktNetWorkAPI {
         NetworkingHelper.shared.downloadFile(
             source: font.url,
             destinationURL: destinationURL,
-            requestTimeout: TimeInterval(exactly: RoktInternalImplementation.defaultFontTimeout)!) { downloadResponse in
+            requestTimeout: TimeInterval(exactly: RoktInternalImplementation.defaultFontTimeoutSeconds)!) { downloadResponse in
             handleFontDownloadResponse(
                 font: font,
                 destinationURL: destinationURL,

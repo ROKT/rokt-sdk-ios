@@ -7,6 +7,8 @@ enum RoktDownloadOptions: CaseIterable {
 
 // Protocol to hide implementation details
 protocol HTTPClientAdapter {
+    /// - Parameter timeout: seconds. Callers holding a millisecond-based config value, such as the
+    ///   client timeout from init, must convert before calling.
     func updateTimeout(timeout: Double)
 
     @discardableResult
@@ -73,11 +75,11 @@ internal final class RoktHTTPClient: HTTPClientAdapter {
     /// How long a download may sit without receiving data before it is abandoned. This, rather
     /// than a cap on the total transfer, is what should fail a download: a large file on a slow
     /// connection is still making progress, whereas one receiving nothing is not.
-    static let downloadIdleTimeout: TimeInterval = 30
+    static let downloadIdleTimeoutSeconds: TimeInterval = 30
 
     /// Ceiling on an entire download. Deliberately far larger than the API client timeout: it
     /// exists to stop a pathological trickle running forever, not to bound a healthy transfer.
-    static let downloadResourceTimeout: TimeInterval = 300
+    static let downloadResourceTimeoutSeconds: TimeInterval = 300
 
     init(
         sessionConfiguration: URLSessionConfiguration = .default,
@@ -104,14 +106,16 @@ internal final class RoktHTTPClient: HTTPClientAdapter {
         from configuration: URLSessionConfiguration
     ) -> URLSessionConfiguration {
         let downloadConfiguration = (configuration.copy() as? URLSessionConfiguration) ?? configuration
-        downloadConfiguration.timeoutIntervalForRequest = downloadIdleTimeout
-        downloadConfiguration.timeoutIntervalForResource = downloadResourceTimeout
+        downloadConfiguration.timeoutIntervalForRequest = downloadIdleTimeoutSeconds
+        downloadConfiguration.timeoutIntervalForResource = downloadResourceTimeoutSeconds
 
         return downloadConfiguration
     }
 
     /// Applies to API requests only. Downloads keep their own budget, since the client timeout
     /// is sized for small JSON payloads and would cancel large files mid-transfer.
+    ///
+    /// - Parameter timeout: seconds.
     func updateTimeout(timeout: Double) {
         let currentConfiguration = session.configuration
 

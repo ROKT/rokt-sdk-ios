@@ -47,7 +47,7 @@ final class RoktHTTPClientTests: XCTestCase {
 
         XCTAssertEqual(sut.session.configuration.timeoutIntervalForResource, 9, accuracy: 0.1)
         XCTAssertEqual(sut.downloadSession.configuration.timeoutIntervalForResource,
-                       RoktHTTPClient.downloadResourceTimeout,
+                       RoktHTTPClient.downloadResourceTimeoutSeconds,
                        accuracy: 0.1)
         XCTAssertGreaterThan(sut.downloadSession.configuration.timeoutIntervalForResource,
                              sut.session.configuration.timeoutIntervalForResource)
@@ -63,10 +63,10 @@ final class RoktHTTPClientTests: XCTestCase {
         let sut = RoktHTTPClient(sessionConfiguration: configuration)
 
         XCTAssertEqual(sut.downloadSession.configuration.timeoutIntervalForRequest,
-                       RoktHTTPClient.downloadIdleTimeout,
+                       RoktHTTPClient.downloadIdleTimeoutSeconds,
                        accuracy: 0.1)
         XCTAssertEqual(sut.downloadSession.configuration.timeoutIntervalForResource,
-                       RoktHTTPClient.downloadResourceTimeout,
+                       RoktHTTPClient.downloadResourceTimeoutSeconds,
                        accuracy: 0.1)
     }
 

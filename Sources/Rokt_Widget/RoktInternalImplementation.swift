@@ -19,8 +19,8 @@ class RoktInternalImplementation {
     private static let cacheAttributesKey = "cacheAttributeKeys"
     static let missingForwardPaymentPriceReason = "Missing price on forward-payment event"
     static let unknownForwardPaymentFailureReason = "Unknown failure reason"
-    static let defaultTimeout: Double = 9000
-    static let defaultFontTimeout: Double = 30 // second
+    static let defaultTimeoutMilliseconds: Double = 9000
+    static let defaultFontTimeoutSeconds: Double = 30
     static let defaultDelay: Double = 1000
     private static let builtInPayPalMissingRedirectSchemeMessage =
         "Rokt: Built-in PayPal device pay requires Rokt.setBuiltInPayPalRedirectURLScheme(_:) "
@@ -58,7 +58,7 @@ class RoktInternalImplementation {
     // Test-only override for the events service factory; nil uses the real builder.
     var makeTxnEventServiceOverride: ((String) -> TxnEventService)?
     private var pendingPayload: ExecutePayload?
-    private var clientTimeoutMilliseconds: Double = RoktInternalImplementation.defaultTimeout
+    private var clientTimeoutMilliseconds: Double = RoktInternalImplementation.defaultTimeoutMilliseconds
     private var defaultLaunchDelayMilliseconds: Double = RoktInternalImplementation.defaultDelay
     private var isExecuting = false
     private var placements: [String: RoktEmbeddedView]?
