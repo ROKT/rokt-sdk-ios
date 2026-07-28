@@ -330,7 +330,20 @@ internal class FontManager {
         FontRepository.removeFontDetail(key: font.url) { completion?() }
     }
 
+    #if DEBUG
+    /// `FileManager` always reports a caches directory on a real device, so the
+    /// unresolvable-path branch can only be exercised through this seam. Compiled out of
+    /// release builds so it never ships.
+    internal static var fileUrlResolverOverride: ((String) -> URL?)?
+    #endif
+
     internal static func getFileUrl(name: String) -> URL? {
+        #if DEBUG
+        if let fileUrlResolverOverride {
+            return fileUrlResolverOverride(name)
+        }
+        #endif
+
         guard let cacheDirectoryUrl = FontRepository.getCacheDirectoryUrl() else {
             // Log FFL009
             sendFullFontLogs("File Manager failed to read caches directory in user home", fontLogId: fullFontLogCode9)

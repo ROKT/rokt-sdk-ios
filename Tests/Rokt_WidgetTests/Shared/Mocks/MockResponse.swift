@@ -108,12 +108,20 @@ extension XCTestCase {
         mock.register()
     }
 
-    func stubFontFileUrl(_ fontUrl: String) {
+    func stubFontFileUrl(_ fontUrl: String,
+                         statusCode: Int = 200,
+                         data: Data = Data(),
+                         onRequest: (() -> Void)? = nil) {
         let configuration = URLSessionConfiguration.default
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        let mock = Mock(url: URL(string: fontUrl)!, dataType: .zip, statusCode: 200, data: [.get: Data()])
+        var mock = Mock(url: URL(string: fontUrl)!, dataType: .zip, statusCode: statusCode, data: [.get: data])
+
+        if let onRequest {
+            mock.onRequest = { _, _ in onRequest() }
+        }
+
         mock.register()
     }
 
