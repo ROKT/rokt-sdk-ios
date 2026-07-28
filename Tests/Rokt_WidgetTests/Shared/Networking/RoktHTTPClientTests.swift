@@ -53,6 +53,23 @@ final class RoktHTTPClientTests: XCTestCase {
                              sut.session.configuration.timeoutIntervalForResource)
     }
 
+    func test_downloadSession_doesNotInheritTheApiShapedTimeouts() {
+        // The configuration handed to the client is sized for API calls, so inheriting either
+        // interval would quietly reimpose an API budget on file transfers.
+        let configuration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = 7
+        configuration.timeoutIntervalForResource = 7
+
+        let sut = RoktHTTPClient(sessionConfiguration: configuration)
+
+        XCTAssertEqual(sut.downloadSession.configuration.timeoutIntervalForRequest,
+                       RoktHTTPClient.downloadIdleTimeout,
+                       accuracy: 0.1)
+        XCTAssertEqual(sut.downloadSession.configuration.timeoutIntervalForResource,
+                       RoktHTTPClient.downloadResourceTimeout,
+                       accuracy: 0.1)
+    }
+
     func test_downloadSession_inheritsTheInjectedConfiguration() {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [RoktHTTPUrlProtocolStub.self]
