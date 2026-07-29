@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 #### Changed
 
 - Assert partner app headers on txn endpoints ([#266](https://github.com/ROKT/rokt-sdk-ios/pull/266))
-- Drop unused Equatable from Select* offers DTOs ([#259](https://github.com/ROKT/rokt-sdk-ios/pull/259))
+- Drop unused Equatable from Select\* offers DTOs ([#259](https://github.com/ROKT/rokt-sdk-ios/pull/259))
 - Gate Mock offline transports out of release builds ([#258](https://github.com/ROKT/rokt-sdk-ios/pull/258))
 - Backfill missing 5.3.0 changelog section ([#257](https://github.com/ROKT/rokt-sdk-ios/pull/257))
 
