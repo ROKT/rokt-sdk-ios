@@ -1,5 +1,42 @@
 import XCTest
+import CoreText
 @testable import Rokt_Widget
+
+/// Mocker invokes request hooks off the test thread, so attempt counts are guarded.
+private final class Counter {
+    private let lock = NSLock()
+    private var count = 0
+
+    var value: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return count
+    }
+
+    func increment() {
+        lock.lock()
+        count += 1
+        lock.unlock()
+    }
+}
+
+/// Diagnostics are delivered off the test thread, so captured call stacks are guarded.
+private final class Traces {
+    private let lock = NSLock()
+    private var values: [String] = []
+
+    func append(_ value: String) {
+        lock.lock()
+        values.append(value)
+        lock.unlock()
+    }
+
+    func contains(_ predicate: (String) -> Bool) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return values.contains(where: predicate)
+    }
+}
 
 class TestFontManager: XCTestCase {
     var hasFetched = false
@@ -13,6 +50,7 @@ class TestFontManager: XCTestCase {
             hasFetched = true
         }
         Rokt.shared.roktImplementation.roktTagId = "123"
+        Rokt.shared.roktImplementation.isInitFailedForFont = false
 
         self.stubDiagnostics(onDiagnosticsReceive: { (error) in
             self.errors.append(error)
@@ -31,6 +69,11 @@ class TestFontManager: XCTestCase {
             shouldUseFontRegisterWithUrl: false,
             featureFlags: [:]
         )
+        FontManager.resetFontRecoveryState()
+        FontManager.maxFontRecoveryAttempts = 2
+        FontManager.fontRecoveryBackoff = .seconds(1)
+        FontManager.fileUrlResolverOverride = nil
+        Rokt.shared.roktImplementation.isInitFailedForFont = false
 
         super.tearDown()
     }
@@ -306,6 +349,342 @@ class TestFontManager: XCTestCase {
         // Assert
         wait(for: [expectation], timeout: 5)
         XCTAssertEqual(1, callbackCount)
+    }
+
+    // MARK: - Completion is driven by settled count, not font order
+
+    func test_downloadFonts_callsCompletion_whenLastFontIsAlreadyCached() throws {
+        // Cache recovery is covered separately below. A stubbed font file cannot register,
+        // and letting it re-fetch here would only race with the assertion.
+        FontManager.maxFontRecoveryAttempts = 0
+
+        let downloadUrl = "https://font.test/needs-download.ttf"
+        let cachedName = "already-cached-font"
+        let cachedUrl = "https://font.test/already-cached.ttf"
+        addTeardownBlock { self.removeCachedFontFile(named: cachedName) }
+
+        stubFontFileUrl(downloadUrl)
+        try seedCachedFont(name: cachedName, url: cachedUrl)
+
+        let completion = expectation(description: "onFontDownloadComplete")
+
+        FontManager.downloadFonts([
+            FontModel(name: "needs-download-font", url: downloadUrl),
+            FontModel(name: cachedName, url: cachedUrl)
+        ]) {
+            completion.fulfill()
+        }
+
+        wait(for: [completion], timeout: 10)
+    }
+
+    func test_downloadFonts_callsCompletion_whenLastFontIsSystemFont() {
+        let downloadUrl = "https://font.test/needs-download.ttf"
+        stubFontFileUrl(downloadUrl)
+
+        let completion = expectation(description: "onFontDownloadComplete")
+
+        FontManager.downloadFonts([
+            FontModel(name: "needs-download-font", url: downloadUrl),
+            FontModel(name: "ArialMT", url: "")
+        ]) {
+            completion.fulfill()
+        }
+
+        wait(for: [completion], timeout: 10)
+    }
+
+    func test_downloadFonts_whenAFontPathCannotBeResolved_stillSettlesTheBatch() {
+        // An unresolvable path used to return early and abandon the whole batch, leaving
+        // init waiting forever on the fonts that came after it.
+        FontManager.fileUrlResolverOverride = { _ in nil }
+
+        let completion = expectation(description: "onFontDownloadComplete")
+
+        FontManager.downloadFonts([
+            FontModel(name: "unresolvable-font-a", url: "https://font.test/unresolvable-a.ttf"),
+            FontModel(name: "unresolvable-font-b", url: "https://font.test/unresolvable-b.ttf")
+        ]) {
+            completion.fulfill()
+        }
+
+        wait(for: [completion], timeout: 10)
+        XCTAssertTrue(Rokt.shared.roktImplementation.isInitFailedForFont,
+                      "the failure should still be recorded for diagnostics")
+    }
+
+    func test_downloadFont_whenEveryAttemptFailsRetriably_settlesOnceAfterRetriesAreExhausted() throws {
+        // A retrying font must still settle, otherwise the batch it belongs to never
+        // completes and init waits on a font that will never arrive.
+        let url = "https://font.test/always-500.ttf"
+        let attempts = Counter()
+
+        stubFontFileUrl(url, statusCode: 500) { attempts.increment() }
+
+        let font = FontModel(name: "always-500-font", url: url)
+        let fileUrl = try XCTUnwrap(FontManager.getFileUrl(name: font.name))
+        let settled = expectation(description: "download settled")
+        var settleCount = 0
+
+        RoktNetWorkAPI.downloadFont(font: font, destinationURL: fileUrl) {
+            settleCount += 1
+            settled.fulfill()
+        }
+
+        wait(for: [settled], timeout: 15)
+
+        XCTAssertEqual(settleCount, 1, "the completion must fire exactly once, not once per attempt")
+        XCTAssertEqual(attempts.value, maxRetries + 1,
+                       "the initial attempt plus every retry should be issued before settling")
+    }
+
+    func test_handleFontDownloadResponse_whenResponseHasNeitherErrorNorFile_isReportedSeparately() throws {
+        // This response shape used to fall through every branch and never settle. It now
+        // settles, but it must not be logged as a download failure carrying a nil error.
+        let traces = captureDiagnosticStackTraces()
+
+        let font = FontModel(name: "incomplete-response-font", url: "https://font.test/incomplete.ttf")
+        let settled = expectation(description: "settled")
+
+        RoktNetWorkAPI.handleFontDownloadResponse(
+            font: font,
+            destinationURL: try XCTUnwrap(FontManager.getFileUrl(name: font.name)),
+            downloadResponse: RoktDownloadResult(
+                httpURLResponse: nil,
+                downloadedFileLocalURL: nil,
+                downloadError: nil
+            ),
+            onDownloadComplete: { settled.fulfill() }
+        )
+
+        wait(for: [settled], timeout: 15)
+
+        XCTAssertTrue(waitUntil { traces.contains { $0.contains("missing both error and file") } },
+                      "a malformed response should be reported on its own line")
+        XCTAssertFalse(traces.contains { $0.contains("Error downloading font") },
+                       "it should not masquerade as a download failure with a nil error")
+    }
+
+    func test_handleFontDownloadResponse_withTerminalDownloadError_keepsTheExistingDiagnosticShape() throws {
+        // The `[FONT]` rows for real download failures are already monitored, so splitting
+        // the malformed case out must not change how a genuine failure reads.
+        let traces = captureDiagnosticStackTraces()
+
+        let font = FontModel(name: "terminal-error-font", url: "https://font.test/terminal.ttf")
+        let settled = expectation(description: "settled")
+
+        RoktNetWorkAPI.handleFontDownloadResponse(
+            font: font,
+            destinationURL: try XCTUnwrap(FontManager.getFileUrl(name: font.name)),
+            downloadResponse: RoktDownloadResult(
+                httpURLResponse: nil,
+                downloadedFileLocalURL: nil,
+                downloadError: NSError(domain: "Custom", code: 1)
+            ),
+            onDownloadComplete: { settled.fulfill() },
+            retryCount: maxRetries
+        )
+
+        wait(for: [settled], timeout: 15)
+
+        XCTAssertTrue(waitUntil { traces.contains { $0.contains("Error downloading font") } },
+                      "a genuine download failure should keep its existing diagnostic shape")
+        XCTAssertFalse(traces.contains { $0.contains("missing both error and file") },
+                       "a real error should not be reported as a malformed response")
+    }
+
+    // MARK: - Cache recovery
+
+    func test_invalidateCachedFont_alsoRemovesTheDownloadedUrlEntry() throws {
+        // `removeFont` reads the detail before removing the URL entry, so an invalidation
+        // that drops only the detail strands the entry where nothing can clean it up.
+        let name = "invalidated-font"
+        let url = "https://font.test/invalidated.ttf"
+        addTeardownBlock { self.removeCachedFontFile(named: name) }
+
+        let urlSaved = expectation(description: "font url saved")
+        FontRepository.saveFontUrl(key: url) { urlSaved.fulfill() }
+        wait(for: [urlSaved], timeout: 15)
+        try seedCachedFont(name: name, url: url)
+
+        let invalidated = expectation(description: "font invalidated")
+        FontManager.invalidateCachedFont(FontModel(name: name, url: url)) { invalidated.fulfill() }
+        wait(for: [invalidated], timeout: 15)
+
+        XCTAssertFalse(FontManager.isFontFileExist(name: name))
+        XCTAssertNil(FontRepository.loadFontDetail(key: url))
+        XCTAssertFalse(FontRepository.loadAllFontURLs()?.contains(url) ?? false,
+                       "the URL entry has to go too, otherwise removeUnusedFonts can never reclaim it")
+    }
+
+    /// Replaces the default diagnostics stub so a test can read the call stacks rather
+    /// than just the error codes.
+    private func captureDiagnosticStackTraces() -> Traces {
+        let traces = Traces()
+        stubDiagnostics(onDiagnosticsModelReceive: { traces.append($0.stackTrace) })
+        return traces
+    }
+
+    func test_registerFont_withUnregisterableCachedFont_invalidatesCacheForReDownload() throws {
+        // Keep the re-fetch pending so the assertion sees only the invalidation.
+        FontManager.fontRecoveryBackoff = .seconds(60)
+
+        let name = "corrupt-cached-font"
+        let url = "https://font.test/corrupt.ttf"
+        addTeardownBlock { self.removeCachedFontFile(named: name) }
+
+        let font = FontModel(name: name, url: url)
+        try seedCachedFont(name: name, url: url)
+        let fileUrl = try XCTUnwrap(FontManager.getFileUrl(name: name))
+
+        FontManager.registerFont(font: font, fileUrl: fileUrl)
+
+        XCTAssertTrue(
+            waitUntil { FontManager.isDownloadingFontRequired(font: font) },
+            "an unregisterable cached font should be queued for download instead of " +
+            "resolving to the fallback font on every render"
+        )
+    }
+
+    func test_registerFont_withUnregisterableCachedFont_stopsRecoveringAtAttemptLimit() throws {
+        FontManager.fontRecoveryBackoff = .seconds(60)
+        FontManager.maxFontRecoveryAttempts = 1
+
+        let name = "repeatedly-bad-font"
+        let url = "https://font.test/repeatedly-bad.ttf"
+        addTeardownBlock { self.removeCachedFontFile(named: name) }
+
+        let font = FontModel(name: name, url: url)
+
+        try seedCachedFont(name: name, url: url)
+        let fileUrl = try XCTUnwrap(FontManager.getFileUrl(name: name))
+        FontManager.registerFont(font: font, fileUrl: fileUrl)
+
+        XCTAssertTrue(
+            waitUntil { !FontManager.isFontFileExist(name: name) },
+            "the first failure should invalidate the cached file"
+        )
+
+        try seedCachedFont(name: name, url: url)
+        FontManager.registerFont(font: font, fileUrl: fileUrl)
+
+        XCTAssertTrue(
+            FontManager.isFontFileExist(name: name),
+            "once the attempt budget is spent the cache should be left alone rather than " +
+            "looping on a font that will not register"
+        )
+    }
+
+    func test_registerFont_afterSuccessfulRegistration_restoresTheRecoveryBudget() throws {
+        // A font that recovers once must be recoverable again later in the same process,
+        // so a successful registration has to release the attempt it consumed.
+        FontManager.fontRecoveryBackoff = .seconds(60)
+        FontManager.maxFontRecoveryAttempts = 1
+
+        let name = "recovers-then-fails-font"
+        let url = "https://font.test/recovers-then-fails.ttf"
+        addTeardownBlock { self.removeCachedFontFile(named: name) }
+
+        let font = FontModel(name: name, url: url)
+        let fileUrl = try XCTUnwrap(FontManager.getFileUrl(name: name))
+
+        try seedCachedFont(name: name, url: url)
+        FontManager.registerFont(font: font, fileUrl: fileUrl)
+        XCTAssertTrue(waitUntil { !FontManager.isFontFileExist(name: name) },
+                      "the first failure should spend the only recovery attempt")
+
+        try seedCachedFont(name: name, url: url, data: try Self.registerableFontData())
+        FontManager.registerFont(font: font, fileUrl: fileUrl)
+
+        try seedCachedFont(name: name, url: url)
+        FontManager.registerFont(font: font, fileUrl: fileUrl)
+
+        XCTAssertTrue(waitUntil { !FontManager.isFontFileExist(name: name) },
+                      "the successful registration should have restored the budget, letting " +
+                      "this later failure recover instead of being treated as exhausted")
+    }
+
+    func test_registerFont_withUnregisterableCachedFont_reDownloadsFontAfterBackoff() throws {
+        // The invalidation is only half the recovery; the re-fetch has to actually run,
+        // off the render path, for the font to come back.
+        FontManager.fontRecoveryBackoff = .milliseconds(10)
+
+        let name = "refetched-font"
+        let url = "https://font.test/refetched.ttf"
+        addTeardownBlock { self.removeCachedFontFile(named: name) }
+
+        let requested = expectation(description: "font re-requested")
+        requested.assertForOverFulfill = false
+        stubFontFileUrl(url, data: try Self.registerableFontData()) { requested.fulfill() }
+
+        let font = FontModel(name: name, url: url)
+        try seedCachedFont(name: name, url: url)
+        let fileUrl = try XCTUnwrap(FontManager.getFileUrl(name: name))
+
+        FontManager.registerFont(font: font, fileUrl: fileUrl)
+
+        wait(for: [requested], timeout: 15)
+        XCTAssertTrue(waitUntil { FontManager.isFontFileExist(name: name) },
+                      "the re-fetched font should be back in the cache and usable")
+    }
+
+    /// Registration only runs against genuine font bytes, and sourcing them from a font
+    /// already on the device avoids committing a binary fixture. Large collections such as
+    /// the emoji font are skipped to keep the read cheap.
+    private static func registerableFontData() throws -> Data {
+        for family in UIFont.familyNames {
+            for fontName in UIFont.fontNames(forFamilyName: family) {
+                let descriptor = CTFontCopyFontDescriptor(CTFontCreateWithName(fontName as CFString, 12, nil))
+
+                guard let fontUrl = CTFontDescriptorCopyAttribute(descriptor, kCTFontURLAttribute) as? URL,
+                      let data = try? Data(contentsOf: fontUrl),
+                      data.count < 200_000,
+                      let provider = CGDataProvider(data: data as CFData),
+                      CGFont(provider) != nil
+                else { continue }
+
+                return data
+            }
+        }
+
+        throw XCTSkip("no registerable font file is available on this device")
+    }
+
+    private func seedCachedFont(name: String, url: String, data: Data = Data([0x00])) throws {
+        let saved = expectation(description: "font detail saved for \(name)")
+
+        FontRepository.saveFontDetail(
+            key: url,
+            values: [
+                FontManager.keyName: name,
+                FontManager.keyTimestamp: "\(Date().timeIntervalSince1970)"
+            ]
+        ) {
+            saved.fulfill()
+        }
+
+        wait(for: [saved], timeout: 15)
+
+        try XCTestCase.writeFontFileToCache(named: name, data: data)
+        XCTAssertFalse(FontManager.isDownloadingFontRequired(font: FontModel(name: name, url: url)))
+    }
+
+    private func removeCachedFontFile(named name: String) {
+        guard let fileUrl = FontManager.getFileUrl(name: name) else { return }
+        try? FileManager.default.removeItem(at: fileUrl)
+    }
+
+    /// The cache metadata is written asynchronously, so conditions that depend on it are
+    /// polled rather than read once.
+    private func waitUntil(timeout: TimeInterval = 5, _ condition: () -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+
+        while Date() < deadline {
+            if condition() { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        }
+
+        return condition()
     }
 
     // MARK: - Thread Safety Tests

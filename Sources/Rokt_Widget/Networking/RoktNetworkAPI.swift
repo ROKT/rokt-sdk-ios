@@ -30,6 +30,7 @@ internal class RoktNetWorkAPI {
     private static let headerTagIdKey = "rokt-tag-id"
     private static let headerSdkFrameworkType = "rokt-sdk-framework-type"
     private static let fontErrorMessage = "Error downloading font: "
+    private static let fontResponseIncompleteMessage = "Font download response missing both error and file: "
     private static let timingsDiagnosticCode = "[TIMINGS]"
     private static let timingsSdkType = "msdk"
     private static let fullFontLogCode3 = "[FFL003]"
@@ -40,62 +41,85 @@ internal class RoktNetWorkAPI {
     /// - Parameters:
     ///   - font: The font file that should be downloaded and installed to be used in the widget
     ///   - destination: URL to the file's intended location on the device
-    ///   - isLastFont: if `true`, sends a local Notification that all fonts have been downloaded
-    ///   - onDownloadComplete: Callback to trigger when the download is complete
+    ///   - onDownloadComplete: Callback to trigger once the download has settled, whether
+    ///     it succeeded or failed. Retries settle only after the final attempt.
     ///   - retryCount: number of times that the download request has been attempted
     class func downloadFont(
         font: FontModel,
         destinationURL: URL,
-        isLastFont: Bool,
-        onDownloadComplete: @escaping ((_ isLastFont: Bool) -> Void),
+        onDownloadComplete: @escaping () -> Void,
         retryCount: Int = 0
     ) {
         NetworkingHelper.shared.downloadFile(
             source: font.url,
             destinationURL: destinationURL,
-            requestTimeout: TimeInterval(exactly: RoktInternalImplementation.defaultFontTimeout)!) { downloadResponse in
-            if downloadResponse.downloadError == nil,
-               let downloadedFileLocalURL = downloadResponse.downloadedFileLocalURL {
-                FontManager.sendFullFontLogs(
-                    "Font downloaded to \(downloadedFileLocalURL)",
-                    fontLogId: fullFontLogCode3)
-
-                FontManager.registerFont(font: font, fileUrl: downloadedFileLocalURL, isDownloaded: true)
-                onDownloadComplete(isLastFont)
-            } else if let downloadError = downloadResponse.downloadError {
-                if retryCount < maxRetries && NetworkingHelper.retriableResponse(
-                    error: downloadError,
-                    code: downloadResponse.httpURLResponse?.statusCode) {
-
-                    // Log FFL4
-                    FontManager.sendFullFontLogs(
-                        "Retry for font file \(destinationURL) error on download \(downloadError)",
-                        fontLogId: fullFontLogCode4)
-
-                    downloadFont(
-                        font: font,
-                        destinationURL: destinationURL,
-                        isLastFont: isLastFont,
-                        onDownloadComplete: onDownloadComplete,
-                        retryCount: retryCount + 1)
-
-                    return
-                } else {
-                    // Best-effort: mark for diagnostics, don't un-initialise.
-                    Rokt.shared.roktImplementation.isInitFailedForFont = true
-                    let callstack = "\(fontErrorMessage) \(font.url), " +
-                        "error: \(String(describing: downloadResponse.downloadError.debugDescription))"
-
-                    RoktAPIHelper.sendDiagnostics(message: fontDiagnosticCode, callStack: callstack)
-                    RoktLogger.shared.verbose(callstack)
-                    onDownloadComplete(isLastFont)
-                }
-            }
-
-            if isLastFont {
-                NotificationCenter.default.post(Notification(name: Notification.Name(finishedDownloadingFonts)))
-            }
+            requestTimeout: TimeInterval(exactly: RoktInternalImplementation.defaultFontTimeoutSeconds)!) { downloadResponse in
+            handleFontDownloadResponse(
+                font: font,
+                destinationURL: destinationURL,
+                downloadResponse: downloadResponse,
+                onDownloadComplete: onDownloadComplete,
+                retryCount: retryCount)
         }
+    }
+
+    /// Split out of `downloadFont` so each response shape can be driven directly.
+    /// `RoktHTTPClient` is `final` and `downloadFile` only accepts it, so there is no
+    /// other seam for the responses it never produces itself.
+    internal class func handleFontDownloadResponse(
+        font: FontModel,
+        destinationURL: URL,
+        downloadResponse: RoktDownloadResult,
+        onDownloadComplete: @escaping () -> Void,
+        retryCount: Int = 0
+    ) {
+        if downloadResponse.downloadError == nil,
+           let downloadedFileLocalURL = downloadResponse.downloadedFileLocalURL {
+            FontManager.sendFullFontLogs(
+                "Font downloaded to \(downloadedFileLocalURL)",
+                fontLogId: fullFontLogCode3)
+
+            FontManager.registerFont(font: font, fileUrl: downloadedFileLocalURL, isDownloaded: true)
+        } else if let downloadError = downloadResponse.downloadError,
+                  retryCount < maxRetries,
+                  NetworkingHelper.retriableResponse(
+                      error: downloadError,
+                      code: downloadResponse.httpURLResponse?.statusCode) {
+
+            // Log FFL4
+            FontManager.sendFullFontLogs(
+                "Retry for font file \(destinationURL) error on download \(downloadError)",
+                fontLogId: fullFontLogCode4)
+
+            downloadFont(
+                font: font,
+                destinationURL: destinationURL,
+                onDownloadComplete: onDownloadComplete,
+                retryCount: retryCount + 1)
+
+            return
+        } else if downloadResponse.downloadError != nil {
+            // Terminal download failure: not retriable, or the retry budget is spent.
+            // Best-effort: mark for diagnostics, don't un-initialise.
+            Rokt.shared.roktImplementation.isInitFailedForFont = true
+            let callstack = "\(fontErrorMessage) \(font.url), " +
+                "error: \(String(describing: downloadResponse.downloadError.debugDescription))"
+
+            RoktAPIHelper.sendDiagnostics(message: fontDiagnosticCode, callStack: callstack)
+            RoktLogger.shared.verbose(callstack)
+        } else {
+            // Neither an error nor a file came back, so there is nothing to register and
+            // nothing to retry. Reported on its own line rather than as a download failure
+            // carrying a nil error, which is unreadable next to the real ones.
+            Rokt.shared.roktImplementation.isInitFailedForFont = true
+            let callstack = "\(fontResponseIncompleteMessage)\(font.url), " +
+                "status: \(downloadResponse.httpURLResponse?.statusCode.description ?? "none")"
+
+            RoktAPIHelper.sendDiagnostics(message: fontDiagnosticCode, callStack: callstack)
+            RoktLogger.shared.verbose(callstack)
+        }
+
+        onDownloadComplete()
     }
 
     /// Rokt diagnostics API call
