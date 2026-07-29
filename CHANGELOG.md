@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [5.3.1] - 2026-07-29
+
+### Core
+
+#### Fixed
+
+- Always settle font batch and recover unreadable cached fonts ([#267](https://github.com/ROKT/rokt-sdk-ios/pull/267))
+- Restore MOCK UI tests (fail-fast job + network wiring + per-execute event de-dup) ([#264](https://github.com/ROKT/rokt-sdk-ios/pull/264))
+- Add iOS Data Protection to persisted event stores ([#261](https://github.com/ROKT/rokt-sdk-ios/pull/261))
+- Send partner app version on v2/init request ([#265](https://github.com/ROKT/rokt-sdk-ios/pull/265))
+- Populate interaction type for user interactions ([#262](https://github.com/ROKT/rokt-sdk-ios/pull/262))
+
+#### Changed
+
+- Assert partner app headers on txn endpoints ([#266](https://github.com/ROKT/rokt-sdk-ios/pull/266))
+- Drop unused Equatable from Select* offers DTOs ([#259](https://github.com/ROKT/rokt-sdk-ios/pull/259))
+- Gate Mock offline transports out of release builds ([#258](https://github.com/ROKT/rokt-sdk-ios/pull/258))
+- Backfill missing 5.3.0 changelog section ([#257](https://github.com/ROKT/rokt-sdk-ios/pull/257))
+
 ## [5.3.0] - 2026-07-17
 
 ### Core
@@ -490,7 +509,8 @@ For a complete migration walkthrough with before/after code examples, see the [v
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.0...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.1...HEAD
+[5.3.1]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.0...5.3.1
 [5.3.0]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.6...5.3.0
 [5.2.6]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.5...5.2.6
 [5.2.5]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.4...5.2.5
