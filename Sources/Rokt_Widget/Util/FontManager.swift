@@ -9,7 +9,6 @@ internal class FontManager {
     static let downloadingFonts = "downloadingFonts"
     private static let fullFontLogDiagnosticCode = "[FULLFONTLOGS]"
     private static let fullFontLogCode1 = "[FFL001]"
-    private static let fullFontLogCode2 = "[FFL002]"
     private static let fullFontLogCode5 = "[FFL005]"
     private static let fullFontLogCode6 = "[FFL006]"
     private static let fullFontLogCode7 = "[FFL007]"
@@ -64,76 +63,53 @@ internal class FontManager {
 
     class func downloadFonts(_ fonts: [FontModel], _ onFontDownloadComplete: @escaping () -> Void) {
         getExistingFontsByPostScriptName()
-        var fontDownloadInProgress = false
 
-        if !fonts.isEmpty {
-            NotificationCenter.default.post(Notification(name: Notification.Name(downloadingFonts)))
-            var downloadedFonts = 0
-
-            for font in fonts {
-                let registeredFontName = font.postScriptName ?? font.name
-
-                guard !isSystemFont(font: font) else {
-                    // Log FFL001
-                    sendFullFontLogs("Font retrieved from system \(registeredFontName)", fontLogId: fullFontLogCode1)
-                    downloadedFonts += 1
-
-                    if downloadedFonts == fonts.count {
-                        NotificationCenter.default.post(Notification(name:
-                                                                        Notification.Name(finishedDownloadingFonts)))
-                    }
-
-                    continue
-                }
-
-                // additional check if font can be created in local documents directory
-                guard let fileUrl = getFileUrl(name: registeredFontName) else {
-                    Rokt.shared.roktImplementation.isInitialized = false
-                    Rokt.shared.roktImplementation.isInitFailedForFont = true
-                    RoktAPIHelper.sendDiagnostics(message: fontDiagnosticCode,
-                                                  callStack: "font: \(font.url), error: FileManager default urls")
-                    RoktLogger.shared.error("Error in font fileManager url for: \(font.url)")
-                    NotificationCenter.default.post(Notification(name:
-                                                                    Notification.Name(finishedDownloadingFonts)))
-                    return
-                }
-
-                if isSystemFont(font: font) {
-                    // Log FFL002
-                    sendFullFontLogs("Font retrieved from system \(registeredFontName)", fontLogId: fullFontLogCode2)
-                    downloadedFonts += 1
-                    if downloadedFonts == fonts.count {
-                        NotificationCenter.default.post(Notification(name:
-                                                                        Notification.Name(finishedDownloadingFonts)))
-                    }
-                } else if FontManager.isDownloadingFontRequired(font: font) {
-                    downloadedFonts += 1
-
-                    fontDownloadInProgress = true
-                    RoktNetWorkAPI.downloadFont(
-                        font: font,
-                        destinationURL: fileUrl,
-                        isLastFont: downloadedFonts == fonts.count
-                    ) { isLastFont in
-                        if isLastFont {
-                            onFontDownloadComplete()
-                        }
-                    }
-                } else {
-                    registerFont(font: font, fileUrl: fileUrl)
-                    downloadedFonts += 1
-                    if downloadedFonts == fonts.count {
-                        NotificationCenter.default.post(Notification(name:
-                                                                        Notification.Name(finishedDownloadingFonts)))
-                    }
-                }
-            }
+        guard !fonts.isEmpty else {
+            onFontDownloadComplete()
+            return
         }
 
-        if !fontDownloadInProgress {
+        NotificationCenter.default.post(Notification(name: Notification.Name(downloadingFonts)))
+
+        // Each font settles exactly once, whether it was downloaded, loaded from cache,
+        // skipped as a system font, or failed outright. Completion is driven by that
+        // count so it can never depend on a font's position in `fonts`.
+        let batch = FontDownloadBatch(expected: fonts.count) {
+            getExistingFontsByPostScriptName()
+            NotificationCenter.default.post(Notification(name: Notification.Name(finishedDownloadingFonts)))
             onFontDownloadComplete()
         }
-        getExistingFontsByPostScriptName()
+
+        for font in fonts {
+            let registeredFontName = font.postScriptName ?? font.name
+
+            guard !isSystemFont(font: font) else {
+                // Log FFL001
+                sendFullFontLogs("Font retrieved from system \(registeredFontName)", fontLogId: fullFontLogCode1)
+                batch.settle()
+                continue
+            }
+
+            // additional check if font can be created in local caches directory
+            guard let fileUrl = getFileUrl(name: registeredFontName) else {
+                // Best-effort: mark for diagnostics, don't un-initialise.
+                Rokt.shared.roktImplementation.isInitFailedForFont = true
+                RoktAPIHelper.sendDiagnostics(message: fontDiagnosticCode,
+                                              callStack: "font: \(font.url), error: FileManager default urls")
+                RoktLogger.shared.error("Error in font fileManager url for: \(font.url)")
+                batch.settle()
+                continue
+            }
+
+            if FontManager.isDownloadingFontRequired(font: font) {
+                RoktNetWorkAPI.downloadFont(font: font, destinationURL: fileUrl) {
+                    batch.settle()
+                }
+            } else {
+                registerFont(font: font, fileUrl: fileUrl)
+                batch.settle()
+            }
+        }
     }
 
     class func registerFont(font: FontModel, fileUrl: URL, isDownloaded: Bool = false) {
@@ -154,20 +130,41 @@ internal class FontManager {
                 if isDownloaded {
                     saveFontDetails(font: font)
                 }
+
+                clearRecoveryState(for: font)
             } else {
-                Rokt.shared.roktImplementation.isInitialized = false
-                Rokt.shared.roktImplementation.isInitFailedForFont = true
-                RoktLogger.shared.error("Error registering font on device: \(font.url)")
-                RoktAPIHelper.sendDiagnostics(message: fontDiagnosticCode,
-                                              callStack: "font: \(font.url), error: registering font on device")
+                handleRegistrationFailure(font: font,
+                                          isDownloaded: isDownloaded,
+                                          reason: "registering font on device",
+                                          logMessage: "Error registering font on device: \(font.url)")
             }
         } else {
-            Rokt.shared.roktImplementation.isInitialized = false
-            Rokt.shared.roktImplementation.isInitFailedForFont = true
-            RoktLogger.shared.error("Error reading font data: \(font.url)")
-            RoktAPIHelper.sendDiagnostics(message: fontDiagnosticCode,
-                                          callStack: "font: \(font.url), error: reading font data")
+            handleRegistrationFailure(font: font,
+                                      isDownloaded: isDownloaded,
+                                      reason: "reading font data",
+                                      logMessage: "Error reading font data: \(font.url)")
         }
+    }
+
+    private static func handleRegistrationFailure(font: FontModel,
+                                                  isDownloaded: Bool,
+                                                  reason: String,
+                                                  logMessage: String) {
+        // Best-effort: mark for diagnostics, don't un-initialise.
+        Rokt.shared.roktImplementation.isInitFailedForFont = true
+        RoktLogger.shared.error(logMessage)
+        RoktAPIHelper.sendDiagnostics(message: fontDiagnosticCode,
+                                      callStack: "font: \(font.url), error: \(reason)")
+
+        // A file that has just been fetched and still will not register points at the
+        // asset rather than the cache, so re-fetching it would fail the same way. Drop
+        // it anyway so a poisoned file is not left behind for the next launch to read.
+        guard !isDownloaded else {
+            invalidateCachedFont(font)
+            return
+        }
+
+        recoverCachedFont(font, reason: reason)
     }
 
     internal static func registerGraphicFont(cgFont: CGFont, fontUrlString: String, logLoadType: String) {
@@ -271,16 +268,99 @@ internal class FontManager {
         }
     }
 
-    internal static func getFileUrl(name: String) -> URL? {
-        if let documentsUrl = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
-            let fullPath = documentsUrl.appendingPathComponent("\(name)\(fontExtension)")
-            // Log FFL008
-            sendFullFontLogs("Full file path URL: \(fullPath)", fontLogId: fullFontLogCode8)
-            return fullPath
+    // MARK: - Cache recovery
+
+    /// Fonts live in `Library/Caches`, which the OS may purge at any time, and a purge
+    /// can leave a partially written file behind. Because `isDownloadingFontRequired`
+    /// treats any present file as usable, an unreadable one would otherwise be re-read
+    /// and re-rejected on every render, pinning the layout to the fallback font for the
+    /// life of the install. Dropping the cache entry lets the next pass re-fetch it.
+    ///
+    /// Attempts are capped per font per process so a permanently bad asset cannot loop,
+    /// and the re-fetch is always asynchronous so it never delays a render.
+    static var maxFontRecoveryAttempts = 2
+    static var fontRecoveryBackoff: DispatchTimeInterval = .seconds(1)
+
+    private static let recoveryLock = NSLock()
+    private static var fontRecoveryAttempts: [String: Int] = [:]
+
+    static func resetFontRecoveryState() {
+        recoveryLock.lock()
+        fontRecoveryAttempts.removeAll()
+        recoveryLock.unlock()
+    }
+
+    private static func clearRecoveryState(for font: FontModel) {
+        recoveryLock.lock()
+        fontRecoveryAttempts[font.url] = nil
+        recoveryLock.unlock()
+    }
+
+    private static func recoverCachedFont(_ font: FontModel, reason: String) {
+        recoveryLock.lock()
+        let attempt = (fontRecoveryAttempts[font.url] ?? 0) + 1
+        fontRecoveryAttempts[font.url] = attempt
+        recoveryLock.unlock()
+
+        guard attempt <= maxFontRecoveryAttempts else {
+            RoktAPIHelper.sendDiagnostics(
+                message: fontDiagnosticCode,
+                callStack: "font: \(font.url), error: font recovery exhausted after " +
+                    "\(maxFontRecoveryAttempts) attempt(s), \(reason)"
+            )
+            return
         }
-        // Log FFL009
-        sendFullFontLogs("File Manager failed to read documents directory in user home", fontLogId: fullFontLogCode9)
-        return nil
+
+        invalidateCachedFont(font)
+
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + fontRecoveryBackoff) {
+            guard let fileUrl = getFileUrl(name: font.postScriptName ?? font.name) else { return }
+            RoktNetWorkAPI.downloadFont(font: font, destinationURL: fileUrl) {}
+        }
+    }
+
+    /// Removes the cached file and both metadata records so `isDownloadingFontRequired`
+    /// reports the font as missing on the next pass.
+    ///
+    /// Dropping the detail alone would be enough to trigger a re-download, but it would
+    /// strand the URL entry: `removeFont` reads the detail first and returns early when it
+    /// is absent, so `removeUnusedFonts` could never clean the entry up afterwards. A
+    /// successful re-download re-adds both records.
+    internal static func invalidateCachedFont(_ font: FontModel, completion: (() -> Void)? = nil) {
+        if let fileUrl = getFileUrl(name: font.postScriptName ?? font.name),
+           FileManager.default.fileExists(atPath: fileUrl.path) {
+            try? FileManager.default.removeItem(at: fileUrl)
+        }
+
+        FontRepository.removeFontDetail(key: font.url) {
+            FontRepository.removeFontUrl(key: font.url) { completion?() }
+        }
+    }
+
+    #if DEBUG
+    /// `FileManager` always reports a caches directory on a real device, so the
+    /// unresolvable-path branch can only be exercised through this seam. Compiled out of
+    /// release builds so it never ships.
+    internal static var fileUrlResolverOverride: ((String) -> URL?)?
+    #endif
+
+    internal static func getFileUrl(name: String) -> URL? {
+        #if DEBUG
+        if let fileUrlResolverOverride {
+            return fileUrlResolverOverride(name)
+        }
+        #endif
+
+        guard let cacheDirectoryUrl = FontRepository.getCacheDirectoryUrl() else {
+            // Log FFL009
+            sendFullFontLogs("File Manager failed to read caches directory in user home", fontLogId: fullFontLogCode9)
+            return nil
+        }
+
+        let fullPath = cacheDirectoryUrl.appendingPathComponent("\(name)\(fontExtension)")
+        // Log FFL008
+        sendFullFontLogs("Full file path URL: \(fullPath)", fontLogId: fullFontLogCode8)
+        return fullPath
     }
 
     internal static func isFontFileExist(name: String) -> Bool {
@@ -308,5 +388,33 @@ internal class FontManager {
         RoktAPIHelper.sendDiagnostics(message: fullFontLogDiagnosticCode,
                                       callStack: "\(fontLogId) \(msg)",
                                       severity: .info)
+    }
+}
+
+/// Counts fonts as they settle and fires `onComplete` exactly once, on whichever thread
+/// settles the last one. Fonts settle out of order, so a positional check cannot be used.
+private final class FontDownloadBatch {
+    private let lock = NSLock()
+    private let expected: Int
+    private var settled = 0
+    private var hasCompleted = false
+    private let onComplete: () -> Void
+
+    init(expected: Int, onComplete: @escaping () -> Void) {
+        self.expected = expected
+        self.onComplete = onComplete
+    }
+
+    func settle() {
+        lock.lock()
+        settled += 1
+        let shouldComplete = !hasCompleted && settled >= expected
+        if shouldComplete {
+            hasCompleted = true
+        }
+        lock.unlock()
+
+        guard shouldComplete else { return }
+        onComplete()
     }
 }

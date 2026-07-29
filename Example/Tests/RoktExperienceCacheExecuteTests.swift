@@ -100,8 +100,8 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                 }
 
                 it("uses execute response when no cache config") {
-                    let stubCachedResponseAsString = self.getJsonFileContents(kValidLayoutOverlayFilename)
-                    let stubNewResponseAsString = self.getJsonFileContents(kValidLayoutGroupedFilename)
+                    let stubCachedResponseAsString = self.expectedOffersPage(forV1Fixture: kValidLayoutOverlayFilename)
+                    let stubNewResponseAsString = self.expectedOffersPage(forV1Fixture: kValidLayoutGroupedFilename)
 
                     // Initial execute with original response
                     self.executeRokt()
@@ -131,7 +131,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                             cacheAttributes: self.mockedAttributes
                         ))
                         .build()
-                    let stubCachedResponseAsString = self.getJsonFileContents(kValidLayoutOverlayFilename)
+                    let stubCachedResponseAsString = self.expectedOffersPage(forV1Fixture: kValidLayoutOverlayFilename)
 
                     // Initial execute with original response
                     self.executeRokt(config: config)
@@ -156,7 +156,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                             cacheAttributes: self.mockedAttributes
                         ))
                         .build()
-                    let stubCachedResponseAsString = self.getJsonFileContents(kValidLayoutOverlayFilename)
+                    let stubCachedResponseAsString = self.expectedOffersPage(forV1Fixture: kValidLayoutOverlayFilename)
 
                     // Initial execute with original response
                     self.executeRokt(config: config)
@@ -177,7 +177,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     self.executeRokt(config: newConfig)
 
                     // Check uses new response
-                    let stubNewResponseAsString = self.getJsonFileContents(kValidLayoutGroupedFilename)
+                    let stubNewResponseAsString = self.expectedOffersPage(forV1Fixture: kValidLayoutGroupedFilename)
                     expect(mockImplementation.executingPageString).toEventually(
                         equal(stubNewResponseAsString),
                         timeout: .seconds(1)
@@ -189,7 +189,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     let config = RoktConfig.Builder()
                         .cacheConfig(RoktConfig.CacheConfig())
                         .build()
-                    let stubCachedResponseAsString = self.getJsonFileContents(kValidLayoutOverlayFilename)
+                    let stubCachedResponseAsString = self.expectedOffersPage(forV1Fixture: kValidLayoutOverlayFilename)
 
                     // Initial execute with execute attributes, returning original response
                     self.executeRokt(attributes: self.mockedAttributes, config: config)
@@ -216,7 +216,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     let config = RoktConfig.Builder()
                         .cacheConfig(RoktConfig.CacheConfig())
                         .build()
-                    let stubCachedResponseAsString = self.getJsonFileContents(kValidLayoutOverlayFilename)
+                    let stubCachedResponseAsString = self.expectedOffersPage(forV1Fixture: kValidLayoutOverlayFilename)
 
                     // Initial execute with execute attributes, returning original response
                     self.executeRokt(attributes: self.mockedAttributes, config: config)
@@ -232,7 +232,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     self.executeRokt(attributes: self.mockedNonMatchingAttributes, config: config)
 
                     // Check uses new response
-                    let stubNewResponseAsString = self.getJsonFileContents(kValidLayoutGroupedFilename)
+                    let stubNewResponseAsString = self.expectedOffersPage(forV1Fixture: kValidLayoutGroupedFilename)
                     expect(mockImplementation.executingPageString).toEventually(
                         equal(stubNewResponseAsString),
                         timeout: .seconds(5)
@@ -244,7 +244,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     let config = RoktConfig.Builder()
                         .cacheConfig(RoktConfig.CacheConfig())
                         .build()
-                    let stubCachedResponseAsString = self.getJsonFileContents(kValidLayoutOverlayFilename)
+                    let stubCachedResponseAsString = self.expectedOffersPage(forV1Fixture: kValidLayoutOverlayFilename)
 
                     // Initial execute with execute attributes, returning original response
                     self.executeRokt(attributes: self.mockedAttributes, config: config)
@@ -271,7 +271,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     let config = RoktConfig.Builder()
                         .cacheConfig(RoktConfig.CacheConfig())
                         .build()
-                    let stubCachedResponseAsString = self.getJsonFileContents(kValidLayoutOverlayFilename)
+                    let stubCachedResponseAsString = self.expectedOffersPage(forV1Fixture: kValidLayoutOverlayFilename)
 
                     // Initial execute with execute viewName and attributes, returning original response
                     self.executeRokt(viewName: self.mockedViewName, attributes: self.mockedAttributes, config: config)
@@ -298,7 +298,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     let config = RoktConfig.Builder()
                         .cacheConfig(RoktConfig.CacheConfig())
                         .build()
-                    let stubCachedResponseAsString = self.getJsonFileContents(kValidLayoutOverlayFilename)
+                    let stubCachedResponseAsString = self.expectedOffersPage(forV1Fixture: kValidLayoutOverlayFilename)
 
                     // Initial execute with execute attributes, returning original response
                     self.executeRokt(attributes: self.mockedAttributes, config: config)
@@ -318,7 +318,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     )
 
                     // Check uses new response
-                    let stubNewResponseAsString = self.getJsonFileContents(kValidLayoutGroupedFilename)
+                    let stubNewResponseAsString = self.expectedOffersPage(forV1Fixture: kValidLayoutGroupedFilename)
                     expect(mockImplementation.executingPageString).toEventually(
                         equal(stubNewResponseAsString),
                         timeout: .seconds(5)
@@ -500,8 +500,8 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                             cacheAttributes: self.mockedAttributes
                         ))
                         .build()
-                    let stubCachedResponseAsString = self.getJsonFileContents(kValidLayoutOverlayFilename)
-                    let stubNewResponseAsString = self.getJsonFileContents(kValidLayoutGroupedFilename)
+                    let stubCachedResponseAsString = self.expectedOffersPage(forV1Fixture: kValidLayoutOverlayFilename)
+                    let stubNewResponseAsString = self.expectedOffersPage(forV1Fixture: kValidLayoutGroupedFilename)
 
                     self.executeRokt(config: config)
                     expect(mockImplementation.executingPageString).toEventually(

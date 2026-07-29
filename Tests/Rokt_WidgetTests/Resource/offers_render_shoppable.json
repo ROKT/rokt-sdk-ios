@@ -1,0 +1,79 @@
+{
+  "session_id": "render-session",
+  "session_token": {
+    "token": "render-token",
+    "expires_at": 32503680000000
+  },
+  "page_instance_guid": "render-pig",
+  "page_context": {
+    "page_instance_guid": "render-pig",
+    "page_id": "checkout",
+    "token": "render-page-token"
+  },
+  "plugins": [
+    {
+      "plugin": {
+        "id": "render-plugin",
+        "name": "dcui",
+        "target_element_selector": "#rokt",
+        "config": {
+          "instance_guid": "render-plugin-ig",
+          "token": "render-plugin-token",
+          "outer_layout_schema": "{\"breakpoints\":{\"Landscape\":500,\"Portrait\":560},\"layout\":{\"type\":\"Column\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"border\":{\"borderRadius\":0},\"background\":{\"backgroundColor\":{\"light\":\"#ECEEE9\",\"dark\":\"#ECEEE9\"}}}}]}},\"children\":[{\"type\":\"Column\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"border\":{\"borderRadius\":0},\"spacing\":{\"margin\":\"10 10 10 10\"},\"background\":{\"backgroundColor\":{\"light\":\"#FFFFFFFF\",\"dark\":\"#FFFFFFFF\"}}}}]}},\"children\":[{\"type\":\"OneByOneDistribution\",\"node\":{\"transition\":{\"type\":\"FadeInOut\",\"settings\":{\"duration\":10}}}}]}}]}}}",
+          "slots": [
+            {
+              "instance_guid": "render-slot",
+              "token": "render-slot-token",
+              "layout_variant": {
+                "layout_variant_id": "render-lv",
+                "module_name": "",
+                "layout_variant_schema": "{\"type\":\"Column\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"18 8 0 8\"}}}]}},\"children\":[{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.creative.title^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"0 0 0 0\"},\"text\":{\"fontSize\":16,\"fontWeight\":\"600\",\"lineHeight\":14,\"textColor\":{\"light\":\"#000000\",\"dark\":\"#00ff00\"}}}}]}}}}]}}"
+              },
+              "offer": {
+                "campaign_id": "camp-shop-1",
+                "creative": {
+                  "referral_creative_id": "rc-1",
+                  "instance_guid": "cr-ig-1",
+                  "token": "creative-token-1",
+                  "copy": { "creative.title": "Shop the kit" },
+                  "response_options_map": {}
+                },
+                "catalog_items": [
+                  {
+                    "catalog_item_id": "cat-jm-1",
+                    "instance_guid": "cat-ig-1",
+                    "cart_item_id": "cart-1",
+                    "title": "Jason Markk Quick Clean Kit",
+                    "description": "Quick clean kit for sneakers",
+                    "price": 18.0,
+                    "original_price": 24.0,
+                    "price_formatted": "$18",
+                    "original_price_formatted": "$24",
+                    "currency": "USD",
+                    "url": "https://example.com/jm",
+                    "url_behavior": "internal",
+                    "signal_type": "instant_purchase",
+                    "min_item_count": 1,
+                    "max_item_count": 5,
+                    "pre_selected_quantity": 1,
+                    "provider_data": "{\"sku\":\"JM-QCK\"}",
+                    "linked_product_id": "prod-jm",
+                    "images": {
+                      "hero": {
+                        "light": "https://img.example.com/jm-light.png",
+                        "dark": "https://img.example.com/jm-dark.png",
+                        "alt": "Jason Markk Quick Clean Kit",
+                        "title": "Kit"
+                      }
+                    },
+                    "token": "catalog-token-jm"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

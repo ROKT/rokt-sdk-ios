@@ -49,30 +49,4 @@ extension RoktAPIHelper {
 
         return mutablePayload
     }
-
-    class func addRealtimeEventsIfPresent(to params: [String: Any]) -> [String: Any] {
-        var updatedParams = params
-        let realtimeEventsRequestKey = "realTimeEvents"
-
-        let realtimeEventSource = RealTimeEventManager.shared.getTriggeredEvents()
-        if !realtimeEventSource.isEmpty {
-            let requestContainer = ExperienceRequestRealtimeEventsContainer(events: realtimeEventSource)
-
-            do {
-                let encoder = JSONEncoder()
-                let data = try encoder.encode(requestContainer)
-                if let eventsDict = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
-                    updatedParams[realtimeEventsRequestKey] = eventsDict
-                }
-            } catch {
-
-            }
-        }
-        return updatedParams
-    }
-}
-
-private struct ExperienceRequestRealtimeEventsContainer: Encodable {
-    let version: String = "1.0"
-    let events: [TriggeredRealTimeEvent]
 }

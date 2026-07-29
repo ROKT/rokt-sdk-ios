@@ -1,5 +1,22 @@
 import XCTest
 
+// MARK: - Polling
+
+extension XCTestCase {
+    func waitUntil(_ condition: @escaping () -> Bool, timeout: TimeInterval = 2) {
+        let exp = expectation(description: "condition met")
+        func check() {
+            if condition() {
+                exp.fulfill()
+            } else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.02, execute: check)
+            }
+        }
+        check()
+        wait(for: [exp], timeout: timeout)
+    }
+}
+
 // MARK: - Memory Leak Tracking
 
 extension XCTestCase {

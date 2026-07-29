@@ -92,7 +92,7 @@ jobs:
         run: |
           xcodebuild test \
             -scheme Rokt-Widget \
-            -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest' \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
             -enableCodeCoverage YES \
             -skipPackagePluginValidation \
             -retry-tests-on-failure \
@@ -183,7 +183,7 @@ jobs:
 
           xcodebuild test \
             -scheme "$SCHEME" \
-            -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest' \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
             -derivedDataPath "$DERIVED" \
             -resultBundlePath "${DERIVED}/Tests.xcresult" \
             -enableCodeCoverage YES \
@@ -227,15 +227,23 @@ jobs:
           xcode-version: "26.3"
 
       - name: Run UI tests
+        # Per-test timeouts bound any single test that hangs on a polling
+        # (`toEventually`) assertion, and we do NOT retry on failure here:
+        # these UI tests use long polling waits, so retrying every failure up
+        # to 3x turns a fast failing run (~6 min) into a >25 min job that GitHub
+        # kills as "cancelled" with no result bundle and broken coverage. Failing
+        # fast surfaces a real .xcresult and failure list instead of a timeout.
         run: |
           xcodebuild test \
             -project Example/rokt.xcodeproj \
             -scheme rokt-Example-MOCK \
-            -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest' \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
             -enableCodeCoverage YES \
             -skipPackagePluginValidation \
             -resultBundlePath UiTestResult.xcresult \
-            -retry-tests-on-failure
+            -test-timeouts-enabled YES \
+            -default-test-execution-time-allowance 60 \
+            -maximum-test-execution-time-allowance 120
 
       - name: Install xcresultparser
         if: always()
@@ -281,7 +289,7 @@ jobs:
 
       - name: Build Example App
         run: |
-          xcodebuild -project "Example/rokt.xcodeproj" -scheme "rokt-Example" -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest' -derivedDataPath "DerivedData-periphery" -quiet build CODE_SIGNING_ALLOWED="NO" ENABLE_BITCODE="NO" DEBUG_INFORMATION_FORMAT="dwarf" COMPILER_INDEX_STORE_ENABLE="YES" INDEX_ENABLE_DATA_STORE="YES"
+          xcodebuild -project "Example/rokt.xcodeproj" -scheme "rokt-Example" -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' -derivedDataPath "DerivedData-periphery" -quiet build CODE_SIGNING_ALLOWED="NO" ENABLE_BITCODE="NO" DEBUG_INFORMATION_FORMAT="dwarf" COMPILER_INDEX_STORE_ENABLE="YES" INDEX_ENABLE_DATA_STORE="YES"
 
       - name: Run Periphery Scan
         run: periphery scan --format github-actions

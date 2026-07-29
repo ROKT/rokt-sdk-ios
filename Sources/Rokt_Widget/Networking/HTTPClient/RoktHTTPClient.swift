@@ -7,6 +7,8 @@ enum RoktDownloadOptions: CaseIterable {
 
 // Protocol to hide implementation details
 protocol HTTPClientAdapter {
+    /// - Parameter timeout: seconds. Callers holding a millisecond-based config value, such as the
+    ///   client timeout from init, must convert before calling.
     func updateTimeout(timeout: Double)
 
     @discardableResult
@@ -70,16 +72,50 @@ internal final class RoktHTTPClient: HTTPClientAdapter {
     private(set) var downloadSession: URLSession = .shared
     private(set) var encoders: [RoktHTTPParameterEncoder] = []
 
+    /// How long a download may sit without receiving data before it is abandoned. This, rather
+    /// than a cap on the total transfer, is what should fail a download: a large file on a slow
+    /// connection is still making progress, whereas one receiving nothing is not.
+    static let downloadIdleTimeoutSeconds: TimeInterval = 30
+
+    /// Ceiling on an entire download. Deliberately far larger than the API client timeout: it
+    /// exists to stop a pathological trickle running forever, not to bound a healthy transfer.
+    static let downloadResourceTimeoutSeconds: TimeInterval = 300
+
     init(
         sessionConfiguration: URLSessionConfiguration = .default,
         encoders: [RoktHTTPParameterEncoder] = [RoktHTTPURLEncoder(), RoktHTTPBodyEncoder()]
     ) {
         self.session = URLSession(configuration: sessionConfiguration)
-        self.downloadSession = URLSession(configuration: sessionConfiguration)
+        self.downloadSession = URLSession(
+            configuration: Self.downloadConfiguration(from: sessionConfiguration)
+        )
 
         self.encoders = encoders
     }
 
+    /// `timeoutIntervalForResource` caps a whole transfer rather than idle time, so applying
+    /// the API client timeout to it cancels any download that cannot finish inside that
+    /// budget no matter how healthy the connection is. Font files are orders of magnitude
+    /// larger than API payloads, so downloads get their own session bounded by idle time.
+    ///
+    /// Both intervals are set explicitly rather than inherited: the incoming configuration is
+    /// sized for API calls, so leaving either in place would silently reimpose an API-shaped
+    /// budget on file transfers. Everything else is copied so injected protocol classes and
+    /// cache policy still apply.
+    private static func downloadConfiguration(
+        from configuration: URLSessionConfiguration
+    ) -> URLSessionConfiguration {
+        let downloadConfiguration = (configuration.copy() as? URLSessionConfiguration) ?? configuration
+        downloadConfiguration.timeoutIntervalForRequest = downloadIdleTimeoutSeconds
+        downloadConfiguration.timeoutIntervalForResource = downloadResourceTimeoutSeconds
+
+        return downloadConfiguration
+    }
+
+    /// Applies to API requests only. Downloads keep their own budget, since the client timeout
+    /// is sized for small JSON payloads and would cancel large files mid-transfer.
+    ///
+    /// - Parameter timeout: seconds.
     func updateTimeout(timeout: Double) {
         let currentConfiguration = session.configuration
 
@@ -272,7 +308,7 @@ extension RoktHTTPClient {
             return
         }
 
-        session.downloadTask(with: downloadRequest) { [weak self] temporaryURL, downloadResponse, downloadError in
+        downloadSession.downloadTask(with: downloadRequest) { [weak self] temporaryURL, downloadResponse, downloadError in
             guard let self else { return }
 
             if let downloadError {

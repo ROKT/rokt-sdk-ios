@@ -4,7 +4,6 @@ import Mocker
 
 class TestNetworkingHelper: XCTestCase {
 
-    private static let headerPageIdentifierKey = "rokt-page-identifier"
     private static let headerSessionIdKey = "rokt-session-id"
 
     private func makeForwardPaymentRequest() -> PurchaseRequest {
@@ -82,110 +81,6 @@ class TestNetworkingHelper: XCTestCase {
         // Also check standard headers are present
         XCTAssertNotNil(headers[HTTPHeader.contentType])
         XCTAssertNotNil(headers[HTTPHeader.accept])
-    }
-
-    func test_pageIdentifier_included_in_network_request() {
-        let expectation = self.expectation(description: "Network request with pageIdentifier")
-        var capturedRequest: URLRequest?
-
-        let experienceURL = URL(string: "https://apps.rokt.com/rokt-mobile/v1/experiences")!
-        var mock = Mock(url: experienceURL, dataType: .json, statusCode: 200, data: [
-            .post: Data("{\"placements\":[]}".utf8)
-        ])
-        mock.onRequest = { request, _ in
-            capturedRequest = request
-            expectation.fulfill()
-        }
-        mock.register()
-
-        let configuration = URLSessionConfiguration.default
-        configuration.protocolClasses = [MockingURLProtocol.self]
-        NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
-
-        RoktNetWorkAPI.getExperienceData(
-            params: ["test": "value"],
-            roktTagId: "test-tag-id",
-            trackingConsent: nil,
-            pageIdentifier: "test-page",
-            onRequestStart: nil,
-            successLayout: nil,
-            failure: nil
-        )
-
-        waitForExpectations(timeout: 2.0, handler: nil)
-
-        XCTAssertNotNil(capturedRequest)
-        XCTAssertEqual(capturedRequest?.allHTTPHeaderFields?[Self.headerPageIdentifierKey], "test-page")
-    }
-
-    func test_pageIdentifier_not_included_when_nil() {
-        let expectation = self.expectation(description: "Network request without pageIdentifier")
-        var capturedRequest: URLRequest?
-
-        let experienceURL = URL(string: "https://apps.rokt.com/rokt-mobile/v1/experiences")!
-        var mock = Mock(url: experienceURL, dataType: .json, statusCode: 200, data: [
-            .post: Data("{\"placements\":[]}".utf8)
-        ])
-        mock.onRequest = { request, _ in
-            capturedRequest = request
-            expectation.fulfill()
-        }
-        mock.register()
-
-        let configuration = URLSessionConfiguration.default
-        configuration.protocolClasses = [MockingURLProtocol.self]
-        NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
-
-        RoktNetWorkAPI.getExperienceData(
-            params: ["test": "value"],
-            roktTagId: "test-tag-id",
-            trackingConsent: nil,
-            pageIdentifier: nil,
-            onRequestStart: nil,
-            successLayout: nil,
-            failure: nil
-        )
-
-        waitForExpectations(timeout: 2.0, handler: nil)
-
-        XCTAssertNotNil(capturedRequest)
-        XCTAssertNil(capturedRequest?.allHTTPHeaderFields?[Self.headerPageIdentifierKey])
-    }
-
-    func test_RoktAPIHelper_passes_viewName_as_pageIdentifier() {
-        let expectation = self.expectation(description: "RoktAPIHelper passes viewName to network layer")
-        var capturedRequest: URLRequest?
-
-        let experienceURL = URL(string: "https://apps.rokt.com/rokt-mobile/v1/experiences")!
-        var mock = Mock(url: experienceURL, dataType: .json, statusCode: 200, data: [
-            .post: Data("{\"placements\":[]}".utf8)
-        ])
-        mock.onRequest = { request, _ in
-            capturedRequest = request
-            expectation.fulfill()
-        }
-        mock.register()
-
-        let configuration = URLSessionConfiguration.default
-        configuration.protocolClasses = [MockingURLProtocol.self]
-        NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
-
-        RoktAPIHelper.getExperienceData(
-            viewName: "my-view",
-            attributes: [:],
-            roktTagId: "123123123",
-            selectionId: "123123",
-            trackingConsent: nil,
-            config: RoktConfig.Builder().colorMode(.light).build(),
-            onRequestStart: nil,
-            successLayout: nil,
-            failure: nil
-        )
-
-        waitForExpectations(timeout: 2.0, handler: nil)
-
-        XCTAssertNotNil(capturedRequest)
-        XCTAssertEqual(capturedRequest?.allHTTPHeaderFields?[Self.headerPageIdentifierKey], "my-view")
     }
 
     func test_initializePurchase_invokesFailure_whenTagIdMissing() {

@@ -3,14 +3,17 @@ import XCTest
 
 class FontRepositoryTests: XCTestCase {
     var diagnosticsReceived: [String] = []
+    var diagnosticModelsReceived: [XCTestCase.StubbedDiagnosticsModel] = []
 
     override func setUp() {
         super.setUp()
 
         diagnosticsReceived = []
+        diagnosticModelsReceived = []
         Rokt.shared.roktImplementation.roktTagId = "123"
-        stubDiagnostics { [weak self] code in
-            self?.diagnosticsReceived.append(code)
+        stubDiagnostics { [weak self] model in
+            self?.diagnosticModelsReceived.append(model)
+            self?.diagnosticsReceived.append(model.code)
         }
 
         FontRepositoryTests.prepareTestFiles()
@@ -20,7 +23,9 @@ class FontRepositoryTests: XCTestCase {
 
     override func tearDown() {
         FontRepositoryTests.deleteAllTestFiles()
+        FontRepositoryTests.unblockJSONFileWrites()
         diagnosticsReceived = []
+        diagnosticModelsReceived = []
 
         super.tearDown()
     }
@@ -320,6 +325,212 @@ class FontRepositoryTests: XCTestCase {
 
         XCTAssertEqual(result, .success)
     }
+
+    // MARK: - Cache directory paths
+
+    func test_getCacheDirectoryUrl_returnsRoktFontsSubdirectoryUnderCaches() throws {
+        let cacheDirectoryUrl = try XCTUnwrap(FontRepository.getCacheDirectoryUrl())
+
+        XCTAssertTrue(cacheDirectoryUrl.path.contains("Caches"))
+        XCTAssertTrue(cacheDirectoryUrl.path.hasSuffix("RoktFonts"))
+    }
+
+    func test_getFileUrl_returnsJsonFileUnderCacheDirectory() throws {
+        let fileUrl = try XCTUnwrap(FontRepository.getFileUrl(name: "custom-cache-file"))
+
+        XCTAssertEqual(fileUrl.pathExtension, "json")
+        XCTAssertTrue(fileUrl.path.contains("RoktFonts"))
+        XCTAssertEqual(fileUrl.deletingPathExtension().lastPathComponent, "custom-cache-file")
+    }
+
+    func test_isFileExist_returnsTrueAfterSuccessfulSave() {
+        let expectation = expectation(description: "save font url")
+
+        FontRepository.saveFontUrl(key: "exists-test") {
+            expectation.fulfill()
+        }
+
+        waitForExpectations(timeout: 15)
+
+        XCTAssertTrue(FontRepository.isFileExist(name: FontRepository.fontDownloadURLFileName))
+    }
+
+    func test_saveFontURL_movesDuplicateToFrontOfList() throws {
+        let expectation1 = expectation(description: "save font 1")
+        let expectation2 = expectation(description: "save font 2")
+        let expectation3 = expectation(description: "save font 1 again")
+
+        FontRepository.saveFontUrl(key: "test-1") {
+            expectation1.fulfill()
+        }
+        FontRepository.saveFontUrl(key: "test-2") {
+            expectation2.fulfill()
+        }
+        FontRepository.saveFontUrl(key: "test-1") {
+            expectation3.fulfill()
+        }
+
+        waitForExpectations(timeout: 15)
+
+        let savedURLs = try XCTUnwrap(FontRepository.loadAllFontURLs())
+
+        XCTAssertEqual(savedURLs, ["test-1", "test-2"])
+    }
+
+    func test_removeFontUrl_withMissingKey_leavesSavedURLsUntouched() throws {
+        let saveExpectation1 = expectation(description: "save font 1")
+        let saveExpectation2 = expectation(description: "save font 2")
+
+        FontRepository.saveFontUrl(key: "test-1") {
+            saveExpectation1.fulfill()
+        }
+        FontRepository.saveFontUrl(key: "test-2") {
+            saveExpectation2.fulfill()
+        }
+
+        waitForExpectations(timeout: 15)
+
+        let removeExpectation = expectation(description: "remove missing key")
+        FontRepository.removeFontUrl(key: "missing-key") {
+            removeExpectation.fulfill()
+        }
+
+        waitForExpectations(timeout: 15)
+
+        let savedURLs = try XCTUnwrap(FontRepository.loadAllFontURLs())
+
+        XCTAssertEqual(["test-1", "test-2"], savedURLs.sorted())
+    }
+
+    func test_loadFontURLs_withCorruptFile_sendsDiagnostics() throws {
+        let fileURL = try XCTUnwrap(FontRepositoryTests.downloadURLFileURL())
+        try FileManager.default.createDirectory(
+            at: fileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Data("not-json".utf8).write(to: fileURL)
+
+        _ = FontRepository.loadAllFontURLs()
+
+        let expectation = expectation(description: "Wait for async diagnostics")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            expectation.fulfill()
+        }
+        waitForExpectations(timeout: 1)
+
+        XCTAssertFalse(diagnosticsReceived.isEmpty)
+    }
+
+    func test_loadFontDetail_withCorruptFile_sendsDiagnosticsAndReturnsNil() throws {
+        let fileURL = try XCTUnwrap(FontRepositoryTests.downloadDetailFileURL())
+        try FileManager.default.createDirectory(
+            at: fileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Data("not-json".utf8).write(to: fileURL)
+
+        XCTAssertNil(FontRepository.loadFontDetail(key: "any-key"))
+
+        let expectation = expectation(description: "Wait for async diagnostics")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            expectation.fulfill()
+        }
+        waitForExpectations(timeout: 1)
+
+        XCTAssertFalse(diagnosticsReceived.isEmpty)
+    }
+
+    func test_isFileExist_returnsFalseWhenFileMissing() {
+        XCTAssertFalse(FontRepository.isFileExist(name: FontRepository.fontDownloadURLFileName))
+    }
+
+    func test_saveFontUrl_whenWriteBlocked_sendsInfoDiagnosticAndCallsCompletion() throws {
+        try FontRepositoryTests.blockJSONFileWrite(fileName: FontRepository.fontDownloadURLFileName)
+
+        let expectation = expectation(description: "completion called on write failure")
+        FontRepository.saveFontUrl(key: "test-url") {
+            expectation.fulfill()
+        }
+
+        waitForExpectations(timeout: 15)
+        waitForDiagnostics()
+
+        XCTAssertTrue(
+            diagnosticModelsReceived.contains {
+                $0.code == fontDiagnosticCode
+                    && $0.severity == Severity.info.rawValue
+                    && $0.stackTrace.contains("Failed to save font urls:")
+            }
+        )
+    }
+
+    func test_removeFontUrl_whenWriteBlocked_sendsInfoDiagnosticAndCallsCompletion() throws {
+        try FontRepositoryTests.blockJSONFileWrite(fileName: FontRepository.fontDownloadURLFileName)
+
+        let expectation = expectation(description: "completion called on write failure")
+        FontRepository.removeFontUrl(key: "test-url") {
+            expectation.fulfill()
+        }
+
+        waitForExpectations(timeout: 15)
+        waitForDiagnostics()
+
+        XCTAssertTrue(
+            diagnosticModelsReceived.contains {
+                $0.code == fontDiagnosticCode
+                    && $0.severity == Severity.info.rawValue
+                    && $0.stackTrace.contains("Failed to delete font urls:")
+            }
+        )
+    }
+
+    func test_saveFontDetail_whenWriteBlocked_sendsInfoDiagnosticAndCallsCompletion() throws {
+        try FontRepositoryTests.blockJSONFileWrite(fileName: FontRepository.fontDownloadDetailFileName)
+
+        let expectation = expectation(description: "completion called on write failure")
+        FontRepository.saveFontDetail(key: "test", values: ["key": "value"]) {
+            expectation.fulfill()
+        }
+
+        waitForExpectations(timeout: 15)
+        waitForDiagnostics()
+
+        XCTAssertTrue(
+            diagnosticModelsReceived.contains {
+                $0.code == fontDiagnosticCode
+                    && $0.severity == Severity.info.rawValue
+                    && $0.stackTrace.contains("Failed to save font details:")
+            }
+        )
+    }
+
+    func test_removeFontDetail_whenWriteBlocked_sendsInfoDiagnosticAndCallsCompletion() throws {
+        try FontRepositoryTests.blockJSONFileWrite(fileName: FontRepository.fontDownloadDetailFileName)
+
+        let expectation = expectation(description: "completion called on write failure")
+        FontRepository.removeFontDetail(key: "test") {
+            expectation.fulfill()
+        }
+
+        waitForExpectations(timeout: 15)
+        waitForDiagnostics()
+
+        XCTAssertTrue(
+            diagnosticModelsReceived.contains {
+                $0.code == fontDiagnosticCode
+                    && $0.severity == Severity.info.rawValue
+                    && $0.stackTrace.contains("Failed to delete font details:")
+            }
+        )
+    }
+
+    private func waitForDiagnostics() {
+        let expectation = expectation(description: "Wait for async diagnostics")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            expectation.fulfill()
+        }
+        waitForExpectations(timeout: 1)
+    }
 }
 
 extension XCTestCase {
@@ -345,13 +556,12 @@ extension XCTestCase {
     }
 
     static func fileURLFor(fileName: String) -> URL? {
-        guard let documentsUrl = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
-        else {
-            XCTFail("documents url does not exist")
+        guard let cacheDirectoryUrl = FontRepository.getCacheDirectoryUrl() else {
+            XCTFail("caches url does not exist")
             return nil
         }
 
-        return documentsUrl.appendingPathComponent(fileName).appendingPathExtension("json")
+        return cacheDirectoryUrl.appendingPathComponent(fileName).appendingPathExtension("json")
     }
 
     static func deleteJSONFileWith(name: String) {
@@ -408,5 +618,31 @@ extension XCTestCase {
             XCTFail("could not decode URL file with error \(error.localizedDescription)")
             return nil
         }
+    }
+
+    static func writeFontFileToCache(named name: String, data: Data = Data([0x00])) throws {
+        let fileUrl = try XCTUnwrap(FontManager.getFileUrl(name: name))
+        try FileManager.default.createDirectory(
+            at: fileUrl.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try data.write(to: fileUrl)
+    }
+
+    static func blockJSONFileWrite(fileName: String) throws {
+        let fileURL = try XCTUnwrap(fileURLFor(fileName: fileName))
+        try FileManager.default.createDirectory(
+            at: fileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        if FileManager.default.fileExists(atPath: fileURL.path) {
+            try FileManager.default.removeItem(at: fileURL)
+        }
+        try FileManager.default.createDirectory(at: fileURL, withIntermediateDirectories: false)
+    }
+
+    static func unblockJSONFileWrites() {
+        deleteJSONFileWith(name: fontDownloadURLFileName)
+        deleteJSONFileWith(name: fontDownloadDetailFileName)
     }
 }

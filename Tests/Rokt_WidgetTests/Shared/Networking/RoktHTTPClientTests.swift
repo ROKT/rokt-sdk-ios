@@ -35,6 +35,95 @@ final class RoktHTTPClientTests: XCTestCase {
         XCTAssertEqual(sut.session.configuration.timeoutIntervalForResource, 123, accuracy: 0.1)
     }
 
+    // MARK: - Downloads are not bound by the API client timeout
+
+    func test_updateTimeout_leavesTheDownloadResourceBudgetAlone() {
+        // `timeoutIntervalForResource` bounds a whole transfer, not idle time, so applying the
+        // client timeout to downloads cancels any file too large to arrive inside it. A font of
+        // a few MB on a slow connection cannot, which is what this guards against.
+        let sut = RoktHTTPClient(sessionConfiguration: URLSessionConfiguration.default)
+
+        sut.updateTimeout(timeout: 9)
+
+        XCTAssertEqual(sut.session.configuration.timeoutIntervalForResource, 9, accuracy: 0.1)
+        XCTAssertEqual(sut.downloadSession.configuration.timeoutIntervalForResource,
+                       RoktHTTPClient.downloadResourceTimeoutSeconds,
+                       accuracy: 0.1)
+        XCTAssertGreaterThan(sut.downloadSession.configuration.timeoutIntervalForResource,
+                             sut.session.configuration.timeoutIntervalForResource)
+    }
+
+    func test_downloadSession_doesNotInheritTheApiShapedTimeouts() {
+        // The configuration handed to the client is sized for API calls, so inheriting either
+        // interval would quietly reimpose an API budget on file transfers.
+        let configuration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = 7
+        configuration.timeoutIntervalForResource = 7
+
+        let sut = RoktHTTPClient(sessionConfiguration: configuration)
+
+        XCTAssertEqual(sut.downloadSession.configuration.timeoutIntervalForRequest,
+                       RoktHTTPClient.downloadIdleTimeoutSeconds,
+                       accuracy: 0.1)
+        XCTAssertEqual(sut.downloadSession.configuration.timeoutIntervalForResource,
+                       RoktHTTPClient.downloadResourceTimeoutSeconds,
+                       accuracy: 0.1)
+    }
+
+    func test_downloadSession_inheritsTheInjectedConfiguration() {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [RoktHTTPUrlProtocolStub.self]
+
+        let sut = RoktHTTPClient(sessionConfiguration: configuration)
+
+        XCTAssertEqual(sut.downloadSession.configuration.protocolClasses?.count,
+                       configuration.protocolClasses?.count)
+        // The caller's configuration is copied rather than mutated, so the API session keeps
+        // the resource timeout it was handed.
+        XCTAssertEqual(configuration.timeoutIntervalForResource, 7 * 24 * 60 * 60, accuracy: 0.1)
+    }
+
+    func test_downloadFile_runsOnTheDownloadSessionRatherThanTheApiSession() {
+        let destinationURL = FileManager.testDirectoryURL.appendingPathComponent("font.ttf")
+        RoktHTTPUrlProtocolStub.stub(data: Data("a font".utf8), response: anyHTTPURLResponse(), error: nil)
+
+        let sut = makeSUT()
+        // Cancelling the API session is the only externally visible difference between the two,
+        // so a download that still completes can only have been issued on the download session.
+        sut.session.invalidateAndCancel()
+
+        let exp = expectation(description: "Wait for completion")
+        var receivedResult: RoktDownloadResult!
+        sut.downloadFile(source: anyURLString(), destinationURL: destinationURL) { downloadResult in
+            receivedResult = downloadResult
+            exp.fulfill()
+        }
+        wait(for: [exp], timeout: 5.0)
+
+        XCTAssertNil(receivedResult.downloadError)
+        XCTAssertNotNil(receivedResult.downloadedFileLocalURL)
+    }
+
+    func test_downloadFile_succeedsAfterTheClientTimeoutHasBeenTightened() {
+        let destinationURL = FileManager.testDirectoryURL.appendingPathComponent("font.ttf")
+        let data = Data("a font".utf8)
+        RoktHTTPUrlProtocolStub.stub(data: data, response: anyHTTPURLResponse(), error: nil)
+
+        let sut = makeSUT()
+        sut.updateTimeout(timeout: 9)
+
+        let exp = expectation(description: "Wait for completion")
+        var receivedResult: RoktDownloadResult!
+        sut.downloadFile(source: anyURLString(), destinationURL: destinationURL) { downloadResult in
+            receivedResult = downloadResult
+            exp.fulfill()
+        }
+        wait(for: [exp], timeout: 5.0)
+
+        XCTAssertNil(receivedResult.downloadError)
+        XCTAssertNotNil(receivedResult.downloadedFileLocalURL)
+    }
+
     func test_startRequest_performsGETRequestWithURL() {
         let url = anyURL()
         let exp = expectation(description: "Wait for request")

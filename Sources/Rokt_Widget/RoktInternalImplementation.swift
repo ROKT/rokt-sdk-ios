@@ -19,16 +19,16 @@ class RoktInternalImplementation {
     private static let cacheAttributesKey = "cacheAttributeKeys"
     static let missingForwardPaymentPriceReason = "Missing price on forward-payment event"
     static let unknownForwardPaymentFailureReason = "Unknown failure reason"
-    static let defaultTimeout: Double = 9000
-    static let defaultFontTimeout: Double = 30 // second
+    static let defaultTimeoutMilliseconds: Double = 9000
+    static let defaultFontTimeoutSeconds: Double = 30
     static let defaultDelay: Double = 1000
     private static let builtInPayPalMissingRedirectSchemeMessage =
         "Rokt: Built-in PayPal device pay requires Rokt.setBuiltInPayPalRedirectURLScheme(_:) "
             + "with a bare URL scheme registered in Info.plist (CFBundleURLTypes / CFBundleURLSchemes)."
 
-    private var fontLoadObservers: [NSObjectProtocol] = []
-
     var roktTagId: String?
+    // Identifies the latest init request so a superseded init's async completion is ignored.
+    private var initGeneration = 0
     let sessionManager: SessionManager
     var attributes = [String: String]()
     var isInitialized = false
@@ -44,10 +44,22 @@ class RoktInternalImplementation {
     var processedTimingsRequests: TimingsRequestProcessor?
 
     var stateManager: StateBagManaging = StateBagManager()
-    private var clientTimeoutMilliseconds: Double = RoktInternalImplementation.defaultTimeout
-    private var defaultLaunchDelayMilliseconds: Double = RoktInternalImplementation.defaultDelay
-    private var loadingFonts = false
+
+    // Layout schema version sent on init requests.
+    private static var txnLayoutSchemaVersion: String {
+        RoktUX.integrationInfo.integration.layoutSchemaVersion
+            .split(separator: ".").prefix(2).joined(separator: ".")
+    }
+    // Test-only override for the init service factory; nil uses the real builder.
+    var makeTxnInitServiceOverride: ((String) -> TxnInitService)?
+    // Test-only override for the offers service factory; nil uses the real builder.
+    var makeOffersServiceOverride: ((String) -> OffersService)?
+
+    // Test-only override for the events service factory; nil uses the real builder.
+    var makeTxnEventServiceOverride: ((String) -> TxnEventService)?
     private var pendingPayload: ExecutePayload?
+    private var clientTimeoutMilliseconds: Double = RoktInternalImplementation.defaultTimeoutMilliseconds
+    private var defaultLaunchDelayMilliseconds: Double = RoktInternalImplementation.defaultDelay
     private var isExecuting = false
     private var placements: [String: RoktEmbeddedView]?
 
@@ -56,6 +68,13 @@ class RoktInternalImplementation {
 
     private var linkHandler: LinkHandler = .init()
     var sentEventHashes: ThreadSafeSet<String> = .init()
+
+    // Persists unsent event batches so an offline/rate-limited failure is replayed on the next init.
+    private let txnPendingEventStore: TxnPendingEventStoring = TxnPendingEventStore()
+
+    // Flushes buffered events when the app backgrounds so they are not lost in the debounce window.
+    // periphery:ignore - held only for its side effect (registers the didEnterBackground observer); never read.
+    private let eventFlushLifecycleObserver = EventFlushLifecycleObserver()
 
     // store callback for partner event integration
     private var roktEvent: ((RoktEvent) -> Void)?
@@ -109,21 +128,6 @@ class RoktInternalImplementation {
         NetworkingHelper.updateTimeout(timeout: clientTimeoutMilliseconds/1000)
     }
 
-    // Loading fonts notification observer selector
-    private func startedLoadingFonts(notification: Notification) {
-        loadingFonts = true
-    }
-
-    // Finished loading fonts notification observer selector
-    private func finishedLoadingFonts(notification: Notification) {
-        loadingFonts = false
-        processedTimingsRequests?.setInitEndTime()
-
-        if let page = pendingPayload {
-            showNow(payload: page)
-        }
-    }
-
     func purchaseFinalized(identifier: String, catalogItemId: String, success: Bool) {
         guard let state = stateManager.find(where: \.instantPurchaseInitiated),
         let uxHelper = state.uxHelper as? RoktUX else { return }
@@ -147,6 +151,12 @@ class RoktInternalImplementation {
         guard let state = stateManager.getState(id: executeId),
               let uxHelper = state.uxHelper as? RoktUX else { return }
         uxHelper.devicePayFinalized(layoutId: layoutId, catalogItemId: catalogItemId, success: success)
+    }
+
+    private func devicePayRetry(executeId: String, layoutId: String, catalogItemId: String) {
+        guard let state = stateManager.getState(id: executeId),
+              let uxHelper = state.uxHelper as? RoktUX else { return }
+        uxHelper.devicePayRetry(layoutId: layoutId, catalogItemId: catalogItemId)
     }
 
     private func forwardPaymentFinalized(executeId: String,
@@ -183,8 +193,8 @@ class RoktInternalImplementation {
         )
     }
 
-    /// Legacy fallback: build a `ContactAddress` from partner-supplied attributes
-    /// for backends that do not yet populate `TransactionData`. Returns `nil` if
+    /// Fallback: build a `ContactAddress` from partner-supplied attributes
+    /// when `TransactionData` has no address. Returns `nil` if
     /// no address attributes were provided.
     func buildContactAddressFromAttributes() -> ContactAddress? {
         let line1 = attributes["shippingaddress1"] ?? ""
@@ -254,7 +264,7 @@ class RoktInternalImplementation {
 
     // Shows the widget on top the visible view controller
     private func showNow(payload: ExecutePayload) {
-        guard !loadingFonts && isInitialized else {
+        guard isInitialized else {
             pendingPayload = payload
             return
         }
@@ -580,35 +590,7 @@ class RoktInternalImplementation {
                 builtInPayPalDevicePaySession: paypalSession,
                 builtInCardDevicePaySession: cardSession
             ) { [weak self] result in
-                let success = result.outcome == .succeeded
-                if success {
-                    self?.callOnRoktEvent(executeId, event: RoktEvent.CartItemInstantPurchase(
-                        identifier: event.layoutId,
-                        name: event.name,
-                        cartItemId: event.cartItemId,
-                        catalogItemId: event.catalogItemId,
-                        currency: event.currency,
-                        description: event.description,
-                        linkedProductId: event.linkedProductId,
-                        providerData: event.providerData,
-                        quantity: NSDecimalNumber(decimal: event.quantity),
-                        totalPrice: event.totalPrice.map { NSDecimalNumber(decimal: $0) },
-                        unitPrice: event.unitPrice.map { NSDecimalNumber(decimal: $0) }
-                    ))
-                } else {
-                    self?.callOnRoktEvent(executeId, event: RoktEvent.CartItemInstantPurchaseFailure(
-                        identifier: event.layoutId,
-                        catalogItemId: event.catalogItemId,
-                        cartItemId: event.cartItemId,
-                        error: nil
-                    ))
-                }
-                self?.devicePayFinalized(
-                    executeId: executeId,
-                    layoutId: event.layoutId,
-                    catalogItemId: event.catalogItemId,
-                    success: success
-                )
+                self?.handleDevicePayPaymentCompletion(executeId: executeId, event: event, result: result)
             }
         } else if let event = uxEvent as? RoktUXEvent.CartItemForwardPayment {
             handleForwardPayment(executeId: executeId, event: event)
@@ -690,6 +672,65 @@ class RoktInternalImplementation {
     ) -> (success: Bool, failureReason: String?) {
         let failureReason = message.isEmpty ? unknownForwardPaymentFailureReason : message
         return (false, failureReason)
+    }
+
+    func handleDevicePayPaymentCompletion(executeId: String,
+                                          event: RoktUXEvent.CartItemDevicePay,
+                                          result: PaymentSheetResult) {
+        switch result.outcome {
+        case .succeeded:
+            callOnRoktEvent(executeId, event: RoktEvent.CartItemInstantPurchase(
+                identifier: event.layoutId,
+                name: event.name,
+                cartItemId: event.cartItemId,
+                catalogItemId: event.catalogItemId,
+                currency: event.currency,
+                description: event.description,
+                linkedProductId: event.linkedProductId,
+                providerData: event.providerData,
+                quantity: NSDecimalNumber(decimal: event.quantity),
+                totalPrice: event.totalPrice.map { NSDecimalNumber(decimal: $0) },
+                unitPrice: event.unitPrice.map { NSDecimalNumber(decimal: $0) }
+            ))
+            devicePayFinalized(
+                executeId: executeId,
+                layoutId: event.layoutId,
+                catalogItemId: event.catalogItemId,
+                success: true
+            )
+        case .canceled:
+            devicePayRetry(
+                executeId: executeId,
+                layoutId: event.layoutId,
+                catalogItemId: event.catalogItemId
+            )
+        case .failed:
+            callOnRoktEvent(executeId, event: RoktEvent.CartItemInstantPurchaseFailure(
+                identifier: event.layoutId,
+                catalogItemId: event.catalogItemId,
+                cartItemId: event.cartItemId,
+                error: result.errorMessage
+            ))
+            devicePayFinalized(
+                executeId: executeId,
+                layoutId: event.layoutId,
+                catalogItemId: event.catalogItemId,
+                success: false
+            )
+        @unknown default:
+            callOnRoktEvent(executeId, event: RoktEvent.CartItemInstantPurchaseFailure(
+                identifier: event.layoutId,
+                catalogItemId: event.catalogItemId,
+                cartItemId: event.cartItemId,
+                error: result.errorMessage
+            ))
+            devicePayFinalized(
+                executeId: executeId,
+                layoutId: event.layoutId,
+                catalogItemId: event.catalogItemId,
+                success: false
+            )
+        }
     }
 
     func handleForwardPayment(executeId: String,
@@ -807,52 +848,156 @@ class RoktInternalImplementation {
         self.roktTagId = roktTagId
         sessionManager.storedTagId = roktTagId
         isInitFailedForFont = false
+        FontManager.resetFontRecoveryState()
         stateManager = StateBagManager()
 
-        setupFontObservers()
-
         RoktLogger.shared.debug("Starting API initialization request")
-        RoktAPIHelper.initialize(roktTagId: roktTagId,
-                                 success: { (initResponse) in
-            RoktLogger.shared.info("API initialization succeeded")
-            self.isInitialized = true
-            self.initFeatureFlags = initResponse.featureFlags
+        performInit(roktTagId: roktTagId, initStartTime: initStartTime)
+    }
 
-            self.processedTimingsRequests = TimingsRequestProcessor()
-            self.processedTimingsRequests?.setInitStartTime(initStartTime)
-
-            self.clientTimeoutMilliseconds = initResponse.timeout != 0 ?
-            initResponse.timeout : self.clientTimeoutMilliseconds
-            self.defaultLaunchDelayMilliseconds = initResponse.delay != 0 ?
-            initResponse.delay : self.defaultLaunchDelayMilliseconds
-            if let clientSessionTimeoutMilliseconds = initResponse.clientSessionTimeout {
-                self.sessionManager.currentSessionDurationSeconds = clientSessionTimeoutMilliseconds/1000
-            }
-            NetworkingHelper.updateTimeout(timeout: self.clientTimeoutMilliseconds/1000)
-
-            let initFonts = initResponse.fonts
-            RoktLogger.shared.debug("Downloading \(initFonts.count) font(s)")
-            FontManager.removeUnusedFonts(fonts: initFonts)
-            RoktAPIHelper.downloadFonts(initFonts) {
-                let success = self.isInitialized && !self.isInitFailedForFont
-                RoktLogger.shared.info("Initialization complete - success: \(success)")
-                if let eventListener = self.roktEventMap[Self.defaultRoktInitEvent] {
-                    eventListener?(RoktEvent.InitComplete(success: success))
+    private func performInit(roktTagId: String, initStartTime: Date) {
+        let service = makeTxnInitServiceOverride?(roktTagId) ?? defaultTxnInitService(roktTagId: roktTagId)
+        initGeneration += 1
+        let generation = initGeneration
+        Task {
+            do {
+                let result = try await service.initSession()
+                let initResponse = result.response.toInitRespose(featureFlags: result.featureFlags)
+                DispatchQueue.main.async {
+                    guard self.initGeneration == generation else { return }
+                    self.handleInitSuccess(initResponse, initStartTime: initStartTime)
+                }
+            } catch {
+                let statusCode = Self.statusCode(from: error)
+                DispatchQueue.main.async {
+                    guard self.initGeneration == generation else { return }
+                    self.handleInitFailure(error: error, statusCode: statusCode, response: "")
                 }
             }
-        }, failure: { (error, statusCode, response) in
-            RoktLogger.shared.error("Initialization failed - statusCode: \(statusCode ?? -1), " +
-                                    "error: \(error.localizedDescription)")
-            self.isInitialized = false
-            self.processedTimingsRequests?.setInitEndTime()
-            // Don't report diagnostics for 429 (Too Many Requests) status code
-            if let code = statusCode, code != 429 {
-                self.sendDiagnostics(Self.initDiagnosticCode, error: error, statusCode: statusCode, response: response)
-            }
-            if let eventListener = self.roktEventMap[Self.defaultRoktInitEvent] {
-                eventListener?(RoktEvent.InitComplete(success: false))
-            }
-        })
+        }
+    }
+
+    // Init completes on config; fonts load off the critical path (never block/fail init).
+    private func handleInitSuccess(_ initResponse: InitRespose, initStartTime: Date) {
+        RoktLogger.shared.info("API initialization succeeded")
+        self.isInitialized = true
+        self.initFeatureFlags = initResponse.featureFlags
+
+        self.processedTimingsRequests = TimingsRequestProcessor()
+        self.processedTimingsRequests?.setInitStartTime(initStartTime)
+
+        self.clientTimeoutMilliseconds = initResponse.timeout != 0 ?
+        initResponse.timeout : self.clientTimeoutMilliseconds
+        self.defaultLaunchDelayMilliseconds = initResponse.delay != 0 ?
+        initResponse.delay : self.defaultLaunchDelayMilliseconds
+        NetworkingHelper.updateTimeout(timeout: self.clientTimeoutMilliseconds/1000)
+        self.processedTimingsRequests?.setInitEndTime()
+
+        RoktLogger.shared.info("Initialization complete - success: \(self.isInitialized)")
+        if let eventListener = self.roktEventMap[Self.defaultRoktInitEvent] {
+            eventListener?(RoktEvent.InitComplete(success: self.isInitialized))
+        }
+
+        // Replay any execute that arrived before init finished.
+        if let page = pendingPayload {
+            showNow(payload: page)
+        }
+
+        // Replay event batches that failed to send in a previous session.
+        replayPendingTxnEvents()
+
+        let initFonts = initResponse.fonts
+        FontManager.removeUnusedFonts(fonts: initFonts)
+        RoktAPIHelper.downloadFonts(initFonts) {
+            RoktLogger.shared.debug("Font download complete")
+        }
+    }
+
+    private func handleInitFailure(error: Error, statusCode: Int?, response: String) {
+        RoktLogger.shared.error("Initialization failed - statusCode: \(statusCode ?? -1), " +
+                                "error: \(error.localizedDescription)")
+        self.isInitialized = false
+        self.processedTimingsRequests?.setInitEndTime()
+        NetworkingHelper.updateTimeout(timeout: self.clientTimeoutMilliseconds/1000)
+        // Don't report diagnostics for 429 (Too Many Requests) status code
+        if let code = statusCode, code != 429 {
+            self.sendDiagnostics(Self.initDiagnosticCode, error: error, statusCode: statusCode, response: response)
+        }
+        if let eventListener = self.roktEventMap[Self.defaultRoktInitEvent] {
+            eventListener?(RoktEvent.InitComplete(success: false))
+        }
+    }
+
+    private func defaultTxnInitService(roktTagId: String) -> TxnInitService {
+        // Mock transports are a development-only convenience (Environment.Mock) and
+        // are compiled out of release builds to keep them off the shipped SDK.
+        var httpClient: HTTPClientAdapter = NetworkingHelper.shared.httpClient
+        #if DEBUG
+        if config.environment == .Mock { httpClient = MockTxnInitHTTPClient() }
+        #endif
+        return TxnInitService(
+            environment: config.environment,
+            accountId: roktTagId,
+            sdkVersion: libraryVersion,
+            layoutSchemaVersion: Self.txnLayoutSchemaVersion,
+            httpClient: httpClient,
+            deviceHeaders: NetworkingHelper.txnDeviceHeaders()
+        )
+    }
+
+    private func defaultOffersService(roktTagId: String) -> OffersService {
+        var httpClient: HTTPClientAdapter = NetworkingHelper.shared.httpClient
+        #if DEBUG
+        if config.environment == .Mock { httpClient = MockOffersHTTPClient() }
+        #endif
+        return OffersService(
+            environment: config.environment,
+            accountId: roktTagId,
+            sdkVersion: libraryVersion,
+            layoutSchemaVersion: Self.txnLayoutSchemaVersion,
+            sessionManager: TxnSessionManager(roktTagId: roktTagId),
+            httpClient: httpClient,
+            deviceHeaders: NetworkingHelper.txnDeviceHeaders()
+        )
+    }
+
+    private static func statusCode(from error: Error) -> Int? {
+        if case TxnInitService.TxnInitError.unexpectedStatusCode(let code) = error {
+            return code
+        }
+        return nil
+    }
+
+    // Each batch gets a fresh service instance so it rehydrates the latest persisted token.
+    func dispatchTxnEvents(_ events: [TxnEvent]) {
+        guard !events.isEmpty, let roktTagId else { return }
+        let service = makeTxnEventServiceOverride?(roktTagId) ?? defaultTxnEventService(roktTagId: roktTagId)
+        Task { try? await service.send(events: events) }
+    }
+
+    // Replays event batches that failed to send in a previous session (offline / rate-limited),
+    // dropping any past their 30-minute TTL. Called once init succeeds.
+    func replayPendingTxnEvents() {
+        guard roktTagId != nil else { return }
+        for batch in txnPendingEventStore.drainValid() {
+            dispatchTxnEvents(batch)
+        }
+    }
+
+    private func defaultTxnEventService(roktTagId: String) -> TxnEventService {
+        var httpClient: HTTPClientAdapter = NetworkingHelper.shared.httpClient
+        #if DEBUG
+        if config.environment == .Mock { httpClient = MockTxnInitHTTPClient() }
+        #endif
+        return TxnEventService(
+            environment: config.environment,
+            accountId: roktTagId,
+            sdkVersion: libraryVersion,
+            sessionManager: TxnSessionManager(roktTagId: roktTagId),
+            httpClient: httpClient,
+            deviceHeaders: NetworkingHelper.txnDeviceHeaders(),
+            pendingStore: txnPendingEventStore
+        )
     }
 
     /// Rokt developer facing execute
@@ -910,7 +1055,6 @@ class RoktInternalImplementation {
             preExecuteFailureHandler()
             return
         }
-        var trackingConsent: UInt?
         if #available(iOS 14.5, *) {
             if !initFeatureFlags.isEnabled(.roktTrackingStatus) &&
                 isPrivacyDenied(ATTrackingManager.trackingAuthorizationStatus) {
@@ -922,7 +1066,6 @@ class RoktInternalImplementation {
                 preExecuteFailureHandler()
                 return
             }
-            trackingConsent = ATTrackingManager.trackingAuthorizationStatus.rawValue
         }
 
         if attributes[keyAdsExperienceType] == valueAdsExperienceShoppable {
@@ -975,57 +1118,72 @@ class RoktInternalImplementation {
                                                      selectionId: selectionId)
                         self.show(payload)
                     } else {
-                        RoktAPIHelper.getExperienceData(
+                        let onSuccess: (String?) -> Void = { page in
+                            onExperiencesRequestEnd()
+                            self.isExecuting = false
+
+                            guard let page else {
+                                self.conclude(withFailure: true)
+                                return
+                            }
+                            // cache experience if applicable
+                            if self.isCacheEnabledAndConfigured() {
+                                let cacheAttributes = self.roktConfig.cacheConfig.getCacheAttributesOrFallback(attributes)
+
+                                DispatchQueue.background.async {
+                                    ExperienceCacheManager.cacheExperienceResponse(
+                                        viewName: viewName,
+                                        attributes: cacheAttributes,
+                                        experienceResponse: page
+                                    )
+                                }
+                            }
+
+                            // Use cacheAttributes for plugin view states if cache is enabled for consistency
+                            let attributesForPluginStates = self.roktConfig.cacheConfig
+                                .getCacheAttributesOrFallback(attributes)
+                            guard let layoutPageExecutePayload = self.processLayoutPageExecutePayload(
+                                page, selectionId: selectionId, viewName: viewName, attributes: attributesForPluginStates
+                            ) else {
+                                self.conclude(withFailure: true)
+                                return
+                            }
+
+                            let payload = ExecutePayload(
+                                layoutPage: layoutPageExecutePayload,
+                                startDate: startDate,
+                                selectionId: selectionId
+                            )
+                            self.show(payload)
+                        }
+                        let onFailure: (Error, Int?, String) -> Void = { error, statusCode, response in
+                            onExperiencesRequestEnd()
+                            self.executeFailureHandler(error, statusCode, response)
+                        }
+
+                        // pageInit timing travels in attributes; record it here since the offers service
+                        // doesn't own timing extraction.
+                        if let pageInitAttr = RoktAPIHelper.getPageInitData(attributes: attributes),
+                           let validPageInitTime = self.processedTimingsRequests?.getValidPageInitTime(
+                               selectionId: selectionId,
+                               timeAsString: pageInitAttr
+                           ) {
+                            self.processedTimingsRequests?.setPageInitTime(
+                                selectionId: selectionId,
+                                time: validPageInitTime
+                            )
+                        }
+                        let offersService = self.makeOffersServiceOverride?(tagId)
+                            ?? self.defaultOffersService(roktTagId: tagId)
+                        offersService.getExperienceData(
                             viewName: viewName,
                             attributes: attributes,
-                            roktTagId: tagId,
-                            selectionId: selectionId,
-                            trackingConsent: trackingConsent,
                             config: self.roktConfig,
                             onRequestStart: onExperiencesRequestStart,
-                            successLayout: { page in
-                                onExperiencesRequestEnd()
-                                self.isExecuting = false
-
-                                guard let page else {
-                                    self.conclude(withFailure: true)
-                                    return
-                                }
-                                // cache experience if applicable
-                                if self.isCacheEnabledAndConfigured() {
-                                    let cacheAttributes = self.roktConfig.cacheConfig.getCacheAttributesOrFallback(attributes)
-
-                                    DispatchQueue.background.async {
-                                        ExperienceCacheManager.cacheExperienceResponse(
-                                            viewName: viewName,
-                                            attributes: cacheAttributes,
-                                            experienceResponse: page
-                                        )
-                                    }
-                                }
-
-                                // Use cacheAttributes for plugin view states if cache is enabled for consistency
-                                let attributesForPluginStates = self.roktConfig.cacheConfig
-                                    .getCacheAttributesOrFallback(attributes)
-                                guard let layoutPageExecutePayload = self.processLayoutPageExecutePayload(
-                                    page, selectionId: selectionId, viewName: viewName, attributes: attributesForPluginStates
-                                ) else {
-                                    self.conclude(withFailure: true)
-                                    return
-                                }
-
-                                let payload = ExecutePayload(
-                                    layoutPage: layoutPageExecutePayload,
-                                    startDate: startDate,
-                                    selectionId: selectionId
-                                )
-                                self.show(payload)
-                            },
-                            failure: { (error, statusCode, response) in
-                                onExperiencesRequestEnd()
-                                self.executeFailureHandler(error, statusCode, response)
-                            }
-                        )}
+                            successLayout: onSuccess,
+                            failure: onFailure
+                        )
+                    }
                 }
             }
         } else {
@@ -1108,6 +1266,13 @@ class RoktInternalImplementation {
             return LayoutPageExecutePayload(pageModel: pageModel,
                                             cacheProperties: cacheProperties)
         } else {
+            // No cache: scope event de-duplication to this execute. The cache branch above
+            // seeds `sentEventHashes` per view; without a reset here the set is only ever
+            // (re)initialised on the cache path, so for non-cached executes it accumulates
+            // hashes for the whole process lifetime — growing unbounded and, when an event
+            // hash repeats across executes (e.g. a reused session id), silently dropping
+            // events that were already "sent" by an earlier, unrelated execute.
+            sentEventHashes = ThreadSafeSet()
             return LayoutPageExecutePayload(pageModel: pageModel,
                                             cacheProperties: nil)
         }
@@ -1174,38 +1339,6 @@ class RoktInternalImplementation {
 
     func getSessionId() -> String? {
         return sessionManager.getCurrentSessionIdWithoutExpiring()
-    }
-
-    private func setupFontObservers() {
-        // Clean up existing observers
-        fontLoadObservers.forEach { NotificationCenter.default.removeObserver($0) }
-        fontLoadObservers.removeAll()
-
-        // Observer for started loading fonts
-        let startedObserver = NotificationCenter.default.addObserver(
-            forName: NSNotification.Name(FontManager.downloadingFonts),
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.loadingFonts = true
-        }
-
-        // Observer for finished loading fonts
-        let finishedObserver = NotificationCenter.default.addObserver(
-            forName: NSNotification.Name(finishedDownloadingFonts),
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            guard let self = self else { return }
-            self.loadingFonts = false
-            self.processedTimingsRequests?.setInitEndTime()
-
-            if let page = self.pendingPayload {
-                self.showNow(payload: page)
-            }
-        }
-
-        fontLoadObservers.append(contentsOf: [startedObserver, finishedObserver])
     }
 
     // MARK: - Payment Extension

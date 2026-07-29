@@ -180,10 +180,11 @@ class FontRepository {
 
     // MARK: - Diagnostics
 
-    private static func sendDiagnosticWith(prefix: String, error: Error) {
+    private static func sendDiagnosticWith(prefix: String, error: Error, severity: Severity = .info) {
         RoktAPIHelper.sendDiagnostics(
             message: fontDiagnosticCode,
-            callStack: "\(prefix) \(error.localizedDescription)"
+            callStack: "\(prefix) \(error.localizedDescription)",
+            severity: severity
         )
     }
 
@@ -197,12 +198,26 @@ class FontRepository {
         fontDownloadDetailFileName = fileName
     }
 
-    internal static func getFileUrl(name: String) -> URL? {
-        if let documentsUrl = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
-            let fullPath = documentsUrl.appendingPathComponent(name).appendingPathExtension("json")
-            return fullPath
+    private static let cacheDirectory = "RoktFonts"
+
+    internal static func getCacheDirectoryUrl() -> URL? {
+        guard let cachesUrl = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else {
+            return nil
         }
-        return nil
+
+        let fullPath: URL
+        if #available(iOS 16.0, *) {
+            fullPath = cachesUrl.appending(component: cacheDirectory, directoryHint: .isDirectory)
+        } else {
+            fullPath = cachesUrl.appendingPathComponent(cacheDirectory, isDirectory: true)
+        }
+
+        return fullPath
+    }
+
+    internal static func getFileUrl(name: String) -> URL? {
+        guard let cacheDirectoryUrl = getCacheDirectoryUrl() else { return nil }
+        return cacheDirectoryUrl.appendingPathComponent(name).appendingPathExtension("json")
     }
 
     internal static func isFileExist(name: String) -> Bool {

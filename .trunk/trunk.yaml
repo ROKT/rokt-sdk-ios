@@ -39,6 +39,7 @@ lint:
         - Packages/**/Tests/**/*.json
         - Tests/Rokt_WidgetTests/**/*.json
         - Tests/SizeReport/**/Assets.xcassets/**/*.json
+        - Example/Tests/**/*.json
         - periphery-baseline.json
   enabled:
     - objc-prop-check

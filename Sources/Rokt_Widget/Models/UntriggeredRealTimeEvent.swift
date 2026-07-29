@@ -20,26 +20,9 @@ struct UntriggeredEventsContainer: Decodable {
     init(from decoder: Decoder) throws {
         let rootContainer = try decoder.container(keyedBy: CodingKeys.self)
         let rawEventDataMap = try rootContainer.decode([String: RawEventData].self, forKey: .eventData)
-
-        var parsedEvents: [UntriggeredRealTimeEvent] = []
-
-        for (parentGuid, individualRawData) in rawEventDataMap {
-            if let actualEvents = individualRawData.events {
-                for (signalKey, rawSignalEvent) in actualEvents {
-                    let event = UntriggeredRealTimeEvent(
-                        triggerGuid: parentGuid,
-                        triggerEvent: signalKey,
-                        eventType: rawSignalEvent.eventType,
-                        payload: rawSignalEvent.payload
-                    )
-                    if event.isValid() {
-                        parsedEvents.append(event)
-                    }
-                }
-            }
-        }
-
-        self.untriggeredEvents = parsedEvents
+        self.untriggeredEvents = UntriggeredRealTimeEvent.flattenedValid(
+            from: rawEventDataMap.mapValues { $0.events }
+        )
     }
 
     enum CodingKeys: String, CodingKey {
@@ -51,7 +34,34 @@ private struct RawEventData: Decodable {
     let events: [String: RawEvent]?
 }
 
-private struct RawEvent: Decodable {
+private struct RawEvent: Decodable, RealTimeEventSignal {
     let eventType: String?
     let payload: String?
+}
+
+// A decoded real-time-event signal shared by RawEvent and SelectRealTimeEvent.
+internal protocol RealTimeEventSignal {
+    var eventType: String? { get }
+    var payload: String? { get }
+}
+
+extension UntriggeredRealTimeEvent {
+    /// Flatten event_data into untriggered events, dropping invalid entries.
+    static func flattenedValid<Signal: RealTimeEventSignal>(
+        from eventData: [String: [String: Signal]?]
+    ) -> [UntriggeredRealTimeEvent] {
+        var events: [UntriggeredRealTimeEvent] = []
+        for (parentGuid, signals) in eventData {
+            guard let signals else { continue }
+            for (signalKey, signal) in signals {
+                events.append(UntriggeredRealTimeEvent(
+                    triggerGuid: parentGuid,
+                    triggerEvent: signalKey,
+                    eventType: signal.eventType,
+                    payload: signal.payload
+                ))
+            }
+        }
+        return events.filter { $0.isValid() }
+    }
 }

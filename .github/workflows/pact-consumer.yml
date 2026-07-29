@@ -1,5 +1,8 @@
 name: Pact Consumer
 
+# Generates the consumer pact on every PR, publishes it to the broker on
+# same-repo PR pushes and main, then runs a blocking can-i-deploy check.
+
 on:
   pull_request:
   push:
@@ -7,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read # paths-filter lists changed files via the PR files API
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -32,9 +36,10 @@ jobs:
         with:
           filters: |
             contract:
-              - 'Sources/Rokt_Widget/Networking/V2OffersClient.swift'
-              - 'Sources/Rokt_Widget/Networking/V2EventsClient.swift'
-              - 'Sources/Rokt_Widget/Networking/V2SessionsInitClient.swift'
+              - 'Sources/Rokt_Widget/Networking/OffersClient.swift'
+              - 'Sources/Rokt_Widget/Networking/TxnEventsClient.swift'
+              - 'Sources/Rokt_Widget/Networking/TxnInitClient.swift'
+              - 'Sources/Rokt_Widget/Models/SelectResponse.swift'
               - 'Tests/ContractTests/**'
               - 'Package.swift'
               - '.github/workflows/pact-consumer.yml'
@@ -137,14 +142,12 @@ jobs:
               --build-url "${BUILD_URL}"
 
   can-i-deploy:
-    name: Can I Deploy (advisory)
+    name: Can I Deploy
     needs: [publish]
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    # Advisory — never fails the job. Forward-looking pacts: the SDK doesn't consume
-    # V2 yet and no deploy environment is wired up, so `--to-environment stage` is a
-    # deliberate no-op (`stage` is a placeholder). When the SDK consumes V2, make it
-    # blocking against the environment a released SDK calls (likely production).
+    # Blocking: fail the PR when the published contract is not verified as
+    # deployable to the production environment.
     environment: pact-publish
     steps:
       - name: Check provider verification
@@ -154,10 +157,10 @@ jobs:
           PACT_BROKER_PASSWORD: ${{ secrets.PACT_BROKER_PASSWORD }}
           GITHUB_SHA: ${{ github.sha }}
         run: |
-          set -uo pipefail
+          set -euo pipefail
           # renovate: datasource=docker depName=pactfoundation/pact-cli
           PACT_CLI_IMAGE="pactfoundation/pact-cli:1.5.0.4@sha256:4708c3d61157bff90082a483e4ff70541eb66f951eb3e218ea3e80a557abd170"
-          if docker run --rm \
+          docker run --rm \
             -e PACT_BROKER_BASE_URL \
             -e PACT_BROKER_USERNAME \
             -e PACT_BROKER_PASSWORD \
@@ -165,8 +168,4 @@ jobs:
             broker can-i-deploy \
               --pacticipant rokt-sdk-ios \
               --version "${GITHUB_SHA}" \
-              --to-environment stage; then
-            echo "can-i-deploy: deployable."
-          else
-            echo "::warning::can-i-deploy is advisory and non-blocking: these are forward-looking V2 contracts the SDK does not consume yet, so there is no stage deployment to verify against."
-          fi
+              --to-environment production

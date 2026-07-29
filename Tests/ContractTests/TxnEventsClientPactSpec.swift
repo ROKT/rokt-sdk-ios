@@ -4,16 +4,24 @@ import PactSwift
 
 /// Consumer-driven pact spec for the v2 `/v2/sessions/events` endpoint.
 ///
-/// Drives `V2EventsClient.recordEvents(events:)` — the test never constructs
+/// Drives `TxnEventsClient.recordEvents(events:authToken:)` — the test never constructs
 /// request headers or body directly, only domain inputs. Wire-shape
-/// construction lives entirely in `V2EventsClient`, so any drift there
-/// (e.g. switching `rokt-integration-type` from `"msdk-ios"` to
-/// `"ios-mobile"`) gets rejected by the pact mock service.
+/// construction lives entirely in `TxnEventsClient`, so any drift there
+/// (e.g. changing the `channel.type` body field) gets rejected by the pact mock service.
 ///
-/// Mirrors V2OffersClientPactSpec — see that file's docstring for the
+/// Mirrors OffersClientPactSpec — see that file's docstring for the
 /// matcher policy (exact-match for hardcoded constants, `SomethingLike`
 /// for per-runtime values).
-class V2EventsClientPactSpec: XCTestCase {
+///
+/// Device headers from `NetworkingHelper.txnDeviceHeaders` are sent on the live
+/// request; `rokt-package-name` and `rokt-package-version` are asserted here,
+/// supplied via `deviceHeaders` below.
+class TxnEventsClientPactSpec: XCTestCase {
+    private static let pactDeviceHeaders = [
+        "rokt-package-name": "com.rokt.example",
+        "rokt-package-version": "4.0.0"
+    ]
+
     static var mockService: MockService!
 
     override class func setUp() {
@@ -40,8 +48,8 @@ class V2EventsClientPactSpec: XCTestCase {
                 headers: [
                     "rokt-account-id": Matcher.SomethingLike("account-456"),
                     "Authorization": Matcher.SomethingLike("Bearer session-token-abc"),
-                    "rokt-platform-type": "iOS",
-                    "rokt-integration-type": "msdk-ios",
+                    "rokt-package-name": Matcher.SomethingLike("com.rokt.example"),
+                    "rokt-package-version": Matcher.SomethingLike("4.0.0"),
                     "Content-Type": "application/json"
                 ],
                 body: [
@@ -49,11 +57,16 @@ class V2EventsClientPactSpec: XCTestCase {
                         "type": "msdk",
                         "sdk_version": Matcher.SomethingLike("5.2.2")
                     ],
+                    // Mirrors the web controller: one session for the whole batch.
+                    "single_session": true,
                     // instance_id must be a canonical 36-character, non-nil UUID;
                     // the API rejects other forms, so the example uses a valid one.
                     "events": Matcher.EachLike([
                         "event_type": Matcher.SomethingLike("impression"),
-                        "instance_id": Matcher.SomethingLike("00000000-0000-0000-0000-000000000001"),
+                        "instance_id": Matcher.RegexLike(
+                            "00000000-0000-0000-0000-000000000001",
+                            term: #"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"#
+                        ),
                         "timestamp": Matcher.SomethingLike(1_774_474_053_000),
                         "data": [
                             "source_message_id": Matcher.SomethingLike("source-message-001")
@@ -86,22 +99,25 @@ class V2EventsClientPactSpec: XCTestCase {
                 defer { done() }
                 do {
                     let url = try XCTUnwrap(URL(string: baseURL))
-                    let client = V2EventsClient(
+                    let client = TxnEventsClient(
                         baseURL: url,
                         accountId: "account-456",
-                        authToken: "Bearer session-token-abc",
-                        sdkVersion: "5.2.2"
+                        sdkVersion: "5.2.2",
+                        deviceHeaders: Self.pactDeviceHeaders
                     )
-                    let event = V2Event(
+                    let event = TxnEvent(
                         eventType: "impression",
                         instanceId: "00000000-0000-0000-0000-000000000001",
                         timestamp: 1_774_474_053_000,
                         data: ["source_message_id": "source-message-001"]
                     )
-                    let (_, httpResponse) = try await client.recordEvents(events: [event])
+                    let (_, httpResponse) = try await client.recordEvents(
+                        events: [event],
+                        authToken: "Bearer session-token-abc"
+                    )
                     XCTAssertEqual(httpResponse?.statusCode, 202)
                 } catch {
-                    XCTFail("V2EventsClient request failed: \(error)")
+                    XCTFail("TxnEventsClient request failed: \(error)")
                 }
                 expectation.fulfill()
             }
