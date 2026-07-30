@@ -279,6 +279,26 @@ final class TestTxnEventService: XCTestCase {
         }
     }
 
+    /// Background flush often races OS network suspension; offline/transport failures must
+    /// persist for replay the same way exhausted 5xx does (#250 → #251 handoff).
+    func test_send_exhaustedTransportFailure_persistsBatchForReplay() async {
+        let store = SpyTxnPendingEventStore()
+        let offline = NSError(
+            domain: NSURLErrorDomain,
+            code: NSURLErrorNotConnectedToInternet,
+            userInfo: nil
+        )
+        httpClient.results = [.transport(offline)]
+
+        do {
+            try await makeService(pendingStore: store).send(events: sampleEvents())
+            XCTFail("Expected send to fail after exhausting transport retries")
+        } catch {
+            XCTAssertEqual(store.persistedBatches.count, 1)
+            XCTAssertEqual(store.persistedBatches.first?.first?.instanceId, "instance-1")
+        }
+    }
+
     func test_send_nonRetryableFailure_doesNotPersist() async {
         let store = SpyTxnPendingEventStore()
         httpClient.results = [.status(400)]

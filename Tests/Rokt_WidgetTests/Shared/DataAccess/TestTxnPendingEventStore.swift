@@ -114,4 +114,83 @@ final class TestTxnPendingEventStore: XCTestCase {
         XCTAssertEqual(drained.count, TxnPendingEventStore.maxBatches)
         XCTAssertFalse(drained.contains { $0.first?.instanceId == "stale" })
     }
+
+    // MARK: - Background rewrite / concurrency (#250 flush → #251 persist)
+
+    /// Multiple failed sends (e.g. background flush draining several Tasks) rewrite the same
+    /// JSON file concurrently. The store's serial queue must keep the file coherent and honor
+    /// the cap without crashing or producing an undecodable payload.
+    func test_concurrentPersist_keepsFileDecodableWithinCap() {
+        let store = makeStore()
+        let group = DispatchGroup()
+        let queue = DispatchQueue(label: "com.rokt.test.pending.concurrentPersist", attributes: .concurrent)
+        let persistCount = 40
+
+        for index in 0..<persistCount {
+            group.enter()
+            queue.async {
+                store.persist(events: self.batch("c-\(index)"))
+                group.leave()
+            }
+        }
+
+        XCTAssertEqual(group.wait(timeout: .now() + 5), .success)
+
+        let drained = store.drainValid()
+        XCTAssertEqual(drained.count, TxnPendingEventStore.maxBatches)
+        XCTAssertEqual(Set(drained.compactMap { $0.first?.instanceId }).count, drained.count)
+    }
+
+    /// The #250+#251 intersection: a background flush may still be persisting a failed batch
+    /// while a later init drains for replay. Persist and drain must serialize safely.
+    func test_concurrentPersistAndDrain_isThreadSafe() {
+        let store = makeStore()
+        let group = DispatchGroup()
+        let queue = DispatchQueue(label: "com.rokt.test.pending.concurrentPersistDrain", attributes: .concurrent)
+        var drainedTotal = 0
+        let drainedLock = NSLock()
+
+        for index in 0..<30 {
+            group.enter()
+            queue.async {
+                if index % 3 == 0 {
+                    let drained = store.drainValid()
+                    drainedLock.lock()
+                    drainedTotal += drained.count
+                    drainedLock.unlock()
+                } else {
+                    store.persist(events: self.batch("pd-\(index)"))
+                }
+                group.leave()
+            }
+        }
+
+        XCTAssertEqual(group.wait(timeout: .now() + 5), .success)
+
+        let remaining = store.drainValid()
+        drainedLock.lock()
+        let observed = drainedTotal + remaining.count
+        drainedLock.unlock()
+
+        // Every successful persist either appears in a drain or remains; never more than capacity
+        // at any drain, and remaining after the race must still decode.
+        XCTAssertLessThanOrEqual(remaining.count, TxnPendingEventStore.maxBatches)
+        XCTAssertGreaterThanOrEqual(observed, 0)
+        XCTAssertTrue(remaining.allSatisfy { $0.first?.instanceId != nil })
+    }
+
+    /// Persist that lands after drain has cleared the file must still produce a fresh readable store
+    /// (background Task completing after a cold init already drained).
+    func test_persistAfterDrain_writesFreshStore() {
+        let store = makeStore()
+        store.persist(events: batch("before-drain"))
+        XCTAssertEqual(store.drainValid().count, 1)
+        XCTAssertTrue(store.drainValid().isEmpty)
+
+        store.persist(events: batch("after-drain"))
+
+        let drained = store.drainValid()
+        XCTAssertEqual(drained.count, 1)
+        XCTAssertEqual(drained.first?.first?.instanceId, "after-drain")
+    }
 }

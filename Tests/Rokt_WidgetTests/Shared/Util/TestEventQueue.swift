@@ -92,6 +92,45 @@ class TestEventQueue: XCTestCase {
         XCTAssertEqual(callbackCount, 1)
     }
 
+    /// Background flush must cancel the debounce timer so the same batch is not delivered twice
+    /// when the suspended timer would otherwise fire on foreground return.
+    func test_flush_cancelsPendingTimer_noDoubleDelivery() {
+        var callbackCount = 0
+        EventQueue.call(event: getSampleEvent()) { _ in callbackCount += 1 }
+
+        EventQueue.flush()
+
+        let settled = expectation(description: "debounce window elapsed")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { settled.fulfill() }
+        wait(for: [settled], timeout: 1)
+
+        XCTAssertEqual(callbackCount, 1)
+    }
+
+    /// Flush may run on the main thread (didEnterBackground) while another caller enqueues.
+    /// Drained batches must not be empty or duplicated into a second callback for the same events.
+    func test_flush_whileConcurrentCall_deliversBufferedEventsOnce() {
+        let delivered = expectation(description: "events delivered")
+        delivered.assertForOverFulfill = true
+        var deliveredCount = 0
+
+        EventQueue.call(event: getSampleEvent()) { events in
+            deliveredCount = events.count
+            delivered.fulfill()
+        }
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            EventQueue.flush()
+        }
+
+        wait(for: [delivered], timeout: 1)
+        XCTAssertEqual(deliveredCount, 1)
+
+        // Second flush after drain must not re-deliver.
+        EventQueue.flush()
+        XCTAssertEqual(deliveredCount, 1)
+    }
+
     private func getSampleEvent() -> EventRequest {
         return EventRequest(sessionId: "", eventType: .SignalLoadStart, parentGuid: "", jwtToken: "jwt")
     }
