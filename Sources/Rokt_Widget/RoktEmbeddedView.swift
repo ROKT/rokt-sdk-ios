@@ -9,6 +9,7 @@ private var roktEmbeddedSwiftUIViewKey: UInt8 = 0
 private var topConstraintKey: UInt8 = 0
 private var leadingConstraintKey: UInt8 = 0
 private var trailingConstraintKey: UInt8 = 0
+private var bottomConstraintKey: UInt8 = 0
 private var heightConstraintKey: UInt8 = 0
 private var latestHeightKey: UInt8 = 0
 private var onSizeChangeKey: UInt8 = 0
@@ -34,6 +35,11 @@ extension RoktEmbeddedView {
     var trailingConstaint: NSLayoutConstraint? {
         get { objc_getAssociatedObject(self, &trailingConstraintKey) as? NSLayoutConstraint }
         set { objc_setAssociatedObject(self, &trailingConstraintKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
+    }
+
+    var bottomConstaint: NSLayoutConstraint? {
+        get { objc_getAssociatedObject(self, &bottomConstraintKey) as? NSLayoutConstraint }
+        set { objc_setAssociatedObject(self, &bottomConstraintKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
     }
 
     var heightConstaint: NSLayoutConstraint? {
@@ -66,7 +72,7 @@ extension RoktEmbeddedView {
     }
 
     private func decideTranslatesAutoresizingMask() {
-        if !self.constraints.isEmpty {
+        if !translatesAutoresizingMaskIntoConstraints || !self.constraints.isEmpty {
             self.translatesAutoresizingMaskIntoConstraints = false
         } else {
             self.translatesAutoresizingMaskIntoConstraints = true
@@ -78,6 +84,7 @@ extension RoktEmbeddedView {
         removeEmbeddedLayoutConstraint(topConstaint)
         removeEmbeddedLayoutConstraint(leadingConstaint)
         removeEmbeddedLayoutConstraint(trailingConstaint)
+        removeEmbeddedLayoutConstraint(bottomConstaint)
         removeEmbeddedLayoutConstraint(heightConstaint)
     }
 
@@ -91,12 +98,16 @@ extension RoktEmbeddedView {
         trailingConstaint = NSLayoutConstraint(item: self, attribute: .trailing,
                                                relatedBy: .equal, toItem: embeddedView,
                                                attribute: .trailing, multiplier: 1, constant: 0)
+        bottomConstaint = NSLayoutConstraint(item: self, attribute: .bottom,
+                                             relatedBy: .equal, toItem: embeddedView,
+                                             attribute: .bottom, multiplier: 1, constant: 0)
         heightConstaint = NSLayoutConstraint(item: self, attribute: .height,
                                              relatedBy: .equal, toItem: nil,
                                              attribute: .notAnAttribute, multiplier: 1, constant: 0)
         addEmbeddedLayoutConstraint(topConstaint)
         addEmbeddedLayoutConstraint(leadingConstaint)
         addEmbeddedLayoutConstraint(trailingConstaint)
+        addEmbeddedLayoutConstraint(bottomConstaint)
         addEmbeddedLayoutConstraint(heightConstaint)
     }
 
@@ -141,6 +152,7 @@ extension RoktEmbeddedView: InternalLayoutLoader {
     public func load<Content>(onSizeChanged: @escaping ((CGFloat) -> Void),
                               injectedView: @escaping () -> Content) where Content: View {
         cleanupEmbeddedView()
+        clipsToBounds = true
         self.onSizeChange = onSizeChanged
         let vc = ResizableHostingController(rootView: AnyView(injectedView()))
         if #available(iOS 16.4, *),
