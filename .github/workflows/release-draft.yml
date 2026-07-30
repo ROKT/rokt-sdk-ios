@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   can-i-deploy:
-    name: Can I Deploy
+    name: Contract verified vs production
     runs-on: ubuntu-latest
     # Blocking: refuse to open a release PR unless the latest main consumer
     # contract is verified against the provider currently in production.
