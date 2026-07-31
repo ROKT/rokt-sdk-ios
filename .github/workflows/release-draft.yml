@@ -35,12 +35,6 @@ jobs:
           PACT_BROKER_PASSWORD: ${{ secrets.PACT_BROKER_PASSWORD }}
         run: |
           set -euo pipefail
-
-          if [ -z "${PACT_BROKER_BASE_URL:-}" ] || [ -z "${PACT_BROKER_USERNAME:-}" ] || [ -z "${PACT_BROKER_PASSWORD:-}" ]; then
-            echo "::error::Broker credentials are not set." >&2
-            exit 1
-          fi
-
           # renovate: datasource=docker depName=pactfoundation/pact-cli
           PACT_CLI_IMAGE="pactfoundation/pact-cli:1.5.0.4@sha256:4708c3d61157bff90082a483e4ff70541eb66f951eb3e218ea3e80a557abd170"
           docker run --rm \
