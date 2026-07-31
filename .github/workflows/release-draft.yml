@@ -20,7 +20,7 @@ permissions:
   contents: read
 
 jobs:
-  can-i-deploy:
+  contract-verified:
     name: Contract verified vs production
     runs-on: ubuntu-latest
     # Blocking: refuse to open a release PR unless the latest main consumer
@@ -47,7 +47,7 @@ jobs:
               --to-environment production
 
   prepare-release:
-    needs: [can-i-deploy]
+    needs: [contract-verified]
     runs-on: macos-latest
     permissions:
       contents: write

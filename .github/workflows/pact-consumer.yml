@@ -148,7 +148,7 @@ jobs:
               --tag "forward-looking" \
               --build-url "${BUILD_URL}"
 
-  can-i-deploy:
+  contract-verified:
     name: Contract verified vs production
     needs: [publish]
     if: github.event_name == 'pull_request'
