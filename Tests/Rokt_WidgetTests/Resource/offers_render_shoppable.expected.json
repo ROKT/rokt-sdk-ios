@@ -1,0 +1,77 @@
+{
+  "page": { "pageId": "checkout" },
+  "placementContext": {
+    "pageInstanceGuid": "render-pig",
+    "roktTagId": "",
+    "token": "render-page-token"
+  },
+  "placements": [],
+  "plugins": [
+    {
+      "plugin": {
+        "config": {
+          "instanceGuid": "render-plugin-ig",
+          "outerLayoutSchema": "{\"breakpoints\":{\"Landscape\":500,\"Portrait\":560},\"layout\":{\"type\":\"Column\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"border\":{\"borderRadius\":0},\"background\":{\"backgroundColor\":{\"light\":\"#ECEEE9\",\"dark\":\"#ECEEE9\"}}}}]}},\"children\":[{\"type\":\"Column\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"border\":{\"borderRadius\":0},\"spacing\":{\"margin\":\"10 10 10 10\"},\"background\":{\"backgroundColor\":{\"light\":\"#FFFFFFFF\",\"dark\":\"#FFFFFFFF\"}}}}]}},\"children\":[{\"type\":\"OneByOneDistribution\",\"node\":{\"transition\":{\"type\":\"FadeInOut\",\"settings\":{\"duration\":10}}}}]}}]}}}",
+          "slots": [
+            {
+              "instanceGuid": "render-slot",
+              "layoutVariant": {
+                "layoutVariantSchema": "{\"type\":\"Column\",\"node\":{\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"18 8 0 8\"}}}]}},\"children\":[{\"type\":\"RichText\",\"node\":{\"value\":\"%^DATA.creativeCopy.creative.title^%\",\"styles\":{\"elements\":{\"own\":[{\"default\":{\"spacing\":{\"margin\":\"0 0 0 0\"},\"text\":{\"fontSize\":16,\"fontWeight\":\"600\",\"lineHeight\":14,\"textColor\":{\"light\":\"#000000\",\"dark\":\"#00ff00\"}}}}]}}}}]}}",
+                "moduleName": ""
+              },
+              "offer": {
+                "campaignId": "camp-shop-1",
+                "catalogItems": [
+                  {
+                    "cartItemId": "cart-1",
+                    "catalogItemId": "cat-jm-1",
+                    "currency": "USD",
+                    "description": "Quick clean kit for sneakers",
+                    "images": {
+                      "hero": {
+                        "alt": "Jason Markk Quick Clean Kit",
+                        "dark": "https:\/\/img.example.com\/jm-dark.png",
+                        "light": "https:\/\/img.example.com\/jm-light.png",
+                        "title": "Kit"
+                      }
+                    },
+                    "instanceGuid": "cat-ig-1",
+                    "linkedProductId": "prod-jm",
+                    "maxItemCount": 5,
+                    "minItemCount": 1,
+                    "negativeResponseText": "",
+                    "originalPrice": 24,
+                    "originalPriceFormatted": "$24",
+                    "positiveResponseText": "",
+                    "preSelectedQuantity": 1,
+                    "price": 18,
+                    "priceFormatted": "$18",
+                    "providerData": "{\"sku\":\"JM-QCK\"}",
+                    "signalType": "instant_purchase",
+                    "title": "Jason Markk Quick Clean Kit",
+                    "token": "catalog-token-jm",
+                    "url": "https:\/\/example.com\/jm",
+                    "urlBehavior": "internal"
+                  }
+                ],
+                "creative": {
+                  "copy": { "creative.title": "Shop the kit" },
+                  "instanceGuid": "cr-ig-1",
+                  "referralCreativeId": "rc-1",
+                  "token": "creative-token-1"
+                }
+              },
+              "token": "render-slot-token"
+            }
+          ],
+          "token": "render-plugin-token"
+        },
+        "id": "render-plugin",
+        "name": "dcui",
+        "targetElementSelector": "#rokt"
+      }
+    }
+  ],
+  "sessionId": "render-session",
+  "token": "render-token"
+}
