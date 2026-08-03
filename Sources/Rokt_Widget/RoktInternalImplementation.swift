@@ -1540,6 +1540,40 @@ class RoktInternalImplementation {
         }
     }
 
+    func setSession(_ session: RoktSession) {
+        guard let roktTagId,
+              !session.sessionId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !session.sessionToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            return
+        }
+
+        let sessionToken = TxnSessionToken(token: session.sessionToken, expiresAt: session.expiresAt)
+        TxnSessionPersistence.seed(
+            roktTagId: roktTagId,
+            sessionId: session.sessionId,
+            sessionToken: sessionToken
+        )
+        sessionManager.updateSessionId(newSessionId: session.sessionId)
+    }
+
+    func getSession() -> RoktSession? {
+        guard let roktTagId else {
+            return nil
+        }
+        guard let snapshot = TxnSessionPersistence.load(roktTagId: roktTagId),
+              let sessionId = snapshot.sessionId,
+              !sessionId.isEmpty,
+              let token = snapshot.token,
+              !token.isEmpty,
+              let expiresAt = snapshot.expiresAt
+        else {
+            return nil
+        }
+        let expiresAtMs = Int64((expiresAt.timeIntervalSince1970 * 1000).rounded(.down))
+        return RoktSession(sessionId: sessionId, sessionToken: token, expiresAt: expiresAtMs)
+    }
+
     func setSessionId(sessionId: String) {
         guard !sessionId.isEmpty else {
             return

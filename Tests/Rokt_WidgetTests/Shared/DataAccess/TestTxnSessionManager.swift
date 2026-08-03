@@ -224,6 +224,64 @@ final class TestTxnSessionManager: XCTestCase {
         XCTAssertNil(sessionId)
     }
 
+    // MARK: - TxnSessionPersistence (sync seed/load)
+
+    func test_persistence_seed_isVisibleToTxnSessionManager() async {
+        let store = InMemoryStore()
+        TxnSessionPersistence.seed(
+            roktTagId: "tag-1",
+            sessionId: "seeded-sid",
+            sessionToken: token("seeded-jwt", expiresInSeconds: 1800),
+            store: store
+        )
+
+        let restored = persistentManager(tagId: "tag-1", store: store)
+        let sessionId = await restored.currentSessionId
+        let header = await restored.authorizationHeader
+        XCTAssertEqual(sessionId, "seeded-sid")
+        XCTAssertEqual(header, "Bearer seeded-jwt")
+    }
+
+    func test_persistence_load_returnsSnapshot() {
+        let store = InMemoryStore()
+        TxnSessionPersistence.seed(
+            roktTagId: "tag-1",
+            sessionId: "sid",
+            sessionToken: token("jwt", expiresInSeconds: 1800),
+            store: store
+        )
+
+        let snapshot = TxnSessionPersistence.load(
+            roktTagId: "tag-1",
+            store: store,
+            clock: { self.now }
+        )
+
+        XCTAssertEqual(snapshot?.sessionId, "sid")
+        XCTAssertEqual(snapshot?.token, "jwt")
+        XCTAssertNotNil(snapshot?.expiresAt)
+    }
+
+    func test_persistence_load_clearsExpiredAndReturnsNil() {
+        let store = InMemoryStore()
+        TxnSessionPersistence.seed(
+            roktTagId: "tag-1",
+            sessionId: "sid",
+            sessionToken: token("jwt", expiresInSeconds: 60),
+            store: store
+        )
+        now = now.addingTimeInterval(61)
+
+        let snapshot = TxnSessionPersistence.load(
+            roktTagId: "tag-1",
+            store: store,
+            clock: { self.now }
+        )
+
+        XCTAssertNil(snapshot)
+        XCTAssertNil(store.string(forKey: TxnSessionStoreKeys.token))
+    }
+
     // MARK: - Epoch fence (a reset must survive an in-flight response)
 
     /// A response landing after a reset must not re-persist the departed customer's session.
