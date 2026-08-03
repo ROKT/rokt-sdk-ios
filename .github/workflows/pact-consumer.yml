@@ -1,7 +1,8 @@
 name: Pact Consumer
 
 # Generates the consumer pact on every PR, publishes it to the broker on
-# same-repo PR pushes and main, then runs a blocking can-i-deploy check.
+# same-repo PR pushes and main, then runs a blocking contract check against
+# production. Release – Draft runs the same check before opening a release PR.
 
 on:
   pull_request:
@@ -39,7 +40,11 @@ jobs:
               - 'Sources/Rokt_Widget/Networking/OffersClient.swift'
               - 'Sources/Rokt_Widget/Networking/TxnEventsClient.swift'
               - 'Sources/Rokt_Widget/Networking/TxnInitClient.swift'
+              - 'Sources/Rokt_Widget/Networking/TxnRequestHeaders.swift'
+              - 'Sources/Rokt_Widget/Networking/HTTPClient/**'
+              - 'Sources/Rokt_Widget/Networking/HTTPHeader.swift'
               - 'Sources/Rokt_Widget/Models/SelectResponse.swift'
+              - 'Sources/Rokt_Widget/Models/Event/TxnEventModels.swift'
               - 'Tests/ContractTests/**'
               - 'Package.swift'
               - '.github/workflows/pact-consumer.yml'
@@ -143,13 +148,13 @@ jobs:
               --tag "forward-looking" \
               --build-url "${BUILD_URL}"
 
-  can-i-deploy:
-    name: Can I Deploy
+  contract-verified:
+    name: Contract verified vs production
     needs: [publish]
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    # Blocking: fail the PR when the published contract is not verified as
-    # deployable to the production environment.
+    # Blocking merge gate: the published consumer contract must be verified
+    # against the provider version currently in production.
     environment: pact-publish
     steps:
       - name: Check provider verification
