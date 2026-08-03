@@ -11,6 +11,24 @@ class RoktInternalImplementation {
     private static let notInitializedDiagnosticCode = "[NOT_INITIALIZED]"
     private static let cacheHitDiagnosticCode = "[CACHE_HIT]"
     private static let cacheHitMessage = "Cache hit for view - %@"
+    // Public-API-usage diagnostics (INFO severity). Keep this a small, bounded set of codes.
+    static let apiInitCode = "[API_INIT]"
+    static let apiInitMParticleCode = "[API_INIT_MPARTICLE]"
+    static let apiSelectPlacementsCode = "[API_SELECT_PLACEMENTS]"
+    static let apiLayoutCode = "[API_LAYOUT]"
+    static let apiSelectShoppableAdsCode = "[API_SELECT_SHOPPABLE_ADS]"
+    static let apiPurchaseFinalizedCode = "[API_PURCHASE_FINALIZED]"
+    static let apiEventsCode = "[API_EVENTS]"
+    static let apiGlobalEventsCode = "[API_GLOBAL_EVENTS]"
+    static let apiCloseCode = "[API_CLOSE]"
+    static let apiRegisterPaymentExtensionCode = "[API_REGISTER_PAYMENT_EXTENSION]"
+    static let apiSetCustomBaseURLCode = "[API_SET_CUSTOM_BASE_URL]"
+    static let apiSetFrameworkTypeCode = "[API_SET_FRAMEWORK_TYPE]"
+    static let apiGetSessionIdCode = "[API_GET_SESSION_ID]"
+    static let apiSetSessionIdCode = "[API_SET_SESSION_ID]"
+    static let apiHandleURLCallbackCode = "[API_HANDLE_URL_CALLBACK]"
+    static let apiSetPayPalRedirectSchemeCode = "[API_SET_PAYPAL_REDIRECT_SCHEME]"
+    private static let maxPendingApiLogs = 10
     private static let initFailedError = "INIT_FAILED"
     private static let fontFailedError = "FONT_FAILED"
     private static let defaultRoktInitEvent = "DEFAULT_ROKT_INIT_EVENT"
@@ -34,6 +52,10 @@ class RoktInternalImplementation {
     var isInitialized = false
     var isInitFailedForFont = false
     private(set) var frameworkType: RoktFrameworkType = .iOS
+    // Public-API logs that arrive before init (setCustomBaseURL / setFrameworkType). Held until init
+    // sets `roktTagId`, then flushed — the diagnostics send needs the tag id for partner attribution.
+    private var pendingApiLogs: [(code: String, info: [String: String])] = []
+    private let pendingApiLogsLock = NSLock()
     var processedEvents: PlatformEventProcessor?
     var fontDiagnostics = FontDiagnosticsViewModel()
     // Feature flags
@@ -108,6 +130,7 @@ class RoktInternalImplementation {
     }
 
     func close() {
+        RoktAPIHelper.logApiCalled(Self.apiCloseCode)
         guard let window = UIApplication.shared.windows.filter({$0.isKeyWindow}).first,
               let rootViewController = window.rootViewController
         else {
@@ -129,6 +152,7 @@ class RoktInternalImplementation {
     }
 
     func purchaseFinalized(identifier: String, catalogItemId: String, success: Bool) {
+        RoktAPIHelper.logApiCalled(Self.apiPurchaseFinalizedCode, ["success": "\(success)"])
         guard let state = stateManager.find(where: \.instantPurchaseInitiated),
         let uxHelper = state.uxHelper as? RoktUX else { return }
         uxHelper.instantPurchaseFinalized(
@@ -236,6 +260,10 @@ class RoktInternalImplementation {
     ///   when ``PayPalRedirectURLSchemeValidator/shouldValidateAgainstInfoPlist`` is `true` (see that property for XCTest / sample-app **DEBUG** exceptions).
     @discardableResult
     func setBuiltInPayPalRedirectURLScheme(_ scheme: String?) -> Bool {
+        RoktAPIHelper.logApiCalled(
+            Self.apiSetPayPalRedirectSchemeCode,
+            ["hasScheme": "\(scheme?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)"]
+        )
         guard let scheme, !scheme.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             builtInPayPalRedirectURLScheme = nil
             return true
@@ -260,6 +288,43 @@ class RoktInternalImplementation {
 
     func setFrameworkType(_ frameworkType: RoktFrameworkType) {
         self.frameworkType = frameworkType
+        logApiCallBuffered(Self.apiSetFrameworkTypeCode, ["frameworkType": frameworkType.toString])
+    }
+
+    // MARK: - Public API usage diagnostics
+
+    /// Map a partner-supplied RoktConfig color mode to a bounded, non-PII string tag.
+    static func colorModeString(_ config: RoktConfig?) -> String {
+        guard let colorMode = config?.colorMode else { return "none" }
+        switch colorMode {
+        case .light: return "light"
+        case .dark: return "dark"
+        case .system: return "system"
+        @unknown default: return "unknown"
+        }
+    }
+
+    /// Log a public API call, buffering it until init when the SDK isn't initialised yet. Only
+    /// `setCustomBaseURL` / `setFrameworkType` need this (they run pre-init); everything else logs inline.
+    func logApiCallBuffered(_ code: String, _ additionalInfo: [String: String] = [:]) {
+        guard roktTagId == nil else {
+            RoktAPIHelper.logApiCalled(code, additionalInfo)
+            return
+        }
+        pendingApiLogsLock.lock()
+        defer { pendingApiLogsLock.unlock() }
+        // Bounded buffer — a wrapper spamming setFrameworkType pre-init must not grow it unbounded.
+        guard pendingApiLogs.count < Self.maxPendingApiLogs else { return }
+        pendingApiLogs.append((code, additionalInfo))
+    }
+
+    /// Flush buffered pre-init public-API logs once init has set `roktTagId`.
+    private func flushPendingApiLogs() {
+        pendingApiLogsLock.lock()
+        let logs = pendingApiLogs
+        pendingApiLogs.removeAll()
+        pendingApiLogsLock.unlock()
+        logs.forEach { RoktAPIHelper.logApiCalled($0.code, $0.info) }
     }
 
     // Shows the widget on top the visible view controller
@@ -847,6 +912,8 @@ class RoktInternalImplementation {
 
         self.roktTagId = roktTagId
         sessionManager.storedTagId = roktTagId
+        RoktAPIHelper.logApiCalled(mParticleKitDetails != nil ? Self.apiInitMParticleCode : Self.apiInitCode)
+        flushPendingApiLogs()
         isInitFailedForFont = false
         FontManager.resetFontRecoveryState()
         stateManager = StateBagManager()
@@ -1297,6 +1364,12 @@ class RoktInternalImplementation {
         placementOptions: RoktPlacementOptions? = nil,
         onRoktEvent: ((RoktEvent) -> Void)? = nil
     ) {
+        RoktAPIHelper.logApiCalled(Self.apiLayoutCode, [
+            "hasConfig": "\(config != nil)",
+            "colorMode": Self.colorModeString(config),
+            "cacheEnabled": "\(config?.cacheConfig.isCacheEnabled() == true)",
+            "attributeCount": "\(attributes.count)"
+        ])
         _swiftUiExecuteLayout = layout
         execute(
             viewName: viewName,
@@ -1334,17 +1407,21 @@ class RoktInternalImplementation {
         guard !sessionId.isEmpty else {
             return
         }
+        RoktAPIHelper.logApiCalled(Self.apiSetSessionIdCode)
         sessionManager.updateSessionId(newSessionId: sessionId)
     }
 
     func getSessionId() -> String? {
-        return sessionManager.getCurrentSessionIdWithoutExpiring()
+        let sessionId = sessionManager.getCurrentSessionIdWithoutExpiring()
+        RoktAPIHelper.logApiCalled(Self.apiGetSessionIdCode, ["hasSession": "\(sessionId != nil)"])
+        return sessionId
     }
 
     // MARK: - Payment Extension
 
     /// Register a payment extension for Shoppable Ads.
     func registerPaymentExtension(_ paymentExtension: PaymentExtension, config: [String: String]) {
+        RoktAPIHelper.logApiCalled(Self.apiRegisterPaymentExtensionCode, ["hasConfig": "\(!config.isEmpty)"])
         if !paymentOrchestrator.register(paymentExtension, config: config) {
             RoktLogger.shared.error("Rokt: Failed to register payment extension: \(paymentExtension.id)")
             RoktAPIHelper.sendDiagnostics(
@@ -1358,7 +1435,9 @@ class RoktInternalImplementation {
     /// Forward a URL to registered payment extensions.
     @discardableResult
     func handleURLCallback(with url: URL) -> Bool {
-        paymentOrchestrator.handleURLCallback(with: url)
+        let handled = paymentOrchestrator.handleURLCallback(with: url)
+        RoktAPIHelper.logApiCalled(Self.apiHandleURLCallbackCode, ["handled": "\(handled)"])
+        return handled
     }
 
     // MARK: - Shoppable Ads
@@ -1373,6 +1452,12 @@ class RoktInternalImplementation {
         config: RoktConfig?,
         onRoktEvent: ((RoktEvent) -> Void)?
     ) {
+        RoktAPIHelper.logApiCalled(Self.apiSelectShoppableAdsCode, [
+            "hasConfig": "\(config != nil)",
+            "colorMode": Self.colorModeString(config),
+            "cacheEnabled": "\(config?.cacheConfig.isCacheEnabled() == true)",
+            "attributeCount": "\(attributes.count)"
+        ])
         if isInitialized && !validateShoppableAdsFeatureFlag(identifier: identifier, onFailure: onRoktEvent) { return }
         guard validateShoppableAdsPaymentExtension(identifier: identifier, onFailure: onRoktEvent) else { return }
 

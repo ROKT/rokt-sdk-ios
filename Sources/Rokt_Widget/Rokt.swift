@@ -65,6 +65,14 @@ internal import RoktUXHelper
         placementOptions: RoktPlacementOptions? = nil,
         onEvent: ((RoktEvent) -> Void)? = nil
     ) {
+        RoktAPIHelper.logApiCalled(RoktInternalImplementation.apiSelectPlacementsCode, [
+            "embedded": "\(placements != nil)",
+            "hasConfig": "\(config != nil)",
+            "colorMode": RoktInternalImplementation.colorModeString(config),
+            "cacheEnabled": "\(config?.cacheConfig.isCacheEnabled() == true)",
+            "hasPlacementOptions": "\(placementOptions != nil)",
+            "attributeCount": "\(attributes.count)"
+        ])
         shared.roktImplementation.execute(
             viewName: identifier,
             attributes: attributes,
@@ -129,6 +137,7 @@ internal import RoktUXHelper
     ///   - identifier: The identifier for the view / page where you're displaying the placement
     ///   - onEvent: Function to execute when some events triggered, the first item is RoktEvent
     public static func events(identifier: String, onEvent: ((RoktEvent) -> Void)?) {
+        RoktAPIHelper.logApiCalled(RoktInternalImplementation.apiEventsCode)
         shared.roktImplementation.mapEvents(viewName: identifier, onEvent: onEvent)
     }
 
@@ -138,6 +147,8 @@ internal import RoktUXHelper
     /// - Parameters:
     ///   - onEvent: Function to execute when some events triggered, the first item is RoktEvent
     public static func globalEvents(onEvent: @escaping ((RoktEvent) -> Void)) {
+        // Buffered: globalEvents is usually subscribed before init (to catch InitComplete).
+        shared.roktImplementation.logApiCallBuffered(RoktInternalImplementation.apiGlobalEventsCode)
         shared.roktImplementation.mapEvents(isGlobal: true, onEvent: onEvent)
     }
 
@@ -154,6 +165,7 @@ internal import RoktUXHelper
             RoktLogger.shared.warning("Rokt: custom base URL must use HTTPS and include a valid host - ignored.")
             return
         }
+        shared.roktImplementation.logApiCallBuffered(RoktInternalImplementation.apiSetCustomBaseURLCode)
         var components = URLComponents()
         components.scheme = "https"
         components.host = host
