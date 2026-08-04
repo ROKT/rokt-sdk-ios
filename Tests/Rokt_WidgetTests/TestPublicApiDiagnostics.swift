@@ -1,4 +1,5 @@
 import XCTest
+import Mocker
 @testable import Rokt_Widget
 
 /// Verifies the public-API-usage INFO diagnostics emitted on partner API calls.
@@ -11,6 +12,7 @@ final class TestPublicApiDiagnostics: XCTestCase {
     }
 
     override func tearDown() {
+        Mocker.removeAll()
         Rokt.shared.roktImplementation.roktTagId = nil
         super.tearDown()
     }
