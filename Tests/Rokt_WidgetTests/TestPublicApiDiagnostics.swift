@@ -60,4 +60,42 @@ final class TestPublicApiDiagnostics: XCTestCase {
 
         wait(for: [exp], timeout: 0.5)
     }
+
+    func test_logMParticleApiCall_sendsPrefixedInfoDiagnosticWithNoAdditionalInfo() {
+        let exp = expectation(description: "diagnostic received")
+        var received: StubbedDiagnosticsModel?
+        stubDiagnostics(onDiagnosticsModelReceive: { received = $0; exp.fulfill() })
+
+        Rokt.logMParticleApiCall("LOG_EVENT")
+
+        wait(for: [exp], timeout: 1.0)
+        XCTAssertEqual(received?.code, "[MP_API_LOG_EVENT]")
+        XCTAssertEqual(received?.severity, "INFO")
+    }
+
+    func test_logMParticleApiCall_dropsMalformedCode_doesNotSend() {
+        let exp = expectation(description: "no diagnostic for malformed code")
+        exp.isInverted = true
+        stubDiagnostics(onDiagnosticsReceive: { _ in exp.fulfill() })
+
+        // Lowercase, spaces, PII-shaped, empty, and over-length are all rejected by the guard.
+        Rokt.logMParticleApiCall("log_event")
+        Rokt.logMParticleApiCall("user email@example.com")
+        Rokt.logMParticleApiCall("")
+        Rokt.logMParticleApiCall(String(repeating: "A", count: 41))
+
+        wait(for: [exp], timeout: 0.5)
+    }
+
+    func test_isValidMParticleApiCode_boundsShapeToUppercaseSnakeCase() {
+        XCTAssertTrue(RoktInternalImplementation.isValidMParticleApiCode("LOG_EVENT"))
+        XCTAssertTrue(RoktInternalImplementation.isValidMParticleApiCode("SET_USER_ATTRIBUTE_LIST"))
+        XCTAssertTrue(RoktInternalImplementation.isValidMParticleApiCode("A"))
+        XCTAssertFalse(RoktInternalImplementation.isValidMParticleApiCode("log_event"))
+        XCTAssertFalse(RoktInternalImplementation.isValidMParticleApiCode("_LEADING_UNDERSCORE"))
+        XCTAssertFalse(RoktInternalImplementation.isValidMParticleApiCode("HAS SPACE"))
+        XCTAssertFalse(RoktInternalImplementation.isValidMParticleApiCode("user@x.com"))
+        XCTAssertFalse(RoktInternalImplementation.isValidMParticleApiCode(""))
+        XCTAssertFalse(RoktInternalImplementation.isValidMParticleApiCode(String(repeating: "A", count: 41)))
+    }
 }

@@ -304,6 +304,17 @@ class RoktInternalImplementation {
         }
     }
 
+    /// Bounded, non-PII format guard for the mParticle public-API diagnostic codes forwarded by
+    /// the Rokt kit. Accepts uppercase SNAKE_CASE identifiers only (e.g. `LOG_EVENT`), 1...40
+    /// chars — which structurally excludes event/screen names, attribute values, URLs, and ids
+    /// from ever reaching the `code` tag. Malformed codes are dropped by the caller.
+    static func isValidMParticleApiCode(_ code: String) -> Bool {
+        guard (1...40).contains(code.count), let first = code.first, ("A"..."Z").contains(first) else {
+            return false
+        }
+        return code.allSatisfy { ("A"..."Z").contains($0) || ("0"..."9").contains($0) || $0 == "_" }
+    }
+
     /// Log a public API call, buffering it until init when the SDK isn't initialised yet. Only
     /// `setCustomBaseURL` / `setFrameworkType` need this (they run pre-init); everything else logs inline.
     func logApiCallBuffered(_ code: String, _ additionalInfo: [String: String] = [:]) {
