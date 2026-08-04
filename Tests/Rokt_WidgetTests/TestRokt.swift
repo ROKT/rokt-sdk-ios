@@ -256,6 +256,23 @@ class TestRokt: XCTestCase {
 
     func test_getSession_returnsNilWhenExpired() {
         let roktInternalImplementation = RoktInternalImplementation()
+        roktInternalImplementation.roktTagId = "tag-expired-get"
+        let expiresAt = Int64(Date().addingTimeInterval(1800).timeIntervalSince1970 * 1000)
+        roktInternalImplementation.setSession(
+            RoktSession(sessionId: "sid", sessionToken: "jwt", expiresAt: expiresAt)
+        )
+        XCTAssertNotNil(roktInternalImplementation.getSession())
+
+        // Simulate elapsed time after a valid seed without sleeping.
+        let pastMs = Int64(Date().addingTimeInterval(-60).timeIntervalSince1970 * 1000)
+        UserDefaultsTxnSessionStore().setString(String(pastMs), forKey: TxnSessionStoreKeys.expiresAt)
+
+        XCTAssertNil(roktInternalImplementation.getSession())
+        XCTAssertNil(TxnSessionPersistence.load(roktTagId: "tag-expired-get"))
+    }
+
+    func test_setSession_ignoresExpiredToken() async {
+        let roktInternalImplementation = RoktInternalImplementation()
         roktInternalImplementation.roktTagId = "tag-expired"
         let expiredAt = Int64(Date().addingTimeInterval(-60).timeIntervalSince1970 * 1000)
 
@@ -264,15 +281,12 @@ class TestRokt: XCTestCase {
         )
 
         XCTAssertNil(roktInternalImplementation.getSession())
+        XCTAssertNil(roktInternalImplementation.getSessionId())
         let restored = TxnSessionManager(roktTagId: "tag-expired")
-        // Expired seed is cleared on load; a fresh manager should see nothing.
-        let expectation = expectation(description: "load expired")
-        Task {
-            let sessionId = await restored.currentSessionId
-            XCTAssertNil(sessionId)
-            expectation.fulfill()
-        }
-        wait(for: [expectation], timeout: 1)
+        let sessionId = await restored.currentSessionId
+        let header = await restored.authorizationHeader
+        XCTAssertNil(sessionId)
+        XCTAssertNil(header)
     }
 
     func test_setSessionId_doesNotWriteTxnSessionToken() async {

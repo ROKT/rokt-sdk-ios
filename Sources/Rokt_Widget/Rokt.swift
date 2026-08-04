@@ -308,6 +308,9 @@ internal import RoktUXHelper
     ///   - sessionId: The session id to be set. Must be a non-empty string.
     @available(*, deprecated, message: "Use setSession(_:) to set session id and session token.")
     public static func setSessionId(sessionId: String) {
+        RoktLogger.shared.warning(
+            "Rokt.setSessionId(sessionId:) is deprecated. Use setSession(_:) to set session id and session token."
+        )
         shared.roktImplementation.setSessionId(sessionId: sessionId)
     }
 
@@ -317,7 +320,10 @@ internal import RoktUXHelper
     /// - Note: Prefer ``getSession()`` to also read the session token.
     @available(*, deprecated, message: "Use getSession() to read session id and session token.")
     public static func getSessionId() -> String? {
-        shared.roktImplementation.getSessionId()
+        RoktLogger.shared.warning(
+            "Rokt.getSessionId() is deprecated. Use getSession() to read session id and session token."
+        )
+        return shared.roktImplementation.getSessionId()
     }
 
     /// End the current Rokt session so the next `selectPlacements` call starts a new one.
