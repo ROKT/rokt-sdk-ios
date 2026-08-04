@@ -17,11 +17,12 @@ final class TestPublicApiDiagnostics: XCTestCase {
         super.tearDown()
     }
 
-    func test_colorModeString_mapsEveryModeToBoundedNonPIIString() {
-        XCTAssertEqual(RoktInternalImplementation.colorModeString(nil), "none")
-        XCTAssertEqual(RoktInternalImplementation.colorModeString(RoktConfig.Builder().colorMode(.light).build()), "light")
-        XCTAssertEqual(RoktInternalImplementation.colorModeString(RoktConfig.Builder().colorMode(.dark).build()), "dark")
-        XCTAssertEqual(RoktInternalImplementation.colorModeString(RoktConfig.Builder().colorMode(.system).build()), "system")
+    func test_colorModeDiagnosticValue_mapsEveryModeToBoundedNonPIIString() {
+        let missingConfig: RoktConfig? = nil
+        XCTAssertEqual(missingConfig?.colorModeDiagnosticValue ?? "none", "none")
+        XCTAssertEqual(RoktConfig.Builder().colorMode(.light).build().colorModeDiagnosticValue, "light")
+        XCTAssertEqual(RoktConfig.Builder().colorMode(.dark).build().colorModeDiagnosticValue, "dark")
+        XCTAssertEqual(RoktConfig.Builder().colorMode(.system).build().colorModeDiagnosticValue, "system")
     }
 
     func test_purchaseFinalized_sendsApiPurchaseFinalizedInfoDiagnostic() {
@@ -59,6 +60,17 @@ final class TestPublicApiDiagnostics: XCTestCase {
         Rokt.shared.roktImplementation.logApiCallBuffered(RoktInternalImplementation.apiSetFrameworkTypeCode)
 
         wait(for: [exp], timeout: 0.5)
+    }
+
+    func test_bufferedApiCall_beforeInit_isDrainedOnceWhenTagIdIsSet() {
+        let implementation = RoktInternalImplementation()
+        implementation.logApiCallBuffered(RoktInternalImplementation.apiSetFrameworkTypeCode)
+
+        let logs = implementation.setRoktTagIdAndDrainPendingApiLogs("123")
+
+        XCTAssertEqual(logs.count, 1)
+        XCTAssertEqual(logs.first?.code, "[API_SET_FRAMEWORK_TYPE]")
+        XCTAssertTrue(implementation.setRoktTagIdAndDrainPendingApiLogs("123").isEmpty)
     }
 
     func test_logMParticleApiCall_sendsPrefixedInfoDiagnosticWithNoAdditionalInfo() {

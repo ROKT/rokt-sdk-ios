@@ -293,17 +293,6 @@ class RoktInternalImplementation {
 
     // MARK: - Public API usage diagnostics
 
-    /// Map a partner-supplied RoktConfig color mode to a bounded, non-PII string tag.
-    static func colorModeString(_ config: RoktConfig?) -> String {
-        guard let colorMode = config?.colorMode else { return "none" }
-        switch colorMode {
-        case .light: return "light"
-        case .dark: return "dark"
-        case .system: return "system"
-        @unknown default: return "unknown"
-        }
-    }
-
     /// Bounded, non-PII format guard for the mParticle public-API diagnostic codes forwarded by
     /// the Rokt kit. Accepts uppercase SNAKE_CASE identifiers only (e.g. `LOG_EVENT`), 1...40
     /// chars — which structurally excludes event/screen names, attribute values, URLs, and ids
@@ -318,24 +307,27 @@ class RoktInternalImplementation {
     /// Log a public API call, buffering it until init when the SDK isn't initialised yet. Only
     /// `setCustomBaseURL` / `setFrameworkType` need this (they run pre-init); everything else logs inline.
     func logApiCallBuffered(_ code: String, _ additionalInfo: [String: String] = [:]) {
-        guard roktTagId == nil else {
-            RoktAPIHelper.logApiCalled(code, additionalInfo)
-            return
+        let shouldSend = pendingApiLogsLock.withLock {
+            guard roktTagId == nil else { return true }
+            // Bounded buffer — a wrapper spamming setFrameworkType pre-init must not grow it unbounded.
+            guard pendingApiLogs.count < Self.maxPendingApiLogs else { return false }
+            pendingApiLogs.append((code, additionalInfo))
+            return false
         }
-        pendingApiLogsLock.lock()
-        defer { pendingApiLogsLock.unlock() }
-        // Bounded buffer — a wrapper spamming setFrameworkType pre-init must not grow it unbounded.
-        guard pendingApiLogs.count < Self.maxPendingApiLogs else { return }
-        pendingApiLogs.append((code, additionalInfo))
+        if shouldSend {
+            RoktAPIHelper.logApiCalled(code, additionalInfo)
+        }
     }
 
-    /// Flush buffered pre-init public-API logs once init has set `roktTagId`.
-    private func flushPendingApiLogs() {
-        pendingApiLogsLock.lock()
-        let logs = pendingApiLogs
-        pendingApiLogs.removeAll()
-        pendingApiLogsLock.unlock()
-        logs.forEach { RoktAPIHelper.logApiCalled($0.code, $0.info) }
+    func setRoktTagIdAndDrainPendingApiLogs(
+        _ roktTagId: String
+    ) -> [(code: String, info: [String: String])] {
+        pendingApiLogsLock.withLock {
+            self.roktTagId = roktTagId
+            let logs = pendingApiLogs
+            pendingApiLogs.removeAll()
+            return logs
+        }
     }
 
     // Shows the widget on top the visible view controller
@@ -921,10 +913,10 @@ class RoktInternalImplementation {
             NetworkingHelper.updateMParticleKitDetails(mParticleKitDetails: mParticleKitDetails)
         }
 
-        self.roktTagId = roktTagId
+        let pendingApiLogs = setRoktTagIdAndDrainPendingApiLogs(roktTagId)
         sessionManager.storedTagId = roktTagId
         RoktAPIHelper.logApiCalled(mParticleKitDetails != nil ? Self.apiInitMParticleCode : Self.apiInitCode)
-        flushPendingApiLogs()
+        pendingApiLogs.forEach { RoktAPIHelper.logApiCalled($0.code, $0.info) }
         isInitFailedForFont = false
         FontManager.resetFontRecoveryState()
         stateManager = StateBagManager()
@@ -1377,7 +1369,7 @@ class RoktInternalImplementation {
     ) {
         RoktAPIHelper.logApiCalled(Self.apiLayoutCode, [
             "hasConfig": "\(config != nil)",
-            "colorMode": Self.colorModeString(config),
+            "colorMode": config?.colorModeDiagnosticValue ?? "none",
             "cacheEnabled": "\(config?.cacheConfig.isCacheEnabled() == true)",
             "attributeCount": "\(attributes.count)"
         ])
@@ -1465,7 +1457,7 @@ class RoktInternalImplementation {
     ) {
         RoktAPIHelper.logApiCalled(Self.apiSelectShoppableAdsCode, [
             "hasConfig": "\(config != nil)",
-            "colorMode": Self.colorModeString(config),
+            "colorMode": config?.colorModeDiagnosticValue ?? "none",
             "cacheEnabled": "\(config?.cacheConfig.isCacheEnabled() == true)",
             "attributeCount": "\(attributes.count)"
         ])

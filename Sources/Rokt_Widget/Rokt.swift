@@ -82,7 +82,7 @@ internal import RoktUXHelper
         RoktAPIHelper.logApiCalled(RoktInternalImplementation.apiSelectPlacementsCode, [
             "embedded": "\(placements != nil)",
             "hasConfig": "\(config != nil)",
-            "colorMode": RoktInternalImplementation.colorModeString(config),
+            "colorMode": config?.colorModeDiagnosticValue ?? "none",
             "cacheEnabled": "\(config?.cacheConfig.isCacheEnabled() == true)",
             "hasPlacementOptions": "\(placementOptions != nil)",
             "attributeCount": "\(attributes.count)"
