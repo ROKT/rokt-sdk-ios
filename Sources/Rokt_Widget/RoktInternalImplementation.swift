@@ -1335,10 +1335,20 @@ class RoktInternalImplementation {
               !session.sessionId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               !session.sessionToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else {
+            RoktLogger.shared.warning(
+                "Rokt.setSession ignored: SDK must be initialized and sessionId/sessionToken must be non-empty."
+            )
             return
         }
 
         let sessionToken = TxnSessionToken(token: session.sessionToken, expiresAt: session.expiresAt)
+        if TxnSessionPersistence.isExpired(expiresAt: sessionToken.expiresAtDate, clock: Date.init) {
+            RoktLogger.shared.warning(
+                "Rokt.setSession ignored: session token is expired."
+            )
+            return
+        }
+
         TxnSessionPersistence.seed(
             roktTagId: roktTagId,
             sessionId: session.sessionId,
@@ -1349,17 +1359,41 @@ class RoktInternalImplementation {
 
     func getSession() -> RoktSession? {
         guard let roktTagId else {
+            RoktLogger.shared.warning(
+                "Rokt.getSession returned nil: SDK must be initialized."
+            )
             return nil
         }
-        guard let snapshot = TxnSessionPersistence.load(roktTagId: roktTagId),
-              let sessionId = snapshot.sessionId,
+
+        let store = UserDefaultsTxnSessionStore()
+        guard store.string(forKey: TxnSessionStoreKeys.tagId) == roktTagId else {
+            RoktLogger.shared.warning(
+                "Rokt.getSession returned nil: no session is present."
+            )
+            return nil
+        }
+
+        let snapshot = TxnSessionPersistence.readRaw(store: store)
+        guard let sessionId = snapshot.sessionId,
               !sessionId.isEmpty,
               let token = snapshot.token,
               !token.isEmpty,
               let expiresAt = snapshot.expiresAt
         else {
+            RoktLogger.shared.warning(
+                "Rokt.getSession returned nil: no session is present."
+            )
             return nil
         }
+
+        if TxnSessionPersistence.isExpired(expiresAt: expiresAt, clock: Date.init) {
+            RoktLogger.shared.warning(
+                "Rokt.getSession returned nil: session token is expired."
+            )
+            TxnSessionPersistence.clear(store: store)
+            return nil
+        }
+
         let expiresAtMs = Int64((expiresAt.timeIntervalSince1970 * 1000).rounded(.down))
         return RoktSession(sessionId: sessionId, sessionToken: token, expiresAt: expiresAtMs)
     }
