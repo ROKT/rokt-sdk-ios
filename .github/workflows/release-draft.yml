@@ -43,7 +43,7 @@ jobs:
             "${PACT_CLI_IMAGE}" \
             broker can-i-deploy \
               --pacticipant rokt-sdk-ios \
-              --latest main \
+              --latest --branch main \
               --to-environment production
 
   prepare-release:
