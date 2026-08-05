@@ -1,13 +1,16 @@
 name: Pact Consumer
 
 # Generates the consumer pact on every PR, publishes it to the broker on
-# same-repo PR pushes and main, then runs a blocking contract check against
-# production. Release – Draft runs the same check before opening a release PR.
+# same-repo PR pushes and pushes to main/maintenance/*, then runs a blocking
+# contract check against production. Release – Draft runs the same check
+# before opening a release PR.
 
 on:
   pull_request:
   push:
-    branches: [main]
+    branches:
+      - main
+      - maintenance/*
 
 permissions:
   contents: read
@@ -98,13 +101,14 @@ jobs:
   publish:
     name: Publish to Broker
     needs: [consumer-test, detect-changes]
-    # Main pushes and same-repo (non-fork) PR pushes with contract changes.
-    # Skip Dependabot: its secret store has no pact-publish environment credentials.
+    # Push events (main/maintenance/* via on.push.branches) and same-repo
+    # (non-fork) PR pushes with contract changes. Skip Dependabot: its secret
+    # store has no pact-publish environment credentials.
     if: |
       needs.detect-changes.outputs.contract == 'true'
       && github.actor != 'dependabot[bot]'
       && (
-        (github.event_name == 'push' && github.ref == 'refs/heads/main')
+        github.event_name == 'push'
         || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
       )
     runs-on: ubuntu-latest

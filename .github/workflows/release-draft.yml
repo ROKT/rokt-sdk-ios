@@ -23,8 +23,8 @@ jobs:
   contract-verified:
     name: Contract verified vs production
     runs-on: ubuntu-latest
-    # Blocking: refuse to open a release PR unless the latest main consumer
-    # contract is verified against the provider currently in production.
+    # Blocking: refuse to open a release PR unless the latest consumer
+    # contract for this branch is verified against production.
     environment: pact-publish
     steps:
       - name: Check provider verification
@@ -32,6 +32,7 @@ jobs:
           PACT_BROKER_BASE_URL: ${{ vars.PACT_BROKER_BASE_URL }}
           PACT_BROKER_USERNAME: ${{ vars.PACT_BROKER_USERNAME }}
           PACT_BROKER_PASSWORD: ${{ secrets.PACT_BROKER_PASSWORD }}
+          PACT_BRANCH: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           # renovate: datasource=docker depName=pactfoundation/pact-cli
@@ -43,7 +44,7 @@ jobs:
             "${PACT_CLI_IMAGE}" \
             broker can-i-deploy \
               --pacticipant rokt-sdk-ios \
-              --latest main \
+              --latest --branch "${PACT_BRANCH}" \
               --to-environment production
 
   prepare-release:
