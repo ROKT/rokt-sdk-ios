@@ -1,5 +1,4 @@
 import Foundation
-internal import RoktUXHelper
 
 enum StorageType {
     case memory
@@ -33,7 +32,7 @@ class RealTimeEventManager: ManagedSession {
 
     /// Flag the events as being triggered so they can be sent to the API.
     /// This method debounces calls and aggregates events before processing.
-    func markEventsAsTriggered(triggeredEvents: [RoktEventRequest]) {
+    func markEventsAsTriggered(triggeredEvents: [RealTimeTrigger]) {
         store.markAsTriggered(triggeredEvents)
     }
 

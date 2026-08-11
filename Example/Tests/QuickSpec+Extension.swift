@@ -72,17 +72,15 @@ extension QuickSpec {
         return try? String(contentsOfFile: path)
     }
 
-    /// The experience page the offers path renders for a v1 layout fixture: the
-    /// fixture reshaped into the offers response, then adapted into the render
-    /// contract. Mirrors what the offers service feeds the renderer, so cache
-    /// assertions compare against the real output rather than the raw fixture.
+    /// The experience page the offers path renders for a v1 layout fixture, reshaped
+    /// into the canonical offers response that the service forwards unchanged.
     func expectedOffersPage(forV1Fixture fileName: String) -> String? {
         guard let path = Bundle(for: type(of: self)).path(forResource: fileName, ofType: "json"),
               let v1Data = try? Data(contentsOf: URL(fileURLWithPath: path)),
               let offersData = makeOffersData(fromV1Experience: v1Data),
-              let response = try? JSONDecoder().decode(SelectResponse.self, from: offersData)
+              let response = String(data: offersData, encoding: .utf8)
         else { return nil }
-        return try? SelectExperienceAdapter.experienceJSONString(from: response)
+        return response
     }
 
     func prepareExperienceCacheTestFiles(_ testCacheDirectoryName: String) {

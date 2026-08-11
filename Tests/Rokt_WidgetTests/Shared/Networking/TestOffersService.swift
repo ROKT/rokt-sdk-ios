@@ -119,7 +119,7 @@ final class TestOffersService: XCTestCase {
         )
     }
 
-    func test_getExperienceData_adaptsResponseAndRollsTokenForward() async {
+    func test_getExperienceData_passesResponseThroughAndRollsTokenForward() async {
         let sessionManager = TxnSessionManager()
         let service = makeService(StubHTTPClient(responseData: Data(offersResponse.utf8), statusCode: 200),
                                   sessionManager: sessionManager)
@@ -127,7 +127,8 @@ final class TestOffersService: XCTestCase {
         let completed = expectation(description: "offers experience returned")
         service.getExperienceData(viewName: "checkout", attributes: [:], config: nil, successLayout: { page in
             let page = page ?? ""
-            XCTAssertTrue(page.contains("\"placementContext\""))
+            // The raw snake_case selection response is forwarded to the renderer unchanged.
+            XCTAssertTrue(page.contains("\"page_context\""))
             XCTAssertTrue(page.contains("\"rolled-token\""))
             completed.fulfill()
         }, failure: { error, _, _ in

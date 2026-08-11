@@ -14,7 +14,7 @@ struct ExperienceCacheUtils {
         let customStateMap: RoktUXCustomStateMap?
     }
 
-    private static let experienceResponseFilePrefix = "RoktExperienceResponse"
+    private static let experienceResponseFilePrefix = "RoktExperienceResponseV2"
     private static let viewStateFilePrefix = "RoktPluginViewState"
     private static let experiencesViewStateFilePrefix = "RoktExperiencesViewState"
 

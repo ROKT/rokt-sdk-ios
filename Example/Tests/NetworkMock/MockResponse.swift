@@ -130,7 +130,7 @@ var txnOffersResourceURL: String {
 // Reshapes a legacy v1 experience fixture into the v2 offers response so existing
 // layout fixtures still drive offers rendering through the v2 path. Structural keys
 // are re-homed to snake_case; the DCUI schema strings and copy/images/links maps pass
-// through verbatim. The render-side adapter re-buckets response options by is_positive.
+// through verbatim. RoktUXHelper re-buckets response options by is_positive.
 func makeOffersData(fromV1Experience legacyData: Data) -> Data? {
     guard let v1 = try? JSONSerialization.jsonObject(with: legacyData) as? [String: Any] else {
         return nil
@@ -223,7 +223,7 @@ func makeOffersData(fromV1Experience legacyData: Data) -> Data? {
         "plugins": (v1["plugins"] as? [[String: Any]] ?? []).map(reshapePlugin)
     ]
 
-    return try? JSONSerialization.data(withJSONObject: response)
+    return try? JSONSerialization.data(withJSONObject: response, options: [.sortedKeys])
 }
 
 // Stubs the v2 offers endpoint from a v1 experience fixture; nil legacyData yields a body-less error.
@@ -264,8 +264,11 @@ extension StubMethodsProvider {
                   let events = json["events"] as? [[String: Any]] else { return }
             for event in events {
                 guard let txnType = event["event_type"] as? String,
-                      let legacyType = txnEventTypeToLegacyName[txnType] else { continue }
+                      let mappedType = txnEventTypeToLegacyName[txnType] else { continue }
                 let data = event["data"] as? [String: Any]
+                let legacyType = txnType == "user_interaction" && data?["interaction_type"] as? String == "activation"
+                    ? "SignalActivation"
+                    : mappedType
                 onEventReceive?(
                     EventModel(eventType: legacyType,
                                parentGuid: data?["parent_id"] as? String ?? "",

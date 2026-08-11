@@ -125,15 +125,11 @@ class TestRokt: XCTestCase {
         let sessionId = "test-session-id"
         let response = """
             {
-              "sessionId": "\(sessionId)",
-              "placementContext": {
-                "roktTagId": "123",
-                "pageInstanceGuid": "test-guid",
-                "token": "test-token"
-              },
-              "placements": [],
-              "plugins": [],
-              "token": ""
+              "session_id": "\(sessionId)",
+              "session_token": { "token": "test-token", "expires_at": 32503680000000 },
+              "page_instance_guid": "test-guid",
+              "page_context": { "page_id": "checkout", "token": "test-token" },
+              "plugins": []
             }
             """
 
@@ -158,15 +154,11 @@ class TestRokt: XCTestCase {
         let selectionId = UUID().uuidString
         let response = """
             {
-              "sessionId": "test-session-id",
-              "placementContext": {
-                "roktTagId": "123",
-                "pageInstanceGuid": "test-guid",
-                "token": "test-token"
-              },
-              "placements": [],
-              "plugins": [],
-              "token": ""
+              "session_id": "test-session-id",
+              "session_token": { "token": "test-token", "expires_at": 32503680000000 },
+              "page_instance_guid": "test-guid",
+              "page_context": { "page_id": "checkout", "token": "test-token" },
+              "plugins": []
             }
             """
 

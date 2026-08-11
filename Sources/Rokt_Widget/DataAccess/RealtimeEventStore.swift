@@ -1,12 +1,19 @@
 import Foundation
-internal import RoktUXHelper
 
 internal let maximumRealTimeEventsToStore: Int = 50
+
+/// A user-side event used to trigger stored real-time events. `eventTypeKey` is the legacy
+/// signal name (e.g. `SignalResponse`) that matches the offers response's untriggered-event keys.
+struct RealTimeTrigger: Equatable {
+    let parentGuid: String
+    let eventTypeKey: String
+    let eventTime: String
+}
 
 protocol RealTimeEventStore {
     func addUntriggeredEvents(_ events: [UntriggeredRealTimeEvent])
     func getTriggeredEvents() -> [TriggeredRealTimeEvent]
-    func markAsTriggered(_ triggeredEvents: [RoktEventRequest])
+    func markAsTriggered(_ triggeredEvents: [RealTimeTrigger])
     func clear()
 }
 
@@ -25,7 +32,7 @@ class RealtimeEventStoreMemory: RealTimeEventStore {
         return triggeredEvents
     }
 
-    func markAsTriggered(_ triggeredEvents: [RoktEventRequest]) {
+    func markAsTriggered(_ triggeredEvents: [RealTimeTrigger]) {
         let currentTriggeredEvents = self.triggeredEvents
         let updatedTriggeredEvents = updateTriggeredEvents(
             currentTriggeredEvents: currentTriggeredEvents,
@@ -48,7 +55,7 @@ class RealTimeEventStoreFile: RealTimeEventStore {
     private let triggeredEventsFilePath: URL?
 
     private var debounceTimer: Timer?
-    private var accumulatedEventsToMark: [RoktEventRequest] = []
+    private var accumulatedEventsToMark: [RealTimeTrigger] = []
     private let debounceInterval: TimeInterval = 0.5
     private let eventProcessingQueue = DispatchQueue(label: "com.rokt.RealTimeEventManager.eventProcessingQueue")
 
@@ -134,7 +141,7 @@ class RealTimeEventStoreFile: RealTimeEventStore {
         return load(from: triggeredEventsFilePath)
     }
 
-    func markAsTriggered(_ triggeredEvents: [RoktEventRequest]) {
+    func markAsTriggered(_ triggeredEvents: [RealTimeTrigger]) {
         guard !triggeredEvents.isEmpty else { return }
 
         eventProcessingQueue.async { [weak self] in
@@ -234,15 +241,15 @@ class RealTimeEventStoreFile: RealTimeEventStore {
 
 // MARK: - Helper functions
 
-private func doEventsMatch(event: UntriggeredRealTimeEvent, trigger: RoktEventRequest) -> Bool {
+private func doEventsMatch(event: UntriggeredRealTimeEvent, trigger: RealTimeTrigger) -> Bool {
     let parentGuidsMatch = (event.triggerGuid == trigger.parentGuid)
-    let eventTypesMatch = (event.triggerEvent == trigger.eventType.rawValue)
+    let eventTypesMatch = (event.triggerEvent == trigger.eventTypeKey)
     return parentGuidsMatch && eventTypesMatch
 }
 
 private func updateTriggeredEvents(
     currentTriggeredEvents: [TriggeredRealTimeEvent],
-    triggeredEventsToMarkAsTriggered: [RoktEventRequest],
+    triggeredEventsToMarkAsTriggered: [RealTimeTrigger],
     untriggeredEvents: [UntriggeredRealTimeEvent]
 ) -> [TriggeredRealTimeEvent] {
     var updatedTriggeredEvents: [TriggeredRealTimeEvent] = currentTriggeredEvents

@@ -8,20 +8,18 @@ final class TestTxnEventMapper: XCTestCase {
 
     private func makeRequest(
         eventType: RoktUXEventType,
-        eventData: [String: String] = [:],
-        objectData: [String: String]? = nil,
+        attributes: [String: String] = [:],
         parentGuid: String = "parent-1",
         pageInstanceGuid: String = "page-1",
         jwtToken: String = "jwt-1",
         eventTime: Date? = nil
-    ) -> RoktEventRequest {
-        RoktEventRequest(
+    ) -> EventRequest {
+        EventRequest(
             sessionId: "session-1",
             eventType: eventType,
             parentGuid: parentGuid,
             eventTime: eventTime ?? self.eventTime,
-            eventData: eventData,
-            objectData: objectData,
+            attributes: attributes,
             pageInstanceGuid: pageInstanceGuid,
             jwtToken: jwtToken
         )
@@ -59,30 +57,11 @@ final class TestTxnEventMapper: XCTestCase {
     func test_activation_mapsToUserInteractionWithType() {
         let event = TxnEventMapper.event(from: makeRequest(
             eventType: .SignalActivation,
-            objectData: [
-                "action": "MainImageScrollIconRightClick",
-                "interactionType": "stale"
-            ]
+            attributes: ["interaction_type": "stale"]
         ))
 
         XCTAssertEqual(event?.eventType, "user_interaction")
-        XCTAssertEqual(event?.data?["interactionType"], .string("activation"))
-    }
-
-    func test_userInteraction_mirrorsActionToInteractionType() {
-        let event = TxnEventMapper.event(from: makeRequest(
-            eventType: .SignalUserInteraction,
-            objectData: [
-                "action": "MainImageScrollIconRightClick",
-                "context": "CatalogImageGallery",
-                "interactionType": "stale"
-            ]
-        ))
-
-        XCTAssertEqual(event?.eventType, "user_interaction")
-        XCTAssertEqual(event?.data?["action"], .string("MainImageScrollIconRightClick"))
-        XCTAssertEqual(event?.data?["context"], .string("CatalogImageGallery"))
-        XCTAssertEqual(event?.data?["interactionType"], .string("MainImageScrollIconRightClick"))
+        XCTAssertEqual(event?.data?["interaction_type"], .string("activation"))
     }
 
     func test_diagnostic_isDropped() {
@@ -113,18 +92,17 @@ final class TestTxnEventMapper: XCTestCase {
           "eventType": "SignalImpression",
           "parentGuid": "parent-1",
           "eventTime": "not-a-date",
-          "eventData": [],
+          "attributes": [],
           "metadata": [],
           "pageInstanceGuid": "page-1",
           "token": "jwt-1"
         }
         """.utf8)
-        let request = try JSONDecoder().decode(RoktEventRequest.self, from: json)
+        let request = try JSONDecoder().decode(EventRequest.self, from: json)
 
         let event = TxnEventMapper.event(from: request)
 
         XCTAssertNotNil(event)
-        // Dropped from the wire so the gateway defaults to receive-time (mirrors web + Android).
         XCTAssertNil(event?.timestamp)
     }
 
@@ -159,7 +137,7 @@ final class TestTxnEventMapper: XCTestCase {
     func test_attributesAreFlattenedAndMetadataMapped() {
         let event = TxnEventMapper.event(from: makeRequest(
             eventType: .SignalImpression,
-            eventData: ["source_message_id": "abc"]
+            attributes: ["source_message_id": "abc"]
         ))
 
         XCTAssertEqual(event?.data?["source_message_id"], .string("abc"))
@@ -171,7 +149,7 @@ final class TestTxnEventMapper: XCTestCase {
     func test_reservedKeysAreAlwaysPresentAndWinOverAttributes() {
         let event = TxnEventMapper.event(from: makeRequest(
             eventType: .SignalImpression,
-            eventData: ["parent_id": "spoofed", "token": "spoofed"],
+            attributes: ["parent_id": "spoofed", "token": "spoofed"],
             parentGuid: "real-parent",
             pageInstanceGuid: "real-page",
             jwtToken: "real-token"
@@ -191,19 +169,10 @@ final class TestTxnEventMapper: XCTestCase {
         XCTAssertNil(event?.data?["page_instance_guid"])
     }
 
-    func test_objectDataIsFlattenedIntoData() {
-        let event = TxnEventMapper.event(from: makeRequest(
-            eventType: .SignalImpression,
-            objectData: ["custom_field": "value"]
-        ))
-
-        XCTAssertEqual(event?.data?["custom_field"], .string("value"))
-    }
-
     func test_captureAttributes_nestsAttributesAndAddsMarker() {
         let event = TxnEventMapper.event(from: makeRequest(
             eventType: .CaptureAttributes,
-            eventData: ["email": "a@b.com", "token": "should-stay-nested"]
+            attributes: ["email": "a@b.com", "token": "should-stay-nested"]
         ))
 
         XCTAssertEqual(event?.eventType, "capture_attributes")
@@ -213,23 +182,4 @@ final class TestTxnEventMapper: XCTestCase {
         XCTAssertEqual(event?.data?["token"], .string("jwt-1"))
     }
 
-    func test_eventRequestOverload_mapsCaptureAttributes() {
-        let request = EventRequest(
-            sessionId: "session-1",
-            eventType: .CaptureAttributes,
-            parentGuid: "parent-1",
-            eventTime: eventTime,
-            attributes: ["email": "a@b.com"],
-            pageInstanceGuid: "page-1",
-            jwtToken: "jwt-1"
-        )
-
-        let event = TxnEventMapper.event(from: request)
-
-        XCTAssertEqual(event?.eventType, "capture_attributes")
-        XCTAssertEqual(event?.instanceId, request.uuid)
-        XCTAssertEqual(event?.timestamp, 1_700_000_000_000)
-        XCTAssertEqual(event?.data?["attributes"], .object(["email": "a@b.com"]))
-        XCTAssertEqual(event?.data?["token"], .string("jwt-1"))
-    }
 }
