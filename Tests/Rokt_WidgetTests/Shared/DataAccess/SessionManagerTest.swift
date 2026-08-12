@@ -23,6 +23,7 @@ class SessionManagerTests: XCTestCase {
             managedSessions: [mockManagedSession],
             userDefaults: userDefaults
         )
+        RoktLogger.shared.sessionId = nil
     }
 
     override func tearDown() {
@@ -30,6 +31,7 @@ class SessionManagerTests: XCTestCase {
         userDefaults = nil
         mockManagedSession = nil
         sessionManager = nil
+        RoktLogger.shared.sessionId = nil
         super.tearDown()
     }
 
@@ -127,5 +129,30 @@ class SessionManagerTests: XCTestCase {
 
         XCTAssertEqual(userDefaults.string(forKey: "rokt.sessionId"), existingSessionId)
         XCTAssertEqual(mockManagedSession.sessionInvalidatedCallCount, 1)
+    }
+
+    func testUpdateSessionIdPropagatesIdToLogger() {
+        sessionManager.updateSessionId(newSessionId: "newSessionXYZ")
+
+        XCTAssertEqual(RoktLogger.shared.sessionId, "newSessionXYZ")
+    }
+
+    func testUpdateSessionIdNilClearsIdOnLogger() {
+        sessionManager.updateSessionId(newSessionId: "newSessionXYZ")
+        XCTAssertEqual(RoktLogger.shared.sessionId, "newSessionXYZ")
+
+        sessionManager.updateSessionId(newSessionId: nil)
+
+        XCTAssertNil(RoktLogger.shared.sessionId)
+    }
+
+    func testStoredTagIdChangeClearsIdOnLogger() {
+        sessionManager.storedTagId = "tag-a"
+        sessionManager.updateSessionId(newSessionId: "newSessionXYZ")
+        XCTAssertEqual(RoktLogger.shared.sessionId, "newSessionXYZ")
+
+        sessionManager.storedTagId = "tag-b"
+
+        XCTAssertNil(RoktLogger.shared.sessionId)
     }
 }
