@@ -185,7 +185,7 @@ class TestRokt: XCTestCase {
         let session = RoktSession(
             sessionId: "sid",
             sessionToken: "jwt",
-            expiresAt: Int64(Date().addingTimeInterval(1800).timeIntervalSince1970 * 1000)
+            expiresAtMilliseconds: Int64(Date().addingTimeInterval(1800).timeIntervalSince1970 * 1000)
         )
 
         roktInternalImplementation.setSession(session)
@@ -198,7 +198,11 @@ class TestRokt: XCTestCase {
         let roktInternalImplementation = RoktInternalImplementation()
         roktInternalImplementation.roktTagId = "tag-set-session"
         let expiresAt = Int64(Date().addingTimeInterval(1800).timeIntervalSince1970 * 1000)
-        let session = RoktSession(sessionId: "webview-sid", sessionToken: "webview-jwt", expiresAt: expiresAt)
+        let session = RoktSession(
+            sessionId: "webview-sid",
+            sessionToken: "webview-jwt",
+            expiresAtMilliseconds: expiresAt
+        )
 
         roktInternalImplementation.setSession(session)
 
@@ -220,20 +224,21 @@ class TestRokt: XCTestCase {
         let expiresAt = Int64(Date().addingTimeInterval(1800).timeIntervalSince1970 * 1000)
 
         roktInternalImplementation.setSession(
-            RoktSession(sessionId: "  ", sessionToken: "jwt", expiresAt: expiresAt)
+            RoktSession(sessionId: "  ", sessionToken: "jwt", expiresAtMilliseconds: expiresAt)
         )
 
         XCTAssertNil(roktInternalImplementation.getSession())
         XCTAssertNil(roktInternalImplementation.getSessionId())
     }
 
+    // trunk-ignore(trufflehog/Lob): XCTest names like test_set* are false-positive Lob key shapes.
     func test_setSession_ignoresEmptySessionToken() {
         let roktInternalImplementation = RoktInternalImplementation()
         roktInternalImplementation.roktTagId = "tag-empty-token"
         let expiresAt = Int64(Date().addingTimeInterval(1800).timeIntervalSince1970 * 1000)
 
         roktInternalImplementation.setSession(
-            RoktSession(sessionId: "sid", sessionToken: "", expiresAt: expiresAt)
+            RoktSession(sessionId: "sid", sessionToken: "", expiresAtMilliseconds: expiresAt)
         )
 
         XCTAssertNil(roktInternalImplementation.getSession())
@@ -244,14 +249,44 @@ class TestRokt: XCTestCase {
         let roktInternalImplementation = RoktInternalImplementation()
         roktInternalImplementation.roktTagId = "tag-round-trip"
         let expiresAt = Int64(Date().addingTimeInterval(3600).timeIntervalSince1970 * 1000)
-        let session = RoktSession(sessionId: "sid-1", sessionToken: "jwt-1", expiresAt: expiresAt)
+        let session = RoktSession(
+            sessionId: "sid-1",
+            sessionToken: "jwt-1",
+            expiresAtMilliseconds: expiresAt
+        )
 
         roktInternalImplementation.setSession(session)
         let loaded = roktInternalImplementation.getSession()
 
         XCTAssertEqual(loaded?.sessionId, "sid-1")
         XCTAssertEqual(loaded?.sessionToken, "jwt-1")
-        XCTAssertEqual(loaded?.expiresAt, expiresAt)
+        XCTAssertEqual(loaded?.expiresAt?.int64Value, expiresAt)
+    }
+
+    func test_setSession_withoutExpiresAt_appliesDefaultTTL() async {
+        let roktInternalImplementation = RoktInternalImplementation()
+        roktInternalImplementation.roktTagId = "tag-no-expiry"
+        let before = Date()
+
+        roktInternalImplementation.setSession(
+            RoktSession(sessionId: "sid", sessionToken: "jwt")
+        )
+
+        let loaded = roktInternalImplementation.getSession()
+        XCTAssertEqual(loaded?.sessionId, "sid")
+        XCTAssertEqual(loaded?.sessionToken, "jwt")
+        guard let expiresAtMs = loaded?.expiresAt?.int64Value else {
+            XCTFail("Expected default expiresAt after setSession without expiry")
+            return
+        }
+        let expiresAt = Date(timeIntervalSince1970: TimeInterval(expiresAtMs)/1000)
+        // Default TTL is 30 minutes; allow a few seconds of test slack.
+        XCTAssertGreaterThan(expiresAt, before.addingTimeInterval(29 * 60))
+        XCTAssertLessThan(expiresAt, before.addingTimeInterval(31 * 60))
+
+        let restored = TxnSessionManager(roktTagId: "tag-no-expiry")
+        let header = await restored.authorizationHeader
+        XCTAssertEqual(header, "Bearer jwt")
     }
 
     func test_getSession_returnsNilWhenExpired() {
@@ -259,7 +294,7 @@ class TestRokt: XCTestCase {
         roktInternalImplementation.roktTagId = "tag-expired-get"
         let expiresAt = Int64(Date().addingTimeInterval(1800).timeIntervalSince1970 * 1000)
         roktInternalImplementation.setSession(
-            RoktSession(sessionId: "sid", sessionToken: "jwt", expiresAt: expiresAt)
+            RoktSession(sessionId: "sid", sessionToken: "jwt", expiresAtMilliseconds: expiresAt)
         )
         XCTAssertNotNil(roktInternalImplementation.getSession())
 
@@ -271,22 +306,24 @@ class TestRokt: XCTestCase {
         XCTAssertNil(TxnSessionPersistence.load(roktTagId: "tag-expired-get"))
     }
 
-    func test_setSession_ignoresExpiredToken() async {
+    func test_setSession_pastExpiresAt_fallsBackToDefaultTTL() async {
         let roktInternalImplementation = RoktInternalImplementation()
         roktInternalImplementation.roktTagId = "tag-expired"
         let expiredAt = Int64(Date().addingTimeInterval(-60).timeIntervalSince1970 * 1000)
 
         roktInternalImplementation.setSession(
-            RoktSession(sessionId: "sid", sessionToken: "jwt", expiresAt: expiredAt)
+            RoktSession(sessionId: "sid", sessionToken: "jwt", expiresAtMilliseconds: expiredAt)
         )
 
-        XCTAssertNil(roktInternalImplementation.getSession())
-        XCTAssertNil(roktInternalImplementation.getSessionId())
+        let loaded = roktInternalImplementation.getSession()
+        XCTAssertEqual(loaded?.sessionId, "sid")
+        XCTAssertEqual(loaded?.sessionToken, "jwt")
+        XCTAssertEqual(roktInternalImplementation.getSessionId(), "sid")
         let restored = TxnSessionManager(roktTagId: "tag-expired")
         let sessionId = await restored.currentSessionId
         let header = await restored.authorizationHeader
-        XCTAssertNil(sessionId)
-        XCTAssertNil(header)
+        XCTAssertEqual(sessionId, "sid")
+        XCTAssertEqual(header, "Bearer jwt")
     }
 
     func test_setSessionId_doesNotWriteTxnSessionToken() async {
@@ -487,14 +524,18 @@ class TestRokt: XCTestCase {
     func test_Rokt_setSession_roundTrips() {
         Rokt.shared.roktImplementation.roktTagId = "public-tag"
         let expiresAt = Int64(Date().addingTimeInterval(1800).timeIntervalSince1970 * 1000)
-        let session = RoktSession(sessionId: "public-sid", sessionToken: "public-jwt", expiresAt: expiresAt)
+        let session = RoktSession(
+            sessionId: "public-sid",
+            sessionToken: "public-jwt",
+            expiresAtMilliseconds: expiresAt
+        )
 
         Rokt.setSession(session)
         let loaded = Rokt.getSession()
 
         XCTAssertEqual(loaded?.sessionId, "public-sid")
         XCTAssertEqual(loaded?.sessionToken, "public-jwt")
-        XCTAssertEqual(loaded?.expiresAt, expiresAt)
+        XCTAssertEqual(loaded?.expiresAt?.int64Value, expiresAt)
     }
 
     func test_Rokt_setSessionId_updatesSession() {

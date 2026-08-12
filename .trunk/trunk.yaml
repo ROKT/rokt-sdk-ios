@@ -41,6 +41,13 @@ lint:
         - Tests/SizeReport/**/Assets.xcassets/**/*.json
         - Example/Tests/**/*.json
         - periphery-baseline.json
+    # XCTest method names (`test_…`) are false-positive Lob API key shapes under
+    # trufflehog; CI uses check-mode: all so these otherwise fail the PR gate.
+    - linters: [trufflehog]
+      paths:
+        - Tests/**
+        - Packages/**/Tests/**
+        - Example/Tests/**
   enabled:
     - objc-prop-check
     - actionlint@1.7.12

@@ -1540,6 +1540,10 @@ class RoktInternalImplementation {
         }
     }
 
+    /// Default local TTL when a partner handoff omits expiry or supplies a past `expiresAt`
+    /// (aligned with Web's rolling 30-minute transactions token window).
+    private static let partnerSessionTokenDefaultTTL: TimeInterval = 30 * 60
+
     func setSession(_ session: RoktSession) {
         guard let roktTagId,
               !session.sessionId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -1551,14 +1555,8 @@ class RoktInternalImplementation {
             return
         }
 
-        let sessionToken = TxnSessionToken(token: session.sessionToken, expiresAt: session.expiresAt)
-        if TxnSessionPersistence.isExpired(expiresAt: sessionToken.expiresAtDate, clock: Date.init) {
-            RoktLogger.shared.warning(
-                "Rokt.setSession ignored: session token is expired."
-            )
-            return
-        }
-
+        let expiresAtMs = Self.resolvedPartnerExpiresAtMilliseconds(session.expiresAt?.int64Value)
+        let sessionToken = TxnSessionToken(token: session.sessionToken, expiresAt: expiresAtMs)
         TxnSessionPersistence.seed(
             roktTagId: roktTagId,
             sessionId: session.sessionId,
@@ -1605,7 +1603,30 @@ class RoktInternalImplementation {
         }
 
         let expiresAtMs = Int64((expiresAt.timeIntervalSince1970 * 1000).rounded(.down))
-        return RoktSession(sessionId: sessionId, sessionToken: token, expiresAt: expiresAtMs)
+        return RoktSession(
+            sessionId: sessionId,
+            sessionToken: token,
+            expiresAtMilliseconds: expiresAtMs
+        )
+    }
+
+    /// Uses a future partner-supplied expiry when present; otherwise (or when already past)
+    /// falls back to now + ``partnerSessionTokenDefaultTTL``.
+    private static func resolvedPartnerExpiresAtMilliseconds(
+        _ expiresAtMilliseconds: Int64?,
+        now: Date = Date()
+    ) -> Int64 {
+        let defaultMs = Int64(
+            now.addingTimeInterval(partnerSessionTokenDefaultTTL).timeIntervalSince1970 * 1000
+        )
+        guard let expiresAtMilliseconds else {
+            return defaultMs
+        }
+        let expiresAt = Date(timeIntervalSince1970: TimeInterval(expiresAtMilliseconds)/1000)
+        if TxnSessionPersistence.isExpired(expiresAt: expiresAt, clock: { now }) {
+            return defaultMs
+        }
+        return expiresAtMilliseconds
     }
 
     func setSessionId(sessionId: String) {

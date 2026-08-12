@@ -284,15 +284,18 @@ internal import RoktUXHelper
     /// to stay consistent across integrations. Call before the next execute.
     ///
     /// - Note: The SDK must be initialized. Empty `sessionId` or `sessionToken` values are ignored.
+    /// - Note: ``RoktSession/expiresAt`` is optional (aligned with Web `sessionId` + `sessionToken`).
+    ///   When omitted or already past, a short-lived default TTL is applied for local persistence.
     ///
-    /// - Parameter session: The session id, JWT session token, and token expiry to apply.
+    /// - Parameter session: The session id and JWT session token to apply (optional expiry).
     public static func setSession(_ session: RoktSession) {
         shared.roktImplementation.setSession(session)
     }
 
     /// Get the current session (id + token) for use within a non-native integration e.g. WebView.
     ///
-    /// - Returns: The session, or `nil` if the SDK is not initialized, no session is present, or the token has expired.
+    /// - Returns: The session, or `nil` if the SDK is not initialized, no session is present, or the
+    ///   persisted token has expired.
     public static func getSession() -> RoktSession? {
         shared.roktImplementation.getSession()
     }
