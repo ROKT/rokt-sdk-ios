@@ -335,6 +335,29 @@ class FontRepositoryTests: XCTestCase {
         XCTAssertTrue(fontDirectoryUrl.path.hasSuffix("RoktFonts"))
     }
 
+    func test_ensureFontDirectory_createsDirectoryAndExcludesFromBackup() throws {
+        let fileManager = FileManager.default
+        let destination = try XCTUnwrap(FontRepository.getFontDirectoryUrl())
+        try? fileManager.removeItem(at: destination)
+
+        let ensured = try XCTUnwrap(FontRepository.ensureFontDirectory())
+        XCTAssertEqual(ensured.path, destination.path)
+        XCTAssertTrue(fileManager.fileExists(atPath: destination.path))
+
+        let values = try destination.resourceValues(forKeys: [.isExcludedFromBackupKey])
+        XCTAssertEqual(values.isExcludedFromBackup, true)
+    }
+
+    func test_migrateLegacyFontStorage_excludesDestinationFromBackupEvenWhenAlreadyMigrated() throws {
+        let destination = try XCTUnwrap(FontRepository.getFontDirectoryUrl())
+        FontRepository.resetMigrationMarkerForTests()
+        FontRepository.migrateLegacyFontStorageIfNeeded()
+        FontRepository.migrateLegacyFontStorageIfNeeded()
+
+        let values = try destination.resourceValues(forKeys: [.isExcludedFromBackupKey])
+        XCTAssertEqual(values.isExcludedFromBackup, true)
+    }
+
     func test_getFileUrl_returnsJsonFileUnderFontDirectory() throws {
         let fileUrl = try XCTUnwrap(FontRepository.getFileUrl(name: "custom-cache-file"))
 

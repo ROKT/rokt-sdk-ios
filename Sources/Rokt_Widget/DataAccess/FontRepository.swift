@@ -224,26 +224,41 @@ class FontRepository {
         return fullPath
     }
 
+    /// Creates `RoktFonts` under Application Support if needed and excludes it from device/iCloud
+    /// backup. Fonts are regenerable downloads; durable local storage must not inflate backups.
+    internal static func ensureFontDirectory(fileManager: FileManager = .default) -> URL? {
+        guard let directoryURL = getFontDirectoryUrl(fileManager: fileManager) else {
+            return nil
+        }
+
+        if !fileManager.fileExists(atPath: directoryURL.path) {
+            do {
+                try fileManager.createDirectory(
+                    at: directoryURL,
+                    withIntermediateDirectories: true,
+                    attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication]
+                )
+            } catch {
+                return nil
+            }
+        }
+
+        excludeFromBackup(directoryURL)
+        return directoryURL
+    }
+
     /// Moves leftover fonts/metadata from Documents (pre-5.2.6) and Caches/RoktFonts
     /// (5.2.6+) into Application Support once per install.
     internal static func migrateLegacyFontStorageIfNeeded(fileManager: FileManager = .default) {
         migrationLock.lock()
         defer { migrationLock.unlock() }
 
-        guard let destination = getFontDirectoryUrl(fileManager: fileManager) else { return }
+        // Always ensure + exclude, including when the migration marker already exists
+        // (upgrades from builds that migrated without setting the backup flag).
+        guard let destination = ensureFontDirectory(fileManager: fileManager) else { return }
 
         let markerURL = destination.appendingPathComponent(migrationMarkerFileName)
         if fileManager.fileExists(atPath: markerURL.path) {
-            return
-        }
-
-        do {
-            try fileManager.createDirectory(
-                at: destination,
-                withIntermediateDirectories: true,
-                attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication]
-            )
-        } catch {
             return
         }
 
@@ -260,9 +275,15 @@ class FontRepository {
         try? Data().write(to: markerURL, options: .atomic)
     }
 
-    // periphery:ignore - used by tests
+    private static func excludeFromBackup(_ url: URL) {
+        var resourceValues = URLResourceValues()
+        resourceValues.isExcludedFromBackup = true
+        var mutableURL = url
+        try? mutableURL.setResourceValues(resourceValues)
+    }
+
     /// Test seam to re-run migration against a clean destination marker.
-    internal static func resetMigrationMarkerForTests(fileManager: FileManager = .default) {
+    internal static func resetMigrationMarkerForTests(fileManager: FileManager = .default) { // periphery:ignore - used by tests
         migrationLock.lock()
         defer { migrationLock.unlock() }
 
@@ -361,7 +382,7 @@ class FontRepository {
     }
 
     internal static func getFileUrl(name: String) -> URL? {
-        guard let fontDirectoryUrl = getFontDirectoryUrl() else { return nil }
+        guard let fontDirectoryUrl = ensureFontDirectory() else { return nil }
         return fontDirectoryUrl.appendingPathComponent(name).appendingPathExtension("json")
     }
 

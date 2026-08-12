@@ -476,7 +476,7 @@ internal class FontManager {
         }
         #endif
 
-        guard let fontDirectoryUrl = FontRepository.getFontDirectoryUrl() else {
+        guard let fontDirectoryUrl = FontRepository.ensureFontDirectory() else {
             // Log FFL009
             sendFullFontLogs(
                 "File Manager failed to read application support directory in user home",
