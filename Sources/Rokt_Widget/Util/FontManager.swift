@@ -103,7 +103,7 @@ internal class FontManager {
             }
 
             if FontManager.isDownloadingFontRequired(font: font) {
-                if shouldSkipFontDownloadDueToDiskPressure(font: font) {
+                if isFontDownloadBlockedByDiskPressure() {
                     batch.settle()
                     continue
                 }
@@ -276,15 +276,8 @@ internal class FontManager {
 
     // MARK: - Disk pressure
 
-    /// Minimum free space required before starting a font download.
-    static var minimumFreeDiskBytesForFontDownload: Int64 = 5 * 1024 * 1024
-
-    /// Test seam. When non-nil, replaces the system free-space probe.
-    static var freeDiskBytesOverride: Int64?
-
     private static let diskPressureLock = NSLock()
     private static var diskFullCircuitOpen = false
-    private static var hasReportedDiskPressure = false
 
     static func isFontDownloadBlockedByDiskPressure() -> Bool {
         diskPressureLock.lock()
@@ -304,32 +297,7 @@ internal class FontManager {
     static func resetDiskPressureState() {
         diskPressureLock.lock()
         diskFullCircuitOpen = false
-        hasReportedDiskPressure = false
         diskPressureLock.unlock()
-        freeDiskBytesOverride = nil
-        minimumFreeDiskBytesForFontDownload = 5 * 1024 * 1024
-    }
-
-    static func hasSufficientDiskSpaceForFontDownload() -> Bool {
-        if let override = freeDiskBytesOverride {
-            return override >= minimumFreeDiskBytesForFontDownload
-        }
-
-        guard let directoryURL = FontRepository.getFontDirectoryUrl() else {
-            return true
-        }
-
-        let probeURL = FileManager.default.fileExists(atPath: directoryURL.path)
-            ? directoryURL
-            : directoryURL.deletingLastPathComponent()
-
-        guard let values = try? probeURL.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]),
-              let capacity = values.volumeAvailableCapacityForImportantUsage
-        else {
-            return true
-        }
-
-        return capacity >= minimumFreeDiskBytesForFontDownload
     }
 
     static func isNoSpaceLeftError(_ error: Error) -> Bool {
@@ -356,40 +324,6 @@ internal class FontManager {
             current = err.userInfo[NSUnderlyingErrorKey] as? NSError
         }
         return false
-    }
-
-    static func shouldSkipFontDownloadDueToDiskPressure(font: FontModel) -> Bool {
-        if isFontDownloadBlockedByDiskPressure() {
-            return true
-        }
-
-        guard hasSufficientDiskSpaceForFontDownload() else {
-            noteFontDiskFull()
-            reportDiskPressureDiagnosticIfNeeded(
-                font: font,
-                detail: "insufficient free disk space before download"
-            )
-            return true
-        }
-
-        return false
-    }
-
-    static func reportDiskPressureDiagnosticIfNeeded(font: FontModel, detail: String) {
-        diskPressureLock.lock()
-        let shouldReport = !hasReportedDiskPressure
-        if shouldReport {
-            hasReportedDiskPressure = true
-        }
-        diskPressureLock.unlock()
-
-        guard shouldReport else { return }
-
-        RoktAPIHelper.sendDiagnostics(
-            message: fontDiagnosticCode,
-            callStack: "font: \(font.url), error: \(detail)",
-            severity: .info
-        )
     }
 
     // MARK: - Cache recovery
@@ -438,7 +372,7 @@ internal class FontManager {
         invalidateCachedFont(font)
 
         DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + fontRecoveryBackoff) {
-            guard !shouldSkipFontDownloadDueToDiskPressure(font: font) else { return }
+            guard !isFontDownloadBlockedByDiskPressure() else { return }
             guard let fileUrl = getFileUrl(name: font.postScriptName ?? font.name) else { return }
             RoktNetWorkAPI.downloadFont(font: font, destinationURL: fileUrl) {}
         }

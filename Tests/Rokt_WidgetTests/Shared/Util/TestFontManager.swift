@@ -139,29 +139,7 @@ class TestFontManager: XCTestCase {
         XCTAssertEqual(url, expectedURL)
     }
 
-    func test_downloadFonts_whenFreeSpaceIsLow_skipsDownloadAndSettles() {
-        FontManager.freeDiskBytesOverride = 0
-        FontManager.minimumFreeDiskBytesForFontDownload = 1_000_000
-
-        let requestCount = Counter()
-        let settled = expectation(description: "batch settled without download")
-        let fontURL = "https://font.test/low-space.ttf"
-        stubFontFileUrl(fontURL) {
-            requestCount.increment()
-        }
-
-        FontManager.downloadFonts([
-            FontModel(name: "low-space-font", url: fontURL)
-        ]) {
-            settled.fulfill()
-        }
-
-        wait(for: [settled], timeout: 15)
-        XCTAssertEqual(requestCount.value, 0)
-        XCTAssertTrue(FontManager.isFontDownloadBlockedByDiskPressure())
-    }
-
-    func test_handleFontDownloadResponse_withENOSPC_tripsCircuitAndReportsOnce() throws {
+    func test_handleFontDownloadResponse_withENOSPC_tripsCircuitAndReportsEveryFailure() throws {
         let traces = captureDiagnosticStackTraces()
         let enospc = NSError(domain: NSPOSIXErrorDomain, code: Int(ENOSPC))
         let downloadError = RoktHTTPClient.RoktDownloadError.downloadFailed(error: enospc)
@@ -194,8 +172,8 @@ class TestFontManager: XCTestCase {
 
         XCTAssertTrue(FontManager.isFontDownloadBlockedByDiskPressure())
         XCTAssertTrue(waitUntil {
-            traces.count { $0.contains("No space left on device") } == 1
-        }, "disk-full should be reported once per process")
+            traces.count { $0.contains("Error downloading font") } == 2
+        }, "a disk-full failure should keep the existing download-failure diagnostic shape")
 
         let requestCount = Counter()
         let skipped = expectation(description: "download skipped after circuit open")

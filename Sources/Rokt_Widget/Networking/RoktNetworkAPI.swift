@@ -50,7 +50,7 @@ internal class RoktNetWorkAPI {
         onDownloadComplete: @escaping () -> Void,
         retryCount: Int = 0
     ) {
-        if FontManager.shouldSkipFontDownloadDueToDiskPressure(font: font) {
+        if FontManager.isFontDownloadBlockedByDiskPressure() {
             onDownloadComplete()
             return
         }
@@ -90,11 +90,7 @@ internal class RoktNetWorkAPI {
             // Disk-full is environmental and not retriable. Trip the circuit so the rest of
             // this process stops issuing downloads that cannot succeed.
             FontManager.noteFontDiskFull()
-            FontManager.reportDiskPressureDiagnosticIfNeeded(
-                font: font,
-                detail: "No space left on device")
-            Rokt.shared.roktImplementation.isInitFailedForFont = true
-            RoktLogger.shared.verbose("\(fontErrorMessage) \(font.url), error: No space left on device")
+            reportTerminalDownloadFailure(font: font, downloadResponse: downloadResponse)
         } else if let downloadError = downloadResponse.downloadError,
                   retryCount < maxRetries,
                   NetworkingHelper.retriableResponse(
@@ -115,13 +111,7 @@ internal class RoktNetWorkAPI {
             return
         } else if downloadResponse.downloadError != nil {
             // Terminal download failure: not retriable, or the retry budget is spent.
-            // Best-effort: mark for diagnostics, don't un-initialise.
-            Rokt.shared.roktImplementation.isInitFailedForFont = true
-            let callstack = "\(fontErrorMessage) \(font.url), " +
-                "error: \(String(describing: downloadResponse.downloadError.debugDescription))"
-
-            RoktAPIHelper.sendDiagnostics(message: fontDiagnosticCode, callStack: callstack)
-            RoktLogger.shared.verbose(callstack)
+            reportTerminalDownloadFailure(font: font, downloadResponse: downloadResponse)
         } else {
             // Neither an error nor a file came back, so there is nothing to register and
             // nothing to retry. Reported on its own line rather than as a download failure
@@ -135,6 +125,17 @@ internal class RoktNetWorkAPI {
         }
 
         onDownloadComplete()
+    }
+
+    /// Best-effort: mark for diagnostics, don't un-initialise. Shared by every failure that
+    /// will not be retried so the `[FONT]` rows keep one shape regardless of the cause.
+    private class func reportTerminalDownloadFailure(font: FontModel, downloadResponse: RoktDownloadResult) {
+        Rokt.shared.roktImplementation.isInitFailedForFont = true
+        let callstack = "\(fontErrorMessage) \(font.url), " +
+            "error: \(String(describing: downloadResponse.downloadError.debugDescription))"
+
+        RoktAPIHelper.sendDiagnostics(message: fontDiagnosticCode, callStack: callstack)
+        RoktLogger.shared.verbose(callstack)
     }
 
     /// Rokt diagnostics API call
