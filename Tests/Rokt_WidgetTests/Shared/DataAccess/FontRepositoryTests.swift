@@ -326,21 +326,112 @@ class FontRepositoryTests: XCTestCase {
         XCTAssertEqual(result, .success)
     }
 
-    // MARK: - Cache directory paths
+    // MARK: - Font directory paths
 
-    func test_getCacheDirectoryUrl_returnsRoktFontsSubdirectoryUnderCaches() throws {
-        let cacheDirectoryUrl = try XCTUnwrap(FontRepository.getCacheDirectoryUrl())
+    func test_getFontDirectoryUrl_returnsRoktFontsSubdirectoryUnderApplicationSupport() throws {
+        let fontDirectoryUrl = try XCTUnwrap(FontRepository.getFontDirectoryUrl())
 
-        XCTAssertTrue(cacheDirectoryUrl.path.contains("Caches"))
-        XCTAssertTrue(cacheDirectoryUrl.path.hasSuffix("RoktFonts"))
+        XCTAssertTrue(fontDirectoryUrl.path.contains("Application Support"))
+        XCTAssertTrue(fontDirectoryUrl.path.hasSuffix("RoktFonts"))
     }
 
-    func test_getFileUrl_returnsJsonFileUnderCacheDirectory() throws {
+    func test_getFileUrl_returnsJsonFileUnderFontDirectory() throws {
         let fileUrl = try XCTUnwrap(FontRepository.getFileUrl(name: "custom-cache-file"))
 
         XCTAssertEqual(fileUrl.pathExtension, "json")
         XCTAssertTrue(fileUrl.path.contains("RoktFonts"))
         XCTAssertEqual(fileUrl.deletingPathExtension().lastPathComponent, "custom-cache-file")
+    }
+
+    func test_migrateLegacyFontStorage_movesCachesFontsIntoApplicationSupport() throws {
+        let fileManager = FileManager.default
+        let destination = try XCTUnwrap(FontRepository.getFontDirectoryUrl())
+        FontRepository.resetMigrationMarkerForTests()
+        try? fileManager.removeItem(at: destination)
+
+        let cachesRoot = try XCTUnwrap(fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first)
+        let legacyCaches = cachesRoot.appendingPathComponent(FontRepository.fontDirectoryName, isDirectory: true)
+        try fileManager.createDirectory(at: legacyCaches, withIntermediateDirectories: true)
+        addTeardownBlock {
+            try? fileManager.removeItem(at: legacyCaches)
+            FontRepository.resetMigrationMarkerForTests()
+        }
+
+        let legacyFont = legacyCaches.appendingPathComponent("MigratedFont.ttf")
+        let legacyDetail = legacyCaches.appendingPathComponent("RoktFontDownloadedDetail.json")
+        try Data([0x01, 0x02]).write(to: legacyFont)
+        let details: [String: [String: String]] = [
+            "https://font.test/migrated.ttf": [
+                "name": "MigratedFont",
+                "timestamp": "1"
+            ]
+        ]
+        try JSONEncoder().encode(details).write(to: legacyDetail)
+
+        FontRepository.migrateLegacyFontStorageIfNeeded()
+
+        XCTAssertTrue(fileManager.fileExists(
+            atPath: destination.appendingPathComponent("MigratedFont.ttf").path
+        ))
+        XCTAssertTrue(fileManager.fileExists(
+            atPath: destination.appendingPathComponent("RoktFontDownloadedDetail.json").path
+        ))
+        XCTAssertFalse(fileManager.fileExists(atPath: legacyFont.path))
+        XCTAssertFalse(fileManager.fileExists(atPath: legacyCaches.path))
+    }
+
+    func test_migrateLegacyFontStorage_movesDocumentsFontsReferencedByMetadata() throws {
+        let fileManager = FileManager.default
+        let destination = try XCTUnwrap(FontRepository.getFontDirectoryUrl())
+        FontRepository.resetMigrationMarkerForTests()
+        try? fileManager.removeItem(at: destination)
+
+        let documentsRoot = try XCTUnwrap(fileManager.urls(for: .documentDirectory, in: .userDomainMask).first)
+        let detailURL = documentsRoot.appendingPathComponent("RoktFontDownloadedDetail.json")
+        let urlListURL = documentsRoot.appendingPathComponent("RoktFontDownloadedUrl.json")
+        let fontURL = documentsRoot.appendingPathComponent("DocsFont.ttf")
+        let unrelatedTTF = documentsRoot.appendingPathComponent("Unrelated.ttf")
+
+        let details: [String: [String: String]] = [
+            "https://font.test/docs.ttf": [
+                "name": "DocsFont",
+                "timestamp": "1"
+            ]
+        ]
+        try JSONEncoder().encode(details).write(to: detailURL)
+        try JSONEncoder().encode(["https://font.test/docs.ttf"]).write(to: urlListURL)
+        try Data([0x0A]).write(to: fontURL)
+        try Data([0x0B]).write(to: unrelatedTTF)
+
+        addTeardownBlock {
+            try? fileManager.removeItem(at: detailURL)
+            try? fileManager.removeItem(at: urlListURL)
+            try? fileManager.removeItem(at: fontURL)
+            try? fileManager.removeItem(at: unrelatedTTF)
+            FontRepository.resetMigrationMarkerForTests()
+        }
+
+        FontRepository.migrateLegacyFontStorageIfNeeded()
+
+        XCTAssertTrue(fileManager.fileExists(
+            atPath: destination.appendingPathComponent("DocsFont.ttf").path
+        ))
+        XCTAssertTrue(fileManager.fileExists(
+            atPath: destination.appendingPathComponent("RoktFontDownloadedDetail.json").path
+        ))
+        XCTAssertFalse(fileManager.fileExists(atPath: fontURL.path))
+        XCTAssertTrue(fileManager.fileExists(atPath: unrelatedTTF.path),
+                      "unrelated Documents fonts must not be moved")
+    }
+
+    func test_migrateLegacyFontStorage_isIdempotent() throws {
+        FontRepository.resetMigrationMarkerForTests()
+        FontRepository.migrateLegacyFontStorageIfNeeded()
+        FontRepository.migrateLegacyFontStorageIfNeeded()
+
+        let destination = try XCTUnwrap(FontRepository.getFontDirectoryUrl())
+        let marker = destination.appendingPathComponent(".rokt_font_storage_application_support")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: marker.path))
     }
 
     func test_isFileExist_returnsTrueAfterSuccessfulSave() {
@@ -538,8 +629,8 @@ extension XCTestCase {
     private static let fontDownloadDetailFileName = "test_RoktFontDownloadedDetail"
 
     static func prepareTestFiles() {
-        FontRepository.setFontDownloadURLFileName(FontRepositoryTests.fontDownloadURLFileName)
-        FontRepository.setFontDownloadDetailFileName(FontRepositoryTests.fontDownloadDetailFileName)
+        FontRepository.setFontDownloadURLFileName(fontDownloadURLFileName)
+        FontRepository.setFontDownloadDetailFileName(fontDownloadDetailFileName)
     }
 
     static func deleteAllTestFiles() {
@@ -556,12 +647,12 @@ extension XCTestCase {
     }
 
     static func fileURLFor(fileName: String) -> URL? {
-        guard let cacheDirectoryUrl = FontRepository.getCacheDirectoryUrl() else {
-            XCTFail("caches url does not exist")
+        guard let fontDirectoryUrl = FontRepository.getFontDirectoryUrl() else {
+            XCTFail("application support font directory url does not exist")
             return nil
         }
 
-        return cacheDirectoryUrl.appendingPathComponent(fileName).appendingPathExtension("json")
+        return fontDirectoryUrl.appendingPathComponent(fileName).appendingPathExtension("json")
     }
 
     static func deleteJSONFileWith(name: String) {

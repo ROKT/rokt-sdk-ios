@@ -50,6 +50,11 @@ internal class RoktNetWorkAPI {
         onDownloadComplete: @escaping () -> Void,
         retryCount: Int = 0
     ) {
+        if FontManager.shouldSkipFontDownloadDueToDiskPressure(font: font) {
+            onDownloadComplete()
+            return
+        }
+
         NetworkingHelper.shared.downloadFile(
             source: font.url,
             destinationURL: destinationURL,
@@ -80,6 +85,16 @@ internal class RoktNetWorkAPI {
                 fontLogId: fullFontLogCode3)
 
             FontManager.registerFont(font: font, fileUrl: downloadedFileLocalURL, isDownloaded: true)
+        } else if let downloadError = downloadResponse.downloadError,
+                  FontManager.isNoSpaceLeftError(downloadError) {
+            // Disk-full is environmental and not retriable. Trip the circuit so the rest of
+            // this process stops issuing downloads that cannot succeed.
+            FontManager.noteFontDiskFull()
+            FontManager.reportDiskPressureDiagnosticIfNeeded(
+                font: font,
+                detail: "No space left on device")
+            Rokt.shared.roktImplementation.isInitFailedForFont = true
+            RoktLogger.shared.verbose("\(fontErrorMessage) \(font.url), error: No space left on device")
         } else if let downloadError = downloadResponse.downloadError,
                   retryCount < maxRetries,
                   NetworkingHelper.retriableResponse(

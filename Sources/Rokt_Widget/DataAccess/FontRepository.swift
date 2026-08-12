@@ -198,26 +198,171 @@ class FontRepository {
         fontDownloadDetailFileName = fileName
     }
 
-    private static let cacheDirectory = "RoktFonts"
+    // MARK: - Font directory (Application Support)
 
-    internal static func getCacheDirectoryUrl() -> URL? {
-        guard let cachesUrl = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else {
+    static let fontDirectoryName = "RoktFonts"
+    private static let migrationMarkerFileName = ".rokt_font_storage_application_support"
+    private static let productionFontURLMetadataFileName = "RoktFontDownloadedUrl.json"
+    private static let productionFontDetailMetadataFileName = "RoktFontDownloadedDetail.json"
+
+    private static let migrationLock = NSLock()
+
+    /// Directory used for font binaries and metadata. Application Support is durable
+    /// (unlike Caches) while remaining outside Documents.
+    internal static func getFontDirectoryUrl(fileManager: FileManager = .default) -> URL? {
+        guard let supportUrl = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
             return nil
         }
 
         let fullPath: URL
         if #available(iOS 16.0, *) {
-            fullPath = cachesUrl.appending(component: cacheDirectory, directoryHint: .isDirectory)
+            fullPath = supportUrl.appending(component: fontDirectoryName, directoryHint: .isDirectory)
         } else {
-            fullPath = cachesUrl.appendingPathComponent(cacheDirectory, isDirectory: true)
+            fullPath = supportUrl.appendingPathComponent(fontDirectoryName, isDirectory: true)
         }
 
         return fullPath
     }
 
+    /// Moves leftover fonts/metadata from Documents (pre-5.2.6) and Caches/RoktFonts
+    /// (5.2.6+) into Application Support once per install.
+    internal static func migrateLegacyFontStorageIfNeeded(fileManager: FileManager = .default) {
+        migrationLock.lock()
+        defer { migrationLock.unlock() }
+
+        guard let destination = getFontDirectoryUrl(fileManager: fileManager) else { return }
+
+        let markerURL = destination.appendingPathComponent(migrationMarkerFileName)
+        if fileManager.fileExists(atPath: markerURL.path) {
+            return
+        }
+
+        do {
+            try fileManager.createDirectory(
+                at: destination,
+                withIntermediateDirectories: true,
+                attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication]
+            )
+        } catch {
+            return
+        }
+
+        if let cachesRoot = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first {
+            let legacyCaches = cachesRoot.appendingPathComponent(fontDirectoryName, isDirectory: true)
+            migrateDirectoryContents(from: legacyCaches, to: destination, fileManager: fileManager)
+            removeDirectoryIfEmpty(legacyCaches, fileManager: fileManager)
+        }
+
+        if let documentsRoot = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first {
+            migrateDocumentsLegacyFonts(from: documentsRoot, to: destination, fileManager: fileManager)
+        }
+
+        try? Data().write(to: markerURL, options: .atomic)
+    }
+
+    // periphery:ignore - used by tests
+    /// Test seam to re-run migration against a clean destination marker.
+    internal static func resetMigrationMarkerForTests(fileManager: FileManager = .default) {
+        migrationLock.lock()
+        defer { migrationLock.unlock() }
+
+        guard let destination = getFontDirectoryUrl(fileManager: fileManager) else { return }
+        let markerURL = destination.appendingPathComponent(migrationMarkerFileName)
+        try? fileManager.removeItem(at: markerURL)
+    }
+
+    private static func migrateDocumentsLegacyFonts(
+        from documentsRoot: URL,
+        to destination: URL,
+        fileManager: FileManager
+    ) {
+        migrateFileIfNeeded(
+            from: documentsRoot.appendingPathComponent(productionFontURLMetadataFileName),
+            to: destination.appendingPathComponent(productionFontURLMetadataFileName),
+            fileManager: fileManager
+        )
+        migrateFileIfNeeded(
+            from: documentsRoot.appendingPathComponent(productionFontDetailMetadataFileName),
+            to: destination.appendingPathComponent(productionFontDetailMetadataFileName),
+            fileManager: fileManager
+        )
+
+        let detailURL = destination.appendingPathComponent(productionFontDetailMetadataFileName)
+        guard fileManager.fileExists(atPath: detailURL.path),
+              let data = try? Data(contentsOf: detailURL),
+              let details = try? JSONDecoder().decode(FontDetails.self, from: data)
+        else {
+            return
+        }
+
+        let fontNames = Set(details.values.compactMap { $0["name"] })
+        for fontName in fontNames {
+            let fileName = "\(fontName).ttf"
+            migrateFileIfNeeded(
+                from: documentsRoot.appendingPathComponent(fileName),
+                to: destination.appendingPathComponent(fileName),
+                fileManager: fileManager
+            )
+        }
+    }
+
+    private static func migrateDirectoryContents(
+        from source: URL,
+        to destination: URL,
+        fileManager: FileManager
+    ) {
+        guard fileManager.fileExists(atPath: source.path),
+              let items = try? fileManager.contentsOfDirectory(
+                  at: source,
+                  includingPropertiesForKeys: nil,
+                  options: [.skipsHiddenFiles]
+              )
+        else {
+            return
+        }
+
+        for item in items {
+            migrateFileIfNeeded(
+                from: item,
+                to: destination.appendingPathComponent(item.lastPathComponent),
+                fileManager: fileManager
+            )
+        }
+    }
+
+    private static func migrateFileIfNeeded(from source: URL, to destination: URL, fileManager: FileManager) {
+        guard fileManager.fileExists(atPath: source.path) else { return }
+
+        if fileManager.fileExists(atPath: destination.path) {
+            try? fileManager.removeItem(at: source)
+            return
+        }
+
+        do {
+            try fileManager.moveItem(at: source, to: destination)
+        } catch {
+            do {
+                try fileManager.copyItem(at: source, to: destination)
+                try? fileManager.removeItem(at: source)
+            } catch {
+                // Best-effort: leave the source in place if neither move nor copy succeeds.
+            }
+        }
+    }
+
+    private static func removeDirectoryIfEmpty(_ directory: URL, fileManager: FileManager) {
+        guard fileManager.fileExists(atPath: directory.path),
+              let remaining = try? fileManager.contentsOfDirectory(atPath: directory.path),
+              remaining.isEmpty
+        else {
+            return
+        }
+        try? fileManager.removeItem(at: directory)
+    }
+
     internal static func getFileUrl(name: String) -> URL? {
-        guard let cacheDirectoryUrl = getCacheDirectoryUrl() else { return nil }
-        return cacheDirectoryUrl.appendingPathComponent(name).appendingPathExtension("json")
+        guard let fontDirectoryUrl = getFontDirectoryUrl() else { return nil }
+        return fontDirectoryUrl.appendingPathComponent(name).appendingPathExtension("json")
     }
 
     internal static func isFileExist(name: String) -> Bool {

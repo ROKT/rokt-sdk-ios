@@ -36,6 +36,12 @@ private final class Traces {
         defer { lock.unlock() }
         return values.contains(where: predicate)
     }
+
+    func count(where predicate: (String) -> Bool) -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return values.filter(predicate).count
+    }
 }
 
 class TestFontManager: XCTestCase {
@@ -70,6 +76,7 @@ class TestFontManager: XCTestCase {
             featureFlags: [:]
         )
         FontManager.resetFontRecoveryState()
+        FontManager.resetDiskPressureState()
         FontManager.maxFontRecoveryAttempts = 2
         FontManager.fontRecoveryBackoff = .seconds(1)
         FontManager.fileUrlResolverOverride = nil
@@ -124,12 +131,86 @@ class TestFontManager: XCTestCase {
     }
 
     func test_getFileURL_returnsMappedURL() throws {
-        let cacheDirectoryUrl = try XCTUnwrap(FontRepository.getCacheDirectoryUrl())
-        let expectedURL = cacheDirectoryUrl.appendingPathComponent("test.ttf")
+        let fontDirectoryUrl = try XCTUnwrap(FontRepository.getFontDirectoryUrl())
+        let expectedURL = fontDirectoryUrl.appendingPathComponent("test.ttf")
 
         let url = try XCTUnwrap(FontManager.getFileUrl(name: "test"))
 
         XCTAssertEqual(url, expectedURL)
+    }
+
+    func test_downloadFonts_whenFreeSpaceIsLow_skipsDownloadAndSettles() {
+        FontManager.freeDiskBytesOverride = 0
+        FontManager.minimumFreeDiskBytesForFontDownload = 1_000_000
+
+        let requestCount = Counter()
+        let settled = expectation(description: "batch settled without download")
+        let fontURL = "https://font.test/low-space.ttf"
+        stubFontFileUrl(fontURL) {
+            requestCount.increment()
+        }
+
+        FontManager.downloadFonts([
+            FontModel(name: "low-space-font", url: fontURL)
+        ]) {
+            settled.fulfill()
+        }
+
+        wait(for: [settled], timeout: 15)
+        XCTAssertEqual(requestCount.value, 0)
+        XCTAssertTrue(FontManager.isFontDownloadBlockedByDiskPressure())
+    }
+
+    func test_handleFontDownloadResponse_withENOSPC_tripsCircuitAndReportsOnce() throws {
+        let traces = captureDiagnosticStackTraces()
+        let enospc = NSError(domain: NSPOSIXErrorDomain, code: Int(ENOSPC))
+        let downloadError = RoktHTTPClient.RoktDownloadError.downloadFailed(error: enospc)
+
+        let firstSettled = expectation(description: "first enospc settled")
+        RoktNetWorkAPI.handleFontDownloadResponse(
+            font: FontModel(name: "enospc-font-1", url: "https://font.test/enospc-1.ttf"),
+            destinationURL: try XCTUnwrap(FontManager.getFileUrl(name: "enospc-font-1")),
+            downloadResponse: RoktDownloadResult(
+                httpURLResponse: nil,
+                downloadedFileLocalURL: nil,
+                downloadError: downloadError
+            ),
+            onDownloadComplete: { firstSettled.fulfill() }
+        )
+        wait(for: [firstSettled], timeout: 15)
+
+        let secondSettled = expectation(description: "second enospc settled")
+        RoktNetWorkAPI.handleFontDownloadResponse(
+            font: FontModel(name: "enospc-font-2", url: "https://font.test/enospc-2.ttf"),
+            destinationURL: try XCTUnwrap(FontManager.getFileUrl(name: "enospc-font-2")),
+            downloadResponse: RoktDownloadResult(
+                httpURLResponse: nil,
+                downloadedFileLocalURL: nil,
+                downloadError: downloadError
+            ),
+            onDownloadComplete: { secondSettled.fulfill() }
+        )
+        wait(for: [secondSettled], timeout: 15)
+
+        XCTAssertTrue(FontManager.isFontDownloadBlockedByDiskPressure())
+        XCTAssertTrue(waitUntil {
+            traces.count { $0.contains("No space left on device") } == 1
+        }, "disk-full should be reported once per process")
+
+        let requestCount = Counter()
+        let skipped = expectation(description: "download skipped after circuit open")
+        let blockedURL = "https://font.test/enospc-3.ttf"
+        stubFontFileUrl(blockedURL) {
+            requestCount.increment()
+        }
+        RoktNetWorkAPI.downloadFont(
+            font: FontModel(name: "enospc-font-3", url: blockedURL),
+            destinationURL: try XCTUnwrap(FontManager.getFileUrl(name: "enospc-font-3"))
+        ) {
+            skipped.fulfill()
+        }
+        wait(for: [skipped], timeout: 15)
+        XCTAssertEqual(requestCount.value, 0, "circuit breaker must stop further downloads")
     }
 
     func test_isSystemFont_forSystemFont_returnsTrue() {

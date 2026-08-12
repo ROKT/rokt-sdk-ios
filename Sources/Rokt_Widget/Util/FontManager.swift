@@ -63,6 +63,7 @@ internal class FontManager {
 
     class func downloadFonts(_ fonts: [FontModel], _ onFontDownloadComplete: @escaping () -> Void) {
         getExistingFontsByPostScriptName()
+        FontRepository.migrateLegacyFontStorageIfNeeded()
 
         guard !fonts.isEmpty else {
             onFontDownloadComplete()
@@ -90,7 +91,7 @@ internal class FontManager {
                 continue
             }
 
-            // additional check if font can be created in local caches directory
+            // additional check if font can be created in local application support directory
             guard let fileUrl = getFileUrl(name: registeredFontName) else {
                 // Best-effort: mark for diagnostics, don't un-initialise.
                 Rokt.shared.roktImplementation.isInitFailedForFont = true
@@ -102,6 +103,11 @@ internal class FontManager {
             }
 
             if FontManager.isDownloadingFontRequired(font: font) {
+                if shouldSkipFontDownloadDueToDiskPressure(font: font) {
+                    batch.settle()
+                    continue
+                }
+
                 RoktNetWorkAPI.downloadFont(font: font, destinationURL: fileUrl) {
                     batch.settle()
                 }
@@ -268,13 +274,131 @@ internal class FontManager {
         }
     }
 
+    // MARK: - Disk pressure
+
+    /// Minimum free space required before starting a font download.
+    static var minimumFreeDiskBytesForFontDownload: Int64 = 5 * 1024 * 1024
+
+    /// Test seam. When non-nil, replaces the system free-space probe.
+    static var freeDiskBytesOverride: Int64?
+
+    private static let diskPressureLock = NSLock()
+    private static var diskFullCircuitOpen = false
+    private static var hasReportedDiskPressure = false
+
+    static func isFontDownloadBlockedByDiskPressure() -> Bool {
+        diskPressureLock.lock()
+        defer { diskPressureLock.unlock() }
+        return diskFullCircuitOpen
+    }
+
+    @discardableResult
+    static func noteFontDiskFull() -> Bool {
+        diskPressureLock.lock()
+        let alreadyOpen = diskFullCircuitOpen
+        diskFullCircuitOpen = true
+        diskPressureLock.unlock()
+        return !alreadyOpen
+    }
+
+    static func resetDiskPressureState() {
+        diskPressureLock.lock()
+        diskFullCircuitOpen = false
+        hasReportedDiskPressure = false
+        diskPressureLock.unlock()
+        freeDiskBytesOverride = nil
+        minimumFreeDiskBytesForFontDownload = 5 * 1024 * 1024
+    }
+
+    static func hasSufficientDiskSpaceForFontDownload() -> Bool {
+        if let override = freeDiskBytesOverride {
+            return override >= minimumFreeDiskBytesForFontDownload
+        }
+
+        guard let directoryURL = FontRepository.getFontDirectoryUrl() else {
+            return true
+        }
+
+        let probeURL = FileManager.default.fileExists(atPath: directoryURL.path)
+            ? directoryURL
+            : directoryURL.deletingLastPathComponent()
+
+        guard let values = try? probeURL.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]),
+              let capacity = values.volumeAvailableCapacityForImportantUsage
+        else {
+            return true
+        }
+
+        return capacity >= minimumFreeDiskBytesForFontDownload
+    }
+
+    static func isNoSpaceLeftError(_ error: Error) -> Bool {
+        if let downloadError = error as? RoktHTTPClient.RoktDownloadError {
+            switch downloadError {
+            case .downloadFailed(let inner):
+                return isNoSpaceLeftError(inner)
+            case .downloadLocationError(let locationError):
+                if case .targetDirectoryInvalid(let inner) = locationError {
+                    return isNoSpaceLeftError(inner)
+                }
+                return false
+            }
+        }
+
+        var current: NSError? = error as NSError
+        while let err = current {
+            if err.domain == NSPOSIXErrorDomain && err.code == Int(ENOSPC) {
+                return true
+            }
+            if err.domain == NSCocoaErrorDomain && err.code == NSFileWriteOutOfSpaceError {
+                return true
+            }
+            current = err.userInfo[NSUnderlyingErrorKey] as? NSError
+        }
+        return false
+    }
+
+    static func shouldSkipFontDownloadDueToDiskPressure(font: FontModel) -> Bool {
+        if isFontDownloadBlockedByDiskPressure() {
+            return true
+        }
+
+        guard hasSufficientDiskSpaceForFontDownload() else {
+            noteFontDiskFull()
+            reportDiskPressureDiagnosticIfNeeded(
+                font: font,
+                detail: "insufficient free disk space before download"
+            )
+            return true
+        }
+
+        return false
+    }
+
+    static func reportDiskPressureDiagnosticIfNeeded(font: FontModel, detail: String) {
+        diskPressureLock.lock()
+        let shouldReport = !hasReportedDiskPressure
+        if shouldReport {
+            hasReportedDiskPressure = true
+        }
+        diskPressureLock.unlock()
+
+        guard shouldReport else { return }
+
+        RoktAPIHelper.sendDiagnostics(
+            message: fontDiagnosticCode,
+            callStack: "font: \(font.url), error: \(detail)",
+            severity: .info
+        )
+    }
+
     // MARK: - Cache recovery
 
-    /// Fonts live in `Library/Caches`, which the OS may purge at any time, and a purge
-    /// can leave a partially written file behind. Because `isDownloadingFontRequired`
-    /// treats any present file as usable, an unreadable one would otherwise be re-read
-    /// and re-rejected on every render, pinning the layout to the fallback font for the
-    /// life of the install. Dropping the cache entry lets the next pass re-fetch it.
+    /// Font files can still be incomplete after a failed write. Because
+    /// `isDownloadingFontRequired` treats any present file as usable, an unreadable
+    /// one would otherwise be re-read and re-rejected on every render, pinning the
+    /// layout to the fallback font for the life of the install. Dropping the cache
+    /// entry lets the next pass re-fetch it.
     ///
     /// Attempts are capped per font per process so a permanently bad asset cannot loop,
     /// and the re-fetch is always asynchronous so it never delays a render.
@@ -314,6 +438,7 @@ internal class FontManager {
         invalidateCachedFont(font)
 
         DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + fontRecoveryBackoff) {
+            guard !shouldSkipFontDownloadDueToDiskPressure(font: font) else { return }
             guard let fileUrl = getFileUrl(name: font.postScriptName ?? font.name) else { return }
             RoktNetWorkAPI.downloadFont(font: font, destinationURL: fileUrl) {}
         }
@@ -338,7 +463,7 @@ internal class FontManager {
     }
 
     #if DEBUG
-    /// `FileManager` always reports a caches directory on a real device, so the
+    /// `FileManager` always reports an application-support directory on a real device, so the
     /// unresolvable-path branch can only be exercised through this seam. Compiled out of
     /// release builds so it never ships.
     internal static var fileUrlResolverOverride: ((String) -> URL?)?
@@ -351,13 +476,16 @@ internal class FontManager {
         }
         #endif
 
-        guard let cacheDirectoryUrl = FontRepository.getCacheDirectoryUrl() else {
+        guard let fontDirectoryUrl = FontRepository.getFontDirectoryUrl() else {
             // Log FFL009
-            sendFullFontLogs("File Manager failed to read caches directory in user home", fontLogId: fullFontLogCode9)
+            sendFullFontLogs(
+                "File Manager failed to read application support directory in user home",
+                fontLogId: fullFontLogCode9
+            )
             return nil
         }
 
-        let fullPath = cacheDirectoryUrl.appendingPathComponent("\(name)\(fontExtension)")
+        let fullPath = fontDirectoryUrl.appendingPathComponent("\(name)\(fontExtension)")
         // Log FFL008
         sendFullFontLogs("Full file path URL: \(fullPath)", fontLogId: fullFontLogCode8)
         return fullPath
