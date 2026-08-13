@@ -919,6 +919,7 @@ class RoktInternalImplementation {
         pendingApiLogs.forEach { RoktAPIHelper.logApiCalled($0.code, $0.info) }
         isInitFailedForFont = false
         FontManager.resetFontRecoveryState()
+        FontManager.resetDiskPressureState()
         stateManager = StateBagManager()
 
         RoktLogger.shared.debug("Starting API initialization request")
