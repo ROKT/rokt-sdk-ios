@@ -76,6 +76,17 @@ internal class RoktAPIHelper {
         }
     }
 
+    /// Log a partner-facing public API call as an INFO diagnostic.
+    /// Fire-and-forget; `sendDiagnostics` drops it pre-init via the `roktTagId` guard.
+    /// `additionalInfo` is non-PII only (booleans/counts/enums as strings) — never attribute values,
+    /// view names, URLs, session ids, or secrets.
+    class func logApiCalled(_ code: String, _ additionalInfo: [String: String] = [:]) {
+        sendDiagnostics(message: code,
+                        callStack: "public API called",
+                        severity: .info,
+                        additionalInfo: additionalInfo)
+    }
+
     /// Initialize a purchase for Shoppable Ads.
     ///
     /// - Parameters:

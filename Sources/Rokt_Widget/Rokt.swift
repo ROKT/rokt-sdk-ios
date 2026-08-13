@@ -37,6 +37,20 @@ internal import RoktUXHelper
         )
     }
 
+    /// Logs a public mParticle API call as an INFO diagnostic. Called only by the mParticle Rokt
+    /// kit, and only when the kit is active — so nothing is logged when the kit isn't integrated.
+    ///
+    /// - Parameters:
+    ///   - code: A bounded, non-PII identifier in uppercase SNAKE_CASE (e.g. `"LOG_EVENT"`),
+    ///     wrapped for the wire as `[MP_API_<code>]`. Malformed codes are dropped. Never pass any
+    ///     argument data (event/screen names, attribute values, URLs, identities) — the code alone.
+    ///   - additionalInfo: Optional non-PII booleans/counts/enums as strings. Empty for core
+    ///     mParticle APIs (identity only).
+    public static func logMParticleApiCall(_ code: String, additionalInfo: [String: String] = [:]) {
+        guard RoktInternalImplementation.isValidMParticleApiCode(code) else { return }
+        shared.roktImplementation.logApiCallBuffered("[MP_API_\(code)]", additionalInfo)
+    }
+
     // MARK: - Rokt public functions
 
     /// Function to initialize the Rokt SDK
@@ -65,6 +79,14 @@ internal import RoktUXHelper
         placementOptions: RoktPlacementOptions? = nil,
         onEvent: ((RoktEvent) -> Void)? = nil
     ) {
+        RoktAPIHelper.logApiCalled(RoktInternalImplementation.apiSelectPlacementsCode, [
+            "embedded": "\(placements != nil)",
+            "hasConfig": "\(config != nil)",
+            "colorMode": config?.colorModeDiagnosticValue ?? "none",
+            "cacheEnabled": "\(config?.cacheConfig.isCacheEnabled() == true)",
+            "hasPlacementOptions": "\(placementOptions != nil)",
+            "attributeCount": "\(attributes.count)"
+        ])
         shared.roktImplementation.execute(
             viewName: identifier,
             attributes: attributes,
@@ -129,6 +151,7 @@ internal import RoktUXHelper
     ///   - identifier: The identifier for the view / page where you're displaying the placement
     ///   - onEvent: Function to execute when some events triggered, the first item is RoktEvent
     public static func events(identifier: String, onEvent: ((RoktEvent) -> Void)?) {
+        RoktAPIHelper.logApiCalled(RoktInternalImplementation.apiEventsCode)
         shared.roktImplementation.mapEvents(viewName: identifier, onEvent: onEvent)
     }
 
@@ -138,6 +161,8 @@ internal import RoktUXHelper
     /// - Parameters:
     ///   - onEvent: Function to execute when some events triggered, the first item is RoktEvent
     public static func globalEvents(onEvent: @escaping ((RoktEvent) -> Void)) {
+        // Buffered: globalEvents is usually subscribed before init (to catch InitComplete).
+        shared.roktImplementation.logApiCallBuffered(RoktInternalImplementation.apiGlobalEventsCode)
         shared.roktImplementation.mapEvents(isGlobal: true, onEvent: onEvent)
     }
 
@@ -154,6 +179,7 @@ internal import RoktUXHelper
             RoktLogger.shared.warning("Rokt: custom base URL must use HTTPS and include a valid host - ignored.")
             return
         }
+        shared.roktImplementation.logApiCallBuffered(RoktInternalImplementation.apiSetCustomBaseURLCode)
         var components = URLComponents()
         components.scheme = "https"
         components.host = host
