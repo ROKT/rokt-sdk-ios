@@ -304,8 +304,8 @@ class RoktInternalImplementation {
         return code.allSatisfy { ("A"..."Z").contains($0) || ("0"..."9").contains($0) || $0 == "_" }
     }
 
-    /// Log a public API call, buffering it until init when the SDK isn't initialised yet. Only
-    /// `setCustomBaseURL` / `setFrameworkType` need this (they run pre-init); everything else logs inline.
+    /// Log a public API call, buffering it until init when the SDK isn't initialised yet. This supports
+    /// `globalEvents`, mParticle API forwarding, and configuration APIs that may run before init.
     func logApiCallBuffered(_ code: String, _ additionalInfo: [String: String] = [:]) {
         let shouldSend = pendingApiLogsLock.withLock {
             guard roktTagId == nil else { return true }
