@@ -45,10 +45,12 @@ class SessionManager {
 
         clearSession(reason: .sessionIdUpdated)
         userDefaults.set(newSessionId, forKey: userDefaultsKeySessionId)
+        RoktLogger.shared.sessionId = newSessionId
         RoktLogger.shared.info("Session updated. sessionId=\(newSessionId)")
     }
 
     private func clearSession(reason: SessionInvalidationReason) {
+        RoktLogger.shared.sessionId = nil
         RoktLogger.shared.info("Clearing session. reason=\(reason.rawValue)")
         userDefaults.removeObject(forKey: userDefaultsKeySessionId)
         managedSessions.forEach { $0.sessionInvalidated() }
