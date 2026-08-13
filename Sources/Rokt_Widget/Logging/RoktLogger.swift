@@ -26,6 +26,7 @@ final class RoktLogger: @unchecked Sendable {
 
     private let lock = NSLock()
     private var _logLevel: RoktLogLevel = .none
+    private var _sessionId: String?
 
     /// The current log level. Messages below this level will not be logged.
     /// Default is `.none` (no logging).
@@ -35,6 +36,13 @@ final class RoktLogger: @unchecked Sendable {
     var logLevel: RoktLogLevel {
         get { lock.withLock { _logLevel } }
         set { lock.withLock { _logLevel = newValue } }
+    }
+
+    /// Session identifier from the current experience, when known.
+    /// When set, appended to every log line as `| sessionId=<id>` for easier support triage.
+    var sessionId: String? {
+        get { lock.withLock { _sessionId } }
+        set { lock.withLock { _sessionId = newValue } }
     }
 
     /// Logs a verbose message for detailed diagnostic information.
@@ -132,10 +140,12 @@ final class RoktLogger: @unchecked Sendable {
         function: String,
         line: Int
     ) {
-        guard level >= logLevel, logLevel != .none else { return }
+        let (currentLevel, currentSessionId) = lock.withLock { (_logLevel, _sessionId) }
+        guard level >= currentLevel, currentLevel != .none else { return }
         let prefix = "[Rokt/\(level.label)]"
         let fname = (file as NSString).lastPathComponent
         let errorSuffix = error.map { " | Error: \($0.localizedDescription)" } ?? ""
-        print("\(prefix) [\(fname) \(function):\(line)] \(message)\(errorSuffix)")
+        let sessionSuffix = currentSessionId.map { " | sessionId=\($0)" } ?? ""
+        print("\(prefix) [\(fname) \(function):\(line)] \(message)\(errorSuffix)\(sessionSuffix)")
     }
 }
