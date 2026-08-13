@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [5.3.2] - 2026-08-13
+
+### Core
+
+#### Removed
+
+- Update to Session Token (#275) ([#277](https://github.com/ROKT/rokt-sdk-ios/pull/277))
+
+#### Added
+
+- Log public API usage as INFO diagnostics ([#276](https://github.com/ROKT/rokt-sdk-ios/pull/276))
+- Append sessionId to every RoktLogger line ([#282](https://github.com/ROKT/rokt-sdk-ios/pull/282))
+- Update to Session Token ([#275](https://github.com/ROKT/rokt-sdk-ios/pull/275))
+
+#### Fixed
+
+- Font storage migration and enospace guard ([#281](https://github.com/ROKT/rokt-sdk-ios/pull/281))
+- Use Pact branch selector in Release Draft gate ([#278](https://github.com/ROKT/rokt-sdk-ios/pull/278))
+- Add contract check to Release Draft and rename PR gate ([#271](https://github.com/ROKT/rokt-sdk-ios/pull/271))
+- Pin hosted SwiftUI view to bottom of RoktEmbeddedView ([#273](https://github.com/ROKT/rokt-sdk-ios/pull/273))
+- Skip Dependabot-incompatible jobs on Dependabot PRs ([#270](https://github.com/ROKT/rokt-sdk-ios/pull/270))
+
+#### Changed
+
+- Upgrade trunk ([#274](https://github.com/ROKT/rokt-sdk-ios/pull/274))
+- Collapse Select*/Render* offers double-model into one encoder ([#260](https://github.com/ROKT/rokt-sdk-ios/pull/260))
+- Deepen coverage for background flush and pending event store ([#272](https://github.com/ROKT/rokt-sdk-ios/pull/272))
+- Upgrade trunk ([#227](https://github.com/ROKT/rokt-sdk-ios/pull/227))
+
 ## [5.3.1] - 2026-07-29
 
 ### Core
@@ -509,7 +538,8 @@ For a complete migration walkthrough with before/after code examples, see the [v
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.1...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.2...HEAD
+[5.3.2]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.1...5.3.2
 [5.3.1]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.0...5.3.1
 [5.3.0]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.6...5.3.0
 [5.2.6]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.5...5.2.6
