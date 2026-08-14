@@ -116,6 +116,53 @@ class TestNetworkingHelper: XCTestCase {
         )
     }
 
+    // performPost's happy path is covered indirectly through forwardPayment; these drive the
+    // retry branch itself, which decides whether the recursive call happens at all.
+    private func runPerformPost(statusCode: Int, onRequest: @escaping () -> Void) -> Int? {
+        let expectation = expectation(description: "performPost completes")
+        let originalClient = NetworkingHelper.shared.httpClient
+        defer {
+            NetworkingHelper.shared.httpClient = originalClient
+            Mocker.removeAll()
+        }
+
+        let url = URL(string: "https://apps.stage.rokt.com/rokt-mobile/test/perform-post")!
+        var mock = Mock(url: url, dataType: .json, statusCode: statusCode, data: [.post: Data("{}".utf8)])
+        mock.onRequest = { _, _ in onRequest() }
+        mock.register()
+        NetworkingHelper.shared.httpClient = makeMockHTTPClient()
+
+        var failureStatusCode: Int?
+        NetworkingHelper.performPost(
+            url: url.absoluteString,
+            body: [:],
+            success: { _, _, _ in XCTFail("Expected \(statusCode) to be reported as a failure") },
+            failure: { _, code, _ in
+                failureStatusCode = code
+                expectation.fulfill()
+            }
+        )
+
+        waitForExpectations(timeout: 10.0)
+        return failureStatusCode
+    }
+
+    func test_performPost_retriesRetryableStatusUntilAttemptsAreExhausted() {
+        var requestCount = 0
+        let statusCode = runPerformPost(statusCode: 500) { requestCount += 1 }
+
+        XCTAssertEqual(statusCode, 500)
+        XCTAssertEqual(requestCount, maxRetries + 1, "initial attempt plus \(maxRetries) retries")
+    }
+
+    func test_performPost_doesNotRetryNonRetryableStatus() {
+        var requestCount = 0
+        let statusCode = runPerformPost(statusCode: 400) { requestCount += 1 }
+
+        XCTAssertEqual(statusCode, 400)
+        XCTAssertEqual(requestCount, 1, "a 400 fails the same way every time")
+    }
+
     func test_common_header_defaults() throws {
         let headers = NetworkingHelper.getCommonHeaders([:])
 

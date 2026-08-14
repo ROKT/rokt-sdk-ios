@@ -118,6 +118,48 @@ final class TestInitRecovery: XCTestCase {
         XCTAssertEqual(stub.requestCount, 6)
     }
 
+    // The guards inside the scheduled block only matter while an attempt is in flight, which the
+    // default immediate scheduler can never produce. These two hold the attempt instead of running
+    // it, change the state underneath it, and only then let it go.
+    func test_initRecovery_supersededAttemptDoesNotReinitialise() {
+        var pending: [() -> Void] = []
+        impl.initRecoveryScheduler = { _, work in pending.append(work) }
+        stub.results = [.status(429), .status(400)]
+
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+        settle()
+        XCTAssertEqual(stub.requestCount, 1)
+        XCTAssertEqual(pending.count, 1, "a 429 schedules a recovery")
+
+        // A fresh init supersedes the held attempt, and fails permanently so nothing new is queued.
+        impl.initWith(roktTagId: "tag-2", mParticleKitDetails: nil)
+        settle()
+        XCTAssertEqual(stub.requestCount, 2)
+        XCTAssertEqual(pending.count, 1, "a 400 must not schedule a recovery")
+
+        pending.forEach { $0() }
+        settle()
+        XCTAssertEqual(stub.requestCount, 2, "the superseded generation must not re-init")
+        XCTAssertFalse(impl.isInitialized)
+    }
+
+    func test_initRecovery_scheduledAttemptIsSkippedOnceInitHasSucceeded() {
+        var pending: [() -> Void] = []
+        impl.initRecoveryScheduler = { _, work in pending.append(work) }
+        stub.results = [.status(503)]
+
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+        settle()
+        XCTAssertEqual(stub.requestCount, 1)
+        XCTAssertEqual(pending.count, 1)
+
+        // Init has since succeeded by another route, so the held attempt is redundant.
+        impl.isInitialized = true
+        pending.forEach { $0() }
+        settle()
+        XCTAssertEqual(stub.requestCount, 1, "a recovery must not re-init once init has succeeded")
+    }
+
     private static func urlError(_ code: Int) -> NSError {
         NSError(domain: NSURLErrorDomain, code: code)
     }
