@@ -10,6 +10,8 @@ final class JSONBackingStoreTests: XCTestCase {
 
         sut = JSONBackingStore()
 
+        ensureDocumentDirectoryExists()
+
         XCTestCase.deleteJSONFileWith(name: testFileName)
     }
 

@@ -166,6 +166,7 @@ class RealTimeEventStoreFile: RealTimeEventStore {
         do {
             let encoder = JSONEncoder()
             let data = try encoder.encode(value)
+            try createContainingDirectoryIfNeeded(of: url)
             // Encrypt at rest with iOS Data Protection. Use `.completeFileProtectionUntilFirstUserAuthentication`
             // (not `.completeFileProtection`): events are persisted during normal app runtime, including while
             // backgrounded and the device is locked. A stricter class would make those writes fail and drop
@@ -174,6 +175,17 @@ class RealTimeEventStoreFile: RealTimeEventStore {
         } catch {
             RoktLogger.shared.error("Failed to save real-time events", error: error)
         }
+    }
+
+    // Every other store either writes to a directory it creates (the font directory, the
+    // experience cache) or to the root of Caches, which always exists. This one writes into the
+    // host app's Documents, and saving is best-effort, so a container without that directory -
+    // an app extension, or a host app whose "clear data" path removed it - loses every event for
+    // the rest of the process with nothing but a log line to show for it.
+    private func createContainingDirectoryIfNeeded(of url: URL) throws {
+        let directory = url.deletingLastPathComponent()
+        guard !FileManager.default.fileExists(atPath: directory.path) else { return }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     }
 
     private func load<T: Codable>(from url: URL) -> [T] {
