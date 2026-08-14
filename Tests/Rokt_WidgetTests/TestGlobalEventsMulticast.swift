@@ -59,6 +59,24 @@ final class TestGlobalEventsMulticast: XCTestCase {
         XCTAssertTrue((clientEvents.first as? RoktEvent.InitComplete)?.success == true)
     }
 
+    // Subscriptions accumulate: a caller that subscribes N times is called back N times per event,
+    // where previously every subscription but the last was silently dropped.
+    func test_globalEvents_subscriptionsAccumulateSoEachOneIsCalledBack() {
+        stubInitSuccess()
+        let subscriptionCount = 3
+        var received: [RoktEvent] = []
+
+        for _ in 0..<subscriptionCount {
+            impl.mapEvents(isGlobal: true, onEvent: { received.append($0) })
+        }
+
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+
+        waitUntil { received.count == subscriptionCount }
+        XCTAssertEqual(received.count, subscriptionCount)
+        XCTAssertTrue(received.allSatisfy { ($0 as? RoktEvent.InitComplete)?.success == true })
+    }
+
     func test_globalEvents_bothSubscribersReceiveInitFailure() {
         stub.result = .status(400)
         var kitEvents: [RoktEvent] = []
