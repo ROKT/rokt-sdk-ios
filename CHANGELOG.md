@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [5.3.3] - 2026-08-14
+
+### Core
+
+#### Fixed
+
+- Keep persisted real-time events out of the host app's documents ([#292](https://github.com/ROKT/rokt-sdk-ios/pull/292))
+- Create the real-time event store directory before writing to it ([#291](https://github.com/ROKT/rokt-sdk-ios/pull/291))
+- Recover from a failed init instead of staying uninitialised ([#285](https://github.com/ROKT/rokt-sdk-ios/pull/285))
+- Multicast Rokt.globalEvents so kit and client can both subscribe ([#284](https://github.com/ROKT/rokt-sdk-ios/pull/284))
+
+#### Changed
+
+- Cover the init recovery guards and the performPost retry branch ([#288](https://github.com/ROKT/rokt-sdk-ios/pull/288))
+- Fix flaky UI tests caused by per-assertion wait budgets ([#290](https://github.com/ROKT/rokt-sdk-ios/pull/290))
+- Centralize the transient transport failure allowlist ([#286](https://github.com/ROKT/rokt-sdk-ios/pull/286))
+- Add workflow_dispatch to the Pull Request workflow ([#289](https://github.com/ROKT/rokt-sdk-ios/pull/289))
+
 ## [5.3.2] - 2026-08-13
 
 ### Core
@@ -538,7 +556,8 @@ For a complete migration walkthrough with before/after code examples, see the [v
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.2...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.3...HEAD
+[5.3.3]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.2...5.3.3
 [5.3.2]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.1...5.3.2
 [5.3.1]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.0...5.3.1
 [5.3.0]: https://github.com/ROKT/rokt-sdk-ios/compare/5.2.6...5.3.0
