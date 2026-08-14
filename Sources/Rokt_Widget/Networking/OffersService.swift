@@ -244,18 +244,7 @@ internal struct OffersService {
 
     // Transient transport failures only; a hard-offline device fails fast.
     private func isRetryable(error: Error) -> Bool {
-        let nsError = error as NSError
-        guard nsError.domain == NSURLErrorDomain else { return false }
-        switch nsError.code {
-        case NSURLErrorTimedOut,
-             NSURLErrorNetworkConnectionLost,
-             NSURLErrorCannotConnectToHost,
-             NSURLErrorCannotFindHost,
-             NSURLErrorDNSLookupFailed:
-            return true
-        default:
-            return false
-        }
+        NetworkRetryRules.isTransientTransportFailure(error, policy: .transient)
     }
 
     // Exponential backoff with jitter to avoid hammering a struggling gateway.

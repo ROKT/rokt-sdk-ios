@@ -69,6 +69,53 @@ class TestNetworkingHelper: XCTestCase {
         XCTAssertFalse(NetworkingHelper.isRetryableStatusCode(999)) // Unhandled code
     }
 
+    // The legacy post/download path retries in place almost immediately, so it comes back for a
+    // timeout and the retryable status codes only. Everything below pins that policy.
+    private func urlError(_ code: Int) -> NSError {
+        NSError(domain: NSURLErrorDomain, code: code)
+    }
+
+    func test_retriableResponse_timeoutAndRetryableStatusCodes() {
+        XCTAssertTrue(NetworkingHelper.retriableResponse(error: urlError(NSURLErrorTimedOut), code: nil))
+        XCTAssertTrue(NetworkingHelper.retriableResponse(error: urlError(NSURLErrorCancelled), code: 500))
+        XCTAssertTrue(NetworkingHelper.retriableResponse(error: urlError(NSURLErrorCancelled), code: 502))
+        XCTAssertTrue(NetworkingHelper.retriableResponse(error: urlError(NSURLErrorCancelled), code: 503))
+    }
+
+    func test_retriableResponse_gatewayTimeoutIsNotRetried() {
+        // 504 is retryable for init/offers/events but has never been part of this path's set.
+        XCTAssertFalse(NetworkingHelper.retriableResponse(error: urlError(NSURLErrorCancelled), code: 504))
+    }
+
+    func test_retriableResponse_otherTransportFailuresAreTerminal() {
+        let terminal = [
+            NSURLErrorNetworkConnectionLost,
+            NSURLErrorNotConnectedToInternet,
+            NSURLErrorCannotConnectToHost,
+            NSURLErrorCannotFindHost,
+            NSURLErrorDNSLookupFailed,
+            NSURLErrorResourceUnavailable,
+            NSURLErrorCancelled,
+            NSURLErrorBadURL
+        ]
+        for code in terminal {
+            XCTAssertFalse(
+                NetworkingHelper.retriableResponse(error: urlError(code), code: 400),
+                "expected \(code) to be terminal on the legacy path"
+            )
+        }
+    }
+
+    func test_retriableResponse_ignoresMatchingCodesFromOtherDomains() {
+        // -1001 only means "timed out" inside NSURLErrorDomain; elsewhere it means something else.
+        let impostor = NSError(domain: NSCocoaErrorDomain, code: NSURLErrorTimedOut)
+        XCTAssertFalse(NetworkingHelper.retriableResponse(error: impostor, code: nil))
+        XCTAssertTrue(
+            NetworkingHelper.retriableResponse(error: impostor, code: 500),
+            "a retryable status code still stands on its own"
+        )
+    }
+
     func test_common_header_defaults() throws {
         let headers = NetworkingHelper.getCommonHeaders([:])
 

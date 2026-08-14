@@ -28,18 +28,6 @@ enum ForwardPaymentRetryRules {
             if code == 408 || code == 429 { return true }
             return false
         }
-        let nsError = error as NSError
-        guard nsError.domain == NSURLErrorDomain else { return false }
-        switch nsError.code {
-        case NSURLErrorTimedOut,
-             NSURLErrorNetworkConnectionLost,
-             NSURLErrorNotConnectedToInternet,
-             NSURLErrorCannotFindHost,
-             NSURLErrorCannotConnectToHost,
-             NSURLErrorDNSLookupFailed:
-            return true
-        default:
-            return false
-        }
+        return NetworkRetryRules.isTransientTransportFailure(error, policy: .transientIncludingOffline)
     }
 }
