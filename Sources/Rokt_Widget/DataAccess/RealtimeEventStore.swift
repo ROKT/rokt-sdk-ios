@@ -52,25 +52,64 @@ class RealTimeEventStoreFile: RealTimeEventStore {
     private let debounceInterval: TimeInterval = 0.5
     private let eventProcessingQueue = DispatchQueue(label: "com.rokt.RealTimeEventManager.eventProcessingQueue")
 
+    static let storageDirectoryName = "RoktRealTimeEvents"
+    static let triggeredEventsFileName = "triggered_events.json"
+    static let untriggeredEventsFileName = "untriggered_events.json"
+
     // File paths are injectable so tests can isolate each case to its own temporary files.
-    // Production uses the document-directory defaults.
+    // Production uses the storage-directory defaults.
     init(
-        triggeredEventsFilePath: URL? = RealTimeEventStoreFile.defaultFileURL(named: "triggered_events.json"),
-        untriggeredEventsFilePath: URL? = RealTimeEventStoreFile.defaultFileURL(named: "untriggered_events.json")
+        triggeredEventsFilePath: URL? = RealTimeEventStoreFile
+            .defaultFileURL(named: RealTimeEventStoreFile.triggeredEventsFileName),
+        untriggeredEventsFilePath: URL? = RealTimeEventStoreFile
+            .defaultFileURL(named: RealTimeEventStoreFile.untriggeredEventsFileName)
     ) {
         self.triggeredEventsFilePath = triggeredEventsFilePath
         self.untriggeredEventsFilePath = untriggeredEventsFilePath
     }
 
     private static func defaultFileURL(named name: String) -> URL? {
-        guard let directory = FileManager
-            .default
-            .urls(for: .documentDirectory, in: .userDomainMask)
-            .first else {
-            RoktLogger.shared.error("Document directory unavailable - RealTimeEventStore will not persist events")
+        guard let directory = ensureStorageDirectory() else {
+            RoktLogger.shared.error("Storage directory unavailable - RealTimeEventStore will not persist events")
             return nil
         }
+
         return directory.appendingPathComponent(name)
+    }
+
+    /// Directory holding the persisted events. Application Support is durable (unlike Caches, which
+    /// the system can purge) while staying out of the host app's documents, where these files were
+    /// part of the user's backup and visible to them in apps that enable file sharing. This matches
+    /// where the font cache lives.
+    static func storageDirectoryUrl(fileManager: FileManager = .default) -> URL? {
+        guard let supportUrl = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        return supportUrl.appendingPathComponent(storageDirectoryName, isDirectory: true)
+    }
+
+    static func ensureStorageDirectory(fileManager: FileManager = .default) -> URL? {
+        guard let directoryURL = storageDirectoryUrl(fileManager: fileManager) else { return nil }
+
+        if !fileManager.fileExists(atPath: directoryURL.path) {
+            do {
+                try fileManager.createDirectory(
+                    at: directoryURL,
+                    withIntermediateDirectories: true,
+                    attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication]
+                )
+            } catch {
+                return nil
+            }
+        }
+
+        // Persisted events are regenerable from the next placement; they must not inflate backups.
+        var resourceValues = URLResourceValues()
+        resourceValues.isExcludedFromBackup = true
+        var mutableURL = directoryURL
+        try? mutableURL.setResourceValues(resourceValues)
+
+        return directoryURL
     }
 
     func addUntriggeredEvents(_ events: [UntriggeredRealTimeEvent]) {
@@ -177,11 +216,9 @@ class RealTimeEventStoreFile: RealTimeEventStore {
         }
     }
 
-    // Every other store either writes to a directory it creates (the font directory, the
-    // experience cache) or to the root of Caches, which always exists. This one writes into the
-    // host app's Documents, and saving is best-effort, so a container without that directory -
-    // an app extension, or a host app whose "clear data" path removed it - loses every event for
-    // the rest of the process with nothing but a log line to show for it.
+    // The storage directory is created up front, but saving is best-effort: were the directory to
+    // go missing afterwards - removed by the host app, or never there for an injected path - every
+    // save would fail for the rest of the process with nothing but a log line to show for it.
     private func createContainingDirectoryIfNeeded(of url: URL) throws {
         let directory = url.deletingLastPathComponent()
         guard !FileManager.default.fileExists(atPath: directory.path) else { return }
