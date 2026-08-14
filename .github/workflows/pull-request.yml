@@ -6,6 +6,11 @@ on:
     branches:
       - main
       - workstation/*
+  # Manual runs against an arbitrary ref, for measuring test flakiness: dispatch the
+  # same ref repeatedly and count how many runs come back green. Note that the
+  # concurrency group below keys on `github.ref`, so dispatches of one ref supersede
+  # each other — run them one at a time.
+  workflow_dispatch:
 
 permissions:
   contents: read
