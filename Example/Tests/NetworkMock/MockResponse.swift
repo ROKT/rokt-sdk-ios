@@ -53,9 +53,9 @@ var mockRecordingGeneration = 0
 // into the same capture-scoped arrays, so those late deliveries used to be recorded as
 // though they belonged to the following example — which is how `timingsRequests.count`
 // was observed as 2 in an example that made exactly one timings call. Checking the
-// generation inside the main-queue hop closes that window: a stale delivery lands after
-// the next example's `beforeEach` has bumped the generation, so it is discarded instead
-// of being counted.
+// generation inside the main-queue hop discards deliveries whose request *started* under an
+// earlier example. One a previous flow only *starts* later carries the current generation and
+// is indistinguishable from a real recording — hence installing the test VC per example too.
 //
 // The generation is bumped by `useNetworkedMockEnvironment`, i.e. alongside the
 // `Mocker.removeAll()` that tears the previous example's stubs down. That keeps the two

@@ -104,8 +104,8 @@ final class ValidLayoutOverlayTests: QuickSpec {
                     partnerEventsInfo = [:]
                     testVC = TestViewController()
                     testVC.pageInitAttr = timingsDateEpoch
-
-                    testVC.installInTestWindow()
+                    // Installed per example, not here: installing drives a placement, and
+                    // one started here outlived the examples that never waited for it.
                 }
 
                 afterEach {
@@ -142,6 +142,8 @@ final class ValidLayoutOverlayTests: QuickSpec {
                 }
 
                 it("layouts loaded successfully with events") {
+                    testVC.installInTestWindow()
+
                     expect(UIApplication.topViewController()).toEventually(beAnInstanceOf(RoktUXSwiftUIViewController.self),
                                                                            timeout: .seconds(19))
                     // check callbacks
@@ -185,6 +187,8 @@ final class ValidLayoutOverlayTests: QuickSpec {
                 }
 
                 it("layouts loaded successfully with timings contains pageInit") {
+                    testVC.installInTestWindow()
+
                     expect(UIApplication.topViewController()).toEventually(beAnInstanceOf(RoktUXSwiftUIViewController.self),
                                                                            timeout: .seconds(19))
 
@@ -234,6 +238,8 @@ final class ValidLayoutOverlayTests: QuickSpec {
                 // user dismisses Safari, otherwise closing the placement would tear down the Safari
                 // controller it presents and dismiss it immediately.
                 it("internal link defers completion until Safari is dismissed") {
+                    testVC.installInTestWindow()
+
                     expect(UIApplication.topViewController())
                         .toEventually(beAnInstanceOf(RoktUXSwiftUIViewController.self), timeout: .seconds(19))
                     guard let overlay = UIApplication.topViewController() else {
