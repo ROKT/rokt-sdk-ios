@@ -1034,12 +1034,26 @@ class RoktInternalImplementation {
     }
 
     // A wrong tag id or a rejected request will fail the same way every time, so only
-    // rate limiting, server faults and transport failures are worth coming back for.
+    // rate limiting, server faults and transient transport failures are worth coming back for.
+    // The URL error allowlist matches TxnEventService / ForwardPaymentRetryRules: a cancelled
+    // request, a bad URL or a TLS/ATS rejection is permanent and must not be retried.
     private static func isRecoverable(error: Error, statusCode: Int?) -> Bool {
         if let statusCode {
             return statusCode == rateLimitedStatusCode || (500..<600).contains(statusCode)
         }
-        return (error as NSError).domain == NSURLErrorDomain
+        let nsError = error as NSError
+        guard nsError.domain == NSURLErrorDomain else { return false }
+        switch nsError.code {
+        case NSURLErrorTimedOut,
+             NSURLErrorNetworkConnectionLost,
+             NSURLErrorNotConnectedToInternet,
+             NSURLErrorCannotConnectToHost,
+             NSURLErrorCannotFindHost,
+             NSURLErrorDNSLookupFailed:
+            return true
+        default:
+            return false
+        }
     }
 
     private func defaultTxnInitService(roktTagId: String) -> TxnInitService {

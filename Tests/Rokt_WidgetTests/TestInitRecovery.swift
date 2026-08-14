@@ -75,6 +75,26 @@ final class TestInitRecovery: XCTestCase {
         XCTAssertEqual(stub.requestCount, 1)
     }
 
+    func test_initRecovery_retriesAfterTransientTransportFailure() {
+        stub.results = [.transportError(Self.urlError(NSURLErrorNotConnectedToInternet)),
+                        .success(data: Self.successBody)]
+
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+
+        waitUntil { self.impl.isInitialized }
+        XCTAssertEqual(stub.requestCount, 2)
+    }
+
+    func test_initRecovery_doesNotRetryPermanentTransportFailure() {
+        stub.results = [.transportError(Self.urlError(NSURLErrorCancelled))]
+
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+
+        settle()
+        XCTAssertFalse(impl.isInitialized)
+        XCTAssertEqual(stub.requestCount, 1, "a cancelled request fails the same way every time")
+    }
+
     func test_initRecovery_stopsAfterExhaustingAttempts() {
         stub.results = [.status(429), .status(429), .status(429), .status(429), .status(429)]
 
@@ -98,6 +118,10 @@ final class TestInitRecovery: XCTestCase {
         XCTAssertEqual(stub.requestCount, 6)
     }
 
+    private static func urlError(_ code: Int) -> NSError {
+        NSError(domain: NSURLErrorDomain, code: code)
+    }
+
     private func settle() {
         let settled = expectation(description: "settled")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { settled.fulfill() }
@@ -109,6 +133,7 @@ private final class StubRecoveryInitHTTPClient: HTTPClientAdapter {
     enum Result {
         case success(data: Data)
         case status(Int)
+        case transportError(NSError)
     }
 
     var results: [Result] = []
@@ -146,6 +171,13 @@ private final class StubRecoveryInitHTTPClient: HTTPClientAdapter {
                 httpURLResponse: HTTPURLResponse(url: url, statusCode: code, httpVersion: nil, headerFields: nil),
                 responseData: nil,
                 responseError: nil,
+                jsonSerialisedResponseData: .success(NSNull())
+            )
+        case .transportError(let error):
+            httpResult = RoktHTTPRequestResult(
+                httpURLResponse: nil,
+                responseData: nil,
+                responseError: error,
                 jsonSerialisedResponseData: .success(NSNull())
             )
         }
