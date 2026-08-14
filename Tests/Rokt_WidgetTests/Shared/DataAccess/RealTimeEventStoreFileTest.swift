@@ -92,6 +92,36 @@ class RealTimeEventStoreFileTest: XCTestCase {
         )
     }
 
+    // MARK: - Storage location
+
+    func test_storageDirectory_isUnderApplicationSupportAndExcludedFromBackup() throws {
+        let directory = try XCTUnwrap(RealTimeEventStoreFile.ensureStorageDirectory())
+
+        XCTAssertEqual(directory.lastPathComponent, RealTimeEventStoreFile.storageDirectoryName)
+        XCTAssertTrue(directory.deletingLastPathComponent().path.hasSuffix("Application Support"))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: directory.path))
+        let values = try directory.resourceValues(forKeys: [.isExcludedFromBackupKey])
+        XCTAssertEqual(values.isExcludedFromBackup, true)
+    }
+
+    func test_defaultStorage_persistsEventsUnderTheStorageDirectory() throws {
+        let untriggeredFile = try XCTUnwrap(RealTimeEventStoreFile.ensureStorageDirectory())
+            .appendingPathComponent(RealTimeEventStoreFile.untriggeredEventsFileName)
+        addTeardownBlock { try? FileManager.default.removeItem(at: untriggeredFile) }
+        try? FileManager.default.removeItem(at: untriggeredFile)
+
+        RealTimeEventStoreFile().addUntriggeredEvents([
+            createRoktUXRealTimeEventResponse(
+                triggerGuid: guid1,
+                triggerEvent: signalImpressionRawValue,
+                eventType: finalType1,
+                payload: payload1
+            )
+        ])
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: untriggeredFile.path))
+    }
+
     // MARK: - Storage directory
 
     func test_markAsTriggered_whenStorageDirectoryDoesNotExist_stillPersistsEvents() {
