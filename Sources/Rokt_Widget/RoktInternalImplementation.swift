@@ -32,6 +32,11 @@ class RoktInternalImplementation {
     private static let initFailedError = "INIT_FAILED"
     private static let fontFailedError = "FONT_FAILED"
     private static let trackingConsentError = "tracking consent not authorised"
+    // TxnInitService already retries 5xx and transport blips inside a single request. These
+    // recover from a whole failed init - a cold start with no network, or a 429 burst - which
+    // otherwise leaves the SDK uninitialised until the process restarts.
+    private static let initRecoveryDelaysSeconds: [TimeInterval] = [2, 8, 30]
+    private static let rateLimitedStatusCode = 429
     private static let cacheDurationKey = "cacheDuration"
     private static let cacheAttributesKey = "cacheAttributeKeys"
     static let missingForwardPaymentPriceReason = "Missing price on forward-payment event"
@@ -46,6 +51,7 @@ class RoktInternalImplementation {
     var roktTagId: String?
     // Identifies the latest init request so a superseded init's async completion is ignored.
     private var initGeneration = 0
+    private var initRecoveryAttempt = 0
     let sessionManager: SessionManager
     var attributes = [String: String]()
     var isInitialized = false
@@ -73,6 +79,9 @@ class RoktInternalImplementation {
     }
     // Test-only override for the init service factory; nil uses the real builder.
     var makeTxnInitServiceOverride: ((String) -> TxnInitService)?
+    var initRecoveryScheduler: (TimeInterval, @escaping () -> Void) -> Void = { delay, work in
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
     // Test-only override for the offers service factory; nil uses the real builder.
     var makeOffersServiceOverride: ((String) -> OffersService)?
 
@@ -946,6 +955,7 @@ class RoktInternalImplementation {
         stateManager = StateBagManager()
 
         RoktLogger.shared.debug("Starting API initialization request")
+        initRecoveryAttempt = 0
         performInit(roktTagId: roktTagId, initStartTime: initStartTime)
     }
 
@@ -965,7 +975,12 @@ class RoktInternalImplementation {
                 let statusCode = Self.statusCode(from: error)
                 DispatchQueue.main.async {
                     guard self.initGeneration == generation else { return }
-                    self.handleInitFailure(error: error, statusCode: statusCode, response: "")
+                    self.handleInitFailure(
+                        error: error,
+                        statusCode: statusCode,
+                        response: "",
+                        initStartTime: initStartTime
+                    )
                 }
             }
         }
@@ -975,6 +990,7 @@ class RoktInternalImplementation {
     private func handleInitSuccess(_ initResponse: InitRespose, initStartTime: Date) {
         RoktLogger.shared.info("API initialization succeeded")
         self.isInitialized = true
+        self.initRecoveryAttempt = 0
         self.initFeatureFlags = initResponse.featureFlags
 
         self.processedTimingsRequests = TimingsRequestProcessor()
@@ -1005,17 +1021,58 @@ class RoktInternalImplementation {
         }
     }
 
-    private func handleInitFailure(error: Error, statusCode: Int?, response: String) {
+    private func handleInitFailure(error: Error, statusCode: Int?, response: String, initStartTime: Date) {
         RoktLogger.shared.error("Initialization failed - statusCode: \(statusCode ?? -1), " +
                                 "error: \(error.localizedDescription)")
         self.isInitialized = false
         self.processedTimingsRequests?.setInitEndTime()
         NetworkingHelper.updateTimeout(timeout: self.clientTimeoutMilliseconds/1000)
         // Don't report diagnostics for 429 (Too Many Requests) status code
-        if let code = statusCode, code != 429 {
+        if let code = statusCode, code != Self.rateLimitedStatusCode {
             self.sendDiagnostics(Self.initDiagnosticCode, error: error, statusCode: statusCode, response: response)
         }
         self.sendEventToGlobalListeners(RoktEvent.InitComplete(success: false))
+        self.scheduleInitRecovery(error: error, statusCode: statusCode, initStartTime: initStartTime)
+    }
+
+    private func scheduleInitRecovery(error: Error, statusCode: Int?, initStartTime: Date) {
+        guard let roktTagId,
+              Self.isRecoverable(error: error, statusCode: statusCode),
+              initRecoveryAttempt < Self.initRecoveryDelaysSeconds.count else { return }
+
+        let delay = Self.initRecoveryDelaysSeconds[initRecoveryAttempt]
+        let attempt = initRecoveryAttempt + 1
+        initRecoveryAttempt = attempt
+        let generation = initGeneration
+
+        RoktLogger.shared.info("Scheduling init recovery attempt \(attempt) in \(delay)s")
+        initRecoveryScheduler(delay) { [weak self] in
+            guard let self, self.initGeneration == generation, !self.isInitialized else { return }
+            self.performInit(roktTagId: roktTagId, initStartTime: initStartTime)
+        }
+    }
+
+    // A wrong tag id or a rejected request will fail the same way every time, so only
+    // rate limiting, server faults and transient transport failures are worth coming back for.
+    // The URL error allowlist matches TxnEventService / ForwardPaymentRetryRules: a cancelled
+    // request, a bad URL or a TLS/ATS rejection is permanent and must not be retried.
+    private static func isRecoverable(error: Error, statusCode: Int?) -> Bool {
+        if let statusCode {
+            return statusCode == rateLimitedStatusCode || (500..<600).contains(statusCode)
+        }
+        let nsError = error as NSError
+        guard nsError.domain == NSURLErrorDomain else { return false }
+        switch nsError.code {
+        case NSURLErrorTimedOut,
+             NSURLErrorNetworkConnectionLost,
+             NSURLErrorNotConnectedToInternet,
+             NSURLErrorCannotConnectToHost,
+             NSURLErrorCannotFindHost,
+             NSURLErrorDNSLookupFailed:
+            return true
+        default:
+            return false
+        }
     }
 
     private func defaultTxnInitService(roktTagId: String) -> TxnInitService {
