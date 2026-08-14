@@ -16,6 +16,8 @@ class FontRepositoryTests: XCTestCase {
             self?.diagnosticsReceived.append(model.code)
         }
 
+        ensureDocumentDirectoryExists()
+
         FontRepositoryTests.prepareTestFiles()
 
         FontRepositoryTests.deleteAllTestFiles()

@@ -92,6 +92,41 @@ class RealTimeEventStoreFileTest: XCTestCase {
         )
     }
 
+    // MARK: - Storage directory
+
+    func test_markAsTriggered_whenStorageDirectoryDoesNotExist_stillPersistsEvents() {
+        let markExpectation = expectation(description: "Events marked and processed after debounce")
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("absent-\(UUID().uuidString)", isDirectory: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
+
+        let store = RealTimeEventStoreFile(
+            triggeredEventsFilePath: directory.appendingPathComponent("triggered_events.json"),
+            untriggeredEventsFilePath: directory.appendingPathComponent("untriggered_events.json")
+        )
+        store.addUntriggeredEvents([
+            createRoktUXRealTimeEventResponse(
+                triggerGuid: guid1,
+                triggerEvent: signalImpressionRawValue,
+                eventType: finalType1,
+                payload: payload1
+            )
+        ])
+        store.markAsTriggered([
+            createRoktEventRequest(
+                parentGuid: guid1,
+                eventType: RoktUXEventType(rawValue: signalImpressionRawValue)!
+            )
+        ])
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + expectationTimeout, execute: {
+            XCTAssertEqual(store.getTriggeredEvents().count, 1)
+            markExpectation.fulfill()
+        })
+        wait(for: [markExpectation], timeout: expectationTimeout + 0.5)
+    }
+
     // MARK: - Tests for addUntriggeredEvents & markAsTriggered (indirectly testing getTriggeredEvents)
 
     func test_markAsTriggered_singleMatch_eventIsTriggered() {

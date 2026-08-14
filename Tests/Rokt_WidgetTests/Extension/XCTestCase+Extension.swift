@@ -17,6 +17,23 @@ extension XCTestCase {
     }
 }
 
+// MARK: - Document Directory
+
+extension XCTestCase {
+    /// Creates the document directory a test is about to read or write through.
+    ///
+    /// These tests run without a host app, so `NSHomeDirectory()` is the simulator's device data
+    /// root rather than an app container. `Documents` is created there during boot rather than at
+    /// install, so a suite that reaches it first finds no directory and every write into it fails -
+    /// including the ones `-retry-tests-on-failure` retries, since nothing creates it in between.
+    func ensureDocumentDirectoryExists() {
+        guard let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return
+        }
+        try? FileManager.default.createDirectory(at: documents, withIntermediateDirectories: true)
+    }
+}
+
 // MARK: - Memory Leak Tracking
 
 extension XCTestCase {
