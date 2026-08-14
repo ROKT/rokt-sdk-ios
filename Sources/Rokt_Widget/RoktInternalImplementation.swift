@@ -31,7 +31,6 @@ class RoktInternalImplementation {
     private static let maxPendingApiLogs = 10
     private static let initFailedError = "INIT_FAILED"
     private static let fontFailedError = "FONT_FAILED"
-    private static let defaultRoktInitEvent = "DEFAULT_ROKT_INIT_EVENT"
     private static let trackingConsentError = "tracking consent not authorised"
     private static let cacheDurationKey = "cacheDuration"
     private static let cacheAttributesKey = "cacheAttributeKeys"
@@ -101,6 +100,11 @@ class RoktInternalImplementation {
     // store callback for partner event integration
     private var roktEvent: ((RoktEvent) -> Void)?
     private var roktEventMap: [String: ((RoktEvent) -> Void)?] = [:]
+
+    // Multicast: the mParticle kit and the host app both subscribe through Rokt.globalEvents,
+    // so a single slot let whichever registered last silently unsubscribe the other.
+    private var globalEventListeners: [(RoktEvent) -> Void] = []
+    private let globalEventListenersLock = NSLock()
 
     // debounce work item for EmbeddedSizeChanged
     private var sizeChangeWorkItem: DispatchWorkItem?
@@ -899,6 +903,25 @@ class RoktInternalImplementation {
         }
     }
 
+    private func addGlobalEventListener(_ onEvent: @escaping (RoktEvent) -> Void) {
+        globalEventListenersLock.lock()
+        defer { globalEventListenersLock.unlock() }
+        globalEventListeners.append(onEvent)
+    }
+
+    func removeAllGlobalEventListeners() {
+        globalEventListenersLock.lock()
+        defer { globalEventListenersLock.unlock() }
+        globalEventListeners.removeAll()
+    }
+
+    private func sendEventToGlobalListeners(_ roktEvent: RoktEvent) {
+        globalEventListenersLock.lock()
+        let listeners = globalEventListeners
+        globalEventListenersLock.unlock()
+        listeners.forEach { $0(roktEvent) }
+    }
+
     func initWith(
         roktTagId: String,
         mParticleKitDetails: MParticleKitDetails?
@@ -965,9 +988,7 @@ class RoktInternalImplementation {
         self.processedTimingsRequests?.setInitEndTime()
 
         RoktLogger.shared.info("Initialization complete - success: \(self.isInitialized)")
-        if let eventListener = self.roktEventMap[Self.defaultRoktInitEvent] {
-            eventListener?(RoktEvent.InitComplete(success: self.isInitialized))
-        }
+        self.sendEventToGlobalListeners(RoktEvent.InitComplete(success: self.isInitialized))
 
         // Replay any execute that arrived before init finished.
         if let page = pendingPayload {
@@ -994,9 +1015,7 @@ class RoktInternalImplementation {
         if let code = statusCode, code != 429 {
             self.sendDiagnostics(Self.initDiagnosticCode, error: error, statusCode: statusCode, response: response)
         }
-        if let eventListener = self.roktEventMap[Self.defaultRoktInitEvent] {
-            eventListener?(RoktEvent.InitComplete(success: false))
-        }
+        self.sendEventToGlobalListeners(RoktEvent.InitComplete(success: false))
     }
 
     private func defaultTxnInitService(roktTagId: String) -> TxnInitService {
@@ -1401,7 +1420,11 @@ class RoktInternalImplementation {
         onEvent: ((RoktEvent) -> Void)?
     ) {
         if isGlobal, viewName.isEmpty {
-            roktEventMap[Self.defaultRoktInitEvent] = onEvent
+            if let onEvent {
+                addGlobalEventListener(onEvent)
+            } else {
+                removeAllGlobalEventListeners()
+            }
         } else {
             roktEventMap[viewName] = onEvent
         }
