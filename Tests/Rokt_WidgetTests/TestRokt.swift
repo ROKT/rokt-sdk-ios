@@ -13,6 +13,7 @@ class TestRokt: XCTestCase {
             UserDefaults.standard.removePersistentDomain(forName: bundleID)
             UserDefaults.standard.synchronize()
         }
+        Rokt.shared.roktImplementation.removeAllGlobalEventListeners()
     }
 
     override func tearDown() {
