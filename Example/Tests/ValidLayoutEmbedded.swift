@@ -41,16 +41,12 @@ final class ValidLayoutEmbedded: QuickSpec {
 
                 // Stub response for event call
                 self.stubEvents(onEventReceive: { event in
-                    DispatchQueue.main.async {
-                        events.append(event)
-                    }
+                    events.append(event)
                 })
 
                 // Stub response for diagnostic call
                 self.stubDiagnostics(onDiagnosticsReceive: { (error) in
-                    DispatchQueue.main.async {
-                        errors.append(error)
-                    }
+                    errors.append(error)
                 })
 
                 // Mock date
@@ -59,9 +55,7 @@ final class ValidLayoutEmbedded: QuickSpec {
 
                 // Stub response for timings call
                 self.stubTimings(onTimingsRequestReceive: { request in
-                    DispatchQueue.main.async {
-                        timingsRequests.append(request)
-                    }
+                    timingsRequests.append(request)
                 })
 
                 Rokt.events(identifier: "Test") { roktEvent in
@@ -165,46 +159,23 @@ final class ValidLayoutEmbedded: QuickSpec {
 
                     // check event
                     // page level events
-                    expect(events.contains(EventModel(
-                        eventType: "SignalInitialize",
-                        parentGuid: "afbc0187-2d0f-4ad4-be6b-7545f9273565"
-                    ))).toEventually(beTrue(), timeout: .seconds(10))
-                    expect(events.contains(EventModel(
-                        eventType: "SignalLoadStart",
-                        parentGuid: "afbc0187-2d0f-4ad4-be6b-7545f9273565"
-                    ))).toEventually(beTrue(), timeout: .seconds(10))
-                    expect(events.contains(EventModel(
-                        eventType: "SignalLoadComplete",
-                        parentGuid: "afbc0187-2d0f-4ad4-be6b-7545f9273565"
-                    ))).toEventually(beTrue(), timeout: .seconds(10))
-                    // placment level events
-                    expect(events.contains(EventModel(
-                        eventType: "SignalLoadStart",
-                        parentGuid: "21b61e93-24bd-4735-995a-2f14d0673ec2"
-                    ))).toEventually(beTrue(), timeout: .seconds(10))
-                    expect(events.contains(EventModel(
-                        eventType: "SignalLoadComplete",
-                        parentGuid: "21b61e93-24bd-4735-995a-2f14d0673ec2"
-                    ))).toEventually(beTrue(), timeout: .seconds(10))
-                    expect(events.contains(EventModel(
-                        eventType: "SignalImpression",
-                        parentGuid: "21b61e93-24bd-4735-995a-2f14d0673ec2"
-                    ))).toEventually(beTrue(), timeout: .seconds(10))
+                    expectEventuallyRecorded([
+                        EventModel(eventType: "SignalInitialize", parentGuid: "afbc0187-2d0f-4ad4-be6b-7545f9273565"),
+                        EventModel(eventType: "SignalLoadStart", parentGuid: "afbc0187-2d0f-4ad4-be6b-7545f9273565"),
+                        EventModel(eventType: "SignalLoadComplete", parentGuid: "afbc0187-2d0f-4ad4-be6b-7545f9273565"),
+                        // placment level events
+                        EventModel(eventType: "SignalLoadStart", parentGuid: "21b61e93-24bd-4735-995a-2f14d0673ec2"),
+                        EventModel(eventType: "SignalLoadComplete", parentGuid: "21b61e93-24bd-4735-995a-2f14d0673ec2"),
+                        EventModel(eventType: "SignalImpression", parentGuid: "21b61e93-24bd-4735-995a-2f14d0673ec2")
+                    ], in: events)
 
                     // slot level event
-                    expect(events.contains(EventModel(
-                        eventType: "SignalImpression",
-                        parentGuid: "f0620e60-279e-475f-8e68-1b3816c0691c"
-                    ))).toEventually(beTrue(), timeout: .seconds(10))
-                    // creative level event
-                    expect(events.contains(EventModel(
-                        eventType: "SignalImpression",
-                        parentGuid: "f5987bb9-f7ba-4a89-91e7-80a446c5d29c"
-                    ))).toEventually(beTrue(), timeout: .seconds(10))
-                    expect(events.contains(EventModel(
-                        eventType: "SignalViewed",
-                        parentGuid: "f5987bb9-f7ba-4a89-91e7-80a446c5d29c"
-                    ))).toEventually(beTrue(), timeout: .seconds(9))
+                    expectEventuallyRecorded([
+                        EventModel(eventType: "SignalImpression", parentGuid: "f0620e60-279e-475f-8e68-1b3816c0691c"),
+                        // creative level event
+                        EventModel(eventType: "SignalImpression", parentGuid: "f5987bb9-f7ba-4a89-91e7-80a446c5d29c"),
+                        EventModel(eventType: "SignalViewed", parentGuid: "f5987bb9-f7ba-4a89-91e7-80a446c5d29c")
+                    ], in: events)
 
                     // validate partner events
                     expect(partnerEvents.contains("ShowLoadingIndicator")).toEventually(beTrue())
@@ -296,16 +267,12 @@ final class ValidLayoutEmbedded: QuickSpec {
 
                 // Stub response for event call
                 self.stubEvents(onEventReceive: { event in
-                    DispatchQueue.main.async {
-                        events.append(event)
-                    }
+                    events.append(event)
                 })
 
                 // Stub response for diagnostic call
                 self.stubDiagnostics(onDiagnosticsReceive: { (error) in
-                    DispatchQueue.main.async {
-                        errors.append(error)
-                    }
+                    errors.append(error)
                 })
             }
 
@@ -353,42 +320,22 @@ final class ValidLayoutEmbedded: QuickSpec {
 
                     // check event
                     // page level events
-                    expect(events.contains(EventModel(
-                        eventType: "SignalInitialize",
-                        parentGuid: "afbc0187-2d0f-4ad4-be6b-7545f9273565"
-                    ))).toEventually(beTrue(), timeout: .seconds(10))
-                    expect(events.contains(EventModel(
-                        eventType: "SignalLoadStart",
-                        parentGuid: "afbc0187-2d0f-4ad4-be6b-7545f9273565"
-                    ))).toEventually(beTrue(), timeout: .seconds(10))
-                    expect(events.contains(EventModel(
-                        eventType: "SignalLoadComplete",
-                        parentGuid: "afbc0187-2d0f-4ad4-be6b-7545f9273565"
-                    ))).toEventually(beTrue(), timeout: .seconds(10))
-                    // layout level events
-                    expect(events.contains(EventModel(
-                        eventType: "SignalLoadStart",
-                        parentGuid: "21b61e93-24bd-4735-995a-2f14d0673e22"
-                    ))).toEventually(beTrue(), timeout: .seconds(10))
-                    expect(events.contains(EventModel(
-                        eventType: "SignalLoadComplete",
-                        parentGuid: "21b61e93-24bd-4735-995a-2f14d0673e22"
-                    ))).toEventually(beTrue(), timeout: .seconds(10))
-                    expect(events.contains(EventModel(
-                        eventType: "SignalImpression",
-                        parentGuid: "21b61e93-24bd-4735-995a-2f14d0673e22"
-                    ))).toEventually(beTrue(), timeout: .seconds(10))
+                    expectEventuallyRecorded([
+                        EventModel(eventType: "SignalInitialize", parentGuid: "afbc0187-2d0f-4ad4-be6b-7545f9273565"),
+                        EventModel(eventType: "SignalLoadStart", parentGuid: "afbc0187-2d0f-4ad4-be6b-7545f9273565"),
+                        EventModel(eventType: "SignalLoadComplete", parentGuid: "afbc0187-2d0f-4ad4-be6b-7545f9273565"),
+                        // layout level events
+                        EventModel(eventType: "SignalLoadStart", parentGuid: "21b61e93-24bd-4735-995a-2f14d0673e22"),
+                        EventModel(eventType: "SignalLoadComplete", parentGuid: "21b61e93-24bd-4735-995a-2f14d0673e22"),
+                        EventModel(eventType: "SignalImpression", parentGuid: "21b61e93-24bd-4735-995a-2f14d0673e22")
+                    ], in: events)
 
                     // slot level event
-                    expect(events.contains(EventModel(
-                        eventType: "SignalImpression",
-                        parentGuid: "f0620e60-279e-475f-8e68-1b3816c06ddd"
-                    ))).toEventually(beTrue(), timeout: .seconds(10))
-                    // creative level event
-                    expect(events.contains(EventModel(
-                        eventType: "SignalImpression",
-                        parentGuid: "f5987bb9-f7ba-4a89-91e7-80a446ctfr"
-                    ))).toEventually(beTrue(), timeout: .seconds(10))
+                    expectEventuallyRecorded([
+                        EventModel(eventType: "SignalImpression", parentGuid: "f0620e60-279e-475f-8e68-1b3816c06ddd"),
+                        // creative level event
+                        EventModel(eventType: "SignalImpression", parentGuid: "f5987bb9-f7ba-4a89-91e7-80a446ctfr")
+                    ], in: events)
                 }
             }
         }
