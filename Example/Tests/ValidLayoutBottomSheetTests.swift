@@ -35,16 +35,12 @@ final class ValidLayoutBottomSheetTests: QuickSpec {
 
                 // Stub response for event call
                 self.stubEvents(onEventReceive: { event in
-                    DispatchQueue.main.async {
-                        events.append(event)
-                    }
+                    events.append(event)
                 })
 
                 // Stub response for diagnostic call
                 self.stubDiagnostics(onDiagnosticsReceive: { (error) in
-                    DispatchQueue.main.async {
-                        errors.append(error)
-                    }
+                    errors.append(error)
                 })
 
                 // Mock date
@@ -52,9 +48,7 @@ final class ValidLayoutBottomSheetTests: QuickSpec {
 
                 // Stub response for timings call
                 self.stubTimings(onTimingsRequestReceive: { request in
-                    DispatchQueue.main.async {
-                        timingsRequests.append(request)
-                    }
+                    timingsRequests.append(request)
                 })
 
                 Rokt.events(identifier: "Test") { roktEvent in
@@ -137,54 +131,34 @@ final class ValidLayoutBottomSheetTests: QuickSpec {
                     expect(testVC.onShouldHideCallbackCalled).toEventually(beTrue(), timeout: .seconds(10))
                     expect(testVC.displayedOnce).toEventually(beTrue(), timeout: .seconds(10))
 
-                    // check event
-                    // page level events
-                    expect(events.contains(EventModel(
-                        eventType: "SignalInitialize",
-                        parentGuid: "afbc0187-2d0f-4ad4-be6b-7545f9273565"
-                    ))).toEventually(beTrue(), timeout: .seconds(10))
-                    expect(events.contains(EventModel(
-                        eventType: "SignalLoadStart",
-                        parentGuid: "afbc0187-2d0f-4ad4-be6b-7545f9273565"
-                    ))).toEventually(beTrue(), timeout: .seconds(10))
-                    expect(events.contains(EventModel(
-                        eventType: "SignalLoadComplete",
-                        parentGuid: "afbc0187-2d0f-4ad4-be6b-7545f9273565"
-                    ))).toEventually(beTrue(), timeout: .seconds(10))
-                    // placment level events
-                    expect(events.contains(EventModel(
-                        eventType: "SignalLoadStart",
-                        parentGuid: "21b61e93-24bd-4735-995a-2f14d0673ec2"
-                    ))).toEventually(beTrue(), timeout: .seconds(10))
-                    expect(events.contains(EventModel(
-                        eventType: "SignalLoadComplete",
-                        parentGuid: "21b61e93-24bd-4735-995a-2f14d0673ec2"
-                    ))).toEventually(beTrue(), timeout: .seconds(10))
-                    expect(events.contains(EventModel(
-                        eventType: "SignalImpression",
-                        parentGuid: "21b61e93-24bd-4735-995a-2f14d0673ec2"
-                    ))).toEventually(beTrue(), timeout: .seconds(10))
-
-                    // slot level event
-                    expect(events.contains(EventModel(
-                        eventType: "SignalImpression",
-                        parentGuid: "f0620e60-279e-475f-8e68-1b3816c0691c"
-                    ))).toEventually(beTrue(), timeout: .seconds(10))
-                    // creative level event
-                    expect(events.contains(EventModel(
-                        eventType: "SignalImpression",
-                        parentGuid: "f5987bb9-f7ba-4a89-91e7-80a446c5d29c"
-                    ))).toEventually(beTrue(), timeout: .seconds(10))
-                    expect(events.contains(EventModel(
-                        eventType: "SignalViewed",
-                        parentGuid: "f5987bb9-f7ba-4a89-91e7-80a446c5d29c"
-                    ))).toEventually(beTrue(), timeout: .seconds(10))
+                    // check events — the whole set shares one budget, because giving each
+                    // event its own made the first one absorb all of the pipeline's latency
+                    // and fail on its own on slow runners. See `expectEventuallyRecorded`.
+                    let pageGuid = "afbc0187-2d0f-4ad4-be6b-7545f9273565"
+                    let placementGuid = "21b61e93-24bd-4735-995a-2f14d0673ec2"
+                    let slotGuid = "f0620e60-279e-475f-8e68-1b3816c0691c"
+                    let creativeGuid = "f5987bb9-f7ba-4a89-91e7-80a446c5d29c"
+                    expectEventuallyRecorded([
+                        // page level events
+                        EventModel(eventType: "SignalInitialize", parentGuid: pageGuid),
+                        EventModel(eventType: "SignalLoadStart", parentGuid: pageGuid),
+                        EventModel(eventType: "SignalLoadComplete", parentGuid: pageGuid),
+                        // placement level events
+                        EventModel(eventType: "SignalLoadStart", parentGuid: placementGuid),
+                        EventModel(eventType: "SignalLoadComplete", parentGuid: placementGuid),
+                        EventModel(eventType: "SignalImpression", parentGuid: placementGuid),
+                        // slot level event
+                        EventModel(eventType: "SignalImpression", parentGuid: slotGuid),
+                        // creative level events
+                        EventModel(eventType: "SignalImpression", parentGuid: creativeGuid),
+                        EventModel(eventType: "SignalViewed", parentGuid: creativeGuid)
+                    ], in: events)
 
                     // validate timings requests — wait for the request to land
-                    // first because the stub appends asynchronously on the main
+                    // first because the stub records asynchronously on the main
                     // queue, so the synchronous reads below would race the
                     // network completion otherwise.
-                    expect(timingsRequests.count).toEventually(equal(1), timeout: .seconds(5))
+                    expect(timingsRequests.count).toEventually(equal(1), timeout: .seconds(15))
                     expect(timingsRequests.first?.pageId).to(equal("edecb4b2-91a5-4fd7-859f-82347b6e79fd"))
                     expect(timingsRequests.first?.pageInstanceGuid).to(equal("afbc0187-2d0f-4ad4-be6b-7545f9273565"))
                     expect(timingsRequests.first?.pluginId).to(equal("2675781658204502278"))

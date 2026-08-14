@@ -106,7 +106,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     // Initial execute with original response
                     self.executeRokt()
                     expect(mockImplementation.executingPageString).toEventually(
-                        equal(stubCachedResponseAsString), timeout: .seconds(5)
+                        equal(stubCachedResponseAsString), timeout: kPipelineWaitTimeout
                     )
 
                     // Stub execute to return new response
@@ -136,7 +136,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     // Initial execute with original response
                     self.executeRokt(config: config)
                     expect(mockImplementation.executingPageString)
-                        .toEventually(equal(stubCachedResponseAsString), timeout: .seconds(5))
+                        .toEventually(equal(stubCachedResponseAsString), timeout: kPipelineWaitTimeout)
 
                     // Stub execute to return new response
                     self.stubExecute(kValidLayoutGroupedFilename, isLayout: true)
@@ -146,7 +146,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
 
                     // Check uses original (cached) response
                     expect(mockImplementation.executingPageString)
-                        .toEventually(equal(stubCachedResponseAsString), timeout: .seconds(5))
+                        .toEventually(equal(stubCachedResponseAsString), timeout: kPipelineWaitTimeout)
                 }
 
                 it("does not use cache on non-matching cache attributes") {
@@ -162,7 +162,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     self.executeRokt(config: config)
                     expect(mockImplementation.executingPageString).toEventually(
                         equal(stubCachedResponseAsString),
-                        timeout: .seconds(5)
+                        timeout: kPipelineWaitTimeout
                     )
 
                     // Stub execute to return new response
@@ -180,7 +180,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     let stubNewResponseAsString = self.expectedOffersPage(forV1Fixture: kValidLayoutGroupedFilename)
                     expect(mockImplementation.executingPageString).toEventually(
                         equal(stubNewResponseAsString),
-                        timeout: .seconds(1)
+                        timeout: kPipelineWaitTimeout
                     )
                 }
 
@@ -195,7 +195,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     self.executeRokt(attributes: self.mockedAttributes, config: config)
                     expect(mockImplementation.executingPageString).toEventually(
                         equal(stubCachedResponseAsString),
-                        timeout: .seconds(5)
+                        timeout: kPipelineWaitTimeout
                     )
 
                     // Stub execute to return new response
@@ -207,7 +207,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     // Check uses original response
                     expect(mockImplementation.executingPageString).toEventually(
                         equal(stubCachedResponseAsString),
-                        timeout: .seconds(5)
+                        timeout: kPipelineWaitTimeout
                     )
                 }
 
@@ -222,7 +222,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     self.executeRokt(attributes: self.mockedAttributes, config: config)
                     expect(mockImplementation.executingPageString).toEventually(
                         equal(stubCachedResponseAsString),
-                        timeout: .seconds(5)
+                        timeout: kPipelineWaitTimeout
                     )
 
                     // Stub execute to return new response
@@ -235,7 +235,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     let stubNewResponseAsString = self.expectedOffersPage(forV1Fixture: kValidLayoutGroupedFilename)
                     expect(mockImplementation.executingPageString).toEventually(
                         equal(stubNewResponseAsString),
-                        timeout: .seconds(5)
+                        timeout: kPipelineWaitTimeout
                     )
                 }
 
@@ -250,7 +250,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     self.executeRokt(attributes: self.mockedAttributes, config: config)
                     expect(mockImplementation.executingPageString).toEventually(
                         equal(stubCachedResponseAsString),
-                        timeout: .seconds(5)
+                        timeout: kPipelineWaitTimeout
                     )
 
                     // Stub execute to return new response
@@ -262,7 +262,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     // Check uses original response
                     expect(mockImplementation.executingPageString).toEventually(
                         equal(stubCachedResponseAsString),
-                        timeout: .seconds(5)
+                        timeout: kPipelineWaitTimeout
                     )
                 }
 
@@ -277,7 +277,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     self.executeRokt(viewName: self.mockedViewName, attributes: self.mockedAttributes, config: config)
                     expect(mockImplementation.executingPageString).toEventually(
                         equal(stubCachedResponseAsString),
-                        timeout: .seconds(5)
+                        timeout: kPipelineWaitTimeout
                     )
 
                     // Stub execute to return new response
@@ -289,7 +289,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     // Check uses original response
                     expect(mockImplementation.executingPageString).toEventually(
                         equal(stubCachedResponseAsString),
-                        timeout: .seconds(5)
+                        timeout: kPipelineWaitTimeout
                     )
                 }
 
@@ -304,7 +304,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     self.executeRokt(attributes: self.mockedAttributes, config: config)
                     expect(mockImplementation.executingPageString).toEventually(
                         equal(stubCachedResponseAsString),
-                        timeout: .seconds(5)
+                        timeout: kPipelineWaitTimeout
                     )
 
                     // Stub execute to return new response
@@ -321,7 +321,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     let stubNewResponseAsString = self.expectedOffersPage(forV1Fixture: kValidLayoutGroupedFilename)
                     expect(mockImplementation.executingPageString).toEventually(
                         equal(stubNewResponseAsString),
-                        timeout: .seconds(5)
+                        timeout: kPipelineWaitTimeout
                     )
                 }
 
@@ -349,7 +349,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     let initialPluginViewState = RoktPluginViewState(pluginId: pluginId)
                     let states = mockImplementation.executingLayoutPage?.cacheProperties?.pluginViewStates
                     expect(states?.contains(initialPluginViewState))
-                        .toEventually(beTrue(), timeout: .seconds(10))
+                        .toEventually(beTrue(), timeout: kPipelineWaitTimeout)
 
                     // Update plugin view states
                     let customStateId = CustomStateIdentifiable(position: 3, key: "state")
@@ -384,7 +384,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                         customStateMap: customStateMap
                     )
                     expect(mockImplementation.executingLayoutPage?.cacheProperties?.pluginViewStates?.contains(pluginViewState))
-                        .toEventually(beTrue(), timeout: .seconds(20))
+                        .toEventually(beTrue(), timeout: kPipelineWaitTimeout)
                 }
 
                 it("does not use cached sent events on non-matching attributes") {
@@ -406,7 +406,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     _ = XCTWaiter.wait(for: [exp], timeout: 2)
 
                     // Check initial sent events
-                    expect(initialEvents).toEventuallyNot(beNil(), timeout: .seconds(5))
+                    expect(initialEvents).toEventuallyNot(beNil(), timeout: kPipelineWaitTimeout)
 
                     var secondEvents = []
                     self.stubEvents { event in
@@ -420,7 +420,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     _ = XCTWaiter.wait(for: [exp2], timeout: 2)
 
                     // Check second sent events
-                    expect(secondEvents).toEventuallyNot(beNil())
+                    expect(secondEvents).toEventuallyNot(beNil(), timeout: kPipelineWaitTimeout)
                 }
 
                 it("uses initial plugin view states on non-matching attributes") {
@@ -444,7 +444,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     let initialPluginViewState = RoktPluginViewState(pluginId: pluginId)
                     expect(mockImplementation.executingLayoutPage?.cacheProperties?.pluginViewStates?
                         .contains(initialPluginViewState))
-                        .toEventually(beTrue())
+                        .toEventually(beTrue(), timeout: kPipelineWaitTimeout)
 
                     // Update plugin view states
                     let customStateId = CustomStateIdentifiable(position: 3, key: "state")
@@ -464,7 +464,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     // Check uses initial plugin view state
                     expect(mockImplementation.executingLayoutPage?.cacheProperties?.pluginViewStates?
                         .contains(initialPluginViewState))
-                        .toEventually(beTrue(), timeout: .seconds(5))
+                        .toEventually(beTrue(), timeout: kPipelineWaitTimeout)
                 }
 
                 afterEach {
@@ -506,14 +506,14 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     self.executeRokt(config: config)
                     expect(mockImplementation.executingPageString).toEventually(
                         equal(stubCachedResponseAsString),
-                        timeout: .seconds(5)
+                        timeout: kPipelineWaitTimeout
                     )
 
                     self.stubExecute(kValidLayoutGroupedFilename, isLayout: true)
                     self.executeRokt(config: config)
                     expect(mockImplementation.executingPageString).toEventually(
                         equal(stubNewResponseAsString),
-                        timeout: .seconds(5)
+                        timeout: kPipelineWaitTimeout
                     )
                 }
 

@@ -28,6 +28,49 @@ var txnEventResourceURL: String {
 func useNetworkedMockEnvironment() {
     config.environment = .Prod
     Mocker.removeAll()
+    mockRecordingGeneration += 1
+
+    // `sendTimingEvents` posts performance metrics to a second, separate endpoint that no
+    // spec asserts on. Left unstubbed it failed on every call, and its failure handler
+    // fires a diagnostics POST — so each one turned into two failing requests competing
+    // with the calls these specs are actually timing. Absorb it for every spec, since any
+    // spec that renders a placement triggers it whether or not it stubs timings.
+    if let timingEventsURL = URL(string: timingsEventsResourceURL) {
+        Mock(url: timingEventsURL, dataType: .json, statusCode: 200, data: [.post: Data()]).register()
+    }
+}
+
+// Incremented every time a spec re-arms its stubs, which is once per example. Recording
+// callbacks capture the generation they were registered in and drop anything delivered
+// after it goes stale — see `recordingForCurrentGeneration`.
+var mockRecordingGeneration = 0
+
+// Wraps a spec's recording callback so it (a) always delivers on the main queue and
+// (b) only records while the generation it was registered in is still current.
+//
+// Stub callbacks run on a URL-session queue, so a request one example started can be
+// delivered after the next example has already begun. Every example in a spec appends
+// into the same capture-scoped arrays, so those late deliveries used to be recorded as
+// though they belonged to the following example — which is how `timingsRequests.count`
+// was observed as 2 in an example that made exactly one timings call. Checking the
+// generation inside the main-queue hop closes that window: a stale delivery lands after
+// the next example's `beforeEach` has bumped the generation, so it is discarded instead
+// of being counted.
+//
+// The generation is bumped by `useNetworkedMockEnvironment`, i.e. alongside the
+// `Mocker.removeAll()` that tears the previous example's stubs down. That keeps the two
+// definitions of "stale" aligned: a callback registered before that teardown has had its
+// mock removed and can never fire again anyway, so dropping its recordings is correct
+// rather than a lost registration.
+func recordingForCurrentGeneration<T>(_ record: ((T) -> Void)?) -> ((T) -> Void)? {
+    guard let record else { return nil }
+    let generation = mockRecordingGeneration
+    return { value in
+        DispatchQueue.main.async {
+            guard generation == mockRecordingGeneration else { return }
+            record(value)
+        }
+    }
 }
 
 // Reverse of TxnEventMapper's vocabulary so the v2 events stub can surface legacy EventModel names.
@@ -296,6 +339,7 @@ extension StubMethodsProvider {
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
+        let record = recordingForCurrentGeneration(onDiagnosticsReceive)
         guard let originalURL = URL(string: diagnosticsResourceURL) else { return }
         var mock = Mock(url: originalURL,
                         dataType: .json, statusCode: 200, data: [.post: Data()])
@@ -304,7 +348,7 @@ extension StubMethodsProvider {
             if let reqestDatas = request.httpBodyStream?.readfully() {
                 do {
                     let json = try JSONSerialization.jsonObject(with: reqestDatas, options: []) as? [String: Any]
-                    onDiagnosticsReceive?(json?["code"] as? String ?? "")
+                    record?(json?["code"] as? String ?? "")
                 } catch {
                 }
             }
@@ -317,7 +361,7 @@ extension StubMethodsProvider {
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        registerTxnEventsStub(onEventReceive: onEventReceive)
+        registerTxnEventsStub(onEventReceive: recordingForCurrentGeneration(onEventReceive))
     }
 
     func stubTimings(onTimingsRequestReceive: ((MockTimingsRequest) -> Void)? = nil) {
@@ -325,6 +369,7 @@ extension StubMethodsProvider {
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
+        let record = recordingForCurrentGeneration(onTimingsRequestReceive)
         guard let originalURL = URL(string: timingsResourceURL) else { return }
 
         var mock = Mock(url: originalURL,
@@ -335,7 +380,7 @@ extension StubMethodsProvider {
                let requestHeaders = request.allHTTPHeaderFields {
                 do {
                     let requestBody = try JSONSerialization.jsonObject(with: requestBodyStream, options: []) as! [String: Any]
-                    onTimingsRequestReceive?(
+                    record?(
                         MockTimingsRequest(eventTime: requestBody[timingsEventTimeKey] as! String,
                                            pageId: requestHeaders[headerPageIdKey],
                                            pageInstanceGuid: requestHeaders[headerPageInstanceGuidKey],
@@ -438,6 +483,7 @@ extension XCTestCase: StubMethodsProvider {
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
+        let record = recordingForCurrentGeneration(onDiagnosticsReceive)
         guard let originalURL = URL(string: diagnosticsResourceURL) else { return }
         var mock = Mock(url: originalURL,
                         dataType: .json, statusCode: 200, data: [.post: Data()])
@@ -446,7 +492,7 @@ extension XCTestCase: StubMethodsProvider {
             if let reqestDatas = request.httpBodyStream?.readfully() {
                 do {
                     let json = try JSONSerialization.jsonObject(with: reqestDatas, options: []) as? [String: Any]
-                    onDiagnosticsReceive?(json?["code"] as? String ?? "")
+                    record?(json?["code"] as? String ?? "")
                 } catch {
                 }
             }
@@ -459,7 +505,7 @@ extension XCTestCase: StubMethodsProvider {
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        registerTxnEventsStub(onEventReceive: onEventReceive)
+        registerTxnEventsStub(onEventReceive: recordingForCurrentGeneration(onEventReceive))
     }
 
     func stubTimings(onTimingsRequestReceive: ((MockTimingsRequest) -> Void)? = nil) {
@@ -467,6 +513,7 @@ extension XCTestCase: StubMethodsProvider {
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
+        let record = recordingForCurrentGeneration(onTimingsRequestReceive)
         guard let originalURL = URL(string: timingsResourceURL) else { return }
 
         var mock = Mock(url: originalURL,
@@ -477,7 +524,7 @@ extension XCTestCase: StubMethodsProvider {
                let requestHeaders = request.allHTTPHeaderFields {
                 do {
                     let requestBody = try JSONSerialization.jsonObject(with: requestBodyStream, options: []) as! [String: Any]
-                    onTimingsRequestReceive?(
+                    record?(
                         MockTimingsRequest(eventTime: requestBody[timingsEventTimeKey] as! String,
                                            pageId: requestHeaders[headerPageIdKey],
                                            pageInstanceGuid: requestHeaders[headerPageInstanceGuidKey],
