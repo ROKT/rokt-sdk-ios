@@ -153,22 +153,10 @@ internal struct TxnEventService {
         return seconds
     }
 
-    // Transient transport failures worth retrying, including a device that is offline
-    // (matches ForwardPaymentRetryRules and the web/Android recoverable-transport set).
+    // Transient transport failures worth retrying, including a device that is offline:
+    // batches are persisted and replayed, so an offline send is worth coming back for.
     private func isRetryable(error: Error) -> Bool {
-        let nsError = error as NSError
-        guard nsError.domain == NSURLErrorDomain else { return false }
-        switch nsError.code {
-        case NSURLErrorTimedOut,
-             NSURLErrorNetworkConnectionLost,
-             NSURLErrorNotConnectedToInternet,
-             NSURLErrorCannotConnectToHost,
-             NSURLErrorCannotFindHost,
-             NSURLErrorDNSLookupFailed:
-            return true
-        default:
-            return false
-        }
+        NetworkRetryRules.isTransientTransportFailure(error, policy: .transientIncludingOffline)
     }
 
     // Exponential backoff with jitter to avoid hammering a struggling gateway.

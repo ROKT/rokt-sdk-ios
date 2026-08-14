@@ -43,7 +43,6 @@ class NetworkingHelper {
     class func performPost(url: String,
                            body: [String: Any]?,
                            headers: [String: String]? = nil,
-                           extraErrorCheck: Bool = false,
                            onRequestStart: (() -> Void)? = nil,
                            success: ((NSDictionary, Data?, ResponseHeaders?) -> Void)? = nil,
                            failure: ((Error, Int?, String) -> Void)? = nil,
@@ -60,15 +59,10 @@ class NetworkingHelper {
             completionHandler: { requestResult in
                 processHTTPRequestResult(httpResult: requestResult,
                                          success: success) { error, errorCode, errorReponse in
-                    if retriableResponse(
-                        error: error,
-                        code: errorCode,
-                        extraErrorCheck: extraErrorCheck
-                    ) && retryCount < maxRetries {
+                    if retriableResponse(error: error, code: errorCode) && retryCount < maxRetries {
                         performPost(url: url,
                                     body: body,
                                     headers: headers,
-                                    extraErrorCheck: extraErrorCheck,
                                     onRequestStart: onRequestStart,
                                     success: success,
                                     failure: failure,
@@ -81,25 +75,12 @@ class NetworkingHelper {
         )
     }
 
-    class internal func retriableResponse(error: Error, code: Int?, extraErrorCheck: Bool = false) -> Bool {
-        if error._code == NSURLErrorTimedOut {
-            return true
-        }
-
-        if isRetryableStatusCode(code) {
-            return true
-        }
-
-        if extraErrorCheck && (error._code == NSURLErrorNetworkConnectionLost ||
-                                error._code == NSURLErrorCannotFindHost ||
-                                error._code == NSURLErrorCannotConnectToHost ||
-                                error._code == NSURLErrorNotConnectedToInternet ||
-                                error._code == NSURLErrorDNSLookupFailed ||
-                                error._code == NSURLErrorResourceUnavailable) {
-            return true
-        }
-
-        return false
+    // This path retries in place almost immediately, so it comes back for a timeout only.
+    // Widening it to the rest of the transient set is a `.transient` policy away, but that
+    // is a behaviour change for font downloads and should be decided on its own.
+    class internal func retriableResponse(error: Error, code: Int?) -> Bool {
+        NetworkRetryRules.isTransientTransportFailure(error, policy: .timeoutOnly)
+            || isRetryableStatusCode(code)
     }
 
     class func isRetryableStatusCode(_ code: Int?) -> Bool {
