@@ -69,6 +69,40 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
         )
     }
 
+    /// Waits for an `onPluginViewStateChange` update to reach the plugin view state cache file.
+    ///
+    /// The SDK writes it as an async barrier while the next execute reads synchronously, so waiting a
+    /// fixed interval instead lets a loaded machine read first — and a read that already returned
+    /// stale data is a hard failure, not something a wider budget can rescue.
+    ///
+    /// Reads unmapped rather than via `getCachedPluginViewStateFileData`, which uses `.mappedIfSafe`:
+    /// polling a mapped file while the writer replaces it faults the test host, whereas an unmapped
+    /// half-written read just fails to decode and is retried.
+    func waitForCachedPluginViewState(_ expected: RoktPluginViewState,
+                                      cacheProperties: LayoutPageCacheProperties?,
+                                      file: StaticString = #filePath,
+                                      line: UInt = #line) {
+        guard let cacheProperties else {
+            return XCTFail("cacheProperties should not be nil", file: file, line: line)
+        }
+
+        let fileName = ExperienceCacheUtils.getPluginViewStateFileName(
+            pluginId: expected.pluginId,
+            viewName: cacheProperties.viewName,
+            attributes: cacheProperties.experienceCacheAttributes
+        )
+        guard let fileUrl = ExperienceCacheManager.getFileUrl(name: fileName) else {
+            return XCTFail("plugin view state cache file url should not be nil", file: file, line: line)
+        }
+
+        // Not `kPipelineWaitTimeout`: this awaits one local file write, not a whole pipeline.
+        expect(file: "\(file)", line: line) { () -> RoktPluginViewState? in
+            guard let data = try? Data(contentsOf: fileUrl, options: []) else { return nil }
+            return ExperienceCacheUtils.getValidPluginViewState(pluginId: expected.pluginId, data: data)
+        }
+        .toEventually(equal(expected), timeout: .seconds(10), description: "cached plugin view state")
+    }
+
     override func spec() {
         describe("Rokt modal controller") {
 
@@ -364,11 +398,11 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     mockImplementation.executingLayoutPage?.cacheProperties?.onPluginViewStateChange?(pluginViewStateUpdates)
 
                     // Wait for the async barrier write triggered by onPluginViewStateChange to
-                    // complete before the second execute reads from disk. Without this, the
-                    // ConcurrentQueueFileStorageDecorator.write barrier may not have flushed yet
-                    // when getCachedPluginViewStateFileData does its synchronous Data(contentsOf:) read.
-                    let expWrite = self.expectation(description: "Await plugin view state write")
-                    _ = XCTWaiter.wait(for: [expWrite], timeout: 2)
+                    // reach disk before the second execute reads it back.
+                    self.waitForCachedPluginViewState(
+                        pluginViewStateUpdates,
+                        cacheProperties: mockImplementation.executingLayoutPage?.cacheProperties
+                    )
 
                     // Second execute with same config
                     self.executeRokt(config: config)

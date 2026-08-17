@@ -84,8 +84,8 @@ final class ValidLayoutBottomSheetTests: QuickSpec {
                     timingsRequests = []
                     partnerEvents = []
                     testVC = TestViewController()
-
-                    testVC.installInTestWindow()
+                    // Installed per example, not here: installing drives a placement, and
+                    // one started here outlived the examples that never waited for it.
                 }
 
                 afterEach {
@@ -122,6 +122,8 @@ final class ValidLayoutBottomSheetTests: QuickSpec {
                 }
 
                 it("layouts loaded successfully with events") {
+                    testVC.installInTestWindow()
+
                     expect(UIApplication.topViewController()).toEventually(
                         beAnInstanceOf(RoktUXSwiftUIViewController.self),
                         timeout: .seconds(19)

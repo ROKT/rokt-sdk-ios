@@ -105,8 +105,8 @@ final class ValidLayoutEmbedded: QuickSpec {
                     partnerEventsInfo = [:]
                     testVC = TestViewController()
                     testVC.pageInitAttr = invalidPageInitDateEpoch
-
-                    testVC.installInTestWindow()
+                    // Installed per example, not here: installing drives a placement, and
+                    // one started here outlived the examples that never waited for it.
                 }
 
                 afterEach {
@@ -144,6 +144,8 @@ final class ValidLayoutEmbedded: QuickSpec {
                 }
 
                 it("layouts loaded successfully with events") {
+                    testVC.installInTestWindow()
+
                     expect(testVC.embeddedLocation1?.roktEmbeddedSwiftUIView?.isHidden).toEventually(
                         beFalse(),
                         timeout: .seconds(9)
@@ -194,6 +196,8 @@ final class ValidLayoutEmbedded: QuickSpec {
                 }
 
                 it("layouts loaded successfully with timings contains invalid pageInit") {
+                    testVC.installInTestWindow()
+
                     expect(testVC.embeddedLocation1?.roktEmbeddedSwiftUIView?.isHidden).toEventually(
                         beFalse(),
                         timeout: .seconds(9)
@@ -282,8 +286,8 @@ final class ValidLayoutEmbedded: QuickSpec {
                     events = []
                     errors = []
                     testVC = TestViewController()
-
-                    testVC.installInTestWindow()
+                    // Installed per example, not here: installing drives a placement, and
+                    // one started here outlived the examples that never waited for it.
                 }
 
                 afterEach {
@@ -309,6 +313,8 @@ final class ValidLayoutEmbedded: QuickSpec {
                 }
 
                 it("layouts loaded successfully with events") {
+                    testVC.installInTestWindow()
+
                     expect(testVC.embeddedLocation4?.roktEmbeddedSwiftUIView?.isHidden).toEventually(
                         beFalse(),
                         timeout: .seconds(9)

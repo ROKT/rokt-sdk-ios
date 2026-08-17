@@ -14,7 +14,9 @@ import Foundation
 ///
 /// `toEventually` returns as soon as its condition holds, so a generous budget costs nothing on a
 /// healthy run. It only changes the outcome of a run that would otherwise have failed for want of a
-/// second — at the price of a genuinely broken assertion taking longer to report.
+/// second — at the price of a genuinely broken assertion taking longer to report. Examples chain two
+/// of these, so keep it under half the `ui-test` job's `-default-test-execution-time-allowance`, or a
+/// doubly-failing one is killed by the per-test timeout instead of naming the assertion.
 let kPipelineWaitTimeout: NimbleTimeInterval = .seconds(30)
 
 // MARK: Event expectations
