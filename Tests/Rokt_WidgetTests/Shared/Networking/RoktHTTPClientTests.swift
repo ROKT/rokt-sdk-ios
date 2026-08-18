@@ -35,6 +35,27 @@ final class RoktHTTPClientTests: XCTestCase {
         XCTAssertEqual(sut.session.configuration.timeoutIntervalForResource, 123, accuracy: 0.1)
     }
 
+    // MARK: - Concurrency: the shared session must not be raced
+
+    func test_concurrentUpdateTimeoutAndRequests_doNotRaceTheSharedSession() {
+        RoktHTTPUrlProtocolStub.stub(data: anyData(), response: anyHTTPURLResponse(), error: nil)
+        let sut = makeSUT()
+
+        let requests = 200
+        let exp = expectation(description: "all requests complete")
+        exp.expectedFulfillmentCount = requests
+
+        // Fixed-size independent iterations — no shared stop flag that would itself race.
+        DispatchQueue.concurrentPerform(iterations: requests) { index in
+            sut.updateTimeout(timeout: Double((index % 30) + 1))
+            sut.startRequestWith(urlAddress: anyURLString(), method: .get) { _ in
+                exp.fulfill()
+            }
+        }
+
+        wait(for: [exp], timeout: 20.0)
+    }
+
     // MARK: - Downloads are not bound by the API client timeout
 
     func test_updateTimeout_leavesTheDownloadResourceBudgetAlone() {

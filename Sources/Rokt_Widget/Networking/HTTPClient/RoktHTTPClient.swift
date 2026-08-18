@@ -69,6 +69,8 @@ internal final class RoktHTTPClient: HTTPClientAdapter {
     private let emptyDataStatusCodes: Set<Int> = [204, 205]
 
     private(set) var session: URLSession = .shared
+    // Serialises `session`, which `updateTimeout` reassigns on the request hot path.
+    private let sessionLock = NSLock()
     private(set) var downloadSession: URLSession = .shared
     private(set) var encoders: [RoktHTTPParameterEncoder] = []
 
@@ -117,12 +119,23 @@ internal final class RoktHTTPClient: HTTPClientAdapter {
     ///
     /// - Parameter timeout: seconds.
     func updateTimeout(timeout: Double) {
+        sessionLock.lock()
+        defer { sessionLock.unlock() }
+
         let currentConfiguration = session.configuration
 
         currentConfiguration.timeoutIntervalForRequest = timeout
         currentConfiguration.timeoutIntervalForResource = timeout
 
         self.session = URLSession(configuration: currentConfiguration)
+    }
+
+    // Runs `body` under the lock; callers create and resume the task inside, binding it
+    // to a live session rather than a reference used after a concurrent swap.
+    private func withSession<T>(_ body: (URLSession) -> T) -> T {
+        sessionLock.lock()
+        defer { sessionLock.unlock() }
+        return body(session)
     }
 
     @discardableResult
@@ -158,26 +171,26 @@ internal final class RoktHTTPClient: HTTPClientAdapter {
         }
 
         onRequestStart?()
-        let task = session.dataTask(with: request) { [weak self] (data, response, error) in
-            guard let self else { return }
+        withSession { session in
+            session.dataTask(with: request) { [weak self] (data, response, error) in
+                guard let self else { return }
 
-            let anyJSONSerialisationResult = self.serializeAsJSON(
-                data: data,
-                response: response,
-                error: error
-            )
+                let anyJSONSerialisationResult = self.serializeAsJSON(
+                    data: data,
+                    response: response,
+                    error: error
+                )
 
-            let requestResult = RoktHTTPRequestResult(
-                httpURLResponse: response as? HTTPURLResponse,
-                responseData: data,
-                responseError: error,
-                jsonSerialisedResponseData: anyJSONSerialisationResult
-            )
+                let requestResult = RoktHTTPRequestResult(
+                    httpURLResponse: response as? HTTPURLResponse,
+                    responseData: data,
+                    responseError: error,
+                    jsonSerialisedResponseData: anyJSONSerialisationResult
+                )
 
-            completionQueue.async { completionHandler?(requestResult) }
+                completionQueue.async { completionHandler?(requestResult) }
+            }.resume()
         }
-
-        task.resume()
 
         return request
     }
