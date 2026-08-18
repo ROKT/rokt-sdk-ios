@@ -38,10 +38,6 @@ final class RoktHTTPClientTests: XCTestCase {
     // MARK: - Concurrency: the shared session must not be raced
 
     func test_concurrentUpdateTimeoutAndRequests_doNotRaceTheSharedSession() {
-        // Regression guard for the shared-session use-after-free: updateTimeout reassigns
-        // `session` while startRequestWith reads it. Interleaving writes and reads across
-        // threads must leave every request completing. ThreadSanitizer is the real detector
-        // of the race; without it this still catches a fix that deadlocks or drops completions.
         RoktHTTPUrlProtocolStub.stub(data: anyData(), response: anyHTTPURLResponse(), error: nil)
         let sut = makeSUT()
 
