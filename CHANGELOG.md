@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [5.3.4] - 2026-08-18
+
+### Core
+
+#### Fixed
+
+- Synchronise access to the shared HTTP client session ([#296](https://github.com/ROKT/rokt-sdk-ios/pull/296))
+
+#### Changed
+
+- Fix the remaining two UI test flake mechanisms ([#294](https://github.com/ROKT/rokt-sdk-ios/pull/294))
+
 ## [5.3.3] - 2026-08-14
 
 ### Core
@@ -556,7 +568,8 @@ For a complete migration walkthrough with before/after code examples, see the [v
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.3...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.4...HEAD
+[5.3.4]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.3...5.3.4
 [5.3.3]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.2...5.3.3
 [5.3.2]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.1...5.3.2
 [5.3.1]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.0...5.3.1
