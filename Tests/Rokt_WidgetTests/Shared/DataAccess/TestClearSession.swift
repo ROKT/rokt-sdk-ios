@@ -1,11 +1,8 @@
 import XCTest
 @testable import Rokt_Widget
 
-/// Covers `Rokt.clearSession()` at the implementation level: the self-service-terminal case
-/// where one device serves a queue of unrelated customers and each transaction must land in
-/// its own session. The session store itself is unit-tested in `TestTxnSessionManager`; this
-/// covers the wiring — legacy session teardown, real-time event cleanup, idempotency, and the
-/// session-bound replay of events that outlived their session.
+/// Covers `Rokt.clearSession()` wiring: legacy session teardown, real-time event cleanup,
+/// idempotency, and session-bound replay. The store itself is tested in `TestTxnSessionManager`.
 final class TestClearSession: XCTestCase {
 
     private var userDefaults: UserDefaults!
@@ -37,8 +34,7 @@ final class TestClearSession: XCTestCase {
 
     // MARK: - Reset scope
 
-    /// The invariant the whole feature rests on: after `clearSession()` there is no stored token,
-    /// so the next offers request goes out unauthenticated and the gateway mints a new session.
+    /// The core invariant: no stored token afterwards, so the next offers call mints a session.
     func test_clearSession_dropsThePersistedTxnSession() async {
         let store = InMemoryTxnStore()
         implementation.txnSessionStore = store
@@ -80,7 +76,7 @@ final class TestClearSession: XCTestCase {
         XCTAssertNil(implementation.getSessionId())
     }
 
-    /// The next customer must not inherit real-time events captured for the previous one.
+    /// The next customer must not inherit the previous customer's real-time events.
     func test_clearSession_invalidatesManagedSessions() {
         implementation.setSessionId(sessionId: "session-a")
         let before = managedSession.sessionInvalidatedCallCount
@@ -90,8 +86,7 @@ final class TestClearSession: XCTestCase {
         XCTAssertEqual(managedSession.sessionInvalidatedCallCount, before + 1)
     }
 
-    /// Deliberately not routed through `updateSessionId(nil)`, whose equality guard would skip
-    /// the managed-session fan-out when there is no id to replace.
+    /// Not routed through `updateSessionId(nil)`, whose equality guard would skip the fan-out.
     func test_clearSession_withNoActiveSession_stillInvalidatesAndDoesNotCrash() {
         XCTAssertNil(implementation.getSessionId())
 
@@ -116,8 +111,7 @@ final class TestClearSession: XCTestCase {
         XCTAssertEqual(spy.replayedSessionIds.sorted(), ["session-a", "session-b"])
     }
 
-    /// Batches written before session binding existed cannot be attributed safely: replaying
-    /// one would file a previous customer's events against whoever is at the terminal now.
+    /// Unbound batches cannot be attributed safely, so they are dropped rather than replayed.
     func test_replayPendingTxnEvents_dropsBatchesWithNoSessionBinding() {
         let store = StubPendingStore(batches: [
             TxnPendingEventBatch(events: [event("legacy")], persistedAtMs: 0, sessionId: nil),
@@ -136,7 +130,7 @@ final class TestClearSession: XCTestCase {
         Int64(Date().addingTimeInterval(1800).timeIntervalSince1970 * 1000)
     }
 
-    /// Scratch store so the assertions never touch (or depend on) `UserDefaults.standard`.
+    /// Scratch store so assertions never touch `UserDefaults.standard`.
     private final class InMemoryTxnStore: TxnSessionStore {
         private var values: [String: String] = [:]
         func string(forKey key: String) -> String? { values[key] }
@@ -157,7 +151,7 @@ final class TestClearSession: XCTestCase {
         return spy
     }
 
-    /// Records which session each pending batch is replayed against, without going to the network.
+    /// Records which session each batch is replayed against, without hitting the network.
     private final class ReplayCapturingImplementation: RoktInternalImplementation {
         private(set) var replayedSessionIds: [String] = []
 

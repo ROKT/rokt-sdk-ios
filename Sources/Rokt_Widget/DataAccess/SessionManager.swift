@@ -52,9 +52,8 @@ class SessionManager {
 
     /// Drops the session unconditionally, for an explicit `Rokt.clearSession()`.
     ///
-    /// Deliberately not routed through `updateSessionId(nil)`: that path short-circuits when the
-    /// stored id already matches, so it would silently skip the managed-session cleanup whenever
-    /// there is no id to replace.
+    /// Not routed through `updateSessionId(nil)`: that short-circuits when the id already matches,
+    /// skipping the managed-session cleanup whenever there is no id to replace.
     func invalidateSession() {
         clearSession(reason: .sessionCleared)
     }

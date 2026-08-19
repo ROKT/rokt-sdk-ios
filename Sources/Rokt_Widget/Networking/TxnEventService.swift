@@ -59,12 +59,8 @@ internal struct TxnEventService {
         try await send(events: events, replaySessionId: nil)
     }
 
-    /// Replays a batch that outlived the session it belongs to.
-    ///
-    /// Sent unauthenticated with `session_id` stamped on every event: the gateway accepts
-    /// `single_session` plus a shared `session_id` in place of a JWT and treats that id as
-    /// authoritative. That keeps a previous customer's events on the previous customer's
-    /// session instead of attaching them to whoever is at the terminal now.
+    /// Replays a batch that outlived the session it belongs to, unauthenticated with `session_id`
+    /// stamped on every event, so it stays on that session rather than the current one.
     func replay(events: [TxnEvent], sessionId: String) async throws {
         try await send(events: events, replaySessionId: sessionId)
     }
@@ -84,8 +80,7 @@ internal struct TxnEventService {
                 // Persist recoverable failures (exhausted 5xx/transport) for replay on the next
                 // init instead of dropping them; permanent failures (400/401) are not replayed.
                 if shouldPersistOnFailure(error) {
-                    // Re-bind to the originating session so a repeated failure never degrades
-                    // into an unbound batch that a later replay would have to drop.
+                    // Re-bind to the originating session so a repeated failure stays attributable.
                     let sessionId: String?
                     if let replaySessionId {
                         sessionId = replaySessionId
@@ -114,9 +109,8 @@ internal struct TxnEventService {
         let authToken: String?
         let payload: [TxnEvent]
         if let replaySessionId {
-            // No Authorization on purpose: session_id + single_session is the gateway's
-            // sessionless attribution path, and a token that disagrees with the stamped
-            // session_id is rejected as a conflict.
+            // No Authorization on purpose: a token disagreeing with the stamped session_id is
+            // rejected as a conflict.
             authToken = nil
             payload = events.map { event in
                 var stamped = event
@@ -153,8 +147,7 @@ internal struct TxnEventService {
                         message: Self.unauthorizedDiagnosticCode,
                         callStack: "Dropped \(events.count) event(s) after events 401"
                     )
-                    // A replay carries no token, so a 401 there says nothing about the session
-                    // the terminal is on now — clearing would destroy an unrelated live session.
+                    // A replay carries no token, so its 401 says nothing about the live session.
                     if replaySessionId == nil {
                         await sessionManager.clear()
                     }
@@ -165,9 +158,8 @@ internal struct TxnEventService {
                     throw TxnEventError.unexpectedStatusCode(statusCode)
                 }
 
-                // Only adopt a rotated token when this send belongs to the current session.
-                // A replay's response describes the replayed (old) session, so applying its
-                // token would overwrite the live one.
+                // A replay response describes the old session; adopting its token would
+                // overwrite the live one.
                 if replaySessionId == nil,
                    let data,
                    let decoded = try? JSONDecoder().decode(TxnEventsResponse.self, from: data),

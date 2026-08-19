@@ -299,26 +299,16 @@ internal import RoktUXHelper
     /// End the current Rokt session so the next `selectPlacements` call starts a new one.
     ///
     /// Intended for self-service terminals — kiosks, counter tablets, shared point-of-sale
-    /// hardware — where a queue of unrelated customers uses a single device. The SDK otherwise
-    /// reuses its stored session for as long as that session stays alive, so successive
-    /// customers are recorded as one person and frequency capping, attribution and reporting
-    /// all treat them as one.
+    /// hardware — where a queue of unrelated customers uses a single device, and successive
+    /// customers would otherwise be recorded as one person.
     ///
     /// Call this at a transaction boundary, not between screens within one customer's journey:
-    /// two placements shown to the same customer are meant to share a session.
+    /// two placements shown to the same customer are meant to share a session. Buffered events
+    /// are flushed first, so the departing customer's events stay attributed to them. Safe to
+    /// call when no session is active.
     ///
-    /// Buffered events are flushed before the session is dropped, so events belonging to the
-    /// departing customer stay attributed to them. Calling this with no active session is a
-    /// no-op.
-    ///
-    /// - Note: This also clears the id returned by ``getSessionId()``, so a WebView session
-    ///   hand-off must be re-established afterwards.
-    ///
-    /// Example:
-    /// ```swift
-    /// // The customer has finished at the kiosk; the next person starts fresh.
-    /// Rokt.clearSession()
-    /// ```
+    /// - Note: This also clears the id returned by ``getSessionId()`` and the cached experience,
+    ///   so a WebView session hand-off must be re-established afterwards.
     public static func clearSession() {
         shared.roktImplementation.clearSession()
     }

@@ -226,9 +226,7 @@ final class TestTxnSessionManager: XCTestCase {
 
     // MARK: - Epoch fence (a reset must survive an in-flight response)
 
-    /// The kiosk race: an offers request is in flight when the session is cleared, and its
-    /// response lands afterwards. Without the fence it re-persists the departed customer's
-    /// session and the next placement silently continues it.
+    /// A response landing after a reset must not re-persist the departed customer's session.
     func test_update_afterAnotherInstanceCleared_doesNotResurrectSession() async {
         let store = InMemoryStore()
         let inFlight = persistentManager(tagId: "tag-1", store: store)
@@ -260,8 +258,7 @@ final class TestTxnSessionManager: XCTestCase {
         XCTAssertNil(header)
     }
 
-    /// A manager built *after* the reset is on the current epoch and must persist normally,
-    /// otherwise the fence would permanently wedge the SDK.
+    /// A manager built after the reset is current and must persist, or the fence would wedge.
     func test_managerCreatedAfterClear_persistsNormally() async {
         let store = InMemoryStore()
         TxnSessionManager.clearPersistedSession(store: store)
@@ -274,9 +271,8 @@ final class TestTxnSessionManager: XCTestCase {
         XCTAssertEqual(sessionId, "sid-b")
     }
 
-    /// The other half of the reset contract: a sender that already exists keeps the departing
-    /// customer's token in memory, so events flushed just before the wipe stay attributed to
-    /// them rather than going out unauthenticated and landing on a server-minted orphan session.
+    /// An existing sender keeps the departing token, so events flushed just before the wipe
+    /// stay attributed to that customer.
     func test_existingInstanceKeepsItsTokenAfterPersistedSessionIsCleared() async {
         let store = InMemoryStore()
         let inFlight = persistentManager(tagId: "tag-1", store: store)
@@ -288,9 +284,7 @@ final class TestTxnSessionManager: XCTestCase {
         XCTAssertEqual(header, "Bearer jwt-a", "In-flight events must still send under the old token")
     }
 
-    /// A 401 tells a stale instance that *its* session is dead — which says nothing about the
-    /// session the person currently at the terminal is on. Without the fence on `clear()`, the
-    /// previous customer's failing events request wipes the live session out from under them.
+    /// A stale instance's 401 says nothing about the live session, so it must not wipe it.
     func test_clearFromStaleInstance_doesNotWipeTheLiveSession() async {
         let store = InMemoryStore()
         let departing = persistentManager(tagId: "tag-1", store: store)
@@ -346,9 +340,7 @@ final class TestTxnSessionManager: XCTestCase {
         XCTAssertNil(store.string(forKey: "ROKT_TXN_SESSION_ID"))
     }
 
-    /// Housekeeping clears (expired-on-restore) must NOT bump the epoch: they run on every
-    /// service construction once state is stale, and fencing there would discard the valid
-    /// token a healthy in-flight request is about to deliver.
+    /// Housekeeping clears must not bump the epoch, or a healthy in-flight writer is fenced.
     func test_restoreWithExpiredToken_doesNotFenceInFlightWriter() async {
         let store = InMemoryStore()
         let inFlight = persistentManager(tagId: "tag-1", store: store)

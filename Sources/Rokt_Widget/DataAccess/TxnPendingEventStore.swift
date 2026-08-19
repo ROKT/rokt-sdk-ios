@@ -4,12 +4,8 @@ import Foundation
 internal struct TxnPendingEventBatch: Codable, Equatable {
     let events: [TxnEvent]
     let persistedAtMs: Int64
-    /// The session these events were generated in.
-    ///
-    /// Optional only so batches written by an earlier SDK version still decode. Those are
-    /// dropped on replay rather than sent: without a binding they would be attributed to
-    /// whichever session happens to be current, which on a self-service terminal means one
-    /// customer's events landing on the next customer.
+    /// The session these events were generated in. Optional only so batches written by an earlier
+    /// SDK version still decode; those are dropped on replay rather than misattributed.
     let sessionId: String?
 }
 

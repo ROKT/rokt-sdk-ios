@@ -65,9 +65,7 @@ final class TestTxnEventService: XCTestCase {
 
     // MARK: - Replay of a batch that outlived its session
 
-    /// A replay must identify its session in the body instead of the header. Sending the
-    /// current token alongside a different `session_id` is a conflict server-side, and sending
-    /// the token alone would file the previous customer's events on the current session.
+    /// A replay identifies its session in the body, not the header.
     func test_replay_sendsSessionIdWithoutAuthorizationHeader() async throws {
         await storeValidToken("live-jwt")
 
@@ -90,8 +88,7 @@ final class TestTxnEventService: XCTestCase {
         XCTAssertEqual(header, "Bearer live-jwt")
     }
 
-    /// A 401 on an unauthenticated replay says nothing about the current session, so it must
-    /// not tear that session down.
+    /// A 401 on an unauthenticated replay must not tear down the current session.
     func test_replay_401_doesNotClearCurrentSession() async {
         await storeValidToken("live-jwt")
         httpClient.results = [.status(401)]
