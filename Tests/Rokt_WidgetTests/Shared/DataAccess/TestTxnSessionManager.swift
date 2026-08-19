@@ -223,4 +223,146 @@ final class TestTxnSessionManager: XCTestCase {
         let sessionId = await persistent.currentSessionId
         XCTAssertNil(sessionId)
     }
+
+    // MARK: - Epoch fence (a reset must survive an in-flight response)
+
+    /// The kiosk race: an offers request is in flight when the session is cleared, and its
+    /// response lands afterwards. Without the fence it re-persists the departed customer's
+    /// session and the next placement silently continues it.
+    func test_update_afterAnotherInstanceCleared_doesNotResurrectSession() async {
+        let store = InMemoryStore()
+        let inFlight = persistentManager(tagId: "tag-1", store: store)
+        await inFlight.update(sessionId: "sid-a", sessionToken: token("jwt-a", expiresInSeconds: 1800))
+
+        TxnSessionManager.clearPersistedSession(store: store)
+
+        // The in-flight request's response arrives after the reset.
+        await inFlight.update(sessionId: "sid-a", sessionToken: token("jwt-a2", expiresInSeconds: 1800))
+
+        let restored = persistentManager(tagId: "tag-1", store: store)
+        let sessionId = await restored.currentSessionId
+        let header = await restored.authorizationHeader
+        XCTAssertNil(sessionId, "A response landing after a reset must not restore the old session")
+        XCTAssertNil(header)
+    }
+
+    /// Token-only rotation (the events response path) is fenced the same way.
+    func test_updateSessionTokenOnly_afterClear_doesNotResurrectSession() async {
+        let store = InMemoryStore()
+        let inFlight = persistentManager(tagId: "tag-1", store: store)
+        await inFlight.update(sessionId: "sid-a", sessionToken: token("jwt-a", expiresInSeconds: 1800))
+
+        TxnSessionManager.clearPersistedSession(store: store)
+        await inFlight.update(sessionToken: token("jwt-rotated", expiresInSeconds: 1800))
+
+        let restored = persistentManager(tagId: "tag-1", store: store)
+        let header = await restored.authorizationHeader
+        XCTAssertNil(header)
+    }
+
+    /// A manager built *after* the reset is on the current epoch and must persist normally,
+    /// otherwise the fence would permanently wedge the SDK.
+    func test_managerCreatedAfterClear_persistsNormally() async {
+        let store = InMemoryStore()
+        TxnSessionManager.clearPersistedSession(store: store)
+
+        let fresh = persistentManager(tagId: "tag-1", store: store)
+        await fresh.update(sessionId: "sid-b", sessionToken: token("jwt-b", expiresInSeconds: 1800))
+
+        let restored = persistentManager(tagId: "tag-1", store: store)
+        let sessionId = await restored.currentSessionId
+        XCTAssertEqual(sessionId, "sid-b")
+    }
+
+    /// The other half of the reset contract: a sender that already exists keeps the departing
+    /// customer's token in memory, so events flushed just before the wipe stay attributed to
+    /// them rather than going out unauthenticated and landing on a server-minted orphan session.
+    func test_existingInstanceKeepsItsTokenAfterPersistedSessionIsCleared() async {
+        let store = InMemoryStore()
+        let inFlight = persistentManager(tagId: "tag-1", store: store)
+        await inFlight.update(sessionId: "sid-a", sessionToken: token("jwt-a", expiresInSeconds: 1800))
+
+        TxnSessionManager.clearPersistedSession(store: store)
+
+        let header = await inFlight.authorizationHeader
+        XCTAssertEqual(header, "Bearer jwt-a", "In-flight events must still send under the old token")
+    }
+
+    /// A 401 tells a stale instance that *its* session is dead — which says nothing about the
+    /// session the person currently at the terminal is on. Without the fence on `clear()`, the
+    /// previous customer's failing events request wipes the live session out from under them.
+    func test_clearFromStaleInstance_doesNotWipeTheLiveSession() async {
+        let store = InMemoryStore()
+        let departing = persistentManager(tagId: "tag-1", store: store)
+        await departing.update(sessionId: "sid-a", sessionToken: token("jwt-a", expiresInSeconds: 1800))
+
+        TxnSessionManager.clearPersistedSession(store: store)
+
+        // The next customer establishes their own session.
+        let current = persistentManager(tagId: "tag-1", store: store)
+        await current.update(sessionId: "sid-b", sessionToken: token("jwt-b", expiresInSeconds: 1800))
+
+        // The departing customer's events request now 401s and calls clear().
+        await departing.clear()
+
+        let restored = persistentManager(tagId: "tag-1", store: store)
+        let sessionId = await restored.currentSessionId
+        let header = await restored.authorizationHeader
+        XCTAssertEqual(sessionId, "sid-b", "A stale 401 must not tear down the live session")
+        XCTAssertEqual(header, "Bearer jwt-b")
+    }
+
+    /// The fence must not disable legitimate 401 handling on the current session.
+    func test_clearFromCurrentInstance_stillDropsTheSession() async {
+        let store = InMemoryStore()
+        let current = persistentManager(tagId: "tag-1", store: store)
+        await current.update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 1800))
+
+        await current.clear()
+
+        let restored = persistentManager(tagId: "tag-1", store: store)
+        let sessionId = await restored.currentSessionId
+        XCTAssertNil(sessionId)
+    }
+
+    func test_clearPersistedSession_removesEveryStoredKey() async {
+        let store = InMemoryStore()
+        let manager = persistentManager(tagId: "tag-1", store: store)
+        await manager.update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 1800))
+
+        TxnSessionManager.clearPersistedSession(store: store)
+
+        XCTAssertNil(store.string(forKey: "ROKT_TXN_TAG_ID"))
+        XCTAssertNil(store.string(forKey: "ROKT_TXN_SESSION_ID"))
+        XCTAssertNil(store.string(forKey: "ROKT_TXN_SESSION_TOKEN"))
+        XCTAssertNil(store.string(forKey: "ROKT_TXN_TOKEN_EXPIRES_AT"))
+    }
+
+    func test_clearPersistedSession_isIdempotent() {
+        let store = InMemoryStore()
+        TxnSessionManager.clearPersistedSession(store: store)
+        TxnSessionManager.clearPersistedSession(store: store)
+
+        XCTAssertNil(store.string(forKey: "ROKT_TXN_SESSION_ID"))
+    }
+
+    /// Housekeeping clears (expired-on-restore) must NOT bump the epoch: they run on every
+    /// service construction once state is stale, and fencing there would discard the valid
+    /// token a healthy in-flight request is about to deliver.
+    func test_restoreWithExpiredToken_doesNotFenceInFlightWriter() async {
+        let store = InMemoryStore()
+        let inFlight = persistentManager(tagId: "tag-1", store: store)
+        await inFlight.update(sessionId: "sid-a", sessionToken: token("jwt-a", expiresInSeconds: 60))
+
+        // Token lapses, then another service is constructed and housekeeping-clears the store.
+        now = now.addingTimeInterval(61)
+        _ = persistentManager(tagId: "tag-1", store: store)
+
+        // The in-flight request now delivers a fresh token for the same session.
+        await inFlight.update(sessionId: "sid-a", sessionToken: token("jwt-a2", expiresInSeconds: 1800))
+
+        let restored = persistentManager(tagId: "tag-1", store: store)
+        let sessionId = await restored.currentSessionId
+        XCTAssertEqual(sessionId, "sid-a", "Housekeeping must not fence a healthy in-flight writer")
+    }
 }

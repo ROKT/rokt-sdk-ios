@@ -30,17 +30,17 @@ final class TestTxnPendingEventStore: XCTestCase {
 
     func test_persist_thenDrain_returnsBatch() {
         let store = makeStore()
-        store.persist(events: batch("a"))
+        store.persist(events: batch("a"), sessionId: "session-1")
 
         let drained = store.drainValid()
 
         XCTAssertEqual(drained.count, 1)
-        XCTAssertEqual(drained.first?.first?.instanceId, "a")
+        XCTAssertEqual(drained.first?.events.first?.instanceId, "a")
     }
 
     func test_drain_clearsStore() {
         let store = makeStore()
-        store.persist(events: batch("a"))
+        store.persist(events: batch("a"), sessionId: "session-1")
 
         _ = store.drainValid()
 
@@ -49,14 +49,14 @@ final class TestTxnPendingEventStore: XCTestCase {
 
     func test_persist_emptyEvents_isNoOp() {
         let store = makeStore()
-        store.persist(events: [])
+        store.persist(events: [], sessionId: "session-1")
 
         XCTAssertTrue(store.drainValid().isEmpty)
     }
 
     func test_drain_dropsExpiredBatches() {
         let store = makeStore()
-        store.persist(events: batch("old"))
+        store.persist(events: batch("old"), sessionId: "session-1")
 
         // Advance past the 30-minute TTL before draining.
         nowMs += TxnPendingEventStore.ttlMs + 1
@@ -66,7 +66,7 @@ final class TestTxnPendingEventStore: XCTestCase {
 
     func test_drain_keepsBatchExactlyAtTTLBoundary() {
         let store = makeStore()
-        store.persist(events: batch("edge"))
+        store.persist(events: batch("edge"), sessionId: "session-1")
 
         nowMs += TxnPendingEventStore.ttlMs // still within TTL (<=)
 
@@ -76,20 +76,20 @@ final class TestTxnPendingEventStore: XCTestCase {
     func test_persist_enforcesCapOf10_dropsNewest() {
         let store = makeStore()
         for index in 0..<12 {
-            store.persist(events: batch("batch-\(index)"))
+            store.persist(events: batch("batch-\(index)"), sessionId: "session-1")
         }
 
         let drained = store.drainValid()
 
         XCTAssertEqual(drained.count, TxnPendingEventStore.maxBatches)
         // Oldest 10 are kept; the 11th and 12th were dropped.
-        XCTAssertEqual(drained.first?.first?.instanceId, "batch-0")
-        XCTAssertEqual(drained.last?.first?.instanceId, "batch-9")
+        XCTAssertEqual(drained.first?.events.first?.instanceId, "batch-0")
+        XCTAssertEqual(drained.last?.events.first?.instanceId, "batch-9")
     }
 
     func test_persist_writesFileWithDataProtection() throws {
         let store = makeStore()
-        store.persist(events: batch("a"))
+        store.persist(events: batch("a"), sessionId: "session-1")
 
         let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
         let protection = attributes[.protectionKey] as? FileProtectionType
@@ -102,17 +102,17 @@ final class TestTxnPendingEventStore: XCTestCase {
 
     func test_expiredBatchesDoNotConsumeCapacity() {
         let store = makeStore()
-        store.persist(events: batch("stale"))
+        store.persist(events: batch("stale"), sessionId: "session-1")
 
         // Expire the first batch, then fill to cap: all 10 fresh batches should be retained.
         nowMs += TxnPendingEventStore.ttlMs + 1
         for index in 0..<TxnPendingEventStore.maxBatches {
-            store.persist(events: batch("fresh-\(index)"))
+            store.persist(events: batch("fresh-\(index)"), sessionId: "session-1")
         }
 
         let drained = store.drainValid()
         XCTAssertEqual(drained.count, TxnPendingEventStore.maxBatches)
-        XCTAssertFalse(drained.contains { $0.first?.instanceId == "stale" })
+        XCTAssertFalse(drained.contains { $0.events.first?.instanceId == "stale" })
     }
 
     // MARK: - Background rewrite / concurrency (#250 flush → #251 persist)
@@ -129,7 +129,7 @@ final class TestTxnPendingEventStore: XCTestCase {
         for index in 0..<persistCount {
             group.enter()
             queue.async {
-                store.persist(events: self.batch("c-\(index)"))
+                store.persist(events: self.batch("c-\(index)"), sessionId: "session-1")
                 group.leave()
             }
         }
@@ -138,7 +138,7 @@ final class TestTxnPendingEventStore: XCTestCase {
 
         let drained = store.drainValid()
         XCTAssertEqual(drained.count, TxnPendingEventStore.maxBatches)
-        XCTAssertEqual(Set(drained.compactMap { $0.first?.instanceId }).count, drained.count)
+        XCTAssertEqual(Set(drained.compactMap { $0.events.first?.instanceId }).count, drained.count)
     }
 
     /// The #250+#251 intersection: a background flush may still be persisting a failed batch
@@ -159,7 +159,7 @@ final class TestTxnPendingEventStore: XCTestCase {
                     drainedTotal += drained.count
                     drainedLock.unlock()
                 } else {
-                    store.persist(events: self.batch("pd-\(index)"))
+                    store.persist(events: self.batch("pd-\(index)"), sessionId: "session-1")
                 }
                 group.leave()
             }
@@ -176,21 +176,21 @@ final class TestTxnPendingEventStore: XCTestCase {
         // at any drain, and remaining after the race must still decode.
         XCTAssertLessThanOrEqual(remaining.count, TxnPendingEventStore.maxBatches)
         XCTAssertGreaterThanOrEqual(observed, 0)
-        XCTAssertTrue(remaining.allSatisfy { $0.first?.instanceId != nil })
+        XCTAssertTrue(remaining.allSatisfy { $0.events.first?.instanceId != nil })
     }
 
     /// Persist that lands after drain has cleared the file must still produce a fresh readable store
     /// (background Task completing after a cold init already drained).
     func test_persistAfterDrain_writesFreshStore() {
         let store = makeStore()
-        store.persist(events: batch("before-drain"))
+        store.persist(events: batch("before-drain"), sessionId: "session-1")
         XCTAssertEqual(store.drainValid().count, 1)
         XCTAssertTrue(store.drainValid().isEmpty)
 
-        store.persist(events: batch("after-drain"))
+        store.persist(events: batch("after-drain"), sessionId: "session-1")
 
         let drained = store.drainValid()
         XCTAssertEqual(drained.count, 1)
-        XCTAssertEqual(drained.first?.first?.instanceId, "after-drain")
+        XCTAssertEqual(drained.first?.events.first?.instanceId, "after-drain")
     }
 }

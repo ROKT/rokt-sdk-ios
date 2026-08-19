@@ -106,11 +106,31 @@ internal struct TxnEvent: Codable, Equatable {
     let timestamp: Int64?
     // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
     let data: [String: TxnEventDataValue]?
+    // Set only when replaying a batch that outlived its session token. The gateway accepts
+    // `single_session` + a shared `session_id` in place of a JWT and treats that id as
+    // authoritative, so a replay must carry this INSTEAD of an Authorization header — sending
+    // both, where they disagree, is a validation conflict.
+    var sessionId: String?
 
     enum CodingKeys: String, CodingKey {
         case eventType = "event_type"
         case instanceId = "instance_id"
         case timestamp
         case data
+        case sessionId = "session_id"
+    }
+
+    init(
+        eventType: String,
+        instanceId: String?,
+        timestamp: Int64?,
+        data: [String: TxnEventDataValue]?,
+        sessionId: String? = nil
+    ) {
+        self.eventType = eventType
+        self.instanceId = instanceId
+        self.timestamp = timestamp
+        self.data = data
+        self.sessionId = sessionId
     }
 }
