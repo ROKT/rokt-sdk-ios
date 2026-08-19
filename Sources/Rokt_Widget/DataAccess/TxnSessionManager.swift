@@ -11,6 +11,16 @@ internal actor TxnSessionManager {
         static let epoch = "ROKT_TXN_SESSION_EPOCH"
     }
 
+    // Guards every read-modify-write of the shared store.
+    //
+    // Actor isolation alone is not enough here: `clearPersistedSession` is deliberately
+    // nonisolated (see its docs) and so does not queue behind actor-isolated work. Without this
+    // lock it can land between the epoch check and the write inside `update`, so the departing
+    // customer's tag, session id and token get written back alongside the *new* epoch — the next
+    // manager then treats that stale session as current and the reset is silently undone. Static
+    // so it serialises instances against each other and against the nonisolated entry point.
+    private static let storeLock = NSLock()
+
     private let clock: () -> Date
 
     // nil disables persistence (in-memory only), preserving the lightweight test setup.
@@ -27,8 +37,6 @@ internal actor TxnSessionManager {
     // Epoch observed when this instance was built. A deliberate invalidation bumps the stored
     // epoch, which fences out every instance created before it: an offers/events request that
     // was already in flight cannot write its (now dead) session back when its response lands.
-    // Without this, a response arriving moments after a reset silently restores the previous
-    // customer's session and the next placement continues it.
     private var capturedEpoch: Int = 0
 
     init(clock: @escaping () -> Date = Date.init) {
@@ -66,19 +74,23 @@ internal actor TxnSessionManager {
     }
 
     func update(sessionId: String, sessionToken: TxnSessionToken) {
-        guard isCurrentEpoch else { return }
+        Self.storeLock.lock()
+        defer { Self.storeLock.unlock() }
+        guard isCurrentEpochLocked() else { return }
         self.sessionId = sessionId
         token = sessionToken.token
         expiresAt = sessionToken.expiresAtDate
-        persist(includeSessionId: true)
+        persistLocked(includeSessionId: true)
     }
 
     // Token-only refresh for events responses (they carry no session id), keeping the session id.
     func update(sessionToken: TxnSessionToken) {
-        guard isCurrentEpoch else { return }
+        Self.storeLock.lock()
+        defer { Self.storeLock.unlock() }
+        guard isCurrentEpochLocked() else { return }
         token = sessionToken.token
         expiresAt = sessionToken.expiresAtDate
-        persist(includeSessionId: false)
+        persistLocked(includeSessionId: false)
     }
 
     /// Deliberately invalidates the session and fences out in-flight writers.
@@ -93,8 +105,10 @@ internal actor TxnSessionManager {
     /// arriving from the previous customer's request would wipe the session the person currently
     /// at the terminal is already using.
     func clear() {
-        guard isCurrentEpoch else { return }
-        clearState(bumpEpoch: true)
+        Self.storeLock.lock()
+        defer { Self.storeLock.unlock() }
+        guard isCurrentEpochLocked() else { return }
+        clearStateLocked(bumpEpoch: true)
     }
 
     /// Drops the persisted session and bumps the epoch, synchronously.
@@ -102,12 +116,13 @@ internal actor TxnSessionManager {
     /// Deliberately not actor-isolated. `Rokt.clearSession()` has to take effect before the
     /// caller's very next `selectPlacements`, and hopping onto the actor would leave a window
     /// where a placement started microseconds later reads the store and rehydrates the session
-    /// that was just dropped. `UserDefaults` is safe to touch from any thread, and every future
-    /// `TxnSessionManager` sources its state from the store, so wiping it here invalidates
-    /// instances that do not exist yet as well as fencing the ones that already do.
+    /// that was just dropped. Because it bypasses actor isolation it takes `storeLock`, which is
+    /// what actually makes it safe against a concurrent `update`.
     nonisolated static func clearPersistedSession(
         store: TxnSessionStore = UserDefaultsTxnSessionStore()
     ) {
+        storeLock.lock()
+        defer { storeLock.unlock() }
         store.removeValue(forKey: Keys.tagId)
         store.removeValue(forKey: Keys.sessionId)
         store.removeValue(forKey: Keys.token)
@@ -121,22 +136,31 @@ internal actor TxnSessionManager {
         return clock() >= expiresAt
     }
 
+    // MARK: - Store access
+
+    //
+    // Everything below assumes `storeLock` is already held by the caller. NSLock is not
+    // reentrant, so each public entry point takes it exactly once and these helpers never
+    // re-acquire it.
+
     // In-memory mode has no shared store, so there is nothing to fence against.
-    private var isCurrentEpoch: Bool {
+    private func isCurrentEpochLocked() -> Bool {
         guard let store else { return true }
-        return storedEpoch(store) == capturedEpoch
+        return storedEpochLocked(store) == capturedEpoch
     }
 
-    private func storedEpoch(_ store: TxnSessionStore) -> Int {
+    private func storedEpochLocked(_ store: TxnSessionStore) -> Int {
         Int(store.string(forKey: Keys.epoch) ?? "") ?? 0
     }
 
     private func restoreFromStore() {
         guard let store, let roktTagId else { return }
-        capturedEpoch = storedEpoch(store)
+        Self.storeLock.lock()
+        defer { Self.storeLock.unlock() }
+        capturedEpoch = storedEpochLocked(store)
         // Only restore a session bound to the current tag id; otherwise start clean.
         guard store.string(forKey: Keys.tagId) == roktTagId else {
-            clearState(bumpEpoch: false)
+            clearStateLocked(bumpEpoch: false)
             return
         }
         sessionId = store.string(forKey: Keys.sessionId)
@@ -147,14 +171,14 @@ internal actor TxnSessionManager {
         // Drop a persisted-but-expired token so we never start with stale state;
         // an expired JWT is dead server-side and a fresh session is minted at init.
         if hasExpired {
-            clearState(bumpEpoch: false)
+            clearStateLocked(bumpEpoch: false)
         }
     }
 
     // Housekeeping clears (tag-id mismatch, expired-on-restore) must NOT bump the epoch.
     // They run on every service construction once state is stale, and bumping there would
     // fence out a healthy in-flight request that is about to deliver a valid new token.
-    private func clearState(bumpEpoch: Bool) {
+    private func clearStateLocked(bumpEpoch: Bool) {
         sessionId = nil
         token = nil
         expiresAt = nil
@@ -166,12 +190,12 @@ internal actor TxnSessionManager {
         guard bumpEpoch else { return }
         // &+ so a pathologically long-lived install wraps instead of trapping; equality is
         // all this is used for, so wrapping is harmless.
-        let next = storedEpoch(store) &+ 1
+        let next = storedEpochLocked(store) &+ 1
         store.setString(String(next), forKey: Keys.epoch)
         capturedEpoch = next
     }
 
-    private func persist(includeSessionId: Bool) {
+    private func persistLocked(includeSessionId: Bool) {
         guard let store, let roktTagId else { return }
         // Always record the tag-id binding: restoreFromStore treats a missing/mismatched
         // tag id as another account's data and clears the session, so a token persisted
