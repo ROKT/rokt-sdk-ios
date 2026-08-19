@@ -6,6 +6,7 @@ private let userDefaultsKeySessionId: String = "rokt.sessionId"
 private enum SessionInvalidationReason: String {
     case tagIdChanged = "tag_id_changed"
     case sessionIdUpdated = "session_id_updated"
+    case sessionCleared = "session_cleared"
 }
 
 /// Session id for diagnostics and timings. Offers and events use `TxnSessionManager`.
@@ -47,6 +48,14 @@ class SessionManager {
         userDefaults.set(newSessionId, forKey: userDefaultsKeySessionId)
         RoktLogger.shared.sessionId = newSessionId
         RoktLogger.shared.info("Session updated. sessionId=\(newSessionId)")
+    }
+
+    /// Drops the session unconditionally, for an explicit `Rokt.clearSession()`.
+    ///
+    /// Not routed through `updateSessionId(nil)`: that short-circuits when the id already matches,
+    /// skipping the managed-session cleanup whenever there is no id to replace.
+    func invalidateSession() {
+        clearSession(reason: .sessionCleared)
     }
 
     private func clearSession(reason: SessionInvalidationReason) {

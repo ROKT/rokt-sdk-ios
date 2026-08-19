@@ -63,6 +63,69 @@ final class TestTxnEventService: XCTestCase {
         [TxnEvent(eventType: "impression", instanceId: "instance-1", timestamp: 1_700_000_000_000, data: ["k": "v"])]
     }
 
+    // MARK: - Replay of a batch that outlived its session
+
+    /// A replay identifies its session in the body, not the header.
+    func test_replay_sendsSessionIdWithoutAuthorizationHeader() async throws {
+        await storeValidToken("live-jwt")
+
+        try await makeService().replay(events: sampleEvents(), sessionId: "session-old")
+
+        XCTAssertNil(httpClient.capturedHeaders.first?["Authorization"])
+        let events = httpClient.capturedBodies.first?["events"] as? [[String: Any]]
+        XCTAssertEqual(events?.first?["session_id"] as? String, "session-old")
+        XCTAssertEqual(httpClient.capturedBodies.first?["single_session"] as? Bool, true)
+    }
+
+    /// The live session must be untouched by a replay of an older one.
+    func test_replay_doesNotAdoptRotatedTokenIntoCurrentSession() async throws {
+        await storeValidToken("live-jwt")
+        httpClient.results = [.success(status: 202, data: rotatedResponse())]
+
+        try await makeService().replay(events: sampleEvents(), sessionId: "session-old")
+
+        let header = await sessionManager.authorizationHeader
+        XCTAssertEqual(header, "Bearer live-jwt")
+    }
+
+    /// A 401 on an unauthenticated replay must not tear down the current session.
+    func test_replay_401_doesNotClearCurrentSession() async {
+        await storeValidToken("live-jwt")
+        httpClient.results = [.status(401)]
+
+        do {
+            try await makeService().replay(events: sampleEvents(), sessionId: "session-old")
+            XCTFail("Expected the 401 to surface")
+        } catch {
+            // Expected.
+        }
+
+        let header = await sessionManager.authorizationHeader
+        XCTAssertEqual(header, "Bearer live-jwt", "A replay 401 must not drop the live session")
+    }
+
+    /// A live send that fails records the session it belongs to, so the eventual replay is bound.
+    func test_send_failure_persistsBatchBoundToCurrentSession() async {
+        await storeValidToken()
+        let store = SpyTxnPendingEventStore()
+        httpClient.results = [.status(503)]
+
+        try? await makeService(pendingStore: store).send(events: sampleEvents())
+
+        XCTAssertEqual(store.persistedSessionIds, ["session-1"])
+    }
+
+    /// A replay that fails again must keep its original binding rather than degrade to unbound.
+    func test_replay_failure_reBindsToOriginalSession() async {
+        await storeValidToken()
+        let store = SpyTxnPendingEventStore()
+        httpClient.results = [.status(503)]
+
+        try? await makeService(pendingStore: store).replay(events: sampleEvents(), sessionId: "session-old")
+
+        XCTAssertEqual(store.persistedSessionIds, ["session-old"])
+    }
+
     func test_send_success_rotatesSessionToken() async throws {
         await storeValidToken()
         httpClient.results = [.success(status: 202, data: rotatedResponse())]
@@ -356,13 +419,15 @@ final class TestTxnEventService: XCTestCase {
 
 private final class SpyTxnPendingEventStore: TxnPendingEventStoring {
     private(set) var persistedBatches: [[TxnEvent]] = []
-    var batchesToDrain: [[TxnEvent]] = []
+    private(set) var persistedSessionIds: [String?] = []
+    var batchesToDrain: [TxnPendingEventBatch] = []
 
-    func persist(events: [TxnEvent]) {
+    func persist(events: [TxnEvent], sessionId: String?) {
         persistedBatches.append(events)
+        persistedSessionIds.append(sessionId)
     }
 
-    func drainValid() -> [[TxnEvent]] {
+    func drainValid() -> [TxnPendingEventBatch] {
         defer { batchesToDrain = [] }
         return batchesToDrain
     }

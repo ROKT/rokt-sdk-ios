@@ -54,7 +54,18 @@ internal struct TxnEventService {
         }
     }
 
+    /// Sends events for the current session, authenticated with the stored token.
     func send(events: [TxnEvent]) async throws {
+        try await send(events: events, replaySessionId: nil)
+    }
+
+    /// Replays a batch that outlived the session it belongs to, unauthenticated with `session_id`
+    /// stamped on every event, so it stays on that session rather than the current one.
+    func replay(events: [TxnEvent], sessionId: String) async throws {
+        try await send(events: events, replaySessionId: sessionId)
+    }
+
+    private func send(events: [TxnEvent], replaySessionId: String?) async throws {
         guard !events.isEmpty else { return }
         guard client != nil else { throw TxnEventError.invalidBaseURL }
 
@@ -64,12 +75,19 @@ internal struct TxnEventService {
             let end = min(start + Self.maxEventsPerBatch, events.count)
             let batch = Array(events[start..<end])
             do {
-                try await sendBatch(events: batch)
+                try await sendBatch(events: batch, replaySessionId: replaySessionId)
             } catch {
                 // Persist recoverable failures (exhausted 5xx/transport) for replay on the next
                 // init instead of dropping them; permanent failures (400/401) are not replayed.
                 if shouldPersistOnFailure(error) {
-                    pendingStore?.persist(events: batch)
+                    // Re-bind to the originating session so a repeated failure stays attributable.
+                    let sessionId: String?
+                    if let replaySessionId {
+                        sessionId = replaySessionId
+                    } else {
+                        sessionId = await sessionManager.currentSessionId
+                    }
+                    pendingStore?.persist(events: batch, sessionId: sessionId)
                 }
                 throw error
             }
@@ -85,15 +103,29 @@ internal struct TxnEventService {
         return isRetryable(error: error)
     }
 
-    private func sendBatch(events: [TxnEvent]) async throws {
+    private func sendBatch(events: [TxnEvent], replaySessionId: String?) async throws {
         guard let client else { throw TxnEventError.invalidBaseURL }
 
-        let authToken = await sessionManager.authorizationHeader
+        let authToken: String?
+        let payload: [TxnEvent]
+        if let replaySessionId {
+            // No Authorization on purpose: a token disagreeing with the stamped session_id is
+            // rejected as a conflict.
+            authToken = nil
+            payload = events.map { event in
+                var stamped = event
+                stamped.sessionId = replaySessionId
+                return stamped
+            }
+        } else {
+            authToken = await sessionManager.authorizationHeader
+            payload = events
+        }
 
         var attempt = 0
         while true {
             do {
-                let (data, response) = try await client.recordEvents(events: events, authToken: authToken)
+                let (data, response) = try await client.recordEvents(events: payload, authToken: authToken)
                 let statusCode = response?.statusCode ?? 0
 
                 if isRetryable(statusCode: statusCode), attempt < maxRetries {
@@ -115,7 +147,10 @@ internal struct TxnEventService {
                         message: Self.unauthorizedDiagnosticCode,
                         callStack: "Dropped \(events.count) event(s) after events 401"
                     )
-                    await sessionManager.clear()
+                    // A replay carries no token, so its 401 says nothing about the live session.
+                    if replaySessionId == nil {
+                        await sessionManager.clear()
+                    }
                     throw TxnEventError.unexpectedStatusCode(statusCode)
                 }
 
@@ -123,7 +158,10 @@ internal struct TxnEventService {
                     throw TxnEventError.unexpectedStatusCode(statusCode)
                 }
 
-                if let data,
+                // A replay response describes the old session; adopting its token would
+                // overwrite the live one.
+                if replaySessionId == nil,
+                   let data,
                    let decoded = try? JSONDecoder().decode(TxnEventsResponse.self, from: data),
                    let sessionToken = decoded.sessionToken {
                     await sessionManager.update(sessionToken: sessionToken)

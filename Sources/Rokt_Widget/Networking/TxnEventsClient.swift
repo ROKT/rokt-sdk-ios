@@ -106,11 +106,30 @@ internal struct TxnEvent: Codable, Equatable {
     let timestamp: Int64?
     // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
     let data: [String: TxnEventDataValue]?
+    // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
+    // Replay only: the gateway accepts `single_session` + a shared `session_id` in place of a JWT.
+    // Must be sent instead of an Authorization header — a disagreeing pair is rejected.
+    var sessionId: String?
 
     enum CodingKeys: String, CodingKey {
         case eventType = "event_type"
         case instanceId = "instance_id"
         case timestamp
         case data
+        case sessionId = "session_id"
+    }
+
+    init(
+        eventType: String,
+        instanceId: String?,
+        timestamp: Int64?,
+        data: [String: TxnEventDataValue]?,
+        sessionId: String? = nil
+    ) {
+        self.eventType = eventType
+        self.instanceId = instanceId
+        self.timestamp = timestamp
+        self.data = data
+        self.sessionId = sessionId
     }
 }

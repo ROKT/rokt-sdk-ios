@@ -81,7 +81,7 @@ final class TestBackgroundFlushPendingStore: XCTestCase {
         // #251: the failed background send rewrote the pending store for next-init replay.
         let drained = pendingStore.drainValid()
         XCTAssertEqual(drained.count, 1)
-        XCTAssertEqual(drained.first?.first?.eventType, "capture_attributes")
+        XCTAssertEqual(drained.first?.events.first?.eventType, "capture_attributes")
         XCTAssertTrue(pendingStore.drainValid().isEmpty)
     }
 
@@ -108,8 +108,8 @@ final class TestBackgroundFlushPendingStore: XCTestCase {
         let drained = relaunchedStore.drainValid()
 
         XCTAssertEqual(drained.count, 1)
-        XCTAssertEqual(drained.first?.first?.instanceId, "instance-bg")
-        XCTAssertEqual(drained.first?.first?.data?["confirmationref"], .string("ORD-E2E"))
+        XCTAssertEqual(drained.first?.events.first?.instanceId, "instance-bg")
+        XCTAssertEqual(drained.first?.events.first?.data?["confirmationref"], .string("ORD-E2E"))
         XCTAssertTrue(relaunchedStore.drainValid().isEmpty)
         XCTAssertFalse(FileManager.default.fileExists(atPath: fileURL.path))
     }

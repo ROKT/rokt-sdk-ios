@@ -4,16 +4,20 @@ import Foundation
 internal struct TxnPendingEventBatch: Codable, Equatable {
     let events: [TxnEvent]
     let persistedAtMs: Int64
+    /// The session these events were generated in. Optional only so batches written by an earlier
+    /// SDK version still decode; those are dropped on replay rather than misattributed.
+    let sessionId: String?
 }
 
 /// Persists unsent event batches so they survive a process restart and can be replayed on the
 /// next init. Mirrors the web SDK's `RoktTransactionsPendingEvents` store: at most 10 batches,
 /// each with a 30-minute TTL.
 internal protocol TxnPendingEventStoring {
-    /// Persists a batch that failed to send. No-op once the store is full (newest dropped).
-    func persist(events: [TxnEvent])
+    /// Persists a batch that failed to send, bound to the session that produced it.
+    /// No-op once the store is full (newest dropped).
+    func persist(events: [TxnEvent], sessionId: String?)
     /// Returns the non-expired batches and clears the store. The caller re-persists any that fail again.
-    func drainValid() -> [[TxnEvent]]
+    func drainValid() -> [TxnPendingEventBatch]
 }
 
 internal final class TxnPendingEventStore: TxnPendingEventStoring {
@@ -39,7 +43,7 @@ internal final class TxnPendingEventStore: TxnPendingEventStoring {
             .appendingPathComponent("txn_pending_events.json")
     }
 
-    func persist(events: [TxnEvent]) {
+    func persist(events: [TxnEvent], sessionId: String?) {
         guard let fileURL, !events.isEmpty else { return }
         let now = clock()
         queue.sync {
@@ -47,20 +51,18 @@ internal final class TxnPendingEventStore: TxnPendingEventStoring {
             var batches = load(from: fileURL).filter { now - $0.persistedAtMs <= Self.ttlMs }
             // Match web semantics: when full, drop the newest rather than evicting an older batch.
             guard batches.count < Self.maxBatches else { return }
-            batches.append(TxnPendingEventBatch(events: events, persistedAtMs: now))
+            batches.append(TxnPendingEventBatch(events: events, persistedAtMs: now, sessionId: sessionId))
             save(batches, to: fileURL)
         }
     }
 
-    func drainValid() -> [[TxnEvent]] {
+    func drainValid() -> [TxnPendingEventBatch] {
         guard let fileURL else { return [] }
         let now = clock()
         return queue.sync {
             let batches = load(from: fileURL)
             try? FileManager.default.removeItem(at: fileURL)
-            return batches
-                .filter { now - $0.persistedAtMs <= Self.ttlMs }
-                .map { $0.events }
+            return batches.filter { now - $0.persistedAtMs <= Self.ttlMs }
         }
     }
 

@@ -295,4 +295,21 @@ internal import RoktUXHelper
     public static func getSessionId() -> String? {
         shared.roktImplementation.getSessionId()
     }
+
+    /// End the current Rokt session so the next `selectPlacements` call starts a new one.
+    ///
+    /// Intended for self-service terminals — kiosks, counter tablets, shared point-of-sale
+    /// hardware — where a queue of unrelated customers uses a single device, and successive
+    /// customers would otherwise be recorded as one person.
+    ///
+    /// Call this at a transaction boundary, not between screens within one customer's journey:
+    /// two placements shown to the same customer are meant to share a session. Buffered events
+    /// are flushed first, so the departing customer's events stay attributed to them. Safe to
+    /// call when no session is active.
+    ///
+    /// - Note: This also clears the id returned by ``getSessionId()`` and the cached experience,
+    ///   so a WebView session hand-off must be re-established afterwards.
+    public static func clearSession() {
+        shared.roktImplementation.clearSession()
+    }
 }
