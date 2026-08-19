@@ -125,7 +125,9 @@ internal actor TxnSessionManager {
         defer { Self.storeLock.unlock() }
         capturedEpoch = storedEpochLocked(store)
         // Only restore a session bound to the current tag id; otherwise start clean.
-        guard store.string(forKey: TxnSessionStoreKeys.tagId) == roktTagId else {
+        // Must not call `clear()` here: we already hold `storeLock` (it is not reentrant),
+        // and bumping the epoch would fence a healthy in-flight writer.
+        guard TxnSessionPersistence.isBound(to: roktTagId, store: store) else {
             clearStateLocked(bumpEpoch: false)
             return
         }
@@ -133,9 +135,12 @@ internal actor TxnSessionManager {
         sessionId = raw.sessionId
         token = raw.token
         expiresAt = raw.expiresAt
-        // An expired JWT is dead server-side; start clean and let init mint a fresh session.
-        if hasExpired {
-            clearStateLocked(bumpEpoch: false)
+        // Drop a persisted-but-expired token so we never start with stale state;
+        // an expired JWT is dead server-side and a fresh session is minted at init.
+        if TxnSessionPersistence.clearIfExpired(expiresAt: expiresAt, store: store, clock: clock) {
+            sessionId = nil
+            token = nil
+            expiresAt = nil
         }
     }
 

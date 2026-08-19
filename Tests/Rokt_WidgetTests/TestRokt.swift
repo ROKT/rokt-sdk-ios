@@ -231,7 +231,6 @@ class TestRokt: XCTestCase {
         XCTAssertNil(roktInternalImplementation.getSessionId())
     }
 
-    // trunk-ignore(trufflehog/Lob): XCTest names like test_set* are false-positive Lob key shapes.
     func test_setSession_ignoresEmptySessionToken() {
         let roktInternalImplementation = RoktInternalImplementation()
         roktInternalImplementation.roktTagId = "tag-empty-token"
@@ -303,7 +302,7 @@ class TestRokt: XCTestCase {
         UserDefaultsTxnSessionStore().setString(String(pastMs), forKey: TxnSessionStoreKeys.expiresAt)
 
         XCTAssertNil(roktInternalImplementation.getSession())
-        XCTAssertNil(TxnSessionPersistence.load(roktTagId: "tag-expired-get"))
+        XCTAssertNil(UserDefaultsTxnSessionStore().string(forKey: TxnSessionStoreKeys.token))
     }
 
     func test_setSession_pastExpiresAt_fallsBackToDefaultTTL() async {

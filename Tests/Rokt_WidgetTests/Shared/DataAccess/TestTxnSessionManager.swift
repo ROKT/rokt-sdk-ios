@@ -224,7 +224,7 @@ final class TestTxnSessionManager: XCTestCase {
         XCTAssertNil(sessionId)
     }
 
-    // MARK: - TxnSessionPersistence (sync seed/load)
+    // MARK: - TxnSessionPersistence (sync seed/read)
 
     func test_persistence_seed_isVisibleToTxnSessionManager() async {
         let store = InMemoryStore()
@@ -242,7 +242,7 @@ final class TestTxnSessionManager: XCTestCase {
         XCTAssertEqual(header, "Bearer seeded-jwt")
     }
 
-    func test_persistence_load_returnsSnapshot() {
+    func test_persistence_readRaw_returnsSnapshot() {
         let store = InMemoryStore()
         TxnSessionPersistence.seed(
             roktTagId: "tag-1",
@@ -251,18 +251,15 @@ final class TestTxnSessionManager: XCTestCase {
             store: store
         )
 
-        let snapshot = TxnSessionPersistence.load(
-            roktTagId: "tag-1",
-            store: store,
-            clock: { self.now }
-        )
+        let snapshot = TxnSessionPersistence.readRaw(store: store)
 
-        XCTAssertEqual(snapshot?.sessionId, "sid")
-        XCTAssertEqual(snapshot?.token, "jwt")
-        XCTAssertNotNil(snapshot?.expiresAt)
+        XCTAssertEqual(snapshot.sessionId, "sid")
+        XCTAssertEqual(snapshot.token, "jwt")
+        XCTAssertNotNil(snapshot.expiresAt)
+        XCTAssertTrue(TxnSessionPersistence.isBound(to: "tag-1", store: store))
     }
 
-    func test_persistence_load_clearsExpiredAndReturnsNil() {
+    func test_persistence_clearIfExpired_clearsStore() {
         let store = InMemoryStore()
         TxnSessionPersistence.seed(
             roktTagId: "tag-1",
@@ -272,13 +269,14 @@ final class TestTxnSessionManager: XCTestCase {
         )
         now = now.addingTimeInterval(61)
 
-        let snapshot = TxnSessionPersistence.load(
-            roktTagId: "tag-1",
+        let snapshot = TxnSessionPersistence.readRaw(store: store)
+        let cleared = TxnSessionPersistence.clearIfExpired(
+            expiresAt: snapshot.expiresAt,
             store: store,
             clock: { self.now }
         )
 
-        XCTAssertNil(snapshot)
+        XCTAssertTrue(cleared)
         XCTAssertNil(store.string(forKey: TxnSessionStoreKeys.token))
     }
 

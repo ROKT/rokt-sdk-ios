@@ -1,4 +1,3 @@
-// periphery:ignore:all
 import Foundation
 
 /// UserDefaults keys shared by ``TxnSessionManager`` and the public session handoff APIs.
@@ -33,30 +32,8 @@ internal enum TxnSessionPersistence {
         store.setString(String(sessionToken.expiresAt), forKey: TxnSessionStoreKeys.expiresAt)
     }
 
-    /// Loads a valid session for `roktTagId`. Clears the store and returns `nil` on
-    /// tag mismatch or expired token (same rules as ``TxnSessionManager`` restore).
-    static func load(
-        roktTagId: String,
-        store: TxnSessionStore = UserDefaultsTxnSessionStore(),
-        clock: () -> Date = Date.init
-    ) -> TxnSessionSnapshot? {
-        guard store.string(forKey: TxnSessionStoreKeys.tagId) == roktTagId else {
-            clear(store: store)
-            return nil
-        }
-
-        let sessionId = store.string(forKey: TxnSessionStoreKeys.sessionId)
-        let token = store.string(forKey: TxnSessionStoreKeys.token)
-        let expiresAt = store.string(forKey: TxnSessionStoreKeys.expiresAt)
-            .flatMap(Double.init)
-            .map { Date(timeIntervalSince1970: $0/1000) }
-
-        if isExpired(expiresAt: expiresAt, clock: clock) {
-            clear(store: store)
-            return nil
-        }
-
-        return TxnSessionSnapshot(sessionId: sessionId, token: token, expiresAt: expiresAt)
+    static func isBound(to roktTagId: String, store: TxnSessionStore) -> Bool {
+        store.string(forKey: TxnSessionStoreKeys.tagId) == roktTagId
     }
 
     static func clear(store: TxnSessionStore) {
@@ -74,7 +51,7 @@ internal enum TxnSessionPersistence {
         includeSessionId: Bool,
         store: TxnSessionStore
     ) {
-        // Always record the tag-id binding: load treats a missing/mismatched
+        // Always record the tag-id binding: restore treats a missing/mismatched
         // tag id as another account's data and clears the session, so a token persisted
         // without it would never survive a reload.
         store.setString(roktTagId, forKey: TxnSessionStoreKeys.tagId)
@@ -92,6 +69,20 @@ internal enum TxnSessionPersistence {
     static func isExpired(expiresAt: Date?, clock: () -> Date) -> Bool {
         guard let expiresAt else { return true }
         return clock() >= expiresAt
+    }
+
+    /// Clears the store when the snapshot is expired. Returns `true` if it cleared.
+    @discardableResult
+    static func clearIfExpired(
+        expiresAt: Date?,
+        store: TxnSessionStore,
+        clock: () -> Date
+    ) -> Bool {
+        guard isExpired(expiresAt: expiresAt, clock: clock) else {
+            return false
+        }
+        clear(store: store)
+        return true
     }
 
     static func readRaw(store: TxnSessionStore) -> TxnSessionSnapshot {

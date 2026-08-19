@@ -1574,7 +1574,7 @@ class RoktInternalImplementation {
         }
 
         let store = UserDefaultsTxnSessionStore()
-        guard store.string(forKey: TxnSessionStoreKeys.tagId) == roktTagId else {
+        guard TxnSessionPersistence.isBound(to: roktTagId, store: store) else {
             RoktLogger.shared.warning(
                 "Rokt.getSession returned nil: no session is present."
             )
@@ -1594,11 +1594,10 @@ class RoktInternalImplementation {
             return nil
         }
 
-        if TxnSessionPersistence.isExpired(expiresAt: expiresAt, clock: Date.init) {
+        if TxnSessionPersistence.clearIfExpired(expiresAt: expiresAt, store: store, clock: Date.init) {
             RoktLogger.shared.warning(
                 "Rokt.getSession returned nil: session token is expired."
             )
-            TxnSessionPersistence.clear(store: store)
             return nil
         }
 
