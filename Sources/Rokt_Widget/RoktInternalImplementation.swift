@@ -107,9 +107,16 @@ class RoktInternalImplementation {
     // Backing store for the txn session. Test-only override; production uses UserDefaults.
     var txnSessionStore: TxnSessionStore = UserDefaultsTxnSessionStore()
 
-    // Set by clearSession, consumed by the next cache-read decision. A cache hit satisfies a
-    // placement without a network call, and the server is what mints a session.
+    // Set by clearSession, latched into cacheSuppressedForCurrentExecute at the start of the next
+    // execute. A cache hit satisfies a placement without a network call, and the server is what
+    // mints a session.
     private var mustBypassCacheOnNextExecute = false
+
+    // Suppresses every cache read within one execute: the experience response and the view state
+    // (sentEventHashes, plugin view states). Without covering the view state too, the next customer
+    // inherits the previous one's sent-event hashes and UI progress from files the asynchronous
+    // clearCache has not deleted yet.
+    private var cacheSuppressedForCurrentExecute = false
 
     // Flushes buffered events when the app backgrounds so they are not lost in the debounce window.
     // periphery:ignore - held only for its side effect (registers the didEnterBackground observer); never read.
@@ -1234,6 +1241,11 @@ class RoktInternalImplementation {
             preExecuteFailureHandler()
             return
         }
+        // Latched once per execute, after the guard so a rejected call does not consume it. Both
+        // cache reads in this execute — the experience response and the view state read later in
+        // processLayoutPageExecutePayload — must see the same answer.
+        cacheSuppressedForCurrentExecute = mustBypassCacheOnNextExecute
+        mustBypassCacheOnNextExecute = false
         if #available(iOS 14.5, *) {
             if !initFeatureFlags.isEnabled(.roktTrackingStatus) &&
                 isPrivacyDenied(ATTrackingManager.trackingAuthorizationStatus) {
@@ -1386,11 +1398,7 @@ class RoktInternalImplementation {
     /// file read — so the one-shot flag is what makes the first placement after a reset
     /// deterministically reach the network.
     private func shouldReadFromCache() -> Bool {
-        if mustBypassCacheOnNextExecute {
-            mustBypassCacheOnNextExecute = false
-            return false
-        }
-        return isCacheEnabledAndConfigured()
+        !cacheSuppressedForCurrentExecute && isCacheEnabledAndConfigured()
     }
 
     func processLayoutPageExecutePayload(_ page: String,
@@ -1429,7 +1437,7 @@ class RoktInternalImplementation {
             pageInstanceGuid: pageModel.pageInstanceGuid
         )
 
-        if isCacheEnabledAndConfigured() {
+        if shouldReadFromCache() {
             // For cached experiences, use cacheAttributes for consistency
             let cacheAttributes = roktConfig.cacheConfig.getCacheAttributesOrFallback(attributes)
             let experiencesViewState = ExperienceCacheManager.getCachedExperiencesViewState(
