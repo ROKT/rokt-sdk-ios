@@ -55,6 +55,28 @@ final class TestClearSession: XCTestCase {
         XCTAssertNil(header)
     }
 
+    /// `setSession` seeds the same keys `clearSession` wipes; a kiosk reset must drop the handoff.
+    func test_clearSession_dropsSeededHandoffSession() async {
+        let store = InMemoryTxnStore()
+        implementation.txnSessionStore = store
+        implementation.roktTagId = "tag-1"
+        TxnSessionPersistence.seed(
+            roktTagId: "tag-1",
+            sessionId: "webview-sid",
+            sessionToken: TxnSessionToken(token: "webview-jwt", expiresAt: farFutureExpiryMs),
+            store: store
+        )
+
+        implementation.clearSession()
+
+        let next = TxnSessionManager(roktTagId: "tag-1", store: store)
+        let sessionId = await next.currentSessionId
+        let header = await next.authorizationHeader
+        XCTAssertNil(sessionId)
+        XCTAssertNil(header)
+        XCTAssertEqual(store.string(forKey: TxnSessionStoreKeys.epoch), "1")
+    }
+
     func test_clearSession_withNoTxnSession_leavesStoreEmpty() async {
         let store = InMemoryTxnStore()
         implementation.txnSessionStore = store
