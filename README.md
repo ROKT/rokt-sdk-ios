@@ -133,8 +133,9 @@ Behaviour to be aware of:
 
 - **When to call it:** at the boundary between customers — not between screens within one customer's journey. Two placements shown to the same customer are meant to share a session.
 - **When the new session begins:** on the next `selectPlacements` call. `clearSession()` only ends the current session; the next placement starts the new one.
-- **What it clears:** the stored session, session-scoped events, and cached experiences. The id returned by `getSessionId()` becomes `nil`, so a WebView session hand-off must be re-established afterwards.
-- **Calling it is always safe:** with no active session it is a no-op, and repeated calls are idempotent.
+- **What it clears:** the stored session, the real-time event state tied to it, and cached experiences. The id returned by `getSessionId()` becomes `nil`, so a WebView session hand-off must be re-established afterwards.
+- **Buffered events are not lost:** queued analytics events are flushed _before_ the session is dropped, so they are sent under the departing session and the previous customer's activity stays attributed to them.
+- **Calling it is always safe:** repeated calls are idempotent, and with no active session there is no session state to clear.
 - **Experience caching:** avoid enabling `RoktConfig` experience caching on shared terminals — a cached experience belongs to the customer it was fetched for.
 
 **mParticle integrations** get this automatically: the Rokt kit ends the session when the mParticle user changes — a different user identifying or logging in, or the current user logging out. An anonymous user being identified is treated as the same person and keeps the session. Calling `clearSession()` as well is safe; both paths converge on the same idempotent reset.
