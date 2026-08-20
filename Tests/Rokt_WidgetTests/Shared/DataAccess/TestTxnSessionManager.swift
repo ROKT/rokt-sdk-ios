@@ -267,6 +267,7 @@ final class TestTxnSessionManager: XCTestCase {
             sessionToken: token("jwt", expiresInSeconds: 60),
             store: store
         )
+        store.setString("4", forKey: TxnSessionStoreKeys.epoch)
         now = now.addingTimeInterval(61)
 
         let snapshot = TxnSessionPersistence.readRaw(store: store)
@@ -278,6 +279,7 @@ final class TestTxnSessionManager: XCTestCase {
 
         XCTAssertTrue(cleared)
         XCTAssertNil(store.string(forKey: TxnSessionStoreKeys.token))
+        XCTAssertEqual(store.string(forKey: TxnSessionStoreKeys.epoch), "4")
     }
 
     // MARK: - Epoch fence (a reset must survive an in-flight response)
@@ -382,10 +384,27 @@ final class TestTxnSessionManager: XCTestCase {
 
         TxnSessionManager.clearPersistedSession(store: store)
 
-        XCTAssertNil(store.string(forKey: "ROKT_TXN_TAG_ID"))
-        XCTAssertNil(store.string(forKey: "ROKT_TXN_SESSION_ID"))
-        XCTAssertNil(store.string(forKey: "ROKT_TXN_SESSION_TOKEN"))
-        XCTAssertNil(store.string(forKey: "ROKT_TXN_TOKEN_EXPIRES_AT"))
+        XCTAssertNil(store.string(forKey: TxnSessionStoreKeys.tagId))
+        XCTAssertNil(store.string(forKey: TxnSessionStoreKeys.sessionId))
+        XCTAssertNil(store.string(forKey: TxnSessionStoreKeys.token))
+        XCTAssertNil(store.string(forKey: TxnSessionStoreKeys.expiresAt))
+        XCTAssertEqual(store.string(forKey: TxnSessionStoreKeys.epoch), "1")
+    }
+
+    func test_persistence_clear_preservesEpoch() {
+        let store = InMemoryStore()
+        TxnSessionPersistence.seed(
+            roktTagId: "tag-1",
+            sessionId: "sid",
+            sessionToken: token("jwt", expiresInSeconds: 1800),
+            store: store
+        )
+        store.setString("9", forKey: TxnSessionStoreKeys.epoch)
+
+        TxnSessionPersistence.clear(store: store)
+
+        XCTAssertNil(store.string(forKey: TxnSessionStoreKeys.token))
+        XCTAssertEqual(store.string(forKey: TxnSessionStoreKeys.epoch), "9")
     }
 
     func test_clearPersistedSession_isIdempotent() {
@@ -412,5 +431,22 @@ final class TestTxnSessionManager: XCTestCase {
         let restored = persistentManager(tagId: "tag-1", store: store)
         let sessionId = await restored.currentSessionId
         XCTAssertEqual(sessionId, "sid-a", "Housekeeping must not fence a healthy in-flight writer")
+    }
+
+    /// Tag-id mismatch on restore is housekeeping and must not bump the epoch.
+    func test_restoreWithMismatchedTag_doesNotFenceInFlightWriter() async {
+        let store = InMemoryStore()
+        let inFlight = persistentManager(tagId: "tag-1", store: store)
+        await inFlight.update(sessionId: "sid-a", sessionToken: token("jwt-a", expiresInSeconds: 1800))
+
+        _ = persistentManager(tagId: "tag-2", store: store)
+
+        await inFlight.update(sessionId: "sid-a", sessionToken: token("jwt-a2", expiresInSeconds: 1800))
+
+        let restored = persistentManager(tagId: "tag-1", store: store)
+        let sessionId = await restored.currentSessionId
+        let header = await restored.authorizationHeader
+        XCTAssertEqual(sessionId, "sid-a", "Tag-mismatch housekeeping must not fence a healthy in-flight writer")
+        XCTAssertEqual(header, "Bearer jwt-a2")
     }
 }
