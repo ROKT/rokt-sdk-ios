@@ -22,6 +22,7 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/ROKT/rokt-contracts-apple.git", .upToNextMajor(from: "2.0.2")),
         .package(url: "https://github.com/ROKT/rokt-ux-helper-ios.git", from: "2.0.0"),
+        .package(url: "https://github.com/ROKT/dcui-swift-schema.git", .upToNextMajor(from: "2.8.1")),
         .package(url: "https://github.com/WeTransfer/Mocker.git", .upToNextMajor(from: "2.0.0")),
         .package(url: "https://github.com/surpher/PactSwift.git", .upToNextMajor(from: "1.2.0"))
     ],
@@ -30,7 +31,8 @@ let package = Package(
             name: "Rokt_Widget",
             dependencies: [
                 .product(name: "RoktContracts", package: "rokt-contracts-apple"),
-                .product(name: "RoktUXHelper", package: "rokt-ux-helper-ios")
+                .product(name: "RoktUXHelper", package: "rokt-ux-helper-ios"),
+                .product(name: "DcuiSchema", package: "dcui-swift-schema")
             ],
             path: "Sources/Rokt_Widget",
             resources: [
