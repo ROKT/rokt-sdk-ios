@@ -16,25 +16,6 @@ internal enum TxnEventMapper {
         }
     }
 
-    static func event(from request: RoktEventRequest) -> TxnEvent? {
-        guard let mapped = mappedType(for: request.eventType) else { return nil }
-        return TxnEvent(
-            eventType: mapped.eventType,
-            instanceId: request.uuid,
-            timestamp: epochMilliseconds(from: request.eventTime),
-            data: buildData(
-                eventType: request.eventType,
-                attributes: request.eventData,
-                metadata: request.metadata,
-                objectData: request.objectData,
-                parentGuid: request.parentGuid,
-                token: request.jwtToken,
-                pageInstanceGuid: request.pageInstanceGuid,
-                markers: mapped.markers
-            )
-        )
-    }
-
     static func event(from request: EventRequest) -> TxnEvent? {
         guard let mapped = mappedType(for: request.eventType) else { return nil }
         return TxnEvent(
@@ -45,7 +26,6 @@ internal enum TxnEventMapper {
                 eventType: request.eventType,
                 attributes: request.attributes,
                 metadata: request.metadata,
-                objectData: nil,
                 parentGuid: request.parentGuid,
                 token: request.jwtToken,
                 pageInstanceGuid: request.pageInstanceGuid,
@@ -64,7 +44,7 @@ internal enum TxnEventMapper {
         case .SignalResponse: return MappedType("signal_response")
         case .SignalGatedResponse: return MappedType("signal_gated_response")
         case .SignalDismissal: return MappedType("dismissal")
-        case .SignalActivation: return MappedType("user_interaction", ["interactionType": "activation"])
+        case .SignalActivation: return MappedType("user_interaction", ["interaction_type": "activation"])
         case .SignalUserInteraction: return MappedType("user_interaction")
         case .CaptureAttributes: return MappedType("capture_attributes", ["sdk_event": "captureAttributes"])
         case .SignalCartItemInstantPurchaseInitiated: return MappedType("cart_item_instant_purchase_initiated")
@@ -82,7 +62,6 @@ internal enum TxnEventMapper {
         eventType: RoktUXEventType,
         attributes: [RoktEventNameValue],
         metadata: [RoktEventNameValue],
-        objectData: [String: String]?,
         parentGuid: String,
         token: String,
         pageInstanceGuid: String,
@@ -109,14 +88,6 @@ internal enum TxnEventMapper {
             }
         }
 
-        if let objectData {
-            for (key, value) in objectData { data[key] = .string(value) }
-        }
-
-        if eventType == .SignalUserInteraction, let action = objectData?["action"] {
-            data["interactionType"] = .string(action)
-        }
-
         // Written last so these win over any colliding partner attribute.
         data["parent_id"] = .string(parentGuid)
         data["token"] = .string(token)
@@ -129,16 +100,9 @@ internal enum TxnEventMapper {
         return data.isEmpty ? nil : data
     }
 
-    // The transactions gateway rejects a whole events batch if any timestamp falls outside the
-    // year range [2000, 2100], so an out-of-range value (e.g. from a device with a misconfigured
-    // clock) is stripped rather than sent — the gateway then defaults to receive-time. Bounds
-    // mirror web's `Date.UTC(2000, 0, 1)` / `Date.UTC(2101, 0, 1)`.
     private static let minAcceptedTimestampMs: Int64 = 946_684_800_000 // 2000-01-01T00:00:00Z
     private static let maxAcceptedTimestampMs: Int64 = 4_133_980_800_000 // 2101-01-01T00:00:00Z (exclusive)
 
-    // Returns nil (so the timestamp is dropped from the wire) when the capture time is
-    // missing/unparseable or outside the accepted year range. The gateway then defaults to
-    // receive-time rather than us sending a value it would reject (mirrors web + Android).
     private static func epochMilliseconds(from eventTime: String) -> Int64? {
         guard let date = EventDateFormatter.dateFormatter.date(from: eventTime) else {
             return nil

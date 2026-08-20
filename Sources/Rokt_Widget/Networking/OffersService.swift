@@ -173,7 +173,13 @@ internal struct OffersService {
                 if let eventData = decoded.eventData {
                     captureEvents(SelectEventMapper.untriggeredEvents(from: eventData))
                 }
-                return try SelectExperienceAdapter.experienceJSONString(from: decoded)
+                // Pass the raw snake_case selection response through unchanged; the renderer
+                // decodes SelectResponse directly (rokt-ux-helper-ios 2.0.0+). Re-serialising
+                // into the legacy camelCase shape is no longer accepted.
+                guard let raw = String(data: data, encoding: .utf8) else {
+                    throw OffersError.missingResponseData
+                }
+                return raw
             } catch let error where isRetryable(error: error) && attempt < maxRetries {
                 try await sleep(backoffDelay(attempt: attempt))
                 attempt += 1

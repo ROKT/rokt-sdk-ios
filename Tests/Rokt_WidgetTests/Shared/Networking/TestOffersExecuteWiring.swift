@@ -5,8 +5,8 @@ import XCTest
 /// Drives `RoktInternalImplementation.execute(...)` through the v2 offers path so the
 /// call-site wiring is exercised end to end: the offers service factory, the success
 /// hand-off to the renderer, the failure handler, and the Mock-environment offline
-/// transport. The offers stack itself is unit-tested in `TestOffersService` /
-/// `TestSelectExperienceAdapter`; this covers the glue that joins it to `execute`.
+/// transport. The offers stack itself is unit-tested in `TestOffersService`;
+/// this covers the glue that joins it to `execute`.
 final class TestOffersExecuteWiring: XCTestCase {
 
     /// Captures the experience string handed to the renderer so the success path is
@@ -199,6 +199,7 @@ final class TestOffersExecuteWiring: XCTestCase {
         // First execute fetches offers and writes the experience to the cache.
         impl.execute(viewName: viewName, attributes: attributes, config: cacheConfig)
         waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
+        XCTAssertNotNil(impl.capturedPage)
 
         // Wait for the background cache write to flush before reusing it.
         waitUntil({
@@ -206,6 +207,9 @@ final class TestOffersExecuteWiring: XCTestCase {
                 viewName: viewName, attributes: attributes, cacheDuration: cacheDuration
             ) != nil
         }, timeout: 10)
+        XCTAssertNotNil(ExperienceCacheManager.getCachedExperienceResponse(
+            viewName: viewName, attributes: attributes, cacheDuration: cacheDuration
+        ))
 
         // Second execute serves the cached experience instead of fetching again.
         impl.capturedPage = nil

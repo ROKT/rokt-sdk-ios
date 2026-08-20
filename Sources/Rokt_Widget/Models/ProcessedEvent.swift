@@ -1,42 +1,26 @@
 import Foundation
-internal import RoktUXHelper
 
+// In-memory dedup key for an event. `eventType` is the wire event-type string
+// (`impression`, `signal_response`, …) for platform events, or the legacy enum
+// raw value for the SDK's own `EventRequest` path — either way a stable string.
 struct ProcessedEvent: Hashable, Equatable {
     let sessionId: String
     let parentGuid: String
-    let eventType: RoktUXEventType
+    let eventType: String
     let pageInstanceGuid: String
-    let attributes: [RoktEventNameValue]
+    let attributes: [String: String]
 }
 
 extension ProcessedEvent {
-    init(_ event: RoktEventRequest) {
-        self = .init(
-            sessionId: event.sessionId,
-            parentGuid: event.parentGuid,
-            eventType: event.eventType,
-            pageInstanceGuid: event.pageInstanceGuid,
-            attributes: event.eventData
-        )
-    }
-
     private var attributesAsString: String {
-        let attributesDict: [String: String] = attributes
-            .map { $0.getDictionary() }
-            .flatMap { $0 }
-            .reduce([String: String]()) { (dict, tuple) in
-                var nextDict = dict
-                nextDict.updateValue(tuple.1, forKey: tuple.0)
-                return nextDict
-            }
-        return attributesDict
-            .sorted(by: { $0.0 < $1.0 })
+        attributes
+            .sorted(by: { $0.key < $1.key })
             .map { "\($0):\($1)" }
             .joined(separator: "")
     }
 
     public func getHashString() -> String {
-        return [sessionId, parentGuid, eventType.rawValue, pageInstanceGuid, attributesAsString]
+        return [sessionId, parentGuid, eventType, pageInstanceGuid, attributesAsString]
             .joined(separator: "")
             .sha256()
     }

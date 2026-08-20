@@ -32,6 +32,15 @@ class ExperienceCacheTests: XCTestCase {
 
     // MARK: Experience response cache management
 
+    func testExperienceResponseCacheFileNameUsesCurrentResponseFormat() {
+        let fileName = ExperienceCacheUtils.getExperienceResponseCacheFileName(
+            viewName: mockedViewName,
+            attributes: mockedAttributes
+        )
+
+        XCTAssertTrue(fileName.hasPrefix("RoktExperienceResponseV2"))
+    }
+
     func test_cacheExperienceResponse_checkFileContents() {
         let mockedCachedDate = RoktSDKDateHandler.currentDate()
         ExperienceCacheManager.cacheExperienceResponse(viewName: mockedViewName,
@@ -418,14 +427,20 @@ class ExperienceCacheTests: XCTestCase {
 }
 
 extension XCTestCase {
-    private static let testCacheDirectoryName = "test_RoktExperienceCache"
+    private static let testCacheDirectoryName =
+        "test_RoktExperienceCache-\(ProcessInfo.processInfo.processIdentifier)"
 
     static func prepareExperienceCacheTestFiles() {
         ExperienceCacheManager.setCacheDirectoryName(testCacheDirectoryName)
     }
 
     static func deleteExperienceCacheTestFiles() {
-        ExperienceCacheManager.clearCache()
+        let completion = DispatchSemaphore(value: 0)
+        ExperienceCacheManager.clearCache(
+            success: { completion.signal() },
+            failure: { completion.signal() }
+        )
+        _ = completion.wait(timeout: .now() + 5)
     }
 
     static func experienceCacheDirectoryExists() -> Bool {

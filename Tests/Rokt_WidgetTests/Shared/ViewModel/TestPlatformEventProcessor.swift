@@ -89,6 +89,20 @@ class TestPlatformEventProcessor: XCTestCase {
         XCTAssertEqual(sut.processedEvents.count, 1)
     }
 
+    func test_legacySignalName_preservesActivationTrigger() {
+        XCTAssertEqual(
+            PlatformEventProcessor.legacySignalName(
+                for: "user_interaction",
+                interactionType: "activation"
+            ),
+            "SignalActivation"
+        )
+        XCTAssertEqual(
+            PlatformEventProcessor.legacySignalName(for: "user_interaction"),
+            "SignalUserInteraction"
+        )
+    }
+
     // MARK: - ProcessTimingRequests Tests
 
     func test_processTimingRequests_WithValidEvent() {
@@ -103,8 +117,8 @@ class TestPlatformEventProcessor: XCTestCase {
         // Create test data - SignalImpression with pageSignalLoad metadata, pluginId, and pluginName
         let metadata = [
             RoktEventNameValue(name: PlatformEventProcessor.pageSignalLoad, value: "2023-01-01T12:00:00.000Z"),
-            RoktEventNameValue(name: Rokt_Widget.timingsPluginIdKey, value: "test-plugin-id"),
-            RoktEventNameValue(name: Rokt_Widget.timingsPluginNameKey, value: "test-plugin-name")
+            RoktEventNameValue(name: "plugin_id", value: "test-plugin-id"),
+            RoktEventNameValue(name: "plugin_name", value: "test-plugin-name")
         ]
 
         let eventRequest = RoktEventRequest(
@@ -144,7 +158,7 @@ class TestPlatformEventProcessor: XCTestCase {
         // Create test data - SignalDismissal (wrong type) with pageSignalLoad metadata and pluginId
         let metadata = [
             RoktEventNameValue(name: PlatformEventProcessor.pageSignalLoad, value: "2023-01-01T12:00:00.000Z"),
-            RoktEventNameValue(name: Rokt_Widget.timingsPluginIdKey, value: "test-plugin-id")
+            RoktEventNameValue(name: "plugin_id", value: "test-plugin-id")
         ]
 
         let eventRequest = RoktEventRequest(
@@ -178,7 +192,7 @@ class TestPlatformEventProcessor: XCTestCase {
 
         // Create test data - SignalImpression but missing pageSignalLoad metadata
         let metadata = [
-            RoktEventNameValue(name: Rokt_Widget.timingsPluginIdKey, value: "test-plugin-id")
+            RoktEventNameValue(name: "plugin_id", value: "test-plugin-id")
         ]
 
         let eventRequest = RoktEventRequest(
@@ -248,8 +262,8 @@ class TestPlatformEventProcessor: XCTestCase {
         // Create valid event
         let validMetadata = [
             RoktEventNameValue(name: PlatformEventProcessor.pageSignalLoad, value: "2023-01-01T12:00:00.000Z"),
-            RoktEventNameValue(name: Rokt_Widget.timingsPluginIdKey, value: "test-plugin-id"),
-            RoktEventNameValue(name: Rokt_Widget.timingsPluginNameKey, value: "test-plugin-name")
+            RoktEventNameValue(name: "plugin_id", value: "test-plugin-id"),
+            RoktEventNameValue(name: "plugin_name", value: "test-plugin-name")
         ]
 
         let validEvent = RoktEventRequest(
@@ -298,8 +312,8 @@ class TestPlatformEventProcessor: XCTestCase {
         // Create test data with plugin name
         let metadata = [
             RoktEventNameValue(name: PlatformEventProcessor.pageSignalLoad, value: "2023-01-01T12:00:00.000Z"),
-            RoktEventNameValue(name: Rokt_Widget.timingsPluginIdKey, value: "test-plugin-id"),
-            RoktEventNameValue(name: Rokt_Widget.timingsPluginNameKey, value: "TestPluginName")
+            RoktEventNameValue(name: "plugin_id", value: "test-plugin-id"),
+            RoktEventNameValue(name: "plugin_name", value: "TestPluginName")
         ]
 
         let eventRequest = RoktEventRequest(
@@ -336,7 +350,7 @@ class TestPlatformEventProcessor: XCTestCase {
         // Create test data without plugin name
         let metadata = [
             RoktEventNameValue(name: PlatformEventProcessor.pageSignalLoad, value: "2023-01-01T12:00:00.000Z"),
-            RoktEventNameValue(name: Rokt_Widget.timingsPluginIdKey, value: "test-plugin-id")
+            RoktEventNameValue(name: "plugin_id", value: "test-plugin-id")
             // No timingsPluginNameKey
         ]
 
@@ -361,15 +375,15 @@ class TestPlatformEventProcessor: XCTestCase {
         Rokt.shared.roktImplementation.processedTimingsRequests = originalShared.processedTimingsRequests
     }
 
+    // Serialises the fixtures through RoktUXHelper's v2 sessions/events body — the exact wire
+    // shape `onRoktPlatformEvent` now delivers.
     private func createPayload(_ events: [RoktEventRequest]) -> [String: Any] {
-        ["events": events.map(\.getParams)]
-            .merging(RoktIntegrationInfo.shared.json, uniquingKeysWith: { new, _ in new })
+        mockEventsPayload(events: events) ?? [:]
     }
 
     private func mockEventsPayload(events: [RoktEventRequest]) -> [String: Any]? {
-        let payload = RoktUXEventsPayload(events: events)
-        guard let data = try? JSONEncoder().encode(payload) else { return nil }
-        return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
+        guard let data = try? JSONEncoder().encode(RoktSessionEventsBody(events: events)) else { return nil }
+        return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
     }
 }
 

@@ -64,18 +64,16 @@ class RealTimeEventStoreMemoryTest: XCTestCase {
         eventTime: Date = Date(),
         sessionId: String = "testSessionId",
         jwtToken: String = "testJwtToken"
-    ) -> RoktEventRequest {
-        return RoktEventRequest(
-            sessionId: sessionId,
-            eventType: eventType,
+    ) -> RealTimeTrigger {
+        return RealTimeTrigger(
             parentGuid: parentGuid,
-            eventTime: eventTime,
-            jwtToken: jwtToken
+            eventTypeKey: eventType.rawValue,
+            eventTime: EventDateFormatter.getDateString(eventTime)
         )
     }
 
-    private func createRoktEventResponse(_ numberToReturn: Int) -> [RoktEventRequest] {
-        var triggeredEvents: [RoktEventRequest] = []
+    private func createRoktEventResponse(_ numberToReturn: Int) -> [RealTimeTrigger] {
+        var triggeredEvents: [RealTimeTrigger] = []
         for i in 0..<numberToReturn {
             triggeredEvents.append(
                 createRoktEventRequest(

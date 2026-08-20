@@ -82,13 +82,11 @@ class RealTimeEventStoreFileTest: XCTestCase {
         eventTime: Date = Date(),
         sessionId: String = "testSessionId",
         jwtToken: String = "testJwtToken"
-    ) -> RoktEventRequest {
-        return RoktEventRequest(
-            sessionId: sessionId,
-            eventType: eventType,
+    ) -> RealTimeTrigger {
+        return RealTimeTrigger(
             parentGuid: parentGuid,
-            eventTime: eventTime,
-            jwtToken: jwtToken
+            eventTypeKey: eventType.rawValue,
+            eventTime: EventDateFormatter.getDateString(eventTime)
         )
     }
 

@@ -214,8 +214,8 @@ internal struct SelectLayoutVariant: Decodable {
 internal struct SelectOffer: Decodable {
     let campaignId: String?
     let creative: SelectCreative?
-    // Shoppable-ad catalog items, mapped to the renderer via `RenderCatalogItem`
-    // (see RenderExperience) so instant-purchase layouts render their content.
+    // Shoppable-ad catalog items; forwarded to the renderer verbatim in the raw
+    // snake_case selection response so instant-purchase layouts render their content.
     let catalogItems: [SelectCatalogItem]?
 
     enum CodingKeys: String, CodingKey {

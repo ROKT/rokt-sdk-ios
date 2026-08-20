@@ -14,7 +14,7 @@ final class TestPlatformEventProcessorDedup: XCTestCase {
 
     private let cacheFlagKey = "mobile-sdk-use-sdk-cache"
     private let mockedViewName = "dedup-test-view"
-    private let mockedAttributes = ["email": "dedup1593754986316@rokt.com"]
+    private let mockedAttributes = ["email": "dedup@example.com"]
 
     override func setUp() {
         super.setUp()
@@ -55,9 +55,10 @@ final class TestPlatformEventProcessorDedup: XCTestCase {
 
     // MARK: - Helpers
 
+    // Serialises the fixtures through RoktUXHelper's v2 sessions/events body — the exact wire
+    // shape `onRoktPlatformEvent` now delivers.
     private func payload(_ events: [RoktEventRequest]) -> [String: Any] {
-        let payload = RoktUXEventsPayload(events: events)
-        guard let data = try? JSONEncoder().encode(payload),
+        guard let data = try? JSONEncoder().encode(RoktSessionEventsBody(events: events)),
               let dict = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
             return [:]
         }
@@ -86,7 +87,7 @@ final class TestPlatformEventProcessorDedup: XCTestCase {
 
     // MARK: - (a) Cache OFF: duplicate event is NOT re-sent
 
-    func test_cacheOff_duplicateEvent_isNotResent() {
+    func testCacheOffDuplicateEventIsNotResent() {
         sut.process(payload([.mock(eventType: .SignalImpression)]), executeId: "1", cacheProperties: nil)
         waitUntil { self.stub.callCount == 1 }
 
@@ -100,7 +101,7 @@ final class TestPlatformEventProcessorDedup: XCTestCase {
 
     // MARK: - (b) Exempt (user-interaction) event IS re-sent even when duplicated
 
-    func test_cacheOff_userInteractionEvent_isAlwaysResent() {
+    func testCacheOffUserInteractionEventIsAlwaysResent() {
         sut.process(payload([.mock(eventType: .SignalUserInteraction)]), executeId: "1", cacheProperties: nil)
         waitUntil { self.stub.callCount == 1 }
 
@@ -113,7 +114,7 @@ final class TestPlatformEventProcessorDedup: XCTestCase {
         XCTAssertEqual(impl.sentEventHashes.count, 0)
     }
 
-    func test_cacheOff_activationEvent_isAlwaysResent() {
+    func testCacheOffActivationEventIsAlwaysResent() {
         sut.process(payload([.mock(eventType: .SignalActivation)]), executeId: "1", cacheProperties: nil)
         waitUntil { self.stub.callCount == 1 }
 
@@ -126,7 +127,7 @@ final class TestPlatformEventProcessorDedup: XCTestCase {
 
     // MARK: - (c) Cache-persistence only runs when cache is enabled
 
-    func test_cacheOff_doesNotPersistSentEventHashes() {
+    func testCacheOffDoesNotPersistSentEventHashes() {
         sut.process(payload([.mock(eventType: .SignalImpression)]),
                     executeId: "1",
                     cacheProperties: cacheProperties())
@@ -137,7 +138,7 @@ final class TestPlatformEventProcessorDedup: XCTestCase {
         ))
     }
 
-    func test_cacheOn_persistsSentEventHashes() {
+    func testCacheOnPersistsSentEventHashes() {
         enableCache()
 
         sut.process(payload([.mock(eventType: .SignalImpression)]),
