@@ -138,7 +138,7 @@ Behaviour to be aware of:
 - **Calling it is always safe:** repeated calls are idempotent, and with no active session there is no session state to clear.
 - **Experience caching:** avoid enabling `RoktConfig` experience caching on shared terminals — a cached experience belongs to the customer it was fetched for.
 
-**mParticle integrations** get this automatically: the Rokt kit ends the session when the mParticle user changes — a different user identifying or logging in, or the current user logging out. An anonymous user being identified is treated as the same person and keeps the session. Calling `clearSession()` as well is safe; both paths converge on the same idempotent reset.
+**mParticle integrations** call this the same way, through the kit: `MParticle.sharedInstance().rokt.clearSession()`. The kit forwards it straight to this API. It does not end the session on its own — a login or logout is not treated as a transaction boundary, since an mParticle user can change mid-journey for a single customer — so a shared terminal needs the explicit call here too.
 
 ## Shoppable Ads and payment extensions
 
