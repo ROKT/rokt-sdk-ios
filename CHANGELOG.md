@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [5.4.0] - 2026-08-21
+
+### Core
+
+#### Added
+
+- Update sharing session token in hybrid apps ([#280](https://github.com/ROKT/rokt-sdk-ios/pull/280))
+- Support RoktUXHelper 2.0.0 response and event formats ([#279](https://github.com/ROKT/rokt-sdk-ios/pull/279))
+- Add clearSession() for self-service terminals ([#298](https://github.com/ROKT/rokt-sdk-ios/pull/298))
+
+#### Fixed
+
+- Declare DcuiSchema explicitly and pin it in sync with ux-helper ([#301](https://github.com/ROKT/rokt-sdk-ios/pull/301))
+- Declare dcui-swift-schema dependency explicitly ([#300](https://github.com/ROKT/rokt-sdk-ios/pull/300))
+
+#### Changed
+
+- Correct the mParticle note on clearSession ([#303](https://github.com/ROKT/rokt-sdk-ios/pull/303))
+- Session management guidance for self-service terminals ([#299](https://github.com/ROKT/rokt-sdk-ios/pull/299))
+
 ## [5.3.4] - 2026-08-18
 
 ### Core
@@ -568,7 +588,8 @@ For a complete migration walkthrough with before/after code examples, see the [v
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.4...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.4.0...HEAD
+[5.4.0]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.4...5.4.0
 [5.3.4]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.3...5.3.4
 [5.3.3]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.2...5.3.3
 [5.3.2]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.1...5.3.2
