@@ -47,14 +47,27 @@ if [[ -z ${GRAPH_MODULES} ]]; then
 	exit 1
 fi
 
-# Modules named by the undefined Swift symbols in this target's objects. The
-# demangled form starts with the defining module, e.g.
+# Modules named by the undefined Swift symbols in this target's objects.
+#
+# A module name can appear anywhere in a demangled symbol, not just at the front:
 #   DcuiSchema.PaymentProvider.rawValue.getter : Swift.String
+#   type metadata for DcuiSchema.PaymentProvider
+#   protocol conformance descriptor for DcuiSchema.PaymentProvider : ...
+#   (extension in Rokt_Widget):RoktContracts.RoktConfig.getUXConfig() -> ...
+# Anchoring on a leading identifier drops roughly 70% of the symbols, including
+# every metadata, conformance-descriptor, thunk and extension form -- which left
+# detection resting on whichever plain-form reference happened to exist. So match
+# the known package module names wherever they occur instead.
+#
+# The boundary class keeps a short module name from matching inside a longer one.
+# BSD grep on the macOS runners does not handle \b reliably, hence [^A-Za-z0-9_].
+module_alternation=$(echo "${GRAPH_MODULES}" | paste -sd'|' -)
 REFERENCED=$(find "${OBJ_DIR}" -name '*.o' -print0 |
 	xargs -0 nm -u 2>/dev/null |
 	grep -o '_[$]s[0-9A-Za-z_]*' | sort -u |
 	xcrun swift-demangle --compact 2>/dev/null |
-	sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)\..*/\1/p' | sort -u || true)
+	grep -oE "(^|[^A-Za-z0-9_])(${module_alternation})([^A-Za-z0-9_]|$)" |
+	sed -E 's/^[^A-Za-z0-9_]+//; s/[^A-Za-z0-9_]+$//' | sort -u || true)
 
 if [[ -z ${REFERENCED} ]]; then
 	echo "error: no Swift symbols found in ${OBJ_DIR}; check the nm/demangle parse" >&2
@@ -62,6 +75,12 @@ if [[ -z ${REFERENCED} ]]; then
 fi
 
 # Products declared for the target in Package.swift.
+#
+# Caveat: these are product names, while REFERENCED holds module names. Every
+# dependency here is 1:1 (product == target == module), so the comparison is
+# sound today. If a future product is renamed away from its module, or vends
+# several modules, this reports a module that IS declared -- a loud false
+# failure rather than a missed violation, so it self-diagnoses.
 DECLARED=$(swift package dump-package |
 	TARGET="${TARGET_MODULE}" python3 -c '
 import json, os, sys
