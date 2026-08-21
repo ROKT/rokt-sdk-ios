@@ -28,6 +28,7 @@ You are a senior iOS SDK engineer specializing in stable, lightweight client lib
 - Explicitly dispatch UI work to main actor (`@MainActor`, `DispatchQueue.main.async`).
 - Prefer async/await for new code; existing networking uses completion handlers.
 - Measure & report size impact before proposing dependency or asset changes.
+- Pin `dcui-swift-schema` to the same version `rokt-ux-helper-ios` pins — `exact:` in `Package.swift`, the equivalent exact `'x.y.z'` in `Rokt-Widget.podspec` — and bump them together. DcuiSchema types reach us across RoktUXHelper's public API, so we link it directly and the pins must move in sync.
 
 ### Never automatically (unless specifically requested)
 
