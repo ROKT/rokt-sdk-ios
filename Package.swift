@@ -37,7 +37,11 @@ let package = Package(
             path: "Sources/Rokt_Widget",
             resources: [
                 .process("PrivacyInfo.xcprivacy")
-            ]
+            ],
+            // Using a member of a type whose module is not imported in the same
+            // file becomes an error. A type reaching us implicitly through a
+            // dependency's public API is then impossible to use by accident.
+            swiftSettings: [.enableUpcomingFeature("MemberImportVisibility")]
         ),
         .testTarget(
             name: "Rokt_WidgetTests",
