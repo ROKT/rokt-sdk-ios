@@ -10,17 +10,14 @@ class LinkHandler: NSObject {
     private let openExternalURL: ExternalURLOpener
     private let reportFailure: (String) -> Void
 
-    override init() {
-        openExternalURL = { url, options, completion in
+    init(
+        openExternalURL: @escaping ExternalURLOpener = { url, options, completion in
             UIApplication.shared.open(url, options: options, completionHandler: completion)
-        }
-        reportFailure = { url in
+        },
+        reportFailure: @escaping (String) -> Void = { url in
             RoktAPIHelper.sendDiagnostics(message: LinkHandler.urlDiagnosticCode, callStack: url)
         }
-        super.init()
-    }
-
-    init(openExternalURL: @escaping ExternalURLOpener, reportFailure: @escaping (String) -> Void) {
+    ) {
         self.openExternalURL = openExternalURL
         self.reportFailure = reportFailure
         super.init()
@@ -68,13 +65,6 @@ class LinkHandler: NSObject {
                 openExternalURL(url, [.init(rawValue: "isRokt"): true], complete)
             }
         }
-    }
-
-    func linkHandler(url: URL,
-                     type: RoktUXOpenURLType,
-                     completionHandler: (() -> Void)?,
-                     failureHandler: (() -> Void)? = nil) {
-        openURL(url: url, type: type, completion: completionHandler, failure: failureHandler)
     }
 
     func linkHandler(urlString: String,
