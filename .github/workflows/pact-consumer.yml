@@ -68,15 +68,10 @@ jobs:
   publish:
     name: Publish to Broker
     needs: consumer-test
-    # Push events (main/maintenance/* via on.push.branches) and same-repo
-    # (non-fork) PR pushes with contract changes. Skip Dependabot: its secret
-    # store has no pact-publish environment credentials.
-    if: |
-      github.actor != 'dependabot[bot]'
-      && (
-        github.event_name == 'push'
-        || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
-      )
+    # Reusable PR calls publish in the caller so this environment-scoped secret
+    # never needs to cross a workflow boundary. Direct maintenance pushes still
+    # publish here.
+    if: github.event_name == 'push' && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     environment: pact-publish
     steps:
@@ -92,9 +87,7 @@ jobs:
           PACT_BROKER_USERNAME: ${{ vars.PACT_BROKER_USERNAME }}
           PACT_BROKER_PASSWORD: ${{ secrets.PACT_BROKER_PASSWORD }}
           GITHUB_SHA: ${{ github.sha }}
-          # On PR runs `github.head_ref` is the source branch; on main pushes
-          # it's empty and falls through to `github.ref_name` ("main").
-          PACT_BRANCH: ${{ github.head_ref || github.ref_name }}
+          PACT_BRANCH: ${{ github.ref_name }}
           BUILD_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
@@ -117,32 +110,3 @@ jobs:
               --branch "${PACT_BRANCH}" \
               --tag "forward-looking" \
               --build-url "${BUILD_URL}"
-
-  contract-verified:
-    name: Contract verified vs production
-    needs: [publish]
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    # Blocking merge gate: the published consumer contract must be verified
-    # against the provider version currently in production.
-    environment: pact-publish
-    steps:
-      - name: Check provider verification
-        env:
-          PACT_BROKER_BASE_URL: ${{ vars.PACT_BROKER_BASE_URL }}
-          PACT_BROKER_USERNAME: ${{ vars.PACT_BROKER_USERNAME }}
-          PACT_BROKER_PASSWORD: ${{ secrets.PACT_BROKER_PASSWORD }}
-          GITHUB_SHA: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          # renovate: datasource=docker depName=pactfoundation/pact-cli
-          PACT_CLI_IMAGE="pactfoundation/pact-cli:1.5.0.4@sha256:4708c3d61157bff90082a483e4ff70541eb66f951eb3e218ea3e80a557abd170"
-          docker run --rm \
-            -e PACT_BROKER_BASE_URL \
-            -e PACT_BROKER_USERNAME \
-            -e PACT_BROKER_PASSWORD \
-            "${PACT_CLI_IMAGE}" \
-            broker can-i-deploy \
-              --pacticipant rokt-sdk-ios \
-              --version "${GITHUB_SHA}" \
-              --to-environment production
