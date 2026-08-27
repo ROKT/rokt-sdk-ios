@@ -3,7 +3,7 @@ import XCTest
 @testable internal import RoktUXHelper
 
 // Verifies that in-memory event dedup runs unconditionally, that always-resend
-// events (user interactions) are exempt from dedup, and that cache-persistence stays gated on the
+// events (user interactions and product responses) are exempt from dedup, and cache-persistence stays gated on the
 // cache being enabled + configured.
 final class TestPlatformEventProcessorDedup: XCTestCase {
 
@@ -85,6 +85,21 @@ final class TestPlatformEventProcessorDedup: XCTestCase {
         )
     }
 
+    private func productResponsePayload() -> [String: Any] {
+        ["events": [[
+            "event_type": "product_item_response",
+            "instance_id": "00000000-0000-0000-0000-000000000001",
+            "session_id": "session-1",
+            "timestamp": 1_700_000_000_000,
+            "data": [
+                "parent_id": "response-option-1",
+                "token": "test-response-token",
+                "page_instance_guid": "page-1",
+                "catalog_item_instance_guid": "catalog-item-1"
+            ]
+        ]]]
+    }
+
     // MARK: - (a) Cache OFF: duplicate event is NOT re-sent
 
     func testCacheOffDuplicateEventIsNotResent() {
@@ -119,6 +134,40 @@ final class TestPlatformEventProcessorDedup: XCTestCase {
         waitUntil { self.stub.callCount == 1 }
 
         sut.process(payload([.mock(eventType: .SignalActivation)]), executeId: "1", cacheProperties: nil)
+        waitUntil { self.stub.callCount == 2 }
+
+        XCTAssertEqual(stub.callCount, 2)
+        XCTAssertEqual(impl.sentEventHashes.count, 0)
+    }
+
+    func testCacheOffProductResponseIsAlwaysResent() throws {
+        sut.process(productResponsePayload(), executeId: "1", cacheProperties: nil)
+        waitUntil { self.stub.callCount == 1 }
+
+        sut.process(productResponsePayload(), executeId: "1", cacheProperties: nil)
+        waitUntil { self.stub.callCount == 2 }
+
+        XCTAssertEqual(stub.callCount, 2)
+        XCTAssertEqual(impl.sentEventHashes.count, 0)
+        for body in stub.capturedBodies {
+            let events = try XCTUnwrap(body["events"] as? [[String: Any]])
+            let event = try XCTUnwrap(events.first)
+            XCTAssertEqual(events.count, 1)
+            XCTAssertEqual(event["event_type"] as? String, "product_item_response")
+            XCTAssertEqual(event["instance_id"] as? String, "00000000-0000-0000-0000-000000000001")
+            let data = try XCTUnwrap(event["data"] as? [String: String])
+            XCTAssertEqual(data["parent_id"], "response-option-1")
+            XCTAssertEqual(data["token"], "test-response-token")
+            XCTAssertEqual(data["catalog_item_instance_guid"], "catalog-item-1")
+        }
+    }
+
+    func testCacheOnProductResponseIsAlwaysResent() {
+        enableCache()
+        sut.process(productResponsePayload(), executeId: "1", cacheProperties: cacheProperties())
+        waitUntil { self.stub.callCount == 1 }
+
+        sut.process(productResponsePayload(), executeId: "1", cacheProperties: cacheProperties())
         waitUntil { self.stub.callCount == 2 }
 
         XCTAssertEqual(stub.callCount, 2)
