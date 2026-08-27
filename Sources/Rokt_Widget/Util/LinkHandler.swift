@@ -3,61 +3,90 @@ import SafariServices
 internal import RoktUXHelper
 
 class LinkHandler: NSObject {
+    typealias ExternalURLOpener = (URL, [UIApplication.OpenExternalURLOptionsKey: Any], @escaping (Bool) -> Void) -> Void
     private static let urlDiagnosticCode = "[URL]"
 
     private var completionHandler: (() -> Void)?
+    private let openExternalURL: ExternalURLOpener
+    private let reportFailure: (String) -> Void
 
     override init() {
+        openExternalURL = { url, options, completion in
+            UIApplication.shared.open(url, options: options, completionHandler: completion)
+        }
+        reportFailure = { url in
+            RoktAPIHelper.sendDiagnostics(message: LinkHandler.urlDiagnosticCode, callStack: url)
+        }
         super.init()
     }
 
-    private func openURL(url: URL, type: RoktUXOpenURLType) {
-        func openExternalLink(_ url: URL) {
-            // Try to open the URL with universal links first
-            UIApplication.shared.open(url, options: [.universalLinksOnly: true]) { opened in
-                if !opened {
-                    // If universal links fail, open the URL in external browser
-                    UIApplication.shared.open(url, options: [.init(rawValue: "isRokt"): true])
-                }
-            }
-        }
+    init(openExternalURL: @escaping ExternalURLOpener, reportFailure: @escaping (String) -> Void) {
+        self.openExternalURL = openExternalURL
+        self.reportFailure = reportFailure
+        super.init()
+    }
 
+    private func openURL(url: URL, type: RoktUXOpenURLType,
+                         completion: (() -> Void)?, failure: (() -> Void)?) {
         switch type {
         case .internally:
             guard url.isWebURL() else {
-                RoktAPIHelper.sendDiagnostics(message: Self.urlDiagnosticCode,
-                                              callStack: url.absoluteString)
+                reportFailure(url.absoluteString)
+                failure?()
                 return
             }
+            completionHandler = completion
             let safariVC = SFSafariViewController(url: url)
             safariVC.modalPresentationStyle = .overFullScreen
             safariVC.delegate = self
             UIApplication.topViewController()?.present(safariVC, animated: true)
         case .externally,
                 .passthrough:
-            completionHandler?()
-            openExternalLink(url)
+            openExternalLink(url, completion: completion, failure: failure)
+        }
+    }
+
+    private func openExternalLink(_ url: URL, completion: (() -> Void)?, failure: (() -> Void)?) {
+        var finished = false
+        var requestedFallback = false
+        let complete: (Bool) -> Void = { [reportFailure] opened in
+            guard !finished else { return }
+            finished = true
+            if opened {
+                completion?()
+            } else {
+                reportFailure(url.absoluteString)
+                failure?()
+            }
+        }
+        openExternalURL(url, [.universalLinksOnly: true]) { [openExternalURL] opened in
+            guard !finished else { return }
+            if opened {
+                complete(true)
+            } else if !requestedFallback {
+                requestedFallback = true
+                openExternalURL(url, [.init(rawValue: "isRokt"): true], complete)
+            }
         }
     }
 
     func linkHandler(url: URL,
                      type: RoktUXOpenURLType,
-                     completionHandler: (() -> Void)?) {
-        self.completionHandler = completionHandler
-        openURL(url: url, type: type)
+                     completionHandler: (() -> Void)?,
+                     failureHandler: (() -> Void)? = nil) {
+        openURL(url: url, type: type, completion: completionHandler, failure: failureHandler)
     }
 
     func linkHandler(urlString: String,
                      type: RoktUXOpenURLType,
-                     completionHandler: (() -> Void)?) {
-        self.completionHandler = completionHandler
+                     completionHandler: (() -> Void)?,
+                     failureHandler: (() -> Void)? = nil) {
         guard let url = URL(string: urlString) else {
-            RoktAPIHelper.sendDiagnostics(message: Self.urlDiagnosticCode, callStack: urlString)
-
-            completionHandler?()
+            reportFailure(urlString)
+            failureHandler?()
             return
         }
-        openURL(url: url, type: type)
+        openURL(url: url, type: type, completion: completionHandler, failure: failureHandler)
     }
 
 }

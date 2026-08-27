@@ -516,6 +516,11 @@ class RoktInternalImplementation {
                                         type: event.type,
                                         completionHandler: {
                     event.onClose?(event.id)
+                }, failureHandler: {
+                    event.onError?(event.id, NSError(domain: "com.rokt.sdk.url", code: 1,
+                                                     userInfo: [
+                                                         NSLocalizedDescriptionKey: "The destination URL could not be opened."
+                                                     ]))
                 })
             }
         } else if (uxEvent as? RoktUXEvent.LayoutFailure) != nil {
