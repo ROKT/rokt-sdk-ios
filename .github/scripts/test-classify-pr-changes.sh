@@ -34,15 +34,21 @@ assert_selection() {
 	printf 'PASS: %s\n' "${name}"
 }
 
-assert_selection "documentation only" "docs" README.md docs/integration.md
-assert_selection "root SDK source" "root_sdk,periphery,size" Sources/Rokt_Widget/Rokt.swift
-assert_selection "contract source" "root_sdk,contract,periphery,size" Sources/Rokt_Widget/Networking/OffersClient.swift
-assert_selection "contract tests" "contract" Tests/ContractTests/OffersClientPactTests.swift
-assert_selection "payment package" "package" Packages/rokt-payment-extension-ios/Sources/Payment.swift
-assert_selection "UI tests" "ui" Example/Tests/PlacementUITests.swift
-assert_selection "example source" "ui,periphery" Example/rokt/AppDelegate.swift
-assert_selection "mixed docs and package" "docs,package" README.md Packages/rokt-payment-extension-ios/Tests/PaymentTests.swift
-assert_selection "manifest is conservative" "docs,root_sdk,package,ui,manifest,contract,periphery,size,full" Package.swift
-assert_selection "workflow is conservative" "docs,root_sdk,package,ui,manifest,contract,periphery,size,full" .github/workflows/pull-request.yml
-assert_selection "unknown is conservative" "docs,root_sdk,package,ui,manifest,contract,periphery,size,full" unexpected/config.toml
+assert_selection "documentation only" "docs" $'M\tREADME.md' $'A\tdocs/integration.md'
+assert_selection "root SDK source" "root_sdk,ui,periphery,size" $'M\tSources/Rokt_Widget/Rokt.swift'
+assert_selection "contract source" "root_sdk,ui,contract,periphery,size" $'M\tSources/Rokt_Widget/Networking/OffersClient.swift'
+assert_selection "contract tests" "contract" $'M\tTests/ContractTests/OffersClientPactTests.swift'
+assert_selection "payment package" "package" $'M\tPackages/rokt-payment-extension-ios/Sources/Payment.swift'
+assert_selection "UI tests" "ui" $'M\tExample/Tests/PlacementUITests.swift'
+assert_selection "example source" "ui,periphery" $'M\tExample/rokt/AppDelegate.swift'
+assert_selection "mixed docs and package" "docs,package" $'M\tREADME.md' $'M\tPackages/rokt-payment-extension-ios/Tests/PaymentTests.swift'
+assert_selection "manifest is conservative" "docs,root_sdk,package,ui,manifest,contract,periphery,size,full" $'M\tPackage.swift'
+assert_selection "workflow is conservative" "docs,root_sdk,package,ui,manifest,contract,periphery,size,full" $'M\t.github/workflows/pull-request.yml'
+assert_selection "unknown path is conservative" "docs,root_sdk,package,ui,manifest,contract,periphery,size,full" $'A\tunexpected/config.toml'
+assert_selection "root source renamed to docs is conservative" "docs,root_sdk,package,ui,manifest,contract,periphery,size,full" $'R100\tSources/Rokt_Widget/Rokt.swift\tdocs/Rokt.md'
+assert_selection "docs renamed to root source is conservative" "docs,root_sdk,package,ui,manifest,contract,periphery,size,full" $'R100\tdocs/Rokt.md\tSources/Rokt_Widget/Rokt.swift'
+assert_selection "copy is conservative" "docs,root_sdk,package,ui,manifest,contract,periphery,size,full" $'C100\tREADME.md\tdocs/README.md'
+assert_selection "type change is conservative" "docs,root_sdk,package,ui,manifest,contract,periphery,size,full" $'T\tREADME.md'
+assert_selection "unknown status is conservative" "docs,root_sdk,package,ui,manifest,contract,periphery,size,full" $'X\tREADME.md'
+assert_selection "malformed record is conservative" "docs,root_sdk,package,ui,manifest,contract,periphery,size,full" README.md
 assert_selection "empty diff is conservative" "docs,root_sdk,package,ui,manifest,contract,periphery,size,full"

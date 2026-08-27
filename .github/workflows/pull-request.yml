@@ -54,7 +54,7 @@ jobs:
 
           case "$EVENT_NAME" in
             pull_request)
-              git diff --name-only --diff-filter=ACDMRTUXB "$PR_BASE_SHA" "$PR_HEAD_SHA" \
+              git diff --name-status --diff-filter=ACDMRTUXB "$PR_BASE_SHA...$PR_HEAD_SHA" \
                 | .github/scripts/classify-pr-changes.sh \
                 | tee -a "$GITHUB_OUTPUT"
               ;;
@@ -63,7 +63,7 @@ jobs:
                 .github/scripts/classify-pr-changes.sh --full "push base SHA is unavailable" \
                   | tee -a "$GITHUB_OUTPUT"
               else
-                git diff --name-only --diff-filter=ACDMRTUXB "$PUSH_BASE_SHA" "$PUSH_HEAD_SHA" \
+                git diff --name-status --diff-filter=ACDMRTUXB "$PUSH_BASE_SHA" "$PUSH_HEAD_SHA" \
                   | .github/scripts/classify-pr-changes.sh \
                   | tee -a "$GITHUB_OUTPUT"
               fi
@@ -73,6 +73,26 @@ jobs:
                 | tee -a "$GITHUB_OUTPUT"
               ;;
           esac
+
+      - name: Validate classifier outputs
+        env:
+          CONTRACT: ${{ steps.classify.outputs.contract }}
+          DOCS: ${{ steps.classify.outputs.docs }}
+          FULL: ${{ steps.classify.outputs.full }}
+          MANIFEST: ${{ steps.classify.outputs.manifest }}
+          PACKAGE: ${{ steps.classify.outputs.package }}
+          PERIPHERY: ${{ steps.classify.outputs.periphery }}
+          ROOT_SDK: ${{ steps.classify.outputs.root_sdk }}
+          SIZE: ${{ steps.classify.outputs.size }}
+          UI: ${{ steps.classify.outputs.ui }}
+        run: |
+          set -euo pipefail
+          for selection in "$DOCS" "$ROOT_SDK" "$PACKAGE" "$UI" "$MANIFEST" "$CONTRACT" "$PERIPHERY" "$SIZE" "$FULL"; do
+            if [[ "$selection" != "true" && "$selection" != "false" ]]; then
+              echo "::error::Classifier emitted an invalid boolean: '$selection'."
+              exit 1
+            fi
+          done
 
       - name: Test change classifier
         run: .github/scripts/test-classify-pr-changes.sh
@@ -378,8 +398,6 @@ jobs:
     uses: ./.github/workflows/pact-consumer.yml
     permissions:
       contents: read
-      pull-requests: read
-    secrets: inherit
 
   consumer-test-status:
     name: Consumer Test (PactSwift)
@@ -400,15 +418,24 @@ jobs:
             exit 1
           fi
 
-          if [[ "$CONTRACT_SELECTED" == "true" && "$PACT_RESULT" != "success" ]]; then
-            echo "::error::Selected Pact validation finished with $PACT_RESULT."
-            exit 1
-          fi
-
-          if [[ "$CONTRACT_SELECTED" != "true" && "$PACT_RESULT" != "skipped" ]]; then
-            echo "::error::Pact validation ran unexpectedly ($PACT_RESULT)."
-            exit 1
-          fi
+          case "$CONTRACT_SELECTED" in
+            true)
+              if [[ "$PACT_RESULT" != "success" ]]; then
+                echo "::error::Selected Pact validation finished with $PACT_RESULT."
+                exit 1
+              fi
+              ;;
+            false)
+              if [[ "$PACT_RESULT" != "skipped" ]]; then
+                echo "::error::Unselected Pact validation finished with $PACT_RESULT instead of skipped."
+                exit 1
+              fi
+              ;;
+            *)
+              echo "::error::Contract selector is not a boolean: '$CONTRACT_SELECTED'."
+              exit 1
+              ;;
+          esac
 
           echo "Pact validation result is appropriate for contract_selected=$CONTRACT_SELECTED."
 
@@ -464,14 +491,23 @@ jobs:
             local selected="$2"
             local result="$3"
 
-            if [[ "$selected" == "true" ]]; then
-              require_success "$name" "$result"
-            elif [[ "$result" == "failure" || "$result" == "cancelled" ]]; then
-              echo "::error::$name was not selected but finished with $result."
-              failed=true
-            else
-              echo "$name was intentionally skipped ($result)."
-            fi
+            case "$selected" in
+              true)
+                require_success "$name" "$result"
+                ;;
+              false)
+                if [[ "$result" != "skipped" ]]; then
+                  echo "::error::$name was not selected but finished with $result."
+                  failed=true
+                else
+                  echo "$name was intentionally skipped."
+                fi
+                ;;
+              *)
+                echo "::error::$name selector is not a boolean: '$selected'."
+                failed=true
+                ;;
+            esac
           }
 
           require_success "Change detection" "$DETECT_RESULT"
@@ -492,12 +528,19 @@ jobs:
     if: >
       github.event_name == 'pull_request' &&
       github.event.pull_request.draft == false &&
-      github.actor != 'dependabot[bot]'
+      github.actor != 'dependabot[bot]' &&
+      needs.pr-gate.result == 'success'
     name: Notify GChat
     needs: pr-gate
-    uses: ROKT/rokt-workflows/.github/workflows/oss_pr_opened_notification.yml@93d6833818312c13d472e69050e2f0560b31076e # main
+    runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
-    secrets:
-      gchat_webhook: ${{ secrets.GCHAT_PRS_MOBILE_INTEGRATION_CHANNEL_WEBHOOK }}
+    steps:
+      - name: Send Google Chat notification
+        continue-on-error: true
+        uses: SimonScholz/google-chat-action@3b3519e5102dba8aa5046fd711c4b553586409bb # v1.1.0
+        with:
+          webhookUrl: ${{ secrets.GCHAT_PRS_MOBILE_INTEGRATION_CHANNEL_WEBHOOK }}
+          title: PR Created - ${{ github.event.pull_request.title }}
+          imageUrl: ${{ github.event.pull_request.user.avatar_url }}
+          threadKey: ${{ github.repository }}-${{ github.event.pull_request.number }}

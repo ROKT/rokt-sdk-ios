@@ -13,10 +13,9 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read # paths-filter lists changed files via the PR files API
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: pact-consumer-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:

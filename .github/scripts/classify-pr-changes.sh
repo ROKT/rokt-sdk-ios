@@ -28,6 +28,7 @@ set_full() {
 
 select_contract_source() {
 	root_sdk=true
+	ui=true
 	contract=true
 	periphery=true
 	size=true
@@ -57,6 +58,7 @@ classify_path() {
 		;;
 	Sources/*)
 		root_sdk=true
+		ui=true
 		periphery=true
 		size=true
 		;;
@@ -99,10 +101,26 @@ if [[ ${1-} == "--full" ]]; then
 	set_full "${2:-explicit full-validation request}"
 else
 	path_count=0
-	while IFS= read -r path; do
-		[[ -z ${path} ]] && continue
+	while IFS=$'\t' read -r status path extra_path; do
+		[[ -z ${status} ]] && continue
 		path_count=$((path_count + 1))
-		classify_path "${path}"
+
+		if [[ -z ${path-} || -n ${extra_path-} ]]; then
+			set_full "malformed changed-path record"
+			continue
+		fi
+
+		case "${status}" in
+		A | M | D)
+			classify_path "${path}"
+			;;
+		R* | C*)
+			set_full "rename or copy detected"
+			;;
+		*)
+			set_full "unsupported change status detected: ${status}"
+			;;
+		esac
 	done
 
 	if [[ ${path_count} -eq 0 ]]; then
