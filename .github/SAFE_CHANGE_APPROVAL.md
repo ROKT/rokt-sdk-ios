@@ -76,6 +76,9 @@ branch. Consequently, the implementation PR cannot approve itself. After it is m
    then recreated only after the new validation run succeeds.
 6. Open or draft an external-fork documentation PR and confirm no approval is submitted.
 
+Marking an eligible draft ready for review triggers the full `Pull Request` workflow and
+reevaluates it without requiring an extra commit.
+
 If this policy is later shared across SDK repositories, prefer a centrally maintained
 reusable workflow or dedicated GitHub App. Keep the per-repository allowlist local so
 each SDK explicitly defines what it considers safe.
