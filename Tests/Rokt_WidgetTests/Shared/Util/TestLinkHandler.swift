@@ -1,7 +1,7 @@
 import XCTest
 import UIKit
 @testable import Rokt_Widget
-internal import RoktUXHelper
+@testable internal import RoktUXHelper
 
 @MainActor
 final class TestLinkHandler: XCTestCase {
@@ -107,7 +107,7 @@ final class TestLinkHandler: XCTestCase {
                                             onClose: { closedIDs.append($0) },
                                             onError: { id, error in
                 errorIDs.append(id)
-                reportedError = error as NSError
+                reportedError = error.map { $0 as NSError }
             })
             implementation.callOnRoktUXEvent("example-execute", uxEvent: event)
             XCTAssertTrue(closedIDs.isEmpty)
