@@ -27,6 +27,9 @@ final class TestProductCarouselFixture: XCTestCase {
         }
         for (index, slot) in config.slots.enumerated() {
             let name = ["before", "products", "after"][index]
+            let termsKey = index == 1 ? "termsAndConditions" : "termsCondition"
+            XCTAssertEqual(slot.offer?.creative?.links?[termsKey]?.url, "https://example.com/\(name)/terms")
+            XCTAssertTrue(try XCTUnwrap(slot.layoutVariant?.layoutVariantSchema).contains("DATA.creativeLink.\(termsKey)"))
             let options = try XCTUnwrap(slot.offer?.creative?.responseOptionsMap)
             XCTAssertEqual(options["a-accept"]?.id, "synthetic-response-\(name)-accept")
             XCTAssertEqual(options["z-decline"]?.token, "synthetic-response-token-\(name)-decline")
