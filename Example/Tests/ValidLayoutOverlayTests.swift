@@ -249,7 +249,7 @@ final class ValidLayoutOverlayTests: QuickSpec {
                     let linkHandler = LinkHandler()
                     let url = URL(string: "https://www.rokt.com")!
                     var completionFired = false
-                    linkHandler.linkHandler(url: url, type: .internally(sessionId: nil), completionHandler: {
+                    linkHandler.linkHandler(urlString: url.absoluteString, type: .internally(sessionId: nil), completionHandler: {
                         completionFired = true
                     })
 
