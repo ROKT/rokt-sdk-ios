@@ -21,6 +21,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  safe-change-approval-tests:
+    name: Safe-change approval tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            .github/safe-change-approval.json
+            .github/scripts/evaluate_safe_change.py
+            .github/scripts/test_evaluate_safe_change.py
+          sparse-checkout-cone-mode: false
+
+      - name: Test deterministic approval policy
+        run: python3 .github/scripts/test_evaluate_safe_change.py
+
   load-package-matrix:
     name: Load Packages matrix
     runs-on: ubuntu-latest
