@@ -1,15 +1,14 @@
 name: Pact Consumer
 
-# Generates the consumer pact on every PR, publishes it to the broker on
-# same-repo PR pushes and pushes to main/maintenance/*, then runs a blocking
-# contract check against production. Release – Draft runs the same check
+# Called by Pull Request only when its fail-closed classifier selects contract
+# paths. Maintenance pushes run this workflow directly because they do not use
+# the main-branch PR workflow. Release – Draft runs the same production check
 # before opening a release PR.
 
 on:
-  pull_request:
+  workflow_call:
   push:
     branches:
-      - main
       - maintenance/*
 
 permissions:
@@ -21,37 +20,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  detect-changes:
-    name: Detect Contract Changes
-    runs-on: ubuntu-latest
-    outputs:
-      contract: ${{ steps.filter.outputs.contract }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          persist-credentials: false
-          # paths-filter needs history to diff against the previous commit on push.
-          fetch-depth: 0
-
-      - name: Filter contract paths
-        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
-        id: filter
-        with:
-          filters: |
-            contract:
-              - 'Sources/Rokt_Widget/Networking/OffersClient.swift'
-              - 'Sources/Rokt_Widget/Networking/TxnEventsClient.swift'
-              - 'Sources/Rokt_Widget/Networking/TxnInitClient.swift'
-              - 'Sources/Rokt_Widget/Networking/TxnRequestHeaders.swift'
-              - 'Sources/Rokt_Widget/Networking/HTTPClient/**'
-              - 'Sources/Rokt_Widget/Networking/HTTPHeader.swift'
-              - 'Sources/Rokt_Widget/Models/SelectResponse.swift'
-              - 'Sources/Rokt_Widget/Models/Event/TxnEventModels.swift'
-              - 'Tests/ContractTests/**'
-              - 'Package.swift'
-              - '.github/workflows/pact-consumer.yml'
-
   consumer-test:
     name: Consumer Test (PactSwift)
     runs-on: macos-latest
@@ -100,13 +68,12 @@ jobs:
 
   publish:
     name: Publish to Broker
-    needs: [consumer-test, detect-changes]
+    needs: consumer-test
     # Push events (main/maintenance/* via on.push.branches) and same-repo
     # (non-fork) PR pushes with contract changes. Skip Dependabot: its secret
     # store has no pact-publish environment credentials.
     if: |
-      needs.detect-changes.outputs.contract == 'true'
-      && github.actor != 'dependabot[bot]'
+      github.actor != 'dependabot[bot]'
       && (
         github.event_name == 'push'
         || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)

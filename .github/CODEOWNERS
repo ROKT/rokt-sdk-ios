@@ -1,1 +1,16 @@
 * @ROKT/sdk-engineering
+
+# Low-risk documentation and repository metadata can use the repository's
+# normal approval rule without requiring an SDK code-owner review.
+/*.md
+/docs/
+/documentation/
+/.cortex/
+/.github/ISSUE_TEMPLATE/
+/.github/pull_request_template.md
+
+# Security, release, and agent contracts remain explicitly owned.
+/AGENTS.md @ROKT/sdk-engineering
+/CLAUDE.md @ROKT/sdk-engineering
+/SECURITY.md @ROKT/sdk-engineering
+/RELEASING.md @ROKT/sdk-engineering
