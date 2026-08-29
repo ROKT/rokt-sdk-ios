@@ -121,8 +121,9 @@ Only the parts `ls` will not tell you:
 
 ## Commits, pull requests and merge gates
 
-- Base branch is `main`. `master` still exists and is more than a year stale — never target it.
-  Patch releases for older majors go on `maintenance/*`.
+- Base branch is `main`. `master` still exists but is abandoned — nothing has merged into it
+  since the trunk moved, so never target it. Patch releases for older majors go on
+  `maintenance/*`.
 - Conventional-commit subjects (`feat:`, `fix:`, `perf:`, `ci:`, `docs:`, `test:` …) and a
   matching `<type>/<description>` branch name. **Nothing enforces either** — there is no
   semantic-title or branch-name check — but `CHANGELOG.md` is generated from commit history, so
