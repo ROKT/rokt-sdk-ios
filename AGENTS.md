@@ -53,9 +53,6 @@ Only the parts `ls` will not tell you:
 | Unused-code scan              | index-store build first, then `periphery scan` — see trap 4                                     |
 | SDK size delta                | `Tests/SizeReport/measure_size.sh` (`--json` for the CI shape)                                  |
 
-Copy the exact `-destination` and toolchain flags from `.github/workflows/pull-request.yml`
-rather than inventing them.
-
 ### Command traps
 
 1. `trunk check` with no arguments checks **only files changed against the upstream branch**,
@@ -67,10 +64,9 @@ rather than inventing them.
    `-only-testing:Rokt_WidgetTests` when you only want unit tests.
 3. There is no XCUITest in this repo. `Example/rokt.xcodeproj` has exactly two targets,
    `rokt_Example` and `rokt_Tests`; the "UI Tests" job runs the Quick/Nimble specs in
-   `Example/Tests/` through the `rokt-Example-MOCK` scheme. The `rokt-Example` and
-   `rokt-Example-STAGE` schemes still list a `rokt_ExampleUITests` testable that no longer
-   exists as a target — skipped in the former, not skipped in the latter. Use
-   `rokt-Example-MOCK`, which is the scheme CI actually exercises.
+   `Example/Tests/` through the `rokt-Example-MOCK` scheme — use that one. `rokt-Example` and
+   `rokt-Example-STAGE` still list a `rokt_ExampleUITests` testable that no longer exists as a
+   target, skipped in the former and not skipped in the latter.
 4. Bare `periphery scan` cannot work here. `.periphery.yml` sets `skip_build: true` and reads a
    pre-built index store out of `DerivedData-periphery/`, so run the workflow's indexing build
    first — same `-derivedDataPath`, with the two index-store build settings the Periphery Scan
@@ -82,13 +78,12 @@ rather than inventing them.
    broke, not that your change is free.
 6. If you ever pipe `xcodebuild` through `xcpretty` or `xcbeautify`, set `pipefail` first —
    otherwise `$?` is the formatter's status and a failed build reports success. No script here
-   does that today; the multi-command workflow steps use `set -euo pipefail`, so keep any new
-   one consistent.
+   does that today; keep it that way.
 7. Xcode is pinned per workflow through `maxim-lobanov/setup-xcode`. There is no
-   `.xcode-version`, and the workflows do **not** all pin the same version, so
-   `grep xcode-version .github/workflows/` before assuming a toolchain. The simulator
-   destination names a current-generation iPhone with `OS=latest`; an older local Xcode may have
-   no matching runtime even though `swift package resolve` succeeds.
+   `.xcode-version`, and the workflows do **not** all pin the same version, so copy the
+   `-destination` and toolchain flags from the workflow you are mirroring rather than inventing
+   them. The destination names a current-generation iPhone with `OS=latest`; an older local Xcode
+   may have no matching runtime even though `swift package resolve` succeeds.
 8. `-quiet` and `-retry-tests-on-failure` hide a lot. The SPM and package test jobs retry, the
    UI test job deliberately does not — see the comment above it in `pull-request.yml`. A red
    unit job has therefore already survived retries; a red UI job is a single attempt.
@@ -99,9 +94,8 @@ rather than inventing them.
   `rokt-ux-helper-ios` and `rokt-contracts-apple` are up-to-next-major ranges: a new RoktUXHelper
   2.x release can change this repo's build with no commit here. A green run pins nothing.
 - Because of that, `dcui-swift-schema` is pinned **exactly** in `Package.swift` and to the same
-  version in `Rokt-Widget.podspec`, and must match the version `rokt-ux-helper-ios` pins:
-  DcuiSchema types reach us across RoktUXHelper's public API, so we link it directly. Bump all
-  three together.
+  version in `Rokt-Widget.podspec`, and must match the version `rokt-ux-helper-ios` pins —
+  DcuiSchema types reach us across RoktUXHelper's public API. Bump all three together.
 - Every podspec dependency version must already be published on CocoaPods trunk or Podspec Lint
   fails for reasons unrelated to your change. `MONOREPO.md` has the release ordering.
 - A new third-party dependency needs a size and performance justification, and approval. Ask
@@ -145,11 +139,33 @@ rather than inventing them.
   review thread resolved, and **any push dismisses existing approvals** — finish pushing before
   you ask for review.
 
-## Security review
+## Secret scanning
 
-- No hardcoded secrets or credentials. Trufflehog runs inside `trunk check`, pinned below its
-  latest release because a newer detector reports XCTest method names as verified credentials;
-  the reason is in `.trunk/trunk.yaml`.
-- No real customer PII in code, tests or fixtures, hashed included. Nothing enforces this.
-- Validate and sanitise anything crossing a trust boundary, including data decoded from a
-  network response.
+Trufflehog runs inside `trunk check`, pinned below its latest release because a newer detector
+reports XCTest method names as verified credentials — the reason is in `.trunk/trunk.yaml`. It
+catches secrets, not PII: nothing in CI checks the P1 items below, including PII in JSON test
+fixtures.
+
+## Review guidelines
+
+When reviewing PRs that touch this repo or downstream services, apply these
+severity levels.
+
+### P0 — block merge
+
+- Hardcoded secrets or credentials (API keys, tokens, passwords, DB URIs)
+- SQL string interpolation or concatenation (use parameterised queries only)
+
+### P1 — strongly recommend fixing before merge
+
+- Real customer PII in code or tests (names, emails, phone numbers, IP addresses — including hashed)
+- `aws_iam_policy_attachment` Terraform resource (use `aws_iam_role_policy_attachment`)
+- AI/ML Helm services using `Service.type: LoadBalancer` without internal annotation
+- Missing input validation or sanitisation at API boundaries
+- HTML/template rendering without escaping all 5 special chars (`<` `>` `"` `'` `&`)
+- `VARCHAR` for user-visible strings in SQL Server (use `NVARCHAR`)
+- `varchar`/`utf8` charset for user-visible strings in MySQL (use `utf8mb4`)
+- Redis clients without DNS TTL re-resolution
+- Submit buttons with no disabled state during async operations
+- UI navigation hiding used as sole access control (no backend auth check)
+- K8s Deployments/Services missing `service-type: internal|edge|public` label
