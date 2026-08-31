@@ -44,14 +44,14 @@ Only the parts `ls` will not tell you:
 
 ## Commands
 
-| Task                          | Command                                                                                         |
-| ----------------------------- | ----------------------------------------------------------------------------------------------- |
-| Lint and format as CI does    | `trunk check --all`; `trunk fmt` to apply                                                       |
-| Unit tests only               | `xcodebuild test -scheme Rokt-Widget -only-testing:Rokt_WidgetTests -destination '<simulator>'` |
-| The specs CI calls "UI Tests" | `xcodebuild test -project Example/rokt.xcodeproj -scheme rokt-Example-MOCK -destination '…'`    |
-| Consumer contract only        | `xcodebuild test -scheme Rokt-Widget -only-testing:ContractTests` with `PACT_OUTPUT_DIR` set    |
-| Unused-code scan              | index-store build first, then `periphery scan` — see trap 4                                     |
-| SDK size delta                | `Tests/SizeReport/measure_size.sh` (`--json` for the CI shape)                                  |
+| Task                          | Command                                                                                                       |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Lint and format as CI does    | `trunk check --all`; `trunk fmt` to apply                                                                     |
+| Unit tests only               | `xcodebuild test -scheme Rokt-Widget -only-testing:Rokt_WidgetTests -destination '<simulator>'`               |
+| The specs CI calls "UI Tests" | `xcodebuild test -project Example/rokt.xcodeproj -scheme rokt-Example-MOCK -destination '…'`                  |
+| Consumer contract only        | `xcodebuild test -scheme Rokt-Widget -only-testing:ContractTests`, `TEST_RUNNER_PACT_OUTPUT_DIR` set — trap 2 |
+| Unused-code scan              | index-store build first, then `periphery scan` — see trap 4                                                   |
+| SDK size delta                | `Tests/SizeReport/measure_size.sh` (`--json` for the CI shape)                                                |
 
 ### Command traps
 
@@ -59,11 +59,14 @@ Only the parts `ls` will not tell you:
    while CI runs the Trunk action with `check-mode: all`. A pre-existing violation in a file you
    never touched is green locally and red in CI. Run `trunk check --all` before pushing.
 2. `xcodebuild test -scheme Rokt-Widget` runs **both** SPM test targets, `ContractTests`
-   included. Those need `PACT_OUTPUT_DIR`; CI supplies it as `TEST_RUNNER_PACT_OUTPUT_DIR`,
-   whose prefix the simulator strips on arrival, and `pacts/` is gitignored. Pass
-   `-only-testing:Rokt_WidgetTests` when you only want unit tests.
-3. There is no XCUITest in this repo. `Example/rokt.xcodeproj` has exactly two targets,
-   `rokt_Example` and `rokt_Tests`; the "UI Tests" job runs the Quick/Nimble specs in
+   included. The specs read `PACT_OUTPUT_DIR`, but a plain export of it never reaches a test
+   process running in the Simulator: export `TEST_RUNNER_PACT_OUTPUT_DIR` and `xcodebuild` strips
+   the prefix on arrival, which is what the Consumer Test workflow does. Get that wrong and the
+   specs still **pass**, writing to their fallback `pacts/` inside the simulator container rather
+   than the host path you asked for — and `pacts/` is gitignored, so there is nothing to notice.
+   Pass `-only-testing:Rokt_WidgetTests` when you only want unit tests.
+3. There is no XCUITest in this repo. `Example/rokt.xcodeproj` defines only the `rokt_Example`
+   app and the `rokt_Tests` bundle; the "UI Tests" job runs the Quick/Nimble specs in
    `Example/Tests/` through the `rokt-Example-MOCK` scheme — use that one. `rokt-Example` and
    `rokt-Example-STAGE` still list a `rokt_ExampleUITests` testable that no longer exists as a
    target, skipped in the former and not skipped in the latter.
@@ -72,10 +75,13 @@ Only the parts `ls` will not tell you:
    first — same `-derivedDataPath`, with the two index-store build settings the Periphery Scan
    job passes. It is also `strict: true` with a baseline file: pre-existing findings are
    suppressed, new ones fail. Fix the finding rather than widening the baseline.
-5. **The size report cannot fail a PR.** `measure_size.sh` falls back from `archive` to `build`
-   and, if both fail, reports 0 KB instead of erroring; the CI job additionally wraps both
-   measurement steps in `continue-on-error: true`. A delta of `N/A` or `0` means the build
-   broke, not that your change is free.
+5. **The size report cannot fail a PR, and its `N/A`s do not mean what they look like.** Both
+   measurement steps are `continue-on-error: true` and send the script's stderr to `/dev/null`,
+   so a failed measurement is a green step with no log. The comment's formatter renders a `0` as
+   `N/A`, so a change with no size impact reports `Change: +N/A` — that is the _healthy_ result —
+   and `Framework Size` is `N/A` on every run, because the script measures an embedded
+   `Frameworks/Rokt_Widget.framework` that this statically-linked app never produces. Only `N/A`
+   in the per-branch columns means the measurement itself broke.
 6. If you ever pipe `xcodebuild` through `xcpretty` or `xcbeautify`, set `pipefail` first —
    otherwise `$?` is the formatter's status and a failed build reports success. No script here
    does that today; keep it that way.
@@ -112,9 +118,10 @@ Only the parts `ls` will not tell you:
 - New Quick specs: reuse `kPipelineWaitTimeout` and `expectEventuallyRecorded` from
   `Example/Tests/QuickSpec+Extension.swift` instead of writing per-assertion `timeout:` values.
   Sequential per-assertion budgets are what made these specs flake — the first assertion absorbs
-  the whole pipeline latency. Keep any such budget under half the `ui-test` job's
-  `-default-test-execution-time-allowance`, or the per-test timeout kills the run before it names
-  the failing assertion. Stick to XCTest, Quick and Nimble; do not add another test framework.
+  the whole pipeline latency. Two of those waits already fill the `ui-test` job's
+  `-default-test-execution-time-allowance`, so a spec in which both fail is killed by the per-test
+  timeout before it names the failing assertion: do not chain a third, and do not raise the shared
+  value. Stick to XCTest, Quick and Nimble; do not add another test framework.
 - Do not raise the minimum deployment target, drop an OS version, or make a breaking API change
   without asking. Same for touching CI YAML. Add a comment only when the code cannot be made
   clear instead.
