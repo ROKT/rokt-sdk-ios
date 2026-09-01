@@ -7,7 +7,7 @@ cli:
 plugins:
   sources:
     - id: trunk
-      ref: v1.10.2
+      ref: v1.11.0
       uri: https://github.com/trunk-io/plugins
 # Many linters and tools depend on runtimes - configure them here. (https://docs.trunk.io/runtimes)
 runtimes:
@@ -44,19 +44,19 @@ lint:
   enabled:
     - objc-prop-check
     - actionlint@1.7.12
-    - checkov@3.3.8
+    - checkov@3.3.16
     - git-diff-check
     - markdownlint@0.49.1
-    - osv-scanner@2.4.0
+    - osv-scanner@2.5.1
     - prettier@3.9.6
     - shellcheck@0.11.0
-    - shfmt@3.6.0
+    - shfmt@3.14.0
     - swiftformat@0.59.1
     - swiftlint@0.63.2
     # 3.96.0 Lob detector matches XCTest names of the form test_ + 35 word chars
     # (exactly 40 chars) as verified credentials. Pin until upstream fixes that FP:
     # https://github.com/trufflesecurity/trufflehog/issues/5184
-    - trufflehog@3.95.5
+    - trufflehog@3.97.1
     - yamllint@1.38.0
 actions:
   enabled:
