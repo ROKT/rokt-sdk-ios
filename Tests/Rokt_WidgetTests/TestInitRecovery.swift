@@ -44,15 +44,14 @@ final class TestInitRecovery: XCTestCase {
 
     func test_initRecovery_retriesAfterRateLimitAndEventuallySucceeds() {
         stub.results = [.status(429), .success(data: Self.successBody)]
-        var events: [Bool] = []
-        impl.mapEvents(isGlobal: true, onEvent: { event in
-            if let initComplete = event as? RoktEvent.InitComplete { events.append(initComplete.success) }
-        })
+        let events = captureInitCompleteEvents()
 
         impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
 
         waitUntil { self.impl.isInitialized }
-        XCTAssertEqual(events, [false, true])
+        // The recovered attempt is the outcome the host hears about: a failure that is about to
+        // be retried is not reported, so one init call yields exactly one InitComplete.
+        XCTAssertEqual(events.values, [true])
         XCTAssertEqual(stub.requestCount, 2)
     }
 
@@ -67,12 +66,14 @@ final class TestInitRecovery: XCTestCase {
 
     func test_initRecovery_doesNotRetryNonRecoverableStatus() {
         stub.results = [.status(400)]
+        let events = captureInitCompleteEvents()
 
         impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
 
         settle()
         XCTAssertFalse(impl.isInitialized)
         XCTAssertEqual(stub.requestCount, 1)
+        XCTAssertEqual(events.values, [false], "nothing will retry this, so report it immediately")
     }
 
     func test_initRecovery_retriesAfterTransientTransportFailure() {
@@ -97,12 +98,14 @@ final class TestInitRecovery: XCTestCase {
 
     func test_initRecovery_stopsAfterExhaustingAttempts() {
         stub.results = [.status(429), .status(429), .status(429), .status(429), .status(429)]
+        let events = captureInitCompleteEvents()
 
         impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
 
         settle()
         XCTAssertFalse(impl.isInitialized)
         XCTAssertEqual(stub.requestCount, 4, "initial attempt plus three bounded recoveries")
+        XCTAssertEqual(events.values, [false], "one failure event once the budget is spent")
     }
 
     func test_initRecovery_counterResetsOnFreshInit() {
@@ -158,6 +161,18 @@ final class TestInitRecovery: XCTestCase {
         pending.forEach { $0() }
         settle()
         XCTAssertEqual(stub.requestCount, 1, "a recovery must not re-init once init has succeeded")
+    }
+
+    private final class InitCompleteEvents {
+        var values: [Bool] = []
+    }
+
+    private func captureInitCompleteEvents() -> InitCompleteEvents {
+        let events = InitCompleteEvents()
+        impl.mapEvents(isGlobal: true, onEvent: { event in
+            if let initComplete = event as? RoktEvent.InitComplete { events.values.append(initComplete.success) }
+        })
+        return events
     }
 
     private static func urlError(_ code: Int) -> NSError {

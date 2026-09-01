@@ -1049,14 +1049,21 @@ class RoktInternalImplementation {
         if let code = statusCode, code != Self.rateLimitedStatusCode {
             self.sendDiagnostics(Self.initDiagnosticCode, error: error, statusCode: statusCode, response: response)
         }
+        // A scheduled recovery may still succeed, so InitComplete is held back until the
+        // outcome is final - one event per init call, matching the Android SDK. Diagnostics
+        // stay per-attempt, since each failed attempt is its own signal.
+        if self.scheduleInitRecovery(error: error, statusCode: statusCode, initStartTime: initStartTime) {
+            return
+        }
         self.sendEventToGlobalListeners(RoktEvent.InitComplete(success: false))
-        self.scheduleInitRecovery(error: error, statusCode: statusCode, initStartTime: initStartTime)
     }
 
-    private func scheduleInitRecovery(error: Error, statusCode: Int?, initStartTime: Date) {
+    /// Returns whether a recovery was scheduled, so the caller can hold back `InitComplete`
+    /// while another attempt is still pending.
+    private func scheduleInitRecovery(error: Error, statusCode: Int?, initStartTime: Date) -> Bool {
         guard let roktTagId,
               Self.isRecoverable(error: error, statusCode: statusCode),
-              initRecoveryAttempt < Self.initRecoveryDelaysSeconds.count else { return }
+              initRecoveryAttempt < Self.initRecoveryDelaysSeconds.count else { return false }
 
         let delay = Self.initRecoveryDelaysSeconds[initRecoveryAttempt]
         let attempt = initRecoveryAttempt + 1
@@ -1068,6 +1075,7 @@ class RoktInternalImplementation {
             guard let self, self.initGeneration == generation, !self.isInitialized else { return }
             self.performInit(roktTagId: roktTagId, initStartTime: initStartTime)
         }
+        return true
     }
 
     // A wrong tag id or a rejected request will fail the same way every time, so only
