@@ -1,140 +1,158 @@
-# AGENTS.md
+# rokt-sdk-ios - Agent Instructions
 
-## Role for agents
+This file is loaded into every agent session, so it holds only what you cannot get from the
+repository itself. Anything a config already states — deployment target, dependency versions,
+lint rules, scheme names — is deliberately absent: read `Package.swift`, `Rokt-Widget.podspec`,
+`.swiftlint.yml`, `.swiftformat`, `.periphery.yml`, `.trunk/trunk.yaml` and
+`.github/workflows/`. Release, subtree and mirror mechanics live in `MONOREPO.md`; partner
+integration docs are at <https://docs.rokt.com/developers/integration-guides/ios/overview>.
 
-You are a senior iOS SDK engineer specializing in stable, lightweight client libraries for e-commerce / ad-tech integrations.
+## What this is
 
-- Treat this as a **public SDK / framework**, not a full consumer app.
-- Prioritize: API stability, minimal footprint, no unnecessary allocations, thread-safety, backward compatibility (iOS 15+), privacy compliance.
-- Never assume this is a UIKit/SwiftUI app with heavy views/controllers — focus on modular widget/placement rendering logic.
-- Avoid proposing big refactors unless explicitly asked; prefer additive changes + deprecations.
+A public, source-distributed iOS SDK consumed by partner apps over SPM and CocoaPods — not an
+app. Priorities, in order: public API stability, binary size, thread safety, privacy. Prefer
+additive change and deprecation over refactoring. Never crash or block the main thread on bad
+input or a failed request; fall back and report through the error callback.
 
-## Quick Start for Agents
+## This is a PUBLIC repository
 
-- Open `Example/rokt.xcodeproj` in the latest Xcode (supports iOS 15+ deployment target).
-- Primary schemes:
-  - `rokt-Example` → build/run sample app and unit tests (Command + R / Command + U).
-  - `rokt-Example-STAGE` → UI/integration tests.
-  - `Rokt-Widget` → build SDK framework only.
-- Always validate changes with the full sequence in "Code style, quality, and validation" below before proposing or committing.
+Everything written here is world-readable and permanent: PR titles and bodies, commit messages,
+branch names, code comments, CHANGELOG entries, test names. Never include partner, client or
+advertiser names, or any detail that could identify one (account, tenant or campaign IDs, deal
+terms, integration specifics); internal service, contract or class names and their field
+layouts; backend or infrastructure detail, especially anything describing how a payload is
+validated server-side, which reads as a probing aid; or links to private repos, internal
+tickets or dashboards. Describe client-side behaviour only — what the SDK sends and receives
+and why, in partner-facing terms — and refer to a server change generically ("to match the
+server contract"). Internal rationale belongs in internal review or a private ticket, not in
+repo history.
 
-## Strict Do's and Don'ts
+## Repository layout
 
-### Always Do
+Only the parts `ls` will not tell you:
 
-- Use value types (struct/enum) over reference types where possible.
-- Mark public APIs with thorough `///` documentation (DocC compatible).
-- Keep public surface additive; deprecate instead of remove.
-- Explicitly dispatch UI work to main actor (`@MainActor`, `DispatchQueue.main.async`).
-- Prefer async/await for new code; existing networking uses completion handlers.
-- Measure & report size impact before proposing dependency or asset changes.
-- Pin `dcui-swift-schema` to the same version `rokt-ux-helper-ios` pins — `exact:` in `Package.swift`, the equivalent exact `'x.y.z'` in `Rokt-Widget.podspec` — and bump them together. DcuiSchema types reach us across RoktUXHelper's public API, so we link it directly and the pins must move in sync.
+- `Sources/Rokt_Widget/Rokt.swift` — the public API entry point.
+- `Packages/rokt-payment-extension-ios/` — a git subtree mirrored out to its own repo on release,
+  not a vendored third party. It shares the root `VERSION`. `MONOREPO.md` has the mechanics, and
+  documents `Packages/matrix.json`, which drives the mirror and CocoaPods ordering.
+- `Example/Tests/` — the `rokt_Tests` target: Quick/Nimble specs, the JSON layout fixtures and
+  `NetworkMock/`. This is what CI labels "UI Tests".
+- `Tests/Rokt_WidgetTests/` — SPM unit tests. `Tests/ContractTests/` — the PactSwift consumer
+  contract.
+- `Tests/SizeReport/` — two apps that `measure_size.sh` builds and diffs. The with-SDK one
+  references this package by relative path, so it measures your working tree, not a release.
 
-### Never automatically (unless specifically requested)
+## Commands
 
-- Introduce new third-party dependencies without size/performance justification and approval.
-- Modify or depend on host app singletons/globals unless explicitly in public API contract.
-- Block the main thread (no synchronous network, heavy computation, etc.).
-- Crash on bad input/network — always provide fallback / error callback.
-- Touch CI YAML without explicit request.
-- Propose dropping iOS 15 support or raising min deployment target.
-- Introduce breaking changes unless explicitly requested. Ask when in doubt.
+| Task                          | Command                                                                                                       |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Lint and format as CI does    | `trunk check --all`; `trunk fmt` to apply                                                                     |
+| Unit tests only               | `xcodebuild test -scheme Rokt-Widget -only-testing:Rokt_WidgetTests -destination '<simulator>'`               |
+| The specs CI calls "UI Tests" | `xcodebuild test -project Example/rokt.xcodeproj -scheme rokt-Example-MOCK -destination '…'`                  |
+| Consumer contract only        | `xcodebuild test -scheme Rokt-Widget -only-testing:ContractTests`, `TEST_RUNNER_PACT_OUTPUT_DIR` set — trap 2 |
+| Unused-code scan              | index-store build first, then `periphery scan` — see trap 4                                                   |
+| SDK size delta                | `Tests/SizeReport/measure_size.sh` (`--json` for the CI shape)                                                |
 
-## When to Ask for Clarification
+### Command traps
 
-- Before adding any new dependency
-- Before dropping support for iOS versions
-- Before making breaking API changes
-- When a "simple" refactor reveals deeper architectural issues
-- When test failures suggest the original code may have had bugs
+1. `trunk check` with no arguments checks **only files changed against the upstream branch**,
+   while CI runs the Trunk action with `check-mode: all`. A pre-existing violation in a file you
+   never touched is green locally and red in CI. Run `trunk check --all` before pushing.
+2. `xcodebuild test -scheme Rokt-Widget` runs **both** SPM test targets, `ContractTests`
+   included. The specs read `PACT_OUTPUT_DIR`, but a plain export of it never reaches a test
+   process running in the Simulator: export `TEST_RUNNER_PACT_OUTPUT_DIR` and `xcodebuild` strips
+   the prefix on arrival, which is what the Consumer Test workflow does. Get that wrong and the
+   specs still **pass**, writing to their fallback `pacts/` inside the simulator container rather
+   than the host path you asked for — and `pacts/` is gitignored, so there is nothing to notice.
+   Pass `-only-testing:Rokt_WidgetTests` when you only want unit tests.
+3. There is no XCUITest in this repo. `Example/rokt.xcodeproj` defines only the `rokt_Example`
+   app and the `rokt_Tests` bundle; the "UI Tests" job runs the Quick/Nimble specs in
+   `Example/Tests/` through the `rokt-Example-MOCK` scheme — use that one. `rokt-Example` and
+   `rokt-Example-STAGE` still list a `rokt_ExampleUITests` testable that no longer exists as a
+   target, skipped in the former and not skipped in the latter.
+4. Bare `periphery scan` cannot work here. `.periphery.yml` sets `skip_build: true` and reads a
+   pre-built index store out of `DerivedData-periphery/`, so run the workflow's indexing build
+   first — same `-derivedDataPath`, with the two index-store build settings the Periphery Scan
+   job passes. It is also `strict: true` with a baseline file: pre-existing findings are
+   suppressed, new ones fail. Fix the finding rather than widening the baseline.
+5. **The size report cannot fail a PR, and its `N/A`s do not mean what they look like.** Both
+   measurement steps are `continue-on-error: true` and send the script's stderr to `/dev/null`,
+   so a failed measurement is a green step with no log. The comment's formatter renders a `0` as
+   `N/A`, so a change with no size impact reports `Change: +N/A` — that is the _healthy_ result —
+   and `Framework Size` is `N/A` on every run, because the script measures an embedded
+   `Frameworks/Rokt_Widget.framework` that this statically-linked app never produces. Only `N/A`
+   in the per-branch columns means the measurement itself broke.
+6. If you ever pipe `xcodebuild` through `xcpretty` or `xcbeautify`, set `pipefail` first —
+   otherwise `$?` is the formatter's status and a failed build reports success. No script here
+   does that today; keep it that way.
+7. Xcode is pinned per workflow through `maxim-lobanov/setup-xcode`. There is no
+   `.xcode-version`, and the workflows do **not** all pin the same version, so copy the
+   `-destination` and toolchain flags from the workflow you are mirroring rather than inventing
+   them. The destination names a current-generation iPhone with `OS=latest`; an older local Xcode
+   may have no matching runtime even though `swift package resolve` succeeds.
+8. `-quiet` and `-retry-tests-on-failure` hide a lot. The SPM and package test jobs retry, the
+   UI test job deliberately does not — see the comment above it in `pull-request.yml`. A red
+   unit job has therefore already survived retries; a red UI job is a single attempt.
 
-## Project overview
+## Dependencies
 
-- Rokt iOS SDK written in Swift.
-- Core SDK code lives in `Sources/Rokt_Widget/`.
-- Primary public API entry point is `Rokt.swift`.
-- **Monorepo**: `Packages/rokt-payment-extension-ios` is a subtree copy mirrored on release. **RoktUXHelper** is pulled in as an SPM/CocoaPods dependency from [rokt-ux-helper-ios](https://github.com/ROKT/rokt-ux-helper-ios). See `MONOREPO.md`.
+- **There is no lockfile.** `Package.resolved` is gitignored, so every CI run re-resolves, and
+  `rokt-ux-helper-ios` and `rokt-contracts-apple` are up-to-next-major ranges: a new RoktUXHelper
+  2.x release can change this repo's build with no commit here. A green run pins nothing.
+- Because of that, `dcui-swift-schema` is pinned **exactly** in `Package.swift` and to the same
+  version in `Rokt-Widget.podspec`, and must match the version `rokt-ux-helper-ios` pins —
+  DcuiSchema types reach us across RoktUXHelper's public API. Bump all three together.
+- Every podspec dependency version must already be published on CocoaPods trunk or Podspec Lint
+  fails for reasons unrelated to your change. `MONOREPO.md` has the release ordering.
+- A new third-party dependency needs a size and performance justification, and approval. Ask
+  first.
 
-## Key paths
+## Conventions no config enforces
 
-- `Sources/Rokt_Widget/`: SDK source code.
-- `Packages/rokt-payment-extension-ios/`: subtree package (mirrored on release; same `VERSION` as root).
-- `Packages/matrix.json`: mirrored packages + **Release – Publish** matrix (paths, CocoaPods order, trunk names).
-- `MONOREPO.md`: subtree layout, release order, GitHub App requirements.
-- `Package.swift`: SPM config and dependency pins.
-- `Rokt-Widget.podspec`: CocoaPods spec for source distribution.
-- `Sources/Rokt_Widget/PrivacyInfo.xcprivacy`: privacy manifest.
-- `Tests/Rokt_WidgetTests/`: unit tests.
-- `Example/`: sample app and UI/integration tests.
-- `Example/Tests/`: test files and JSON fixtures.
-- `Tests/SizeReport/`: SDK size report tooling (`measure_size.sh`).
-- `CHANGELOG.md`: release notes.
-- `VERSION`: release version used by workflows.
-- `.periphery.yml`: unused code detection config.
+- The public surface is **additive only**: deprecate, never remove, and give every public symbol
+  `///` DocC documentation. No linter checks either of those.
+- An `@objc public class` must mark every non-optional stored `public let`/`var` `@objc`. That
+  rule lives in the repo-local `objc-prop-check` linter under `.trunk/scripts/`, not in
+  `.swiftlint.yml`, so grepping the SwiftLint config will not find it. Optionals and `override`
+  are exempt.
+- New Quick specs: reuse `kPipelineWaitTimeout` and `expectEventuallyRecorded` from
+  `Example/Tests/QuickSpec+Extension.swift` instead of writing per-assertion `timeout:` values.
+  Sequential per-assertion budgets are what made these specs flake — the first assertion absorbs
+  the whole pipeline latency. Two of those waits already fill the `ui-test` job's
+  `-default-test-execution-time-allowance`, so a spec in which both fail is killed by the per-test
+  timeout before it names the failing assertion: do not chain a third, and do not raise the shared
+  value. Stick to XCTest, Quick and Nimble; do not add another test framework.
+- Do not raise the minimum deployment target, drop an OS version, or make a breaking API change
+  without asking. Same for touching CI YAML. Add a comment only when the code cannot be made
+  clear instead.
 
-## Code style, quality, and validation
+## Commits, pull requests and merge gates
 
-- **Lint & format tools**:
-  - SwiftFormat: configured in `.swiftformat` (run `swiftformat .` to format).
-  - SwiftLint: configured in `.swiftlint.yml`.
-  - **Primary enforcement tool**: `trunk check` (via Trunk.io) — assumes Trunk is installed and configured (e.g., `.trunk/trunk.yaml` wraps SwiftFormat + SwiftLint + others). If Trunk unavailable, fall back to `swiftformat .` && `swiftlint` from the repo root **without** `swiftlint --config …`, so nested configs under `Packages/*/Tests/` still merge with `.swiftlint.yml`.
-  - **`Packages/**`**: Subtree packages are first-party code in this repo; run the same `trunk check`/ SwiftFormat / SwiftLint / objc-prop-check as for`Sources/`, `Example/`, and `Tests/`. Package unit tests merge `Packages/<package>/Tests/.swiftlint.yml`with the repo root (SwiftLint nested configs; see`.trunk/trunk.yaml`for why`trunk check`does not pass`--config`to SwiftLint). That overlay relaxes a small set of test-only rules (force try in fixtures, long generated lines, XCTest closure style). Checkov is skipped for known-safe JSON fixtures (test JSON under`Packages/\*\*/Tests/`and selected widget/size JSON paths) via`.trunk/trunk.yaml`because Trunk invokes Checkov with`-f`, where `skip-path` in a Checkov config file does not apply.
-  - Keep code consistent by running these before any commit/PR.
-  - Important: Only add comments if absolutely necessary.
-  - If you're adding comments review why the code is hard to reason with and rewrite that first
+- Base branch is `main`. `master` still exists but is abandoned — nothing has merged into it
+  since the trunk moved, so never target it. Patch releases for older majors go on
+  `maintenance/*`.
+- Conventional-commit subjects (`feat:`, `fix:`, `perf:`, `ci:`, `docs:`, `test:` …) and a
+  matching `<type>/<description>` branch name. **Nothing enforces either** — there is no
+  semantic-title or branch-name check — but `CHANGELOG.md` is generated from commit history, so
+  the subject line is what ships in the release notes.
+- Do **not** hand-edit `CHANGELOG.md` in a feature or fix PR. `release-draft.yml` regenerates it
+  and opens the release PR; `release-publish.yml` publishes from it. There is no per-PR
+  changelog step.
+- Use `.github/pull_request_template.md` as the description skeleton.
+- The default-branch ruleset requires only a subset of the Pull Request workflow's jobs — Trunk
+  Check, SPM Unit Tests, UI Tests and Consumer Test (PactSwift). Podspec Lint, Package SPM Tests,
+  Periphery Scan and SDK Size Report are advisory and can be red on a mergeable PR. Re-check the
+  ruleset before relying on that split.
+- Merges are squash-only, need a CODEOWNERS approval from `@ROKT/sdk-engineering` with every
+  review thread resolved, and **any push dismisses existing approvals** — finish pushing before
+  you ask for review.
 
-- **Strict post-change validation rule (always follow this)**:
-  After **any** code change, refactor, or addition — even small ones — you **must** run the full validation sequence locally:
-  1. `trunk check` — to lint, format-check, and catch style/quality issues.
-  2. Build the SDK: Open `Example/rokt.xcodeproj` → build the `rokt-Example` scheme (or `xcodebuild` if scripting).
-  3. Run unit tests: Use the `rokt-Example` scheme → Command + U (or `xcodebuild test ...`).
-  4. Run periphery scan: `periphery scan` — ensure no unused code is introduced.
-  5. If change affects code, assets, or dependencies: Run size report → `Tests/SizeReport/measure_size.sh` and confirm no unacceptable increase.
-  - Only propose / commit changes if all steps pass cleanly (no errors, no warnings from `trunk check`, tests green, size OK).
-  - If `trunk check` suggests auto-fixes (e.g. formatting), apply them first and re-validate.
-  - Never bypass this — it's required to maintain SDK stability, footprint, and public API quality.
+## Secret scanning
 
-- **Style preferences**:
-  - Prefer `let` over `var`; use value types (struct/enum) over classes where possible.
-  - Use property wrappers (`@MainActor`, `@Observable`) appropriately.
-  - Write thorough `///` documentation for all public APIs (DocC compatible).
-  - Avoid force-unwraps (`!`), prefer safe optional handling.
-  - Follow immutability principles: minimize shared mutable state wherever possible.
-
-- **Testing expectations**:
-  - Unit tests live in `Tests/Rokt_WidgetTests/` or alongside source files when appropriate.
-  - Aim for high coverage on core logic: placement selection, rendering, networking, error paths.
-  - Use mocks/fixtures from `Example/Tests/` (JSON files and `NetworkMock/`) for networking and dependencies.
-  - Stick to XCTest — no third-party test frameworks unless already implemented or directed.
-  - UI/integration tests use the `rokt-Example-STAGE` scheme and Quick/Nimble framework.
-  - After changes, always re-run affected tests + full suite if core/shared code is touched.
-
-- **CHANGELOG.md maintenance**:
-  - Do **not** manually edit `CHANGELOG.md` in feature/fix PRs. The release workflow (`.github/workflows/release-draft.yml`) generates the changelog automatically from git history at release-draft time and opens a release PR with the updated entries; `release-publish.yml` then publishes the release notes from `CHANGELOG.md`.
-  - Because the changelog is derived from commit history, write clear, conventional commit messages (`fix:`, `feat:`, `perf:`, etc. with a concise imperative summary) — these are what surface in the generated release notes.
-  - No per-PR changelog step is required.
-
-## Pull request and branching
-
-- Ensure the branch is created with a feat/\* pattern e.g. fix, perf, ci, docs, test, etc
-- Keep commits to a minimum before opening the pull request and try to follow the pattern "feat: Short description summarising changes" e.g. "feat: Increased timeout for experiences call to 8000ms" for the commit message
-- When creating pull requests Use the the template, located at: .github/pull_request_template.md, as the basis for the description
-
-### This is a PUBLIC repository — keep internal details out of public text
-
-Anything written to the repo is publicly visible and permanent: PR titles/descriptions, commit messages, branch names, code comments, CHANGELOG entries, and test names. Never include internal-only information in these. Specifically do **not** expose:
-
-- Partner, client, customer, or advertiser names and identifiers — and any detail that could identify one (account/tenant/campaign IDs, deal terms, integration specifics, "we're doing X for partner Y"). Keep examples generic and anonymized.
-- Internal service/system names, internal contract/class names, or their field layouts.
-- Backend or infrastructure implementation details: serializer libraries and versions, deserialization/validation behavior, enum/value internals, DB or infra specifics, or anything describing how a payload is checked server-side (it reads as a probing aid).
-- Links to private repos, internal PRs/tickets, or internal dashboards.
-
-Instead, describe **client-side behavior only**: what the SDK sends and receives and why, in partner-facing terms. When a change is driven by a server contract, refer to it generically (e.g. "to match the server contract") without naming internal types, versions, or server behavior. Keep internal rationale (backend internals, version-specific findings, private links) in non-public channels — internal review, chat, or private tickets — not in repo history.
-
-## External Resources
-
-- [Rokt Developer Docs](https://docs.rokt.com/developers/integration-guides/ios/overview)
-- [UX Helper Repository](https://github.com/ROKT/rokt-ux-helper-ios)
+Trufflehog runs inside `trunk check`, pinned below its latest release because a newer detector
+reports XCTest method names as verified credentials — the reason is in `.trunk/trunk.yaml`. It
+catches secrets, not PII: nothing in CI checks the P1 items below, including PII in JSON test
+fixtures.
 
 ## Review guidelines
 
