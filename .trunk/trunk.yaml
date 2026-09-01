@@ -53,9 +53,6 @@ lint:
     - shfmt@3.14.0
     - swiftformat@0.59.1
     - swiftlint@0.63.2
-    # 3.96.0 Lob detector matches XCTest names of the form test_ + 35 word chars
-    # (exactly 40 chars) as verified credentials. Pin until upstream fixes that FP:
-    # https://github.com/trufflesecurity/trufflehog/issues/5184
     - trufflehog@3.97.1
     - yamllint@1.38.0
 actions:
