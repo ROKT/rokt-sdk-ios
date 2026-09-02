@@ -18,6 +18,9 @@ Pod::Spec.new do |s|
   s.source_files     = 'Sources/Rokt_Widget/**/*.swift'
   s.resource_bundles = { 'Rokt_Widget' => ['Sources/Rokt_Widget/PrivacyInfo.xcprivacy'] }
   s.frameworks       = 'Foundation', 'UIKit', 'SwiftUI', 'Combine'
+  s.pod_target_xcconfig = {
+    'OTHER_SWIFT_FLAGS' => '$(inherited) -enable-upcoming-feature MemberImportVisibility'
+  }
 
   s.dependency 'DcuiSchema', '2.8.1'
   s.dependency 'RoktContracts', '>= 2.0.2', '< 3.0'
