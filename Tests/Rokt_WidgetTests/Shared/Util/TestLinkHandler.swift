@@ -1,10 +1,43 @@
 import XCTest
 import UIKit
+import Mocker
 @testable import Rokt_Widget
 @testable internal import RoktUXHelper
 
 @MainActor
 final class TestLinkHandler: XCTestCase {
+    func testDefaultFailureReporterSendsURLDiagnosticWithoutCompleting() async {
+        let originalTagId = Rokt.shared.roktImplementation.roktTagId
+        let originalClient = NetworkingHelper.shared.httpClient
+        defer {
+            Mocker.removeAll()
+            Rokt.shared.roktImplementation.roktTagId = originalTagId
+            NetworkingHelper.shared.httpClient = originalClient
+        }
+        Rokt.shared.roktImplementation.roktTagId = "123"
+        let diagnosticReceived = expectation(description: "URL diagnostic received")
+        var diagnostic: StubbedDiagnosticsModel?
+        stubDiagnostics(onDiagnosticsModelReceive: {
+            diagnostic = $0
+            diagnosticReceived.fulfill()
+        })
+        let opener = TestURLOpener()
+        let handler = LinkHandler(openExternalURL: opener.open)
+        var completions = 0
+        var errors = 0
+
+        handler.linkHandler(urlString: "https://[", type: .externally,
+                            completionHandler: { completions += 1 }, failureHandler: { errors += 1 })
+
+        await fulfillment(of: [diagnosticReceived], timeout: 5)
+        XCTAssertEqual(diagnostic?.code, "[URL]")
+        XCTAssertEqual(diagnostic?.stackTrace, "https://[")
+        XCTAssertEqual(diagnostic?.severity, "ERROR")
+        XCTAssertEqual(completions, 0)
+        XCTAssertEqual(errors, 1)
+        XCTAssertTrue(opener.calls.isEmpty)
+    }
+
     func testUniversalLinkCompletesOnlyAfterOpeningSucceeds() throws {
         let opener = TestURLOpener()
         let handler = LinkHandler(openExternalURL: opener.open, reportFailure: opener.reportFailure)
