@@ -98,7 +98,7 @@ class RoktInternalImplementation {
     // Caching is disabled by default when no CacheConfig is provided to the Builder.
     var roktConfig: RoktConfig = RoktConfig.Builder().build()
 
-    private var linkHandler: LinkHandler = .init()
+    private let linkHandler: LinkHandler
     var sentEventHashes: ThreadSafeSet<String> = .init()
 
     // Persists unsent event batches so an offline/rate-limited failure is replayed on the next init.
@@ -177,9 +177,10 @@ class RoktInternalImplementation {
     /// Rokt private initializer. Only available for the singleton object `shared`.
     /// `sessionManager` is injectable so tests can use a scratch `UserDefaults` suite
     /// instead of writing session state into `.standard`.
-    init(sessionManager: SessionManager? = nil) {
+    init(sessionManager: SessionManager? = nil, linkHandler: LinkHandler = LinkHandler()) {
         let managedSessionObjects = [RealTimeEventManager.shared]
         self.sessionManager = sessionManager ?? SessionManager(managedSessions: managedSessionObjects)
+        self.linkHandler = linkHandler
         NetworkingHelper.updateTimeout(timeout: clientTimeoutMilliseconds/1000)
     }
 
@@ -517,6 +518,11 @@ class RoktInternalImplementation {
                                         type: event.type,
                                         completionHandler: {
                     event.onClose?(event.id)
+                }, failureHandler: {
+                    event.onError?(event.id, NSError(domain: "com.rokt.sdk.url", code: 1,
+                                                     userInfo: [
+                                                         NSLocalizedDescriptionKey: "The destination URL could not be opened."
+                                                     ]))
                 })
             }
         } else if (uxEvent as? RoktUXEvent.LayoutFailure) != nil {

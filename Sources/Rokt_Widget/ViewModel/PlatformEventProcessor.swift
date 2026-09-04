@@ -24,6 +24,7 @@ class PlatformEventProcessor {
         static let impression = "impression"
         static let sdkDiagnostic = "sdk_diagnostic"
         static let userInteraction = "user_interaction"
+        static let productItemResponse = "product_item_response"
         static let instantPurchaseInitiated = "cart_item_instant_purchase_initiated"
         static let instantPurchase = "cart_item_instant_purchase"
         static let instantPurchaseFailure = "cart_item_instant_purchase_failure"
@@ -135,7 +136,7 @@ class PlatformEventProcessor {
         guard !nonDiagnosticEvents.isEmpty else { return }
 
         // In-memory dedup runs unconditionally, regardless of cache state. Always-resend events
-        // (user interactions) are exempt so repeated user actions are never dropped.
+        // (user interactions and product responses) are exempt so repeated actions are never dropped.
         let sentEventHashes = Rokt.shared.roktImplementation.sentEventHashes
         let newEvents = nonDiagnosticEvents.filter { event in
             guard Self.shouldDeduplicate(event) else { return true }
@@ -159,11 +160,9 @@ class PlatformEventProcessor {
                                                                         .sentEventHashes.allElements)
     }
 
-    // Events exempt from dedup are always re-sent. User interactions (both SignalUserInteraction and
-    // SignalActivation collapse to the `user_interaction` wire type) are exempt so a user tapping the
-    // same control twice reaches the server both times.
+    // Keep each user action, including repeated taps on the same product.
     private static func shouldDeduplicate(_ event: PlatformEvent) -> Bool {
-        return event.eventType != Wire.userInteraction
+        return event.eventType != Wire.userInteraction && event.eventType != Wire.productItemResponse
     }
 
     // MARK: - Mapping
@@ -229,6 +228,7 @@ class PlatformEventProcessor {
         case Wire.impression: return "SignalImpression"
         case "viewed": return "SignalViewed"
         case "signal_response": return "SignalResponse"
+        case Wire.productItemResponse: return "SignalProductItemResponse"
         case "signal_gated_response": return "SignalGatedResponse"
         case "dismissal": return "SignalDismissal"
         case "signal_initialize": return "SignalInitialize"
