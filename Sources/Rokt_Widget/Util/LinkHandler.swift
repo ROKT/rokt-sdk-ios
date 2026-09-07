@@ -5,21 +5,30 @@ internal import RoktUXHelper
 class LinkHandler: NSObject {
     typealias ExternalURLOpener = (URL, [UIApplication.OpenExternalURLOptionsKey: Any], @escaping (Bool) -> Void) -> Void
     private static let urlDiagnosticCode = "[URL]"
+    private enum FailureReason: String {
+        case invalidURL = "Invalid URL"
+        case unsupportedInternalURL = "Unsupported internal URL scheme"
+        case externalOpenFailed = "External URL could not be opened"
+        case missingPresenter = "No view controller available for internal URL"
+    }
 
-    private var completionHandler: (() -> Void)?
+    private var completionHandlers: [ObjectIdentifier: () -> Void] = [:]
     private let openExternalURL: ExternalURLOpener
     private let reportFailure: (String) -> Void
+    private let presentingViewController: () -> UIViewController?
 
     init(
         openExternalURL: @escaping ExternalURLOpener = { url, options, completion in
             UIApplication.shared.open(url, options: options, completionHandler: completion)
         },
-        reportFailure: @escaping (String) -> Void = { url in
-            RoktAPIHelper.sendDiagnostics(message: LinkHandler.urlDiagnosticCode, callStack: url)
-        }
+        reportFailure: @escaping (String) -> Void = { reason in
+            RoktAPIHelper.sendDiagnostics(message: LinkHandler.urlDiagnosticCode, callStack: reason)
+        },
+        presentingViewController: @escaping () -> UIViewController? = { UIApplication.topViewController() }
     ) {
         self.openExternalURL = openExternalURL
         self.reportFailure = reportFailure
+        self.presentingViewController = presentingViewController
         super.init()
     }
 
@@ -28,33 +37,38 @@ class LinkHandler: NSObject {
         switch type {
         case .internally:
             guard url.isWebURL() else {
-                reportFailure(url.absoluteString)
+                reportFailure(FailureReason.unsupportedInternalURL.rawValue)
                 failure?()
                 return
             }
-            completionHandler = completion
+            guard let presenter = presentingViewController() else {
+                reportFailure(FailureReason.missingPresenter.rawValue)
+                failure?()
+                return
+            }
             let safariVC = SFSafariViewController(url: url)
+            if let completion {
+                completionHandlers[ObjectIdentifier(safariVC)] = completion
+            }
             safariVC.modalPresentationStyle = .overFullScreen
             safariVC.delegate = self
-            UIApplication.topViewController()?.present(safariVC, animated: true)
+            presenter.present(safariVC, animated: true)
         case .externally,
                 .passthrough:
-            openExternalLink(url, completion: completion, failure: failure)
+            completion?()
+            openExternalLink(url, failure: failure)
         }
     }
 
-    private func openExternalLink(_ url: URL, completion: (() -> Void)?, failure: (() -> Void)?) {
+    private func openExternalLink(_ url: URL, failure: (() -> Void)?) {
         var finished = false
         var requestedFallback = false
         let complete: (Bool) -> Void = { [reportFailure] opened in
             guard !finished else { return }
             finished = true
-            if opened {
-                completion?()
-            } else {
-                reportFailure(url.absoluteString)
-                failure?()
-            }
+            guard !opened else { return }
+            reportFailure(FailureReason.externalOpenFailed.rawValue)
+            failure?()
         }
         openExternalURL(url, [.universalLinksOnly: true]) { [openExternalURL] opened in
             guard !finished else { return }
@@ -72,8 +86,9 @@ class LinkHandler: NSObject {
                      completionHandler: (() -> Void)?,
                      failureHandler: (() -> Void)? = nil) {
         guard let url = URL(string: urlString) else {
-            reportFailure(urlString)
+            reportFailure(FailureReason.invalidURL.rawValue)
             failureHandler?()
+            completionHandler?()
             return
         }
         openURL(url: url, type: type, completion: completionHandler, failure: failureHandler)
@@ -87,8 +102,7 @@ extension LinkHandler: SFSafariViewControllerDelegate {
     // presented would, on the last/only offer, close the placement and tear down the
     // Safari controller that the placement presents.
     func safariViewControllerDidFinish(_ controller: SFSafariViewController) {
-        let handler = completionHandler
-        completionHandler = nil
+        let handler = completionHandlers.removeValue(forKey: ObjectIdentifier(controller))
         handler?()
     }
 }
