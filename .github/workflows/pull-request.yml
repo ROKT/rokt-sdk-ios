@@ -299,6 +299,31 @@ jobs:
       - name: Run Periphery Scan
         run: periphery scan --format github-actions
 
+  dependency-declaration-check:
+    name: Dependency Declaration Check
+    runs-on: macos-latest-xlarge
+    needs: trunk-check
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
+        with:
+          xcode-version: "26.3"
+
+      - name: Resolve dependencies
+        run: swift package resolve
+
+      # Catches a module used through a dependency's public API but never declared
+      # in Package.swift. Such a module links in most configurations and only fails
+      # for consumers who build each package product as its own dynamic framework.
+      - name: Check declared dependencies
+        run: ./scripts/check_declared_dependencies.sh "${GITHUB_WORKSPACE}/.derived-data-depcheck"
+
   size-report:
     name: SDK Size Report
     needs: trunk-check

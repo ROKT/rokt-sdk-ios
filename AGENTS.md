@@ -29,6 +29,7 @@ You are a senior iOS SDK engineer specializing in stable, lightweight client lib
 - Prefer async/await for new code; existing networking uses completion handlers.
 - Measure & report size impact before proposing dependency or asset changes.
 - Pin `dcui-swift-schema` to the same version `rokt-ux-helper-ios` pins — `exact:` in `Package.swift`, the equivalent exact `'x.y.z'` in `Rokt-Widget.podspec` — and bump them together. DcuiSchema types reach us across RoktUXHelper's public API, so we link it directly and the pins must move in sync.
+- Import every module whose members you use, in the file that uses them. `Rokt_Widget` compiles with `MemberImportVisibility`, so relying on a type that reaches us only through a dependency's public API is a compile error rather than a link failure at a consumer.
 
 ### Never automatically (unless specifically requested)
 
@@ -90,6 +91,7 @@ You are a senior iOS SDK engineer specializing in stable, lightweight client lib
   3. Run unit tests: Use the `rokt-Example` scheme → Command + U (or `xcodebuild test ...`).
   4. Run periphery scan: `periphery scan` — ensure no unused code is introduced.
   5. If change affects code, assets, or dependencies: Run size report → `Tests/SizeReport/measure_size.sh` and confirm no unacceptable increase.
+  6. If the change touches imports, dependencies, or `Package.swift`: run `./scripts/check_declared_dependencies.sh` — fails when `Rokt_Widget` uses a module that reaches it only through a dependency's public API and is not declared in `Package.swift`.
   - Only propose / commit changes if all steps pass cleanly (no errors, no warnings from `trunk check`, tests green, size OK).
   - If `trunk check` suggests auto-fixes (e.g. formatting), apply them first and re-validate.
   - Never bypass this — it's required to maintain SDK stability, footprint, and public API quality.

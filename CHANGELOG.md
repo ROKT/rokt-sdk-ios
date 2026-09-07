@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [5.4.1] - 2026-09-03
+
+### Core
+
+#### Fixed
+
+- Always disable safe-area insets for embedded placements ([#311](https://github.com/ROKT/rokt-sdk-ios/pull/311))
+
+#### Changed
+
+- Enforce declared dependencies at compile time and in CI ([#302](https://github.com/ROKT/rokt-sdk-ios/pull/302))
+- Bump zizmorcore/zizmor-action from 0.5.6 to 0.5.7 ([#211](https://github.com/ROKT/rokt-sdk-ios/pull/211))
+- Upgrade trunk ([#309](https://github.com/ROKT/rokt-sdk-ios/pull/309))
+
 ## [5.4.0] - 2026-08-21
 
 ### Core
@@ -588,7 +602,8 @@ For a complete migration walkthrough with before/after code examples, see the [v
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.4.0...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.4.1...HEAD
+[5.4.1]: https://github.com/ROKT/rokt-sdk-ios/compare/5.4.0...5.4.1
 [5.4.0]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.4...5.4.0
 [5.3.4]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.3...5.3.4
 [5.3.3]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.2...5.3.3

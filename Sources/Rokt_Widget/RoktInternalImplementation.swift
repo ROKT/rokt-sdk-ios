@@ -2,6 +2,7 @@ import Foundation
 import UIKit
 import AppTrackingTransparency
 import RoktContracts
+internal import DcuiSchema
 internal import RoktUXHelper
 
 class RoktInternalImplementation {
