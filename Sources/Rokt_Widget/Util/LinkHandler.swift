@@ -1,10 +1,19 @@
 import Foundation
+import ObjectiveC
 import SafariServices
 internal import RoktUXHelper
 
 class LinkHandler: NSObject {
     typealias ExternalURLOpener = (URL, [UIApplication.OpenExternalURLOptionsKey: Any], @escaping (Bool) -> Void) -> Void
     private static let urlDiagnosticCode = "[URL]"
+    private final class CompletionHandlerBox: NSObject {
+        let handler: () -> Void
+
+        init(_ handler: @escaping () -> Void) {
+            self.handler = handler
+        }
+    }
+    private static var completionHandlerAssociationKey: UInt8 = 0
     private enum FailureReason: String {
         case invalidURL = "Invalid URL"
         case unsupportedInternalURL = "Unsupported internal URL scheme"
@@ -12,20 +21,17 @@ class LinkHandler: NSObject {
         case missingPresenter = "No view controller available for internal URL"
     }
 
-    private var completionHandlers: [ObjectIdentifier: () -> Void] = [:]
     private let openExternalURL: ExternalURLOpener
     private let reportFailure: (String) -> Void
     private let presentingViewController: () -> UIViewController?
 
-    init(
-        openExternalURL: @escaping ExternalURLOpener = { url, options, completion in
+    init(openExternalURL: @escaping ExternalURLOpener = { url, options, completion in
             UIApplication.shared.open(url, options: options, completionHandler: completion)
         },
-        reportFailure: @escaping (String) -> Void = { reason in
+         reportFailure: @escaping (String) -> Void = { reason in
             RoktAPIHelper.sendDiagnostics(message: LinkHandler.urlDiagnosticCode, callStack: reason)
         },
-        presentingViewController: @escaping () -> UIViewController? = { UIApplication.topViewController() }
-    ) {
+         presentingViewController: @escaping () -> UIViewController? = { UIApplication.topViewController() }) {
         self.openExternalURL = openExternalURL
         self.reportFailure = reportFailure
         self.presentingViewController = presentingViewController
@@ -48,7 +54,8 @@ class LinkHandler: NSObject {
             }
             let safariVC = SFSafariViewController(url: url)
             if let completion {
-                completionHandlers[ObjectIdentifier(safariVC)] = completion
+                objc_setAssociatedObject(safariVC, &Self.completionHandlerAssociationKey,
+                                         CompletionHandlerBox(completion), .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
             }
             safariVC.modalPresentationStyle = .overFullScreen
             safariVC.delegate = self
@@ -102,7 +109,10 @@ extension LinkHandler: SFSafariViewControllerDelegate {
     // presented would, on the last/only offer, close the placement and tear down the
     // Safari controller that the placement presents.
     func safariViewControllerDidFinish(_ controller: SFSafariViewController) {
-        let handler = completionHandlers.removeValue(forKey: ObjectIdentifier(controller))
+        let handler = (objc_getAssociatedObject(controller, &Self.completionHandlerAssociationKey)
+            as? CompletionHandlerBox)?.handler
+        objc_setAssociatedObject(controller, &Self.completionHandlerAssociationKey, nil,
+                                 .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
         handler?()
     }
 }

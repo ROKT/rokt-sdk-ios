@@ -156,9 +156,32 @@ final class TestLinkHandler: XCTestCase {
 
         let first = try XCTUnwrap(presenter.presentations.first as? SFSafariViewController)
         let second = try XCTUnwrap(presenter.presentations.last as? SFSafariViewController)
+        first.loadViewIfNeeded()
+        second.loadViewIfNeeded()
         handler.safariViewControllerDidFinish(second)
         handler.safariViewControllerDidFinish(first)
         XCTAssertEqual(completed, ["second", "first"])
+    }
+
+    func testInternalCompletionIsReleasedWithSafariController() throws {
+        let presenter = TestPresenter()
+        let handler = LinkHandler(presentingViewController: { presenter })
+        weak var capturedValue: NSObject?
+        weak var safariController: SFSafariViewController?
+
+        autoreleasepool {
+            let value = NSObject()
+            capturedValue = value
+            handler.linkHandler(urlString: "https://example.com/product", type: .internally(sessionId: nil),
+                                completionHandler: { _ = value })
+            let presented = presenter.presentations.first as? SFSafariViewController
+            presented?.loadViewIfNeeded()
+            safariController = presented
+            presenter.presentations.removeAll()
+        }
+
+        XCTAssertNil(safariController)
+        XCTAssertNil(capturedValue)
     }
 
     func testUnsupportedInternalURLReportsFailure() throws {
