@@ -91,7 +91,28 @@ final class TestClearSession: XCTestCase {
 
     func test_clearSession_dropsLegacySessionId() {
         implementation.setSessionId(sessionId: "session-from-webview")
-        XCTAssertEqual(implementation.getSessionId(), "session-from-webview")
+        XCTAssertEqual(
+            implementation.sessionManager.getCurrentSessionIdWithoutExpiring(),
+            "session-from-webview"
+        )
+
+        implementation.clearSession()
+
+        XCTAssertNil(implementation.sessionManager.getCurrentSessionIdWithoutExpiring())
+    }
+
+    /// `getSessionId` reports the txn session, so a clear must silence it too.
+    func test_clearSession_dropsTheSessionIdReportedByGetSessionId() {
+        let store = InMemoryTxnStore()
+        implementation.txnSessionStore = store
+        implementation.roktTagId = "tag-1"
+        TxnSessionPersistence.seed(
+            roktTagId: "tag-1",
+            sessionId: "session-a",
+            sessionToken: TxnSessionToken(token: "jwt-a", expiresAt: farFutureExpiryMs),
+            store: store
+        )
+        XCTAssertEqual(implementation.getSessionId(), "session-a")
 
         implementation.clearSession()
 
@@ -110,12 +131,12 @@ final class TestClearSession: XCTestCase {
 
     /// Not routed through `updateSessionId(nil)`, whose equality guard would skip the fan-out.
     func test_clearSession_withNoActiveSession_stillInvalidatesAndDoesNotCrash() {
-        XCTAssertNil(implementation.getSessionId())
+        XCTAssertNil(implementation.sessionManager.getCurrentSessionIdWithoutExpiring())
 
         implementation.clearSession()
         implementation.clearSession()
 
-        XCTAssertNil(implementation.getSessionId())
+        XCTAssertNil(implementation.sessionManager.getCurrentSessionIdWithoutExpiring())
         XCTAssertEqual(managedSession.sessionInvalidatedCallCount, 2)
     }
 

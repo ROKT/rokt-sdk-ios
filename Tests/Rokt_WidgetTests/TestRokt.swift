@@ -335,7 +335,9 @@ class TestRokt: XCTestCase {
         let header = await restored.authorizationHeader
         XCTAssertNil(sessionId)
         XCTAssertNil(header)
-        XCTAssertEqual(roktInternalImplementation.getSessionId(), "legacy-only-sid")
+        // setSessionId supplies no token or expiry, so there is no datable session for
+        // getSessionId (or the diagnostics header) to report.
+        XCTAssertNil(roktInternalImplementation.getSessionId())
         XCTAssertNil(roktInternalImplementation.getSession())
     }
 
@@ -402,14 +404,49 @@ class TestRokt: XCTestCase {
         XCTAssertNil(sessionId)
     }
 
-    func test_getSessionId_returnsSessionIdAfterSet() {
+    func test_getSessionId_returnsSessionIdAfterSetSession() {
         let roktInternalImplementation = RoktInternalImplementation()
+        roktInternalImplementation.roktTagId = "tag-get-session-id"
         let expectedSessionId = "test-session-123"
-        roktInternalImplementation.setSessionId(sessionId: expectedSessionId)
+        roktInternalImplementation.setSession(
+            RoktSession(
+                sessionId: expectedSessionId,
+                sessionToken: "jwt",
+                expiresAtMilliseconds: Int64(Date().addingTimeInterval(1800).timeIntervalSince1970 * 1000)
+            )
+        )
 
         let sessionId = roktInternalImplementation.getSessionId()
 
         XCTAssertEqual(sessionId, expectedSessionId)
+    }
+
+    func test_getSessionId_returnsNilAfterDeprecatedSetSessionId() {
+        let roktInternalImplementation = RoktInternalImplementation()
+        roktInternalImplementation.roktTagId = "tag-deprecated-set"
+
+        roktInternalImplementation.setSessionId(sessionId: "test-session-123")
+
+        XCTAssertNil(roktInternalImplementation.getSessionId())
+    }
+
+    func test_getSessionId_returnsNilOnceTheSessionTokenExpires() {
+        let roktInternalImplementation = RoktInternalImplementation()
+        roktInternalImplementation.roktTagId = "tag-get-session-id-expiry"
+        roktInternalImplementation.setSession(
+            RoktSession(
+                sessionId: "test-session-123",
+                sessionToken: "jwt",
+                expiresAtMilliseconds: Int64(Date().addingTimeInterval(1800).timeIntervalSince1970 * 1000)
+            )
+        )
+        XCTAssertEqual(roktInternalImplementation.getSessionId(), "test-session-123")
+
+        // Simulate elapsed time past the token expiry without sleeping.
+        let pastMs = Int64(Date().addingTimeInterval(-60).timeIntervalSince1970 * 1000)
+        UserDefaultsTxnSessionStore().setString(String(pastMs), forKey: TxnSessionStoreKeys.expiresAt)
+
+        XCTAssertNil(roktInternalImplementation.getSessionId())
     }
 
     func test_buildContactAddress_mapsTransactionDataAddress() throws {
@@ -537,17 +574,27 @@ class TestRokt: XCTestCase {
         XCTAssertEqual(loaded?.expiresAt?.int64Value, expiresAt)
     }
 
-    func test_Rokt_setSessionId_updatesSession() {
+    func test_Rokt_setSessionId_updatesLegacySessionId() {
         let expectedSessionId = "public-api-session-id"
 
         Rokt.shared.roktImplementation.setSessionId(sessionId: expectedSessionId)
 
-        XCTAssertEqual(Rokt.shared.roktImplementation.getSessionId(), expectedSessionId)
+        XCTAssertEqual(
+            Rokt.shared.roktImplementation.sessionManager.getCurrentSessionIdWithoutExpiring(),
+            expectedSessionId
+        )
     }
 
     func test_Rokt_getSessionId_returnsSessionId() {
+        Rokt.shared.roktImplementation.roktTagId = "public-tag-get-session-id"
         let expectedSessionId = "get-session-test-id"
-        Rokt.shared.roktImplementation.setSessionId(sessionId: expectedSessionId)
+        Rokt.setSession(
+            RoktSession(
+                sessionId: expectedSessionId,
+                sessionToken: "public-jwt",
+                expiresAtMilliseconds: Int64(Date().addingTimeInterval(1800).timeIntervalSince1970 * 1000)
+            )
+        )
 
         let sessionId = Rokt.shared.roktImplementation.getSessionId()
 
@@ -561,6 +608,9 @@ class TestRokt: XCTestCase {
         Rokt.shared.roktImplementation.setSessionId(sessionId: "")
 
         // Empty string should be a no-op - original session should remain
-        XCTAssertEqual(Rokt.shared.roktImplementation.getSessionId(), originalSessionId)
+        XCTAssertEqual(
+            Rokt.shared.roktImplementation.sessionManager.getCurrentSessionIdWithoutExpiring(),
+            originalSessionId
+        )
     }
 }

@@ -168,8 +168,7 @@ internal class RoktNetWorkAPI {
     private class func getDefaultHeaders(tagId: String) -> [String: String] {
         var headers: [String: String] = [headerTagIdKey: tagId]
 
-        if let sessionId = Rokt.shared.roktImplementation.sessionManager.getCurrentSessionIdWithoutExpiring(),
-           !sessionId.isEmpty {
+        if let sessionId = Rokt.shared.roktImplementation.currentValidSessionId() {
             headers[headerSessionIdKey] = sessionId
         }
 
