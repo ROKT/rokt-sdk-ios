@@ -1612,25 +1612,15 @@ class RoktInternalImplementation {
 
     /// Session id for the diagnostics/timings header, or nil when no unexpired session is bound.
     ///
-    /// Reads the id and its expiry from the txn store in one shot so both always describe the same
-    /// session, and uses `isExpired` rather than `clearIfExpired`: building a request header must
-    /// not mutate session state.
+    /// Deliberately not used by ``getSessionId()``: that reports whatever the partner last set,
+    /// which carries no expiry to gate on.
     func currentValidSessionId(clock: () -> Date = Date.init) -> String? {
-        guard let roktTagId,
-              TxnSessionPersistence.isBound(to: roktTagId, store: txnSessionStore)
-        else {
-            return nil
-        }
-
-        let snapshot = TxnSessionPersistence.readRaw(store: txnSessionStore)
-        guard let sessionId = snapshot.sessionId,
-              !sessionId.isEmpty,
-              !TxnSessionPersistence.isExpired(expiresAt: snapshot.expiresAt, clock: clock)
-        else {
-            return nil
-        }
-
-        return sessionId
+        guard let roktTagId else { return nil }
+        return TxnSessionManager.currentValidSessionId(
+            roktTagId: roktTagId,
+            store: txnSessionStore,
+            clock: clock
+        )
     }
 
     /// Uses a future partner-supplied expiry when present; otherwise (or when already past)
@@ -1661,7 +1651,7 @@ class RoktInternalImplementation {
     }
 
     func getSessionId() -> String? {
-        let sessionId = currentValidSessionId()
+        let sessionId = sessionManager.getCurrentSessionIdWithoutExpiring()
         RoktAPIHelper.logApiCalled(Self.apiGetSessionIdCode, ["hasSession": "\(sessionId != nil)"])
         return sessionId
     }

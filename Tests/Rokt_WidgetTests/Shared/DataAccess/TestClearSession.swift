@@ -91,18 +91,15 @@ final class TestClearSession: XCTestCase {
 
     func test_clearSession_dropsLegacySessionId() {
         implementation.setSessionId(sessionId: "session-from-webview")
-        XCTAssertEqual(
-            implementation.sessionManager.getCurrentSessionIdWithoutExpiring(),
-            "session-from-webview"
-        )
+        XCTAssertEqual(implementation.getSessionId(), "session-from-webview")
 
         implementation.clearSession()
 
-        XCTAssertNil(implementation.sessionManager.getCurrentSessionIdWithoutExpiring())
+        XCTAssertNil(implementation.getSessionId())
     }
 
-    /// `getSessionId` reports the txn session, so a clear must silence it too.
-    func test_clearSession_dropsTheSessionIdReportedByGetSessionId() {
+    /// The header reads the txn session, so a clear must silence it too.
+    func test_clearSession_dropsTheSessionIdSentOnHeaders() {
         let store = InMemoryTxnStore()
         implementation.txnSessionStore = store
         implementation.roktTagId = "tag-1"
@@ -112,11 +109,11 @@ final class TestClearSession: XCTestCase {
             sessionToken: TxnSessionToken(token: "jwt-a", expiresAt: farFutureExpiryMs),
             store: store
         )
-        XCTAssertEqual(implementation.getSessionId(), "session-a")
+        XCTAssertEqual(implementation.currentValidSessionId(), "session-a")
 
         implementation.clearSession()
 
-        XCTAssertNil(implementation.getSessionId())
+        XCTAssertNil(implementation.currentValidSessionId())
     }
 
     /// The next customer must not inherit the previous customer's real-time events.
@@ -131,12 +128,12 @@ final class TestClearSession: XCTestCase {
 
     /// Not routed through `updateSessionId(nil)`, whose equality guard would skip the fan-out.
     func test_clearSession_withNoActiveSession_stillInvalidatesAndDoesNotCrash() {
-        XCTAssertNil(implementation.sessionManager.getCurrentSessionIdWithoutExpiring())
+        XCTAssertNil(implementation.getSessionId())
 
         implementation.clearSession()
         implementation.clearSession()
 
-        XCTAssertNil(implementation.sessionManager.getCurrentSessionIdWithoutExpiring())
+        XCTAssertNil(implementation.getSessionId())
         XCTAssertEqual(managedSession.sessionInvalidatedCallCount, 2)
     }
 
