@@ -160,7 +160,8 @@ class PlatformEventProcessor {
                                                                         .sentEventHashes.allElements)
     }
 
-    // Keep each user action, including repeated taps on the same product.
+    // SignalUserInteraction and SignalActivation both map to `user_interaction`; each action
+    // must still be forwarded. Product responses are also repeatable taps and must not deduplicate.
     private static func shouldDeduplicate(_ event: PlatformEvent) -> Bool {
         return event.eventType != Wire.userInteraction && event.eventType != Wire.productItemResponse
     }

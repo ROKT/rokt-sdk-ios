@@ -19,17 +19,21 @@ final class TestLinkHandler: XCTestCase {
         struct FailureCase {
             let url: String
             let type: RoktUXOpenURLType
+            let code: String
             let reason: String
             let completes: Bool
         }
         let destination = "https://synthetic-user:synthetic-password@example.com/private/synthetic-id?token=synthetic-token#synthetic-fragment"
         let cases: [FailureCase] = [
-            .init(url: "https://[?token=synthetic-token", type: .externally, reason: "Invalid URL", completes: true),
+            .init(url: "https://[?token=synthetic-token", type: .externally,
+                  code: "[URL]", reason: "Invalid URL", completes: true),
             .init(url: "exampleapp://product/synthetic-id?token=synthetic-token#synthetic-fragment",
-                  type: .internally(sessionId: nil), reason: "Unsupported internal URL scheme", completes: false),
-            .init(url: destination, type: .externally, reason: "External URL could not be opened", completes: true),
+                  type: .internally(sessionId: nil), code: "[URL]",
+                  reason: "Unsupported internal URL scheme", completes: false),
+            .init(url: destination, type: .externally, code: "[URL_OPEN]",
+                  reason: "External URL could not be opened", completes: true),
             .init(url: destination, type: .internally(sessionId: nil),
-                  reason: "No view controller available for internal URL", completes: false)
+                  code: "[URL_OPEN]", reason: "No view controller available for internal URL", completes: false)
         ]
         for testCase in cases {
             Mocker.removeAll()
@@ -55,7 +59,7 @@ final class TestLinkHandler: XCTestCase {
             }
 
             await fulfillment(of: [diagnosticReceived], timeout: 5)
-            XCTAssertEqual(diagnostic?.code, "[URL]")
+            XCTAssertEqual(diagnostic?.code, testCase.code)
             XCTAssertEqual(diagnostic?.stackTrace, testCase.reason)
             XCTAssertEqual(diagnostic?.severity, "ERROR")
             XCTAssertEqual(completions, testCase.completes ? 1 : 0)
@@ -77,6 +81,7 @@ final class TestLinkHandler: XCTestCase {
         XCTAssertEqual(errors, 1)
         XCTAssertEqual(completions, 0)
         XCTAssertEqual(opener.failures, ["No view controller available for internal URL"])
+        XCTAssertEqual(opener.failureCodes, ["[URL_OPEN]"])
         XCTAssertTrue(opener.calls.isEmpty)
     }
 
@@ -120,14 +125,23 @@ final class TestLinkHandler: XCTestCase {
         let handler = LinkHandler(openExternalURL: opener.open, reportFailure: opener.reportFailure)
         var completions = 0
         var errors = 0
+        var callbackOrder: [String] = []
         handler.linkHandler(urlString: "exampleapp://product/one", type: .externally,
-                            completionHandler: { completions += 1 }, failureHandler: { errors += 1 })
+                            completionHandler: {
+            completions += 1
+            callbackOrder.append("completed")
+        }, failureHandler: {
+            errors += 1
+            callbackOrder.append("failed")
+        })
         opener.calls[0].complete(false)
         opener.calls[1].complete(false)
         opener.calls[1].complete(true)
         XCTAssertEqual(completions, 1)
         XCTAssertEqual(errors, 1)
+        XCTAssertEqual(callbackOrder, ["completed", "failed"])
         XCTAssertEqual(opener.failures, ["External URL could not be opened"])
+        XCTAssertEqual(opener.failureCodes, ["[URL_OPEN]"])
     }
 
     func testOverlappingExternalRequestsCompleteInRequestOrder() throws {
@@ -189,12 +203,21 @@ final class TestLinkHandler: XCTestCase {
         let handler = LinkHandler(openExternalURL: opener.open, reportFailure: opener.reportFailure)
         var completions = 0
         var errors = 0
+        var callbackOrder: [String] = []
         handler.linkHandler(urlString: "exampleapp://product/one", type: .internally(sessionId: nil),
-                            completionHandler: { completions += 1 }, failureHandler: { errors += 1 })
+                            completionHandler: {
+            completions += 1
+            callbackOrder.append("completed")
+        }, failureHandler: {
+            errors += 1
+            callbackOrder.append("failed")
+        })
         XCTAssertEqual(completions, 0)
         XCTAssertEqual(errors, 1)
+        XCTAssertEqual(callbackOrder, ["failed"])
         XCTAssertTrue(opener.calls.isEmpty)
         XCTAssertEqual(opener.failures.count, 1)
+        XCTAssertEqual(opener.failureCodes, ["[URL]"])
     }
 
     func testMalformedURLReportsFailureWithoutOpening() {
@@ -202,12 +225,21 @@ final class TestLinkHandler: XCTestCase {
         let handler = LinkHandler(openExternalURL: opener.open, reportFailure: opener.reportFailure)
         var completions = 0
         var errors = 0
+        var callbackOrder: [String] = []
         handler.linkHandler(urlString: "https://[", type: .externally,
-                            completionHandler: { completions += 1 }, failureHandler: { errors += 1 })
+                            completionHandler: {
+            completions += 1
+            callbackOrder.append("completed")
+        }, failureHandler: {
+            errors += 1
+            callbackOrder.append("failed")
+        })
         XCTAssertEqual(completions, 1)
         XCTAssertEqual(errors, 1)
+        XCTAssertEqual(callbackOrder, ["failed", "completed"])
         XCTAssertTrue(opener.calls.isEmpty)
         XCTAssertEqual(opener.failures, ["Invalid URL"])
+        XCTAssertEqual(opener.failureCodes, ["[URL]"])
     }
 
     func testOpenEventPreservesExternalProgressionAndReportsFailure() {
@@ -255,13 +287,15 @@ private final class TestURLOpener {
         let complete: (Bool) -> Void
     }
     var calls: [Call] = []
+    var failureCodes: [String] = []
     var failures: [String] = []
 
     func open(_ url: URL, options: [UIApplication.OpenExternalURLOptionsKey: Any], completion: @escaping (Bool) -> Void) {
         calls.append(Call(url: url, options: options, complete: completion))
     }
 
-    func reportFailure(_ url: String) {
-        failures.append(url)
+    func reportFailure(_ code: String, _ reason: String) {
+        failureCodes.append(code)
+        failures.append(reason)
     }
 }

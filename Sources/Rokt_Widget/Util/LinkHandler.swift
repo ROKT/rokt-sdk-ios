@@ -6,6 +6,7 @@ internal import RoktUXHelper
 class LinkHandler: NSObject {
     typealias ExternalURLOpener = (URL, [UIApplication.OpenExternalURLOptionsKey: Any], @escaping (Bool) -> Void) -> Void
     private static let urlDiagnosticCode = "[URL]"
+    private static let urlOpenDiagnosticCode = "[URL_OPEN]"
     private final class CompletionHandlerBox: NSObject {
         let handler: () -> Void
 
@@ -22,14 +23,14 @@ class LinkHandler: NSObject {
     }
 
     private let openExternalURL: ExternalURLOpener
-    private let reportFailure: (String) -> Void
+    private let reportFailure: (String, String) -> Void
     private let presentingViewController: () -> UIViewController?
 
     init(openExternalURL: @escaping ExternalURLOpener = { url, options, completion in
             UIApplication.shared.open(url, options: options, completionHandler: completion)
         },
-         reportFailure: @escaping (String) -> Void = { reason in
-            RoktAPIHelper.sendDiagnostics(message: LinkHandler.urlDiagnosticCode, callStack: reason)
+         reportFailure: @escaping (String, String) -> Void = { code, reason in
+            RoktAPIHelper.sendDiagnostics(message: code, callStack: reason)
         },
          presentingViewController: @escaping () -> UIViewController? = { UIApplication.topViewController() }) {
         self.openExternalURL = openExternalURL
@@ -43,12 +44,12 @@ class LinkHandler: NSObject {
         switch type {
         case .internally:
             guard url.isWebURL() else {
-                reportFailure(FailureReason.unsupportedInternalURL.rawValue)
+                reportFailure(Self.urlDiagnosticCode, FailureReason.unsupportedInternalURL.rawValue)
                 failure?()
                 return
             }
             guard let presenter = presentingViewController() else {
-                reportFailure(FailureReason.missingPresenter.rawValue)
+                reportFailure(Self.urlOpenDiagnosticCode, FailureReason.missingPresenter.rawValue)
                 failure?()
                 return
             }
@@ -74,7 +75,7 @@ class LinkHandler: NSObject {
             guard !finished else { return }
             finished = true
             guard !opened else { return }
-            reportFailure(FailureReason.externalOpenFailed.rawValue)
+            reportFailure(Self.urlOpenDiagnosticCode, FailureReason.externalOpenFailed.rawValue)
             failure?()
         }
         openExternalURL(url, [.universalLinksOnly: true]) { [openExternalURL] opened in
@@ -92,8 +93,12 @@ class LinkHandler: NSObject {
                      type: RoktUXOpenURLType,
                      completionHandler: (() -> Void)?,
                      failureHandler: (() -> Void)? = nil) {
+        // Preserve the established callback contract for each path. External links complete
+        // eagerly before opening, so an asynchronous open failure arrives afterwards. Invalid
+        // input is diagnosed synchronously before its legacy completion. Internal failures do
+        // not complete because completion represents dismissing the in-app browser.
         guard let url = URL(string: urlString) else {
-            reportFailure(FailureReason.invalidURL.rawValue)
+            reportFailure(Self.urlDiagnosticCode, FailureReason.invalidURL.rawValue)
             failureHandler?()
             completionHandler?()
             return

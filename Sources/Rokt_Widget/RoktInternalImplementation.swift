@@ -12,6 +12,9 @@ class RoktInternalImplementation {
     private static let notInitializedDiagnosticCode = "[NOT_INITIALIZED]"
     private static let cacheHitDiagnosticCode = "[CACHE_HIT]"
     private static let cacheHitMessage = "Cache hit for view - %@"
+    private static let urlOpenErrorDomain = "com.rokt.sdk.url"
+    private static let urlOpenErrorCode = 1
+    private static let urlOpenErrorDescription = "The destination URL could not be opened."
     // Public-API-usage diagnostics (INFO severity). Keep this a small, bounded set of codes.
     static let apiInitCode = "[API_INIT]"
     static let apiInitMParticleCode = "[API_INIT_MPARTICLE]"
@@ -519,9 +522,10 @@ class RoktInternalImplementation {
                                         completionHandler: {
                     event.onClose?(event.id)
                 }, failureHandler: {
-                    event.onError?(event.id, NSError(domain: "com.rokt.sdk.url", code: 1,
+                    event.onError?(event.id, NSError(domain: Self.urlOpenErrorDomain,
+                                                     code: Self.urlOpenErrorCode,
                                                      userInfo: [
-                                                         NSLocalizedDescriptionKey: "The destination URL could not be opened."
+                                                         NSLocalizedDescriptionKey: Self.urlOpenErrorDescription
                                                      ]))
                 })
             }
