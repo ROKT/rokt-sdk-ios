@@ -237,8 +237,12 @@ final class ValidLayoutOverlayTests: QuickSpec {
                     let url = "rokt-sdk-test-unsupported://product"
                     var completions = 0
                     var failures = 0
+                    var failureCodes: [String] = []
                     var failureReasons: [String] = []
-                    let linkHandler = LinkHandler(reportFailure: { failureReasons.append($0) })
+                    let linkHandler = LinkHandler(reportFailure: { code, reason in
+                        failureCodes.append(code)
+                        failureReasons.append(reason)
+                    })
 
                     linkHandler.linkHandler(urlString: url, type: .externally,
                                             completionHandler: { completions += 1 },
@@ -246,6 +250,7 @@ final class ValidLayoutOverlayTests: QuickSpec {
 
                     expect(failures).toEventually(equal(1), timeout: .seconds(5))
                     expect(completions).to(equal(1))
+                    expect(failureCodes).to(equal(["[URL_OPEN]"]))
                     expect(failureReasons).to(equal(["External URL could not be opened"]))
                 }
 
