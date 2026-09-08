@@ -144,7 +144,7 @@ final class TestRoktUxEventExtension: XCTestCase {
     func test_mapToRoktEvent_LayoutFailure_PlacementFailure() {
         let expectedLayoutId = "123"
 
-        let providedEvent = RoktUXEvent.LayoutFailure(layoutId: expectedLayoutId)
+        let providedEvent = RoktUXEvent.LayoutFailure(layoutId: expectedLayoutId, reason: .invalidSchema)
 
         let returnedEvent = providedEvent.mapToRoktEvent
 

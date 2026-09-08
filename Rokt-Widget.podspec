@@ -22,7 +22,7 @@ Pod::Spec.new do |s|
     'OTHER_SWIFT_FLAGS' => '$(inherited) -enable-upcoming-feature MemberImportVisibility'
   }
 
-  s.dependency 'DcuiSchema', '2.8.1'
+  s.dependency 'DcuiSchema', '2.10.0'
   s.dependency 'RoktContracts', '>= 2.0.2', '< 3.0'
-  s.dependency 'RoktUXHelper', '>= 2.0.0', '< 3.0'
+  s.dependency 'RoktUXHelper', '>= 2.1.0', '< 3.0'
 end
