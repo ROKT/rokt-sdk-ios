@@ -114,7 +114,7 @@ final class RoktUXEventMappingTests: XCTestCase {
 
     func testLayoutFailureMapping() {
         // Given
-        let uxEvent = RoktUXEvent.LayoutFailure(layoutId: testLayoutId)
+        let uxEvent = RoktUXEvent.LayoutFailure(layoutId: testLayoutId, reason: .invalidSchema)
 
         // When
         let roktEvent = uxEvent.mapToRoktEvent

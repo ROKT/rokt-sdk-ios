@@ -33,6 +33,7 @@ final class TestTxnEventMapper: XCTestCase {
             (.SignalLoadStart, "load_start"),
             (.SignalLoadComplete, "load_complete"),
             (.SignalResponse, "signal_response"),
+            (.SignalProductItemResponse, "product_item_response"),
             (.SignalDismissal, "dismissal"),
             (.SignalUserInteraction, "user_interaction"),
             (.SignalCartItemInstantPurchaseInitiated, "cart_item_instant_purchase_initiated"),

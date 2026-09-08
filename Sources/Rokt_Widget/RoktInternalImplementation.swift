@@ -12,6 +12,9 @@ class RoktInternalImplementation {
     private static let notInitializedDiagnosticCode = "[NOT_INITIALIZED]"
     private static let cacheHitDiagnosticCode = "[CACHE_HIT]"
     private static let cacheHitMessage = "Cache hit for view - %@"
+    private static let urlOpenErrorDomain = "com.rokt.sdk.url"
+    private static let urlOpenErrorCode = 1
+    private static let urlOpenErrorDescription = "The destination URL could not be opened."
     // Public-API-usage diagnostics (INFO severity). Keep this a small, bounded set of codes.
     static let apiInitCode = "[API_INIT]"
     static let apiInitMParticleCode = "[API_INIT_MPARTICLE]"
@@ -98,7 +101,7 @@ class RoktInternalImplementation {
     // Caching is disabled by default when no CacheConfig is provided to the Builder.
     var roktConfig: RoktConfig = RoktConfig.Builder().build()
 
-    private var linkHandler: LinkHandler = .init()
+    private let linkHandler: LinkHandler
     var sentEventHashes: ThreadSafeSet<String> = .init()
 
     // Persists unsent event batches so an offline/rate-limited failure is replayed on the next init.
@@ -177,9 +180,10 @@ class RoktInternalImplementation {
     /// Rokt private initializer. Only available for the singleton object `shared`.
     /// `sessionManager` is injectable so tests can use a scratch `UserDefaults` suite
     /// instead of writing session state into `.standard`.
-    init(sessionManager: SessionManager? = nil) {
+    init(sessionManager: SessionManager? = nil, linkHandler: LinkHandler = LinkHandler()) {
         let managedSessionObjects = [RealTimeEventManager.shared]
         self.sessionManager = sessionManager ?? SessionManager(managedSessions: managedSessionObjects)
+        self.linkHandler = linkHandler
         NetworkingHelper.updateTimeout(timeout: clientTimeoutMilliseconds/1000)
     }
 
@@ -517,6 +521,12 @@ class RoktInternalImplementation {
                                         type: event.type,
                                         completionHandler: {
                     event.onClose?(event.id)
+                }, failureHandler: {
+                    event.onError?(event.id, NSError(domain: Self.urlOpenErrorDomain,
+                                                     code: Self.urlOpenErrorCode,
+                                                     userInfo: [
+                                                         NSLocalizedDescriptionKey: Self.urlOpenErrorDescription
+                                                     ]))
                 })
             }
         } else if (uxEvent as? RoktUXEvent.LayoutFailure) != nil {
