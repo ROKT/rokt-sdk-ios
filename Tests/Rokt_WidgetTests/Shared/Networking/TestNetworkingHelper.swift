@@ -163,6 +163,58 @@ class TestNetworkingHelper: XCTestCase {
         XCTAssertEqual(requestCount, 1, "a 400 fails the same way every time")
     }
 
+    func test_sendDiagnostics_doesNotAttachSharedCookies() {
+        let expectation = expectation(description: "diagnostics request observed")
+        var capturedRequest: URLRequest?
+        let originalEnvironment = config.environment
+        let originalTagId = Rokt.shared.roktImplementation.roktTagId
+        let originalClient = NetworkingHelper.shared.httpClient
+
+        defer {
+            config.environment = originalEnvironment
+            Rokt.shared.roktImplementation.roktTagId = originalTagId
+            NetworkingHelper.shared.httpClient = originalClient
+            Mocker.removeAll()
+        }
+
+        Rokt.setEnvironment(environment: .Stage)
+        Rokt.shared.roktImplementation.roktTagId = "test-tag-id"
+
+        let diagnosticsURL = URL(string: diagnosticsResourceURL)!
+        let cookie = HTTPCookie(properties: [
+            .originURL: diagnosticsURL,
+            .name: "rokt-session",
+            .value: String(repeating: "x", count: 2000),
+            .path: "/"
+        ])!
+        HTTPCookieStorage.shared.setCookie(cookie)
+        defer { HTTPCookieStorage.shared.deleteCookie(cookie) }
+
+        var mock = Mock(
+            url: diagnosticsURL,
+            dataType: .json,
+            statusCode: 200,
+            data: [.post: Data("{}".utf8)]
+        )
+        mock.onRequest = { request, _ in
+            capturedRequest = request
+        }
+        mock.register()
+        NetworkingHelper.shared.httpClient = makeMockHTTPClient()
+
+        RoktNetWorkAPI.sendDiagnostics(params: ["code": "test"], success: {
+            expectation.fulfill()
+        }, failure: { _, _, _ in
+            expectation.fulfill()
+        })
+
+        waitForExpectations(timeout: 2.0)
+
+        XCTAssertEqual(capturedRequest?.httpMethod, "POST")
+        XCTAssertEqual(capturedRequest?.httpShouldHandleCookies, false)
+        XCTAssertNil(capturedRequest?.value(forHTTPHeaderField: "Cookie"))
+    }
+
     func test_common_header_defaults() throws {
         let headers = NetworkingHelper.getCommonHeaders([:])
 

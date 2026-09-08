@@ -87,9 +87,11 @@ internal final class RoktHTTPClient: HTTPClientAdapter {
         sessionConfiguration: URLSessionConfiguration = .default,
         encoders: [RoktHTTPParameterEncoder] = [RoktHTTPURLEncoder(), RoktHTTPBodyEncoder()]
     ) {
-        self.session = URLSession(configuration: sessionConfiguration)
+        let configuration = (sessionConfiguration.copy() as? URLSessionConfiguration) ?? sessionConfiguration
+        Self.disableCookieHandling(on: configuration)
+        self.session = URLSession(configuration: configuration)
         self.downloadSession = URLSession(
-            configuration: Self.downloadConfiguration(from: sessionConfiguration)
+            configuration: Self.downloadConfiguration(from: configuration)
         )
 
         self.encoders = encoders
@@ -110,8 +112,16 @@ internal final class RoktHTTPClient: HTTPClientAdapter {
         let downloadConfiguration = (configuration.copy() as? URLSessionConfiguration) ?? configuration
         downloadConfiguration.timeoutIntervalForRequest = downloadIdleTimeoutSeconds
         downloadConfiguration.timeoutIntervalForResource = downloadResourceTimeoutSeconds
+        disableCookieHandling(on: downloadConfiguration)
 
         return downloadConfiguration
+    }
+
+    // Match Android behaviour: the SDK does not store or send cookies.
+    private static func disableCookieHandling(on configuration: URLSessionConfiguration) {
+        configuration.httpShouldSetCookies = false
+        configuration.httpCookieStorage = nil
+        configuration.httpCookieAcceptPolicy = .never
     }
 
     /// Applies to API requests only. Downloads keep their own budget, since the client timeout
@@ -126,6 +136,7 @@ internal final class RoktHTTPClient: HTTPClientAdapter {
 
         currentConfiguration.timeoutIntervalForRequest = timeout
         currentConfiguration.timeoutIntervalForResource = timeout
+        Self.disableCookieHandling(on: currentConfiguration)
 
         self.session = URLSession(configuration: currentConfiguration)
     }
@@ -238,6 +249,10 @@ internal final class RoktHTTPClient: HTTPClientAdapter {
            ) as? URLRequest {
             request = encodedRequest
         }
+
+        // Session config already disables cookies; this keeps a replacement URLRequest
+        // from the body encoder from restoring URLSession's default cookie handling.
+        request.httpShouldHandleCookies = false
 
         return request
     }
