@@ -14,7 +14,9 @@ struct ExperienceCacheUtils {
         let customStateMap: RoktUXCustomStateMap?
     }
 
-    private static let experienceResponseFilePrefix = "RoktExperienceResponseV2"
+    // Every response format version shares this stem, so eviction sweeps superseded ones too.
+    private static let experienceResponseFileStem = "RoktExperienceResponse"
+    private static let experienceResponseFilePrefix = experienceResponseFileStem + "V2"
     private static let viewStateFilePrefix = "RoktPluginViewState"
     private static let experiencesViewStateFilePrefix = "RoktExperiencesViewState"
 
@@ -34,6 +36,17 @@ struct ExperienceCacheUtils {
                                                    attributes: [String: String]) -> String {
         let hashKey = getExperienceCacheHashKey(viewName: viewName, attributes: attributes)
         return String(format: "%@%@", experienceResponseFilePrefix, hashKey)
+    }
+
+    /**
+     Whether a cache file name belongs to an experience response, and so is safe to evict when a new
+     response is cached. The view state files sharing the directory must survive that eviction.
+
+     - Parameters:
+      - fileName: The last path component of a file in the experience cache directory.
+     */
+    static func isExperienceResponseFileName(_ fileName: String) -> Bool {
+        fileName.hasPrefix(experienceResponseFileStem)
     }
 
     /**
