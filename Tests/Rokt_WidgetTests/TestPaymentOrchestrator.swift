@@ -1584,6 +1584,12 @@ class TestPaymentOrchestrator: XCTestCase {
         XCTAssertNil(stepOneResult, "A return link without a token must not complete the checkout")
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.sendDiagnosticsCallCount, 1)
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastDiagnosticsAdditionalInfo?["tokenPresent"] as? Bool, false)
+
+        // The genuine redirect still completes the same pending checkout.
+        XCTAssertTrue(sut.handleURLCallback(with: URL(string: "myapp://paypal/success?token=ORDER_MOCK")!))
+        drainMainQueue()
+        XCTAssertEqual(stepOneResult?.outcome, .succeeded)
+        XCTAssertEqual(stepOneResult?.transactionId, "ORDER_MOCK")
     }
 
     func test_handleURLCallback_payPalCancel_tokenForAnotherOrder_leavesCheckoutPending() {
