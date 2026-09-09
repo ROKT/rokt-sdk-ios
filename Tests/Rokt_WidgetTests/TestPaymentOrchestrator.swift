@@ -2259,6 +2259,10 @@ class TestPaymentOrchestrator: XCTestCase {
         drainMainQueue()
         XCTAssertEqual(laterResult?.outcome, .succeeded)
         XCTAssertEqual(laterResult?.transactionId, "ORDER_2")
+
+        // The first item's fenced mark, whose checkout is gone, is pruned on the next pass; nothing accumulates.
+        XCTAssertFalse(sut.presentPendingBuiltInPayPalForForwardPayment(for: laterKey) { _ in })
+        XCTAssertEqual(sut.unitTest_presentedBuiltInPayPalCount(), 0, "No mark is left for an abandoned approval")
     }
 
     func test_presentPendingBuiltInPayPal_afterItsLayoutClosedWhileItsSheetIsStillUp_aLaterItemWaitsUntilThatSheetEnds() {

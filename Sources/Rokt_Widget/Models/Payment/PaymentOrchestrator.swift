@@ -552,6 +552,7 @@ final class PaymentOrchestrator {
         onCompletion: @escaping (PaymentSheetResult) -> Void
     ) -> Bool {
         Self.pendingBuiltInTwoStepLock.lock()
+        Self.pruneAbandonedPresentedBuiltInPayPal()
         // This item's approval sheet is already up: a repeated confirm has nothing to start, and is not a card purchase.
         if Self.presentedBuiltInPayPalCheckouts[key] != nil {
             Self.pendingBuiltInTwoStepLock.unlock()
@@ -830,6 +831,7 @@ final class PaymentOrchestrator {
         for key in Self.presentedBuiltInPayPalCheckouts.keys where isFenced(key) {
             Self.presentedBuiltInPayPalCheckouts[key]?.phase = .fenced
         }
+        Self.pruneAbandonedPresentedBuiltInPayPal()
         Self.pendingBuiltInTwoStepLock.unlock()
     }
 
@@ -846,6 +848,7 @@ final class PaymentOrchestrator {
         Self.presentedBuiltInPayPalCheckouts = Self.presentedBuiltInPayPalCheckouts.mapValues {
             PresentedBuiltInPayPalCheckout(phase: .fenced, coordinator: $0.coordinator)
         }
+        Self.pruneAbandonedPresentedBuiltInPayPal()
         Self.pendingBuiltInTwoStepLock.unlock()
     }
 
@@ -899,6 +902,23 @@ final class PaymentOrchestrator {
 
     // Unit test hook: whether deferred Step-1 state exists for `key` (either provider, any phase).
     // periphery:ignore
+    /// Drops fenced marks whose checkout is gone. A fenced sheet the host tore down without a cancel or a return never
+    /// completes, so nothing else would remove its mark; once its checkout has been released (the next presentation
+    /// replaces it) the mark can never be read again and is pruned here, under the lock, so abandoned approvals do not
+    /// accumulate for the life of the process. A fenced mark whose checkout is still alive is kept: its cancel may
+    /// still arrive, and the mark is what tells that cancel not to re-queue the entry.
+    private static func pruneAbandonedPresentedBuiltInPayPal() {
+        presentedBuiltInPayPalCheckouts = presentedBuiltInPayPalCheckouts.filter {
+            $0.value.phase != .fenced || $0.value.coordinator != nil
+        }
+    }
+
+    internal func unitTest_presentedBuiltInPayPalCount() -> Int {
+        Self.pendingBuiltInTwoStepLock.lock()
+        defer { Self.pendingBuiltInTwoStepLock.unlock() }
+        return Self.presentedBuiltInPayPalCheckouts.count
+    }
+
     internal func unitTest_hasPendingBuiltInTwoStep(for key: BuiltInTwoStepCheckoutKey) -> Bool {
         Self.pendingBuiltInTwoStepLock.lock()
         defer { Self.pendingBuiltInTwoStepLock.unlock() }
