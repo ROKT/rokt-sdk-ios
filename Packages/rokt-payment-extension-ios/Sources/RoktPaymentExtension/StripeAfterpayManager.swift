@@ -101,6 +101,11 @@ internal class StripeAfterpayManager {
                 return
             }
 
+            guard StripeAccountId.isValid(preparation.merchantId) else {
+                completion(.failed(error: "Payment preparation returned an invalid merchant account id"))
+                return
+            }
+
             let extensionClient = self.apiClient
             extensionClient.stripeAccount = preparation.merchantId
 

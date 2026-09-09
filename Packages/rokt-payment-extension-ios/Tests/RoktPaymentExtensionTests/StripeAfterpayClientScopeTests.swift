@@ -272,4 +272,30 @@ final class StripeAfterpayClientScopeTests: XCTestCase {
         XCTAssertTrue(spy.apiClient === hostHandlerClient)
         assertSharedClientUntouched()
     }
+
+    // MARK: - Connected-account id shape
+
+    func testAfterpayRejectsMalformedMerchantAccountId() {
+        let malformed = ["merchant.com.test", "acct_", "", "acct_x;drop", String(repeating: "a", count: 200)]
+
+        for merchantId in malformed {
+            let result = runFlow(preparation: makePreparation(merchantId: merchantId))
+
+            XCTAssertEqual(result?.outcome, .failed, "expected \(merchantId.debugDescription) to fail")
+            XCTAssertTrue(result?.errorMessage?.contains("merchant account id") ?? false)
+            XCTAssertEqual(spy.confirmCallCount, 0)
+            XCTAssertNil(manager.activeConfirmer)
+            XCTAssertNil(extensionClient.stripeAccount, "client must not be scoped to a rejected id")
+            XCTAssertTrue(spy.apiClient === hostHandlerClient)
+            assertSharedClientUntouched()
+        }
+    }
+
+    func testAfterpayAcceptsWellFormedMerchantAccountId() {
+        let result = runFlow(preparation: makePreparation(merchantId: "acct_mock_123"))
+
+        XCTAssertNotNil(result?.succeededTransactionId)
+        XCTAssertEqual(spy.confirmCallCount, 1)
+        XCTAssertEqual(spy.clientUsedForConfirmation?.stripeAccount, "acct_mock_123")
+    }
 }
