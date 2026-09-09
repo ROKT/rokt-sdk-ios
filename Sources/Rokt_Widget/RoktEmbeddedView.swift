@@ -155,8 +155,10 @@ extension RoktEmbeddedView: InternalLayoutLoader {
         clipsToBounds = true
         self.onSizeChange = onSizeChanged
         let vc = ResizableHostingController(rootView: AnyView(injectedView()))
-        if #available(iOS 16.4, *),
-           Rokt.shared.roktImplementation.frameworkType == .Flutter {
+        if #available(iOS 16.4, *) {
+            // An embedded card is positioned by the host app and has no window-relative
+            // meaning of its own, so it should never inherit the safe area, regardless
+            // of host framework or whether frameworkType was reported correctly.
             vc.safeAreaRegions = []
         }
 

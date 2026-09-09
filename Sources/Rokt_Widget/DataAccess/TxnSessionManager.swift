@@ -104,6 +104,33 @@ internal actor TxnSessionManager {
         store.setString(String(current &+ 1), forKey: TxnSessionStoreKeys.epoch)
     }
 
+    /// Session id for outbound request headers, or nil when no unexpired session is bound.
+    ///
+    /// Nonisolated so header construction need not hop onto the actor, and `storeLock`-guarded so
+    /// it still sees a consistent pair: `update` persists the id and the expiry under that lock, so
+    /// an unlocked read can pair a stale id with a fresh expiry and defeat the gate.
+    ///
+    /// Reads only. Unlike ``getSession()``, building a header must not clear an expired session.
+    nonisolated static func currentValidSessionId(
+        roktTagId: String,
+        store: TxnSessionStore = UserDefaultsTxnSessionStore(),
+        clock: () -> Date = Date.init
+    ) -> String? {
+        storeLock.lock()
+        defer { storeLock.unlock() }
+        guard TxnSessionPersistence.isBound(to: roktTagId, store: store) else { return nil }
+
+        let snapshot = TxnSessionPersistence.readRaw(store: store)
+        guard let sessionId = snapshot.sessionId,
+              !sessionId.isEmpty,
+              !TxnSessionPersistence.isExpired(expiresAt: snapshot.expiresAt, clock: clock)
+        else {
+            return nil
+        }
+
+        return sessionId
+    }
+
     private var hasExpired: Bool {
         TxnSessionPersistence.isExpired(expiresAt: expiresAt, clock: clock)
     }

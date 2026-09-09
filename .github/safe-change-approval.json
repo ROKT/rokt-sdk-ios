@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "base_branches": ["main"],
+  "trusted_actors": ["dependabot[bot]"],
+  "trusted_associations": ["OWNER", "MEMBER", "COLLABORATOR"],
+  "excluded_actors": ["github-actions[bot]"],
+  "allowed_files": ["README.md", "MIGRATING.md", "MONOREPO.md"],
+  "allowed_directories": [
+    {
+      "path": "docs/",
+      "extensions": [".md"]
+    },
+    {
+      "path": "documentation/",
+      "extensions": [".md"]
+    }
+  ],
+  "allowed_statuses": ["added", "modified"],
+  "max_changed_files": 20,
+  "max_total_changes": 1000
+}

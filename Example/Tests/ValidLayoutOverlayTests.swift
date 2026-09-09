@@ -233,6 +233,27 @@ final class ValidLayoutOverlayTests: QuickSpec {
                                       timeout: .seconds(5))
                 }
 
+                it("external link failure preserves progression and reports the error") {
+                    let url = "rokt-sdk-test-unsupported://product"
+                    var completions = 0
+                    var failures = 0
+                    var failureCodes: [String] = []
+                    var failureReasons: [String] = []
+                    let linkHandler = LinkHandler(reportFailure: { code, reason in
+                        failureCodes.append(code)
+                        failureReasons.append(reason)
+                    })
+
+                    linkHandler.linkHandler(urlString: url, type: .externally,
+                                            completionHandler: { completions += 1 },
+                                            failureHandler: { failures += 1 })
+
+                    expect(failures).toEventually(equal(1), timeout: .seconds(5))
+                    expect(completions).to(equal(1))
+                    expect(failureCodes).to(equal(["[URL_OPEN]"]))
+                    expect(failureReasons).to(equal(["External URL could not be opened"]))
+                }
+
                 // An internally-opened link presents Safari on top of the overlay. The completion
                 // (which on the last/only offer closes the placement) must be deferred until the
                 // user dismisses Safari, otherwise closing the placement would tear down the Safari
@@ -249,7 +270,7 @@ final class ValidLayoutOverlayTests: QuickSpec {
                     let linkHandler = LinkHandler()
                     let url = URL(string: "https://www.rokt.com")!
                     var completionFired = false
-                    linkHandler.linkHandler(url: url, type: .internally(sessionId: nil), completionHandler: {
+                    linkHandler.linkHandler(urlString: url.absoluteString, type: .internally(sessionId: nil), completionHandler: {
                         completionFired = true
                     })
 
