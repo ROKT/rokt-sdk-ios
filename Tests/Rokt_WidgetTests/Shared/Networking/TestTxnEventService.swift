@@ -47,8 +47,8 @@ final class TestTxnEventService: XCTestCase {
         await sessionManager.update(sessionId: "session-1", sessionToken: TxnSessionToken(token: token, expiresAt: expiryMs))
     }
 
-    private func rotatedResponse(token: String = "rotated-jwt") -> Data {
-        let expiryMs = Int64(now.addingTimeInterval(3600).timeIntervalSince1970 * 1000)
+    private func rotatedResponse(token: String = "rotated-jwt", expiresAtMs: Int64? = nil) -> Data {
+        let expiryMs = expiresAtMs ?? Int64(now.addingTimeInterval(3600).timeIntervalSince1970 * 1000)
         return Data(
             """
             {
@@ -124,6 +124,25 @@ final class TestTxnEventService: XCTestCase {
         try? await makeService(pendingStore: store).replay(events: sampleEvents(), sessionId: "session-old")
 
         XCTAssertEqual(store.persistedSessionIds, ["session-old"])
+    }
+
+    /// A rotated token with a far-future expiry is adopted, and the persisted expiry is bounded.
+    func test_send_rotatedTokenWithFarFutureExpiry_isAdoptedAndBounded() async throws {
+        let store = InMemoryTxnSessionStore()
+        sessionManager = TxnSessionManager(roktTagId: "tag-1", store: store, clock: { self.now })
+        await storeValidToken()
+        httpClient.results = [.success(status: 202, data: rotatedResponse(expiresAtMs: Int64.max))]
+
+        try await makeService().send(events: sampleEvents())
+
+        let header = await sessionManager.authorizationHeader
+        XCTAssertEqual(header, "Bearer rotated-jwt")
+        guard let persisted = store.string(forKey: TxnSessionStoreKeys.expiresAt).flatMap(Int64.init) else {
+            XCTFail("expected an integer epoch-ms expiry in the store")
+            return
+        }
+        let capMs = Int64(now.addingTimeInterval(TxnSessionPersistence.maxTokenTTL).timeIntervalSince1970 * 1000)
+        XCTAssertLessThanOrEqual(persisted, capMs)
     }
 
     func test_send_success_rotatesSessionToken() async throws {
@@ -470,6 +489,13 @@ final class TestTxnEventService: XCTestCase {
             XCTFail("Unexpected error: \(error)")
         }
     }
+}
+
+private final class InMemoryTxnSessionStore: TxnSessionStore {
+    private var values: [String: String] = [:]
+    func string(forKey key: String) -> String? { values[key] }
+    func setString(_ value: String, forKey key: String) { values[key] = value }
+    func removeValue(forKey key: String) { values[key] = nil }
 }
 
 private final class SpyTxnPendingEventStore: TxnPendingEventStoring {

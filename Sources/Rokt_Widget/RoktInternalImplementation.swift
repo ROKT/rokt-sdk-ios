@@ -1596,8 +1596,7 @@ class RoktInternalImplementation {
         guard let sessionId = snapshot.sessionId,
               !sessionId.isEmpty,
               let token = snapshot.token,
-              !token.isEmpty,
-              let expiresAt = snapshot.expiresAt
+              !token.isEmpty
         else {
             RoktLogger.shared.warning(
                 "Rokt.getSession returned nil: no session is present."
@@ -1605,14 +1604,24 @@ class RoktInternalImplementation {
             return nil
         }
 
-        if TxnSessionPersistence.clearIfExpired(expiresAt: expiresAt, store: store, clock: Date.init) {
+        // A missing or unreadable expiry counts as expired, matching restore, so a corrupt stored
+        // value is cleared here rather than returned on every call.
+        if TxnSessionPersistence.clearIfExpired(expiresAt: snapshot.expiresAt, store: store, clock: Date.init) {
             RoktLogger.shared.warning(
                 "Rokt.getSession returned nil: session token is expired."
             )
             return nil
         }
 
-        let expiresAtMs = Int64((expiresAt.timeIntervalSince1970 * 1000).rounded(.down))
+        guard let expiresAt = snapshot.expiresAt,
+              let expiresAtMs = TxnSessionPersistence.epochMilliseconds(expiresAt)
+        else {
+            TxnSessionPersistence.clear(store: store)
+            RoktLogger.shared.warning(
+                "Rokt.getSession returned nil: persisted session expiry is invalid."
+            )
+            return nil
+        }
         return RoktSession(
             sessionId: sessionId,
             sessionToken: token,
@@ -1621,7 +1630,8 @@ class RoktInternalImplementation {
     }
 
     /// Uses a future partner-supplied expiry when present; otherwise (or when already past)
-    /// falls back to now + ``partnerSessionTokenDefaultTTL``.
+    /// falls back to now + ``partnerSessionTokenDefaultTTL``. An expiry further out than
+    /// `TxnSessionPersistence.maxTokenTTL` is capped when the session is seeded.
     private static func resolvedPartnerExpiresAtMilliseconds(
         _ expiresAtMilliseconds: Int64?,
         now: Date = Date()
