@@ -146,19 +146,20 @@ final class PaymentOrchestrator {
     private static var pendingBuiltInTwoStepCheckouts: [BuiltInTwoStepCheckoutKey: PendingBuiltInTwoStepCheckout] = [:]
 
     /// Where a PayPal entry taken out of ``pendingBuiltInTwoStepCheckouts`` for its hosted approval stands.
-    private struct PresentedBuiltInPayPalCheckout {
-        enum Phase {
-            /// The approval sheet is up; a cancel re-queues the entry for the confirm button to start again, and no
-            /// other PayPal approval is started until this one ends.
-            case presenting
-            /// Its layout closed or failed, or the session was cleared, while the sheet was up; a cancel drops the
-            /// entry. The sheet itself is not interrupted: while it is still on screen it holds later confirms back
-            /// like any other, and once the host has torn it down without reporting back it lets them through, so a
-            /// sheet that is gone cannot block PayPal for the rest of the process.
-            case fenced
-        }
+    private enum PresentedBuiltInPayPalCheckoutPhase {
+        /// The approval sheet is up; a cancel re-queues the entry for the confirm button to start again, and no
+        /// other PayPal approval is started until this one ends.
+        case presenting
+        /// Its layout closed or failed, or the session was cleared, while the sheet was up; a cancel drops the
+        /// entry. The sheet itself is not interrupted: while it is still on screen it holds later confirms back
+        /// like any other, and once the host has torn it down without reporting back it lets them through, so a
+        /// sheet that is gone cannot block PayPal for the rest of the process.
+        case fenced
+    }
 
-        var phase: Phase
+    /// A PayPal entry out for its hosted approval: where it stands, and the checkout whose sheet it is.
+    private struct PresentedBuiltInPayPalCheckout {
+        var phase: PresentedBuiltInPayPalCheckoutPhase
         /// The checkout whose sheet this is; it knows whether that sheet is still on screen. Weak: the orchestrator
         /// that presented the sheet holds the checkout until it completes.
         weak var coordinator: PayPalCheckoutCoordinator?
