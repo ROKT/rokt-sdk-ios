@@ -203,6 +203,43 @@ final class RoktPaymentExtensionTests: XCTestCase {
         XCTAssertFalse(ext.matchesConfiguredReturnURL(URL(string: "https://partner.example:8444/rokt/return")!))
     }
 
+    func testMatchesConfiguredReturnURLUniversalLinkTreatsDefaultPortAsNoPort() {
+        let ext = RoktPaymentExtension(
+            universalLinkReturnURL: universalLink,
+            bundle: makeBundleWithoutSchemes()
+        )!
+        let explicitDefaultPort = "https://partner.example:443/rokt/return?redirect_status=succeeded&payment_intent=pi_x"
+        XCTAssertTrue(ext.matchesConfiguredReturnURL(URL(string: explicitDefaultPort)!))
+        XCTAssertFalse(ext.matchesConfiguredReturnURL(URL(string: "https://partner.example:80/rokt/return")!))
+
+        let configuredWithDefaultPort = RoktPaymentExtension(
+            universalLinkReturnURL: URL(string: "https://partner.example:443/rokt/return")!,
+            bundle: makeBundleWithoutSchemes()
+        )!
+        for matching in ["https://partner.example/rokt/return", "https://partner.example:443/rokt/return"] {
+            XCTAssertTrue(configuredWithDefaultPort.matchesConfiguredReturnURL(URL(string: matching)!), matching)
+        }
+        XCTAssertFalse(
+            configuredWithDefaultPort.matchesConfiguredReturnURL(URL(string: "https://partner.example:8443/rokt/return")!)
+        )
+    }
+
+    func testMatchesUniversalLinkTreatsEachSchemesDefaultPortAsNoPort() {
+        XCTAssertTrue(ReturnURLMatching.matchesUniversalLink(
+            URL(string: "http://partner.example:80/rokt/return")!, expected: URL(string: "http://partner.example/rokt/return")!
+        ))
+        XCTAssertTrue(ReturnURLMatching.matchesUniversalLink(
+            URL(string: "https://partner.example/rokt/return")!, expected: URL(string: "https://partner.example:443/rokt/return")!
+        ))
+        XCTAssertFalse(ReturnURLMatching.matchesUniversalLink(
+            URL(string: "http://partner.example:443/rokt/return")!, expected: URL(string: "http://partner.example/rokt/return")!
+        ))
+        XCTAssertFalse(ReturnURLMatching.matchesUniversalLink(
+            URL(string: "https://partner.example:443/rokt/return")!,
+            expected: URL(string: "https://partner.example:8443/rokt/return")!
+        ))
+    }
+
     func testMatchesConfiguredReturnURLCustomSchemeRejectsUniversalLink() {
         let ext = RoktPaymentExtension(
             urlScheme: "myapp",

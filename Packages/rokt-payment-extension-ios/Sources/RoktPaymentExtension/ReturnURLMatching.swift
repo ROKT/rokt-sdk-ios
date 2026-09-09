@@ -22,8 +22,10 @@ enum ReturnURLMatching {
     }
 
     /// Returns `true` when `url` and `expected` share a scheme and host
-    /// (case-insensitively), the same port, and the same path. A trailing slash
-    /// on the path is ignored, as are the query and fragment.
+    /// (case-insensitively), the same port, and the same path. The scheme's
+    /// default port (443 for `https`, 80 for `http`) counts as no port, so an
+    /// incoming `https://host:443/path` matches a configured `https://host/path`.
+    /// A trailing slash on the path is ignored, as are the query and fragment.
     static func matchesUniversalLink(_ url: URL, expected: URL) -> Bool {
         guard let scheme = url.scheme?.lowercased(),
               let expectedScheme = expected.scheme?.lowercased(),
@@ -31,7 +33,7 @@ enum ReturnURLMatching {
               let host = url.host?.lowercased(),
               let expectedHost = expected.host?.lowercased(),
               host == expectedHost,
-              url.port == expected.port else {
+              effectivePort(of: url, scheme: scheme) == effectivePort(of: expected, scheme: scheme) else {
             return false
         }
         return normalizedPath(of: url) == normalizedPath(of: expected)
@@ -42,6 +44,13 @@ enum ReturnURLMatching {
     /// fragment are ignored.
     static func matchesCustomScheme(_ url: URL, scheme: String, host: String) -> Bool {
         url.scheme?.lowercased() == scheme.lowercased() && url.host == host
+    }
+
+    private static let defaultPorts = ["https": 443, "http": 80]
+
+    /// The port to compare: an explicit port, or the scheme's default when none is given.
+    private static func effectivePort(of url: URL, scheme: String) -> Int? {
+        url.port ?? defaultPorts[scheme]
     }
 
     private static func normalizedPath(of url: URL) -> String {
