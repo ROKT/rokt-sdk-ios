@@ -1203,10 +1203,11 @@ class RoktInternalImplementation {
         sessionGeneration &+= 1
         // Also clears the legacy session id and, via ManagedSession, the real-time event store.
         sessionManager.invalidateSession()
-        sessionGenerationLock.unlock()
-        // The cached experience was fetched inside the dropped session, so it goes with it.
+        // The cached experience was fetched inside the dropped session, so it goes with it. Under the same lock,
+        // so a response commit in progress finishes first and what it wrote is what this clear removes.
         ExperienceCacheManager.clearCache()
         mustBypassCacheOnNextExecute = true
+        sessionGenerationLock.unlock()
         RoktLogger.shared.info("Session cleared; the next placement will start a new session")
     }
 
@@ -1214,6 +1215,17 @@ class RoktInternalImplementation {
         sessionGenerationLock.lock()
         defer { sessionGenerationLock.unlock() }
         return sessionGeneration
+    }
+
+    /// Runs `commit` under the generation lock while `generation` is still current and returns true; returns
+    /// false, running nothing, once clearSession has moved the generation. A clearSession arriving on another
+    /// queue waits for a commit in progress, so a response is committed whole or not at all — never half of it.
+    func commitIfCurrent(generation: Int, _ commit: () -> Void) -> Bool {
+        sessionGenerationLock.lock()
+        defer { sessionGenerationLock.unlock() }
+        guard sessionGeneration == generation else { return false }
+        commit()
+        return true
     }
 
     // The offers response echoes events for the next placement to forward. Captured after a
@@ -1373,35 +1385,50 @@ class RoktInternalImplementation {
                             // Released before the fence so a discarded completion cannot wedge execute.
                             self.isExecuting = false
 
-                            guard self.currentSessionGeneration() == generation else {
+                            // The response is committed — cache write, legacy session id, echoed events — only while
+                            // the placement's generation is current, and under the generation lock: a clearSession on
+                            // another queue either waits for the whole commit or fences it out, never half of it.
+                            var layoutPageExecutePayload: LayoutPageExecutePayload?
+                            let committed = self.commitIfCurrent(generation: generation) {
+                                guard let page else { return }
+                                self.mustBypassCacheOnNextExecute = false
+                                // cache experience if applicable
+                                if self.isCacheEnabledAndConfigured() {
+                                    let cacheAttributes = self.roktConfig.cacheConfig.getCacheAttributesOrFallback(attributes)
+                                    ExperienceCacheManager.cacheExperienceResponse(
+                                        viewName: viewName,
+                                        attributes: cacheAttributes,
+                                        experienceResponse: page,
+                                        success: {
+                                            // The store writes on its own queue, so a clearSession that ran after
+                                            // this commit may have cleared before the write landed: clear again.
+                                            if self.currentSessionGeneration() != generation {
+                                                ExperienceCacheManager.clearCache()
+                                            }
+                                        }
+                                    )
+                                }
+
+                                // Use cacheAttributes for plugin view states if cache is enabled for consistency
+                                let attributesForPluginStates = self.roktConfig.cacheConfig
+                                    .getCacheAttributesOrFallback(attributes)
+                                layoutPageExecutePayload = self.processLayoutPageExecutePayload(
+                                    page, selectionId: selectionId, viewName: viewName, attributes: attributesForPluginStates
+                                )
+                            }
+                            guard committed else {
                                 RoktLogger.shared.info("Discarding a placement that completed after clearSession")
                                 self.conclude(withFailure: true)
                                 return
                             }
-                            guard let page else {
+                            guard let layoutPageExecutePayload else {
                                 self.conclude(withFailure: true)
                                 return
                             }
-                            self.mustBypassCacheOnNextExecute = false
-                            // cache experience if applicable
-                            if self.isCacheEnabledAndConfigured() {
-                                let cacheAttributes = self.roktConfig.cacheConfig.getCacheAttributesOrFallback(attributes)
-
-                                DispatchQueue.background.async {
-                                    ExperienceCacheManager.cacheExperienceResponse(
-                                        viewName: viewName,
-                                        attributes: cacheAttributes,
-                                        experienceResponse: page
-                                    )
-                                }
-                            }
-
-                            // Use cacheAttributes for plugin view states if cache is enabled for consistency
-                            let attributesForPluginStates = self.roktConfig.cacheConfig
-                                .getCacheAttributesOrFallback(attributes)
-                            guard let layoutPageExecutePayload = self.processLayoutPageExecutePayload(
-                                page, selectionId: selectionId, viewName: viewName, attributes: attributesForPluginStates
-                            ) else {
+                            // A clearSession that landed after the commit owns the screen now; the commit's state
+                            // went with it under the lock. (One landing during the render itself is the residual.)
+                            guard self.currentSessionGeneration() == generation else {
+                                RoktLogger.shared.info("Discarding a placement that completed after clearSession")
                                 self.conclude(withFailure: true)
                                 return
                             }
