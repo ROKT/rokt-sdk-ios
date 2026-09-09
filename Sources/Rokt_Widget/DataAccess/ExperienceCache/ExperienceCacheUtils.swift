@@ -103,7 +103,7 @@ struct ExperienceCacheUtils {
      Compute and return plugin view state full file name
 
      - Parameters:
-      - pluginId: A string representing the plugin ID
+      - pluginId: A string representing the plugin ID. It is hashed so the file name never carries raw identifier bytes.
       - viewName: A string representing the targetted view name received in execute.
       - attributes: A string dictionary containing the custom attributes received in execute.
      */
@@ -111,7 +111,7 @@ struct ExperienceCacheUtils {
                                            viewName: String?,
                                            attributes: [String: String]) -> String {
         let hashKey = getExperienceCacheHashKey(viewName: viewName, attributes: attributes)
-        return String(format: "%@%@%@", viewStateFilePrefix, hashKey, pluginId)
+        return String(format: "%@%@%@", viewStateFilePrefix, hashKey, pluginId.sha256())
     }
 
     // MARK: Experiences view state

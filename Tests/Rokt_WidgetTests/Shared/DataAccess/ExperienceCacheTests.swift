@@ -293,6 +293,86 @@ class ExperienceCacheTests: XCTestCase {
         } catch { XCTFail("File data could not be decoded") }
     }
 
+    // MARK: Plugin ids and file names stay inside the cache directory
+
+    func test_getPluginViewStateFileName_hashesPluginId_soNoPathBytesReachTheFileName() {
+        let prefix = "RoktPluginViewState"
+        let pluginIdsWithPathCharacters = ["/../../x", "a/b\\c..d", "..", ""]
+        var fileNames = Set<String>()
+
+        for pluginId in pluginIdsWithPathCharacters {
+            let fileName = pluginViewStateFileName(for: pluginId)
+
+            XCTAssertTrue(fileName.hasPrefix(prefix), fileName)
+            XCTAssertEqual(fileName.count, prefix.count + 128, fileName)
+            XCTAssertNil(fileName.rangeOfCharacter(from: CharacterSet(charactersIn: "/\\.")), fileName)
+            fileNames.insert(fileName)
+        }
+
+        XCTAssertEqual(fileNames.count, pluginIdsWithPathCharacters.count, "distinct plugin ids must map to distinct files")
+        XCTAssertEqual(pluginViewStateFileName(for: mockedPluginId), pluginViewStateFileName(for: mockedPluginId))
+    }
+
+    func test_getFileUrl_rejectsNamesThatWouldLeaveTheCacheDirectory() throws {
+        stubDiagnostics(onDiagnosticsReceive: { _ in })
+        let cacheDirectory = try XCTUnwrap(ExperienceCacheManager.getCacheDirectoryUrl())
+
+        for name in ["../../escape", "RoktPluginViewStateabc/../../escape", "/escape", "..", ".", "", "a\u{0}b"] {
+            XCTAssertNil(ExperienceCacheManager.getFileUrl(name: name), "\(name.debugDescription) must not resolve")
+        }
+
+        let accepted = try XCTUnwrap(ExperienceCacheManager.getFileUrl(name: "RoktPluginViewStateabc"))
+        XCTAssertEqual(accepted.lastPathComponent, "RoktPluginViewStateabc.json")
+        XCTAssertTrue(accepted.isContained(in: cacheDirectory))
+        XCTAssertTrue(accepted.path.hasPrefix(cacheDirectory.path + "/"))
+    }
+
+    func test_getOrCreateCachedPluginViewState_withTraversalPluginId_writesNothingOutsideTheCacheDirectory() throws {
+        stubDiagnostics(onDiagnosticsReceive: { _ in })
+        let fileManager = FileManager.default
+        let cacheDirectory = try XCTUnwrap(ExperienceCacheManager.getCacheDirectoryUrl())
+        let traversingPluginId = "/../../rokt-traversal-probe"
+        // Where a verbatim id would have landed: the `..` segments collapse the whole
+        // prefix+hash component, so any 64-character stand-in resolves to the same path.
+        let escapedTarget = cacheDirectory
+            .appendingPathComponent("RoktPluginViewState" + String(repeating: "0", count: 64) + traversingPluginId)
+            .appendingPathExtension("json")
+            .standardizedFileURL
+        XCTAssertFalse(escapedTarget.isContained(in: cacheDirectory), "the probe must target a path outside the cache")
+        try? fileManager.removeItem(at: escapedTarget)
+        addTeardownBlock { try? fileManager.removeItem(at: escapedTarget) }
+
+        _ = ExperienceCacheManager.getOrCreateCachedPluginViewState(
+            pluginId: "/x", viewName: mockedViewName, attributes: mockedAttributes
+        )
+        let created = ExperienceCacheManager.getOrCreateCachedPluginViewState(
+            pluginId: traversingPluginId, viewName: mockedViewName, attributes: mockedAttributes
+        )
+
+        let exp = expectation(description: "Test after 1s")
+        _ = XCTWaiter.wait(for: [exp], timeout: 1)
+
+        XCTAssertEqual(created, RoktPluginViewState(pluginId: traversingPluginId))
+        XCTAssertFalse(fileManager.fileExists(atPath: escapedTarget.path), "plugin view state escaped the cache directory")
+        XCTAssertTrue(ExperienceCacheTests.experienceCachePluginViewStateFileExists(
+            pluginId: traversingPluginId, viewName: mockedViewName, attributes: mockedAttributes
+        ), "the view state should still be cached, inside the cache directory")
+
+        let contents = try XCTUnwrap(
+            fileManager.enumerator(at: cacheDirectory, includingPropertiesForKeys: nil)?.allObjects as? [URL]
+        )
+        XCTAssertFalse(contents.isEmpty)
+        for item in contents {
+            XCTAssertTrue(item.isContained(in: cacheDirectory), item.path)
+        }
+    }
+
+    private func pluginViewStateFileName(for pluginId: String) -> String {
+        ExperienceCacheUtils.getPluginViewStateFileName(
+            pluginId: pluginId, viewName: mockedViewName, attributes: mockedAttributes
+        )
+    }
+
     // MARK: Experiences view state cache management
 
     func test_cacheExperienceViewState_checkFileContents() {

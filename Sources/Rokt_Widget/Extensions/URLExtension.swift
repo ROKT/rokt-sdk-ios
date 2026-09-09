@@ -11,4 +11,29 @@ internal extension URL {
     static func isWebURL(url: String) -> Bool {
         return url.lowercased().hasPrefix(httpPrefix) || url.lowercased().hasPrefix(httpsPrefix)
     }
+
+    /// Whether this file URL resolves to a location strictly inside `directory`.
+    ///
+    /// The comparison is purely lexical: `.` and `..` segments are collapsed and the
+    /// components compared, without consulting the filesystem. Foundation's own
+    /// standardization only rewrites paths that already exist, which would make the answer
+    /// differ for a file that is about to be created.
+    func isContained(in directory: URL) -> Bool {
+        let directoryComponents = URL.collapsedPathComponents(directory)
+        let candidateComponents = URL.collapsedPathComponents(self)
+        guard candidateComponents.count > directoryComponents.count else { return false }
+        return Array(candidateComponents.prefix(directoryComponents.count)) == directoryComponents
+    }
+
+    private static func collapsedPathComponents(_ url: URL) -> [String] {
+        var collapsed: [String] = []
+        for component in url.pathComponents where component != "/" && component != "." {
+            if component == ".." {
+                _ = collapsed.popLast()
+            } else {
+                collapsed.append(component)
+            }
+        }
+        return collapsed
+    }
 }
