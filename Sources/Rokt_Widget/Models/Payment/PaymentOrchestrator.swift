@@ -450,8 +450,9 @@ final class PaymentOrchestrator {
                       !returnURL.isEmpty,
                       URL(string: returnURL) != nil
                 else {
-                    Self.removePendingBuiltInTwoStep(for: key)
                     guard endPreparing(nil) else { return }
+                    // Only the request that still owns this item drops its earlier checkout, if one was on offer.
+                    Self.removePendingBuiltInTwoStep(for: key)
                     DispatchQueue.main.async {
                         completion(.failed(error: Self.payPalReturnURLMissingMessage))
                     }

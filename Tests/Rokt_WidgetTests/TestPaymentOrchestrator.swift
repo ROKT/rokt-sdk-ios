@@ -1259,6 +1259,7 @@ class TestPaymentOrchestrator: XCTestCase {
     /// session while the request is still out, then deliver the response with `releaseHeldInitializePurchase()`.
     private func startHeldPayPalStepOne(
         response: InitializePurchaseResponse? = TestPaymentOrchestrator.validPayPalInitializePurchaseResponse(),
+        returnURL: String? = "myapp://paypal/success",
         onConfirmation: @escaping () -> Void,
         onStepOneResult: @escaping (PaymentSheetResult) -> Void
     ) {
@@ -1270,7 +1271,7 @@ class TestPaymentOrchestrator: XCTestCase {
             item: PaymentItem(id: "p1", name: "P", amount: 1, currency: "USD"),
             context: PaymentContext(
                 billingAddress: ContactAddress(name: "A", email: "a@b.com"),
-                returnURL: "myapp://paypal/success",
+                returnURL: returnURL,
                 cancelURL: nil
             ),
             cartItemId: "v1:cart:1",
@@ -1336,6 +1337,44 @@ class TestPaymentOrchestrator: XCTestCase {
         XCTAssertEqual(confirmationCount, 1)
         XCTAssertNil(stepOneResult, "The Step-1 completion waits for Step-2")
         XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()))
+    }
+
+    func test_stepOne_payPal_supersededResponseWithoutAReturnURL_leavesTheNewerCheckoutInPlace() {
+        var firstResult: PaymentSheetResult?
+        startHeldPayPalStepOne(
+            returnURL: nil,
+            onConfirmation: { XCTFail("A Step-1 that was started again before it answered shows nothing") },
+            onStepOneResult: { firstResult = $0 }
+        )
+
+        // Step-1 is started again for the same item and answers first, so its checkout is the one on offer.
+        PaymentOrchestratorAPIHelperSpy.holdInitializePurchaseResponse = false
+        var confirmationCount = 0
+        var secondResult: PaymentSheetResult?
+        sut.processPayment(
+            method: .paypal,
+            item: PaymentItem(id: "p1", name: "P", amount: 1, currency: "USD"),
+            context: PaymentContext(
+                billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                returnURL: "myapp://paypal/success",
+                cancelURL: nil
+            ),
+            cartItemId: "v1:cart:1",
+            from: UIViewController(),
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests { _, _, _ in confirmationCount += 1 },
+            completion: { secondResult = $0 }
+        )
+        XCTAssertEqual(confirmationCount, 1)
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()))
+
+        // The earlier request answers without a return URL; that answer belongs to nobody now.
+        PaymentOrchestratorAPIHelperSpy.releaseHeldInitializePurchase()
+        drainMainQueue()
+
+        XCTAssertNil(firstResult, "The superseded Step-1 reports nothing")
+        XCTAssertNil(secondResult, "The newer Step-1 completion waits for Step-2")
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()), "The newer checkout stays on offer")
+        XCTAssertEqual(confirmationCount, 1)
     }
 
     func test_stepOne_card_responseAfterTheSessionCleared_showsNoConfirmationAndStoresNothing() {
