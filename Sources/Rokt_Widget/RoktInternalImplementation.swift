@@ -1592,7 +1592,7 @@ class RoktInternalImplementation {
             return nil
         }
 
-        let snapshot = TxnSessionPersistence.readRaw(store: store)
+        var snapshot = TxnSessionPersistence.readRaw(store: store)
         guard let sessionId = snapshot.sessionId,
               !sessionId.isEmpty,
               let token = snapshot.token,
@@ -1611,6 +1611,11 @@ class RoktInternalImplementation {
                 "Rokt.getSession returned nil: no session is present."
             )
             return nil
+        }
+        // The expiry landed after the snapshot was taken: a write was in progress. Read the session again so
+        // the expiry decision below sees the same write the expiry came from, not a half-written session.
+        if snapshot.expiresAt == nil {
+            snapshot = TxnSessionPersistence.readRaw(store: store)
         }
 
         // A present but unreadable or out-of-range expiry counts as expired, matching restore.
