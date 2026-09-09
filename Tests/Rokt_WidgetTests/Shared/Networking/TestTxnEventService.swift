@@ -223,6 +223,61 @@ final class TestTxnEventService: XCTestCase {
         XCTAssertEqual(recordedDelays, [0.0])
     }
 
+    /// `Double.init` parses these; a non-finite delay falls back to backoff like the malformed case.
+    func test_send_retryAfterNonFinite_fallsBackToBackoff() async throws {
+        for raw in ["inf", "infinity", "Infinity", "nan", "-inf"] {
+            var recordedDelays: [TimeInterval] = []
+            httpClient = MockTxnEventsHTTPClient()
+            let service = makeService(sleep: { recordedDelays.append($0) })
+            httpClient.results = [.statusWithHeaders(429, ["Retry-After": raw]),
+                                  .success(status: 202, data: rotatedResponse())]
+
+            try await service.send(events: sampleEvents())
+
+            XCTAssertEqual(httpClient.callCount, 2, raw)
+            XCTAssertEqual(recordedDelays, [0.0], raw)
+        }
+    }
+
+    /// A delay past the ceiling is clamped rather than dropped, so a rate-limiting gateway is still paced.
+    func test_send_retryAfterAboveCeiling_isClamped() async throws {
+        for raw in ["20000000000", "1e300", "999999", "60.5"] {
+            var recordedDelays: [TimeInterval] = []
+            httpClient = MockTxnEventsHTTPClient()
+            let service = makeService(sleep: { recordedDelays.append($0) })
+            httpClient.results = [.statusWithHeaders(503, ["Retry-After": raw]),
+                                  .success(status: 202, data: rotatedResponse())]
+
+            try await service.send(events: sampleEvents())
+
+            XCTAssertEqual(httpClient.callCount, 2, raw)
+            XCTAssertEqual(recordedDelays, [TxnEventService.maxRetryAfterDelay], raw)
+        }
+    }
+
+    func test_send_retryAfterWithinCeiling_isHonoredUnchanged() async throws {
+        var recordedDelays: [TimeInterval] = []
+        let service = makeService(sleep: { recordedDelays.append($0) })
+        httpClient.results = [.statusWithHeaders(429, ["Retry-After": "2.5"]),
+                              .success(status: 202, data: rotatedResponse())]
+
+        try await service.send(events: sampleEvents())
+
+        XCTAssertEqual(recordedDelays, [2.5])
+    }
+
+    func test_send_retryAfterNegative_fallsBackToBackoff() async throws {
+        var recordedDelays: [TimeInterval] = []
+        let service = makeService(sleep: { recordedDelays.append($0) })
+        httpClient.results = [.statusWithHeaders(429, ["Retry-After": "-1"]),
+                              .success(status: 202, data: rotatedResponse())]
+
+        try await service.send(events: sampleEvents())
+
+        XCTAssertEqual(httpClient.callCount, 2)
+        XCTAssertEqual(recordedDelays, [0.0])
+    }
+
     func test_send_retriesOnTimeout_thenSucceeds() async throws {
         httpClient.results = [.transport(NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut)),
                               .success(status: 202, data: rotatedResponse())]
