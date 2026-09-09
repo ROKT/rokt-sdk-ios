@@ -565,6 +565,69 @@ final class TestOffersExecuteWiring: XCTestCase {
         XCTAssertNil(cached, "the experience committed just before the clear is not cached for the next session")
     }
 
+    /// The cache-hit sibling of the test above. A `clearSession()` that arrives while a cached experience is being
+    /// committed waits for the commit and then wins: the cached placement is not shown, the session id it restored
+    /// is gone and the cached experience goes with the session it was fetched in.
+    func test_execute_clearSessionDuringTheCachedCommit_waitsForItThenWins() throws {
+        impl.txnSessionStore = InMemoryTxnStore()
+        initialize(cacheEnabled: true)
+        let viewName = "checkout"
+        let attributes = ["email": "cached-commit@example.com"]
+        let cacheDuration = TimeInterval(300)
+        let cacheConfig = RoktConfig.Builder()
+            .cacheConfig(RoktConfig.CacheConfig(cacheDuration: cacheDuration))
+            .build()
+        ExperienceCacheManager.cacheExperienceResponse(
+            viewName: viewName,
+            attributes: attributes,
+            experienceResponse: try XCTUnwrap(String(bytes: renderFixture(), encoding: .utf8))
+        )
+        waitUntil({
+            ExperienceCacheManager.getCachedExperienceResponse(
+                viewName: viewName, attributes: attributes, cacheDuration: cacheDuration
+            ) != nil
+        }, timeout: 10)
+        // The placement must be served from the cache; a fetch here would be the wrong path and fails locally.
+        impl.makeOffersServiceOverride = offersOverride(data: nil, status: 500)
+
+        let clearSessionReturned = expectation(description: "clearSession returned")
+        let clearSessionLanded = DispatchSemaphore(value: 0)
+        var clearSessionReturnedDuringCommit = true
+        impl.onCommit = { [weak impl] in
+            // clearSession from another queue while the cached commit holds the fence: it has to wait.
+            let entered = DispatchSemaphore(value: 0)
+            let returned = DispatchSemaphore(value: 0)
+            DispatchQueue.global().async {
+                entered.signal()
+                impl?.clearSession()
+                returned.signal()
+                clearSessionLanded.signal()
+                clearSessionReturned.fulfill()
+            }
+            entered.wait()
+            clearSessionReturnedDuringCommit = returned.wait(timeout: .now() + 0.3) == .success
+        }
+        // Once the commit has released the fence, let that clearSession land before the render is re-checked, so
+        // the re-check is exercised on every run and not only when the other queue takes the lock first.
+        impl.unitTest_afterCacheHitCommit = { _ = clearSessionLanded.wait(timeout: .now() + 5) }
+        let discarded = expectation(description: "the cached placement reports failure")
+        impl.execute(viewName: viewName, attributes: attributes, config: cacheConfig) { event in
+            if event is RoktEvent.PlacementFailure { discarded.fulfill() }
+        }
+        wait(for: [clearSessionReturned, discarded], timeout: 10)
+        settle()
+        settle()
+
+        XCTAssertFalse(clearSessionReturnedDuringCommit, "clearSession waits for a cached commit in progress")
+        XCTAssertNotNil(impl.capturedPage, "a cached commit that started before clearSession runs to its end")
+        XCTAssertNil(impl.getSessionId(), "the session id the cached experience restored does not survive the clear")
+        XCTAssertNil(RoktLogger.shared.sessionId)
+        let cached = ExperienceCacheManager.getCachedExperienceResponse(
+            viewName: viewName, attributes: attributes, cacheDuration: cacheDuration
+        )
+        XCTAssertNil(cached, "the cached experience goes with the session it was fetched in")
+    }
+
     /// Lets asynchronous work that follows an observed event run to completion.
     private func settle() {
         let settled = expectation(description: "settled")

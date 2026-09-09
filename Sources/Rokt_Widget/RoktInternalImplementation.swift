@@ -94,6 +94,8 @@ class RoktInternalImplementation {
     var makeTxnEventServiceOverride: ((String) -> TxnEventService)?
     // Test-only hook, run once a cached experience has been read and before it is committed; nil in production.
     var unitTest_beforeCacheHitCommit: (() -> Void)?
+    // Test-only hook, run once a cached experience is committed and before the render is re-checked; nil in production.
+    var unitTest_afterCacheHitCommit: (() -> Void)?
     private var pendingPayload: ExecutePayload?
     private var clientTimeoutMilliseconds: Double = RoktInternalImplementation.defaultTimeoutMilliseconds
     private var defaultLaunchDelayMilliseconds: Double = RoktInternalImplementation.defaultDelay
@@ -1390,6 +1392,7 @@ class RoktInternalImplementation {
                                                           Self.cacheAttributesKey: Array(cacheAttributes.keys).description
                                                       ])
 
+                        self.unitTest_afterCacheHitCommit?()
                         guard self.currentSessionGeneration() == generation else {
                             RoktLogger.shared.info("Discarding a cached placement that resolved after clearSession")
                             self.conclude(withFailure: true)
