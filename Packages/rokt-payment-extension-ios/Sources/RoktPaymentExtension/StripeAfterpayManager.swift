@@ -27,6 +27,24 @@ internal class StripeAfterpayManager {
     /// survives the redirect round-trip.
     private(set) var activeConfirmer: AfterpayPaymentConfirming?
 
+    /// Confirmers borrowed by any manager in the process. `STPPaymentHandler.shared()` is
+    /// process-wide, so a manager created while another's confirmation is still in flight
+    /// (the extension re-registered mid-redirect) must not borrow the same handler again.
+    private static var borrowedConfirmers = Set<ObjectIdentifier>()
+    private static let borrowLock = NSLock()
+
+    private static func borrow(_ confirmer: AfterpayPaymentConfirming) -> Bool {
+        borrowLock.lock()
+        defer { borrowLock.unlock() }
+        return borrowedConfirmers.insert(ObjectIdentifier(confirmer)).inserted
+    }
+
+    private static func release(_ confirmer: AfterpayPaymentConfirming) {
+        borrowLock.lock()
+        defer { borrowLock.unlock() }
+        borrowedConfirmers.remove(ObjectIdentifier(confirmer))
+    }
+
     internal init(
         apiClient: STPAPIClient,
         returnURL: String,
@@ -101,39 +119,46 @@ internal class StripeAfterpayManager {
                 return
             }
 
-            guard self.activeConfirmer == nil else {
-                completion(.failed(error: "A payment is already in progress"))
-                return
-            }
+            // All manager state is read and written on the main queue; Stripe's handler completes there.
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
 
-            guard StripeAccountId.isValid(preparation.merchantId) else {
-                completion(.failed(error: "Payment preparation returned an invalid merchant account id"))
-                return
-            }
+                guard self.activeConfirmer == nil else {
+                    completion(.failed(error: "A payment is already in progress"))
+                    return
+                }
 
-            let extensionClient = self.apiClient
-            extensionClient.stripeAccount = preparation.merchantId
+                guard StripeAccountId.isValid(preparation.merchantId) else {
+                    completion(.failed(error: "Payment preparation returned an invalid merchant account id"))
+                    return
+                }
 
-            let params = STPPaymentIntentParams(clientSecret: preparation.clientSecret)
-            params.paymentMethodParams = STPPaymentMethodParams(
-                afterpayClearpay: STPPaymentMethodAfterpayClearpayParams(),
-                billingDetails: BillingDetailsMapping.map(from: billingAddress, fallbackName: billingName),
-                metadata: nil
-            )
-            params.returnURL = self.returnURL
+                let confirmer = self.makeConfirmer()
+                guard Self.borrow(confirmer) else {
+                    completion(.failed(error: "A payment is already in progress"))
+                    return
+                }
 
-            if let shippingAddress = context.shippingAddress {
-                params.shipping = BillingDetailsMapping.mapShipping(from: shippingAddress, fallbackName: billingName)
-            }
+                let extensionClient = self.apiClient
+                extensionClient.stripeAccount = preparation.merchantId
 
-            let authContext = SimpleAuthenticationContext(presentingController: viewController)
+                let params = STPPaymentIntentParams(clientSecret: preparation.clientSecret)
+                params.paymentMethodParams = STPPaymentMethodParams(
+                    afterpayClearpay: STPPaymentMethodAfterpayClearpayParams(),
+                    billingDetails: BillingDetailsMapping.map(from: billingAddress, fallbackName: billingName),
+                    metadata: nil
+                )
+                params.returnURL = self.returnURL
 
-            let confirmer = self.makeConfirmer()
-            self.activeConfirmer = confirmer
+                if let shippingAddress = context.shippingAddress {
+                    params.shipping = BillingDetailsMapping.mapShipping(from: shippingAddress, fallbackName: billingName)
+                }
 
-            DispatchQueue.main.async {
-                // The shared handler is borrowed for this confirmation: pointed at the
-                // extension-owned client and handed back with the host app's client on every outcome.
+                let authContext = SimpleAuthenticationContext(presentingController: viewController)
+                self.activeConfirmer = confirmer
+
+                // The process-wide handler is borrowed for this confirmation: pointed at the
+                // extension-owned client and handed back with the client it held on every outcome.
                 let hostClient = confirmer.apiClient
                 confirmer.apiClient = extensionClient
 
@@ -144,6 +169,7 @@ internal class StripeAfterpayManager {
                     confirmer.apiClient = hostClient
                     extensionClient.stripeAccount = nil
                     self?.activeConfirmer = nil
+                    Self.release(confirmer)
 
                     switch status {
                     case .succeeded:
