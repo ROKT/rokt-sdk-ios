@@ -1604,7 +1604,16 @@ class RoktInternalImplementation {
             return nil
         }
 
-        // A missing or unreadable expiry counts as expired, matching restore.
+        // An absent expiry key is not a verdict on the session: the store writes its keys one at a time,
+        // so a read between the token write and the expiry write must return nil without touching it.
+        guard let rawExpiry = store.string(forKey: TxnSessionStoreKeys.expiresAt), !rawExpiry.isEmpty else {
+            RoktLogger.shared.warning(
+                "Rokt.getSession returned nil: no session is present."
+            )
+            return nil
+        }
+
+        // A present but unreadable or out-of-range expiry counts as expired, matching restore.
         if TxnSessionPersistence.clearIfExpired(expiresAt: snapshot.expiresAt, store: store, clock: Date.init) {
             RoktLogger.shared.warning(
                 "Rokt.getSession returned nil: session token is expired."
