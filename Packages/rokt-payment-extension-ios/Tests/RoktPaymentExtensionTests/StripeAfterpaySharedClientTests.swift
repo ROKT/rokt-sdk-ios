@@ -7,9 +7,11 @@ import XCTest
 /// the host app's shared `STPAPIClient` is left exactly as it was.
 ///
 /// The extension is registered with a fake publishable key and the preparation returns a well-formed
-/// but fake client secret, so Stripe rejects the confirmation (or the network layer does when offline)
-/// and no real payment is involved. A malformed secret is deliberately not used: in debug builds
-/// Stripe's handler stops on an assertion for that before it reports the failure.
+/// but fake client secret. Stripe's handler sends one real HTTPS request to Stripe's API from the test
+/// runner; Stripe rejects the fake key (with no network, the request fails in the network layer
+/// instead), so no real payment is involved and the wait for the outcome is bounded at 30 seconds.
+/// A malformed secret is deliberately not used: in debug builds Stripe's handler stops on an
+/// assertion for that before it reports the failure.
 final class StripeAfterpaySharedClientTests: XCTestCase {
 
     private static let hostPublishableKey = "pk_test_host"
@@ -84,8 +86,10 @@ final class StripeAfterpaySharedClientTests: XCTestCase {
         // The extension hands the confirmation to the main queue; this block runs right after that
         // hop, while Stripe's request is still in flight.
         let confirming = expectation(description: "confirmation handed to Stripe")
+        var extensionClient: STPAPIClient?
         DispatchQueue.main.async {
             let handlerClient = STPPaymentHandler.shared().apiClient
+            extensionClient = handlerClient
             XCTAssertFalse(
                 handlerClient === STPAPIClient.shared,
                 "the confirmation should run on the extension's own client"
@@ -107,6 +111,10 @@ final class StripeAfterpaySharedClientTests: XCTestCase {
         XCTAssertTrue(
             STPPaymentHandler.shared().apiClient === STPAPIClient.shared,
             "the handler should be back on the shared client once the flow ends"
+        )
+        XCTAssertNil(
+            extensionClient?.stripeAccount,
+            "the connected-account scope should be cleared from the extension's client once the flow ends"
         )
     }
 }
