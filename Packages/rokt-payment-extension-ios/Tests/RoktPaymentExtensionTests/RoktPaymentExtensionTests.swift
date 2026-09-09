@@ -58,6 +58,169 @@ final class RoktPaymentExtensionTests: XCTestCase {
         XCTAssertEqual(ext?.supportedMethods, ["apple_pay", "card", "afterpay_clearpay"])
     }
 
+    // MARK: - Universal-link return URL
+
+    private let universalLink = URL(string: "https://partner.example/rokt/return")!
+
+    func testInitWithUniversalLinkOnlyEnablesAfterpay() {
+        let ext = RoktPaymentExtension(
+            universalLinkReturnURL: universalLink,
+            bundle: makeBundleWithoutSchemes()
+        )
+        XCTAssertNotNil(ext)
+        XCTAssertEqual(ext?.supportedMethods, ["afterpay_clearpay"])
+    }
+
+    func testInitWithUniversalLinkAndApplePay() {
+        let ext = RoktPaymentExtension(
+            applePayMerchantId: "merchant.test",
+            universalLinkReturnURL: universalLink,
+            bundle: makeBundleWithoutSchemes()
+        )
+        XCTAssertNotNil(ext)
+        XCTAssertEqual(ext?.supportedMethods, ["apple_pay", "card", "afterpay_clearpay"])
+    }
+
+    func testInitWithBothSchemeAndUniversalLinkReturnsNil() {
+        XCTAssertNil(RoktPaymentExtension(
+            urlScheme: "myapp",
+            universalLinkReturnURL: universalLink,
+            bundle: makeBundle(withSchemes: ["myapp"])
+        ))
+        XCTAssertNil(RoktPaymentExtension(
+            applePayMerchantId: "merchant.test",
+            urlScheme: "myapp",
+            universalLinkReturnURL: universalLink,
+            bundle: makeBundle(withSchemes: ["myapp"])
+        ))
+    }
+
+    func testInitWithInvalidUniversalLinkReturnsNil() {
+        XCTAssertNil(RoktPaymentExtension(
+            universalLinkReturnURL: URL(string: "http://partner.example/rokt/return")!,
+            bundle: makeBundleWithoutSchemes()
+        ))
+        XCTAssertNil(RoktPaymentExtension(
+            universalLinkReturnURL: URL(string: "myapp://rokt-payment-return")!,
+            bundle: makeBundleWithoutSchemes()
+        ))
+        XCTAssertNil(RoktPaymentExtension(
+            universalLinkReturnURL: URL(string: "https://partner.example/rokt/return?a=1")!,
+            bundle: makeBundleWithoutSchemes()
+        ))
+    }
+
+    func testInitWithUnregisteredSchemeReturnsNil() {
+        XCTAssertNil(RoktPaymentExtension(
+            urlScheme: "myapp",
+            bundle: makeBundleWithoutSchemes()
+        ))
+    }
+
+    func testIsValidUniversalLinkAcceptsPlainHTTPSURLs() {
+        XCTAssertTrue(ReturnURLMatching.isValidUniversalLink(universalLink))
+        XCTAssertTrue(ReturnURLMatching.isValidUniversalLink(URL(string: "https://partner.example")!))
+        XCTAssertTrue(ReturnURLMatching.isValidUniversalLink(URL(string: "HTTPS://Partner.Example/x")!))
+    }
+
+    func testIsValidUniversalLinkRejectsOtherForms() {
+        let rejected = [
+            "http://partner.example/x",
+            "myapp://rokt-payment-return",
+            "https://partner.example/x?a=1",
+            "https://partner.example/x#top",
+            "https://user@partner.example/x",
+            "https://user:pass@partner.example/x",
+            "https:///x"
+        ]
+        for candidate in rejected {
+            XCTAssertFalse(ReturnURLMatching.isValidUniversalLink(URL(string: candidate)!), candidate)
+        }
+    }
+
+    func testOnRegisterBuildsUniversalLinkReturnURL() {
+        let ext = RoktPaymentExtension(
+            universalLinkReturnURL: universalLink,
+            bundle: makeBundleWithoutSchemes()
+        )!
+        XCTAssertTrue(ext.onRegister(parameters: ["stripeKey": "pk_test_123"]))
+        XCTAssertEqual(ext.stripeAfterpayManager?.returnURL, "https://partner.example/rokt/return")
+    }
+
+    func testOnRegisterBuildsCustomSchemeReturnURL() {
+        let ext = RoktPaymentExtension(
+            urlScheme: "myapp",
+            bundle: makeBundle(withSchemes: ["myapp"])
+        )!
+        XCTAssertTrue(ext.onRegister(parameters: ["stripeKey": "pk_test_123"]))
+        XCTAssertEqual(ext.stripeAfterpayManager?.returnURL, "myapp://rokt-payment-return")
+    }
+
+    func testOnRegisterApplePayOnlyBuildsNoAfterpayManager() {
+        let ext = RoktPaymentExtension(applePayMerchantId: "merchant.test")!
+        XCTAssertTrue(ext.onRegister(parameters: ["stripeKey": "pk_test_123"]))
+        XCTAssertNil(ext.stripeAfterpayManager)
+    }
+
+    func testMatchesConfiguredReturnURLUniversalLinkIgnoresQuery() {
+        let ext = RoktPaymentExtension(
+            universalLinkReturnURL: universalLink,
+            bundle: makeBundleWithoutSchemes()
+        )!
+        let returned = "https://partner.example/rokt/return?redirect_status=succeeded&payment_intent=pi_placeholder"
+        XCTAssertTrue(ext.matchesConfiguredReturnURL(URL(string: returned)!))
+        XCTAssertTrue(ext.matchesConfiguredReturnURL(URL(string: "HTTPS://PARTNER.EXAMPLE/rokt/return")!))
+        XCTAssertTrue(ext.matchesConfiguredReturnURL(URL(string: "https://partner.example/rokt/return/")!))
+        XCTAssertTrue(ext.matchesConfiguredReturnURL(URL(string: "https://partner.example/rokt/return#done")!))
+
+        for candidate in Self.nonMatchingUniversalLinkCallbacks {
+            XCTAssertFalse(ext.matchesConfiguredReturnURL(URL(string: candidate)!), candidate)
+        }
+    }
+
+    func testMatchesConfiguredReturnURLUniversalLinkWithoutPath() {
+        let ext = RoktPaymentExtension(
+            universalLinkReturnURL: URL(string: "https://partner.example")!,
+            bundle: makeBundleWithoutSchemes()
+        )!
+        XCTAssertTrue(ext.matchesConfiguredReturnURL(URL(string: "https://partner.example/?redirect_status=succeeded")!))
+        XCTAssertTrue(ext.matchesConfiguredReturnURL(URL(string: "https://partner.example?redirect_status=succeeded")!))
+        XCTAssertFalse(ext.matchesConfiguredReturnURL(URL(string: "https://partner.example/other")!))
+    }
+
+    func testMatchesConfiguredReturnURLCustomSchemeRejectsUniversalLink() {
+        let ext = RoktPaymentExtension(
+            urlScheme: "myapp",
+            bundle: makeBundle(withSchemes: ["myapp"])
+        )!
+        XCTAssertTrue(ext.matchesConfiguredReturnURL(URL(string: "myapp://rokt-payment-return")!))
+        XCTAssertTrue(ext.matchesConfiguredReturnURL(URL(string: "MYAPP://rokt-payment-return?redirect_status=succeeded")!))
+        XCTAssertFalse(ext.matchesConfiguredReturnURL(URL(string: "https://partner.example/rokt/return")!))
+        XCTAssertFalse(ext.matchesConfiguredReturnURL(URL(string: "myapp://stripe-redirect")!))
+    }
+
+    func testHandleURLCallbackUniversalLinkRejectsNonMatching() {
+        let ext = RoktPaymentExtension(
+            universalLinkReturnURL: universalLink,
+            bundle: makeBundleWithoutSchemes()
+        )!
+        for candidate in Self.nonMatchingUniversalLinkCallbacks {
+            XCTAssertFalse(ext.handleURLCallback(with: URL(string: candidate)!), candidate)
+        }
+    }
+
+    private static let nonMatchingUniversalLinkCallbacks = [
+        "https://partner.example/rokt/other",
+        "https://partner.example/rokt/return/extra",
+        "https://partner.example/rokt",
+        "https://partner.example/Rokt/Return",
+        "https://other.example/rokt/return",
+        "https://partner.example.other.example/rokt/return",
+        "http://partner.example/rokt/return",
+        "myapp://rokt-payment-return",
+        "https://rokt-payment-return"
+    ]
+
     // MARK: - Protocol properties
 
     func testProtocolProperties() {
@@ -189,6 +352,11 @@ final class RoktPaymentExtensionTests: XCTestCase {
         XCTAssertFalse(RoktPaymentExtension.isValidBareScheme(""))
         XCTAssertFalse(RoktPaymentExtension.isValidBareScheme("myapp://stripe-redirect"))
         XCTAssertFalse(RoktPaymentExtension.isValidBareScheme("myapp/something"))
+    }
+
+    func testIsValidBareSchemeRejectsWebSchemes() {
+        XCTAssertFalse(RoktPaymentExtension.isValidBareScheme("https"))
+        XCTAssertFalse(RoktPaymentExtension.isValidBareScheme("HTTP"))
     }
 
     func testIsSchemeRegisteredMatchesCaseInsensitive() {

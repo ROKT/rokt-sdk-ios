@@ -6,7 +6,7 @@ import UIKit
 internal class StripeAfterpayManager {
 
     private let apiClient: STPAPIClient
-    private let returnURL: String
+    internal let returnURL: String
 
     internal init(apiClient: STPAPIClient, returnURL: String) {
         self.apiClient = apiClient
