@@ -341,7 +341,10 @@ internal import RoktUXHelper
     /// call when no session is active.
     ///
     /// - Note: This also clears the id returned by ``getSessionId()`` and the cached experience,
-    ///   so a WebView session hand-off must be re-established afterwards.
+    ///   so a WebView session hand-off must be re-established afterwards. A placement still
+    ///   loading when this is called is discarded and reports `PlacementFailure`; a placement
+    ///   already on screen stays visible, and any events it still sends are attributed to the
+    ///   session that was cleared, not to the next one.
     public static func clearSession() {
         shared.roktImplementation.clearSession()
     }

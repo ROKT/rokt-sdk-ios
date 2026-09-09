@@ -119,6 +119,16 @@ final class TestClearSession: XCTestCase {
         XCTAssertEqual(managedSession.sessionInvalidatedCallCount, 2)
     }
 
+    /// Each reset advances the generation that in-flight placements are checked against.
+    func test_clearSession_advancesTheSessionGeneration() {
+        let before = implementation.currentSessionGeneration()
+
+        implementation.clearSession()
+        implementation.clearSession()
+
+        XCTAssertEqual(implementation.currentSessionGeneration(), before + 2)
+    }
+
     // MARK: - Pending event replay
 
     func test_replayPendingTxnEvents_replaysEachBatchAgainstItsOwnSession() {

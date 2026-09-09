@@ -30,10 +30,14 @@ internal class RoktAPIHelper {
               Rokt.shared.roktImplementation.processedEvents?.insertProcessedEvent(eventRequest) == true
         else { return }
 
+        // Dispatched per originating session so a buffered event cannot ride a later session.
         EventQueue.call(event: eventRequest) { events in
-            Rokt.shared.roktImplementation.dispatchTxnEvents(
-                events.compactMap { TxnEventMapper.event(from: $0) }
-            )
+            for group in events.grouped(by: \.sessionId) {
+                Rokt.shared.roktImplementation.dispatchTxnEvents(
+                    group.elements.compactMap { TxnEventMapper.event(from: $0) },
+                    originSessionId: group.key
+                )
+            }
             success?()
         }
     }

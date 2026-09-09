@@ -98,6 +98,12 @@ class RoktInternalImplementation {
     private var isExecuting = false
     private var placements: [String: RoktEmbeddedView]?
 
+    // Bumped by clearSession and captured when an execute starts; a completion from an earlier
+    // generation is discarded. Covers what the txn store's epoch does not: the legacy session id,
+    // the real-time event store, the experience cache and the render itself.
+    private var sessionGeneration = 0
+    private let sessionGenerationLock = NSLock()
+
     // Caching is disabled by default when no CacheConfig is provided to the Builder.
     var roktConfig: RoktConfig = RoktConfig.Builder().build()
 
@@ -111,9 +117,10 @@ class RoktInternalImplementation {
     // Backing store for the txn session. Test-only override; production uses UserDefaults.
     var txnSessionStore: TxnSessionStore = UserDefaultsTxnSessionStore()
 
-    // Set by clearSession, latched into cacheSuppressedForCurrentExecute at the start of the next
-    // execute. A cache hit satisfies a placement without a network call, and the server is what
-    // mints a session.
+    // Set by clearSession, latched into cacheSuppressedForCurrentExecute at the start of every
+    // execute and only disarmed once one of them fetches a fresh experience. A cache hit satisfies
+    // a placement without a network call, and the server is what mints a session — so until the
+    // new session has fetched something, nothing left on disk may be served.
     private var mustBypassCacheOnNextExecute = false
 
     // Suppresses every cache read within one execute: the experience response and the view state
@@ -1109,7 +1116,10 @@ class RoktInternalImplementation {
         )
     }
 
-    private func defaultOffersService(roktTagId: String) -> OffersService {
+    // `generation` is the session generation the placement started in; the response's echoed
+    // events are kept only while it is still current (the session roll-forward is fenced by the
+    // store's own epoch).
+    private func defaultOffersService(roktTagId: String, generation: Int) -> OffersService {
         var httpClient: HTTPClientAdapter = NetworkingHelper.shared.httpClient
         #if DEBUG
         if config.environment == .Mock { httpClient = MockOffersHTTPClient() }
@@ -1121,7 +1131,10 @@ class RoktInternalImplementation {
             layoutSchemaVersion: Self.txnLayoutSchemaVersion,
             sessionManager: TxnSessionManager(roktTagId: roktTagId, store: txnSessionStore),
             httpClient: httpClient,
-            deviceHeaders: NetworkingHelper.txnDeviceHeaders()
+            deviceHeaders: NetworkingHelper.txnDeviceHeaders(),
+            captureEvents: { [weak self] events in
+                self?.captureUntriggeredEvents(events, generation: generation)
+            }
         )
     }
 
@@ -1133,10 +1146,20 @@ class RoktInternalImplementation {
     }
 
     // Each batch gets a fresh service instance so it rehydrates the latest persisted token.
-    func dispatchTxnEvents(_ events: [TxnEvent]) {
+    // A batch names the session that produced it; when that session is no longer the live one
+    // (cleared, or replaced by a later placement) the batch is replayed on its own session
+    // instead of riding the live token. Without an origin the batch follows the live session.
+    func dispatchTxnEvents(_ events: [TxnEvent], originSessionId: String? = nil) {
         guard !events.isEmpty, let roktTagId else { return }
         let service = makeTxnEventServiceOverride?(roktTagId) ?? defaultTxnEventService(roktTagId: roktTagId)
-        Task { try? await service.send(events: events) }
+        Task {
+            if let originSessionId, !originSessionId.isEmpty,
+               await service.sessionManager.currentSessionId != originSessionId {
+                try? await service.replay(events: events, sessionId: originSessionId)
+            } else {
+                try? await service.send(events: events)
+            }
+        }
     }
 
     // Replays event batches that failed to send in a previous session (offline / rate-limited),
@@ -1175,10 +1198,31 @@ class RoktInternalImplementation {
         TxnSessionManager.clearPersistedSession(store: txnSessionStore)
         // Also clears the legacy session id and, via ManagedSession, the real-time event store.
         sessionManager.invalidateSession()
+        // Fences out a placement still loading: its completion would otherwise redo the above.
+        bumpSessionGeneration()
         // The cached experience was fetched inside the dropped session, so it goes with it.
         ExperienceCacheManager.clearCache()
         mustBypassCacheOnNextExecute = true
         RoktLogger.shared.info("Session cleared; the next placement will start a new session")
+    }
+
+    func currentSessionGeneration() -> Int {
+        sessionGenerationLock.lock()
+        defer { sessionGenerationLock.unlock() }
+        return sessionGeneration
+    }
+
+    private func bumpSessionGeneration() {
+        sessionGenerationLock.lock()
+        defer { sessionGenerationLock.unlock() }
+        sessionGeneration &+= 1
+    }
+
+    // The offers response echoes events for the next placement to forward. Captured after a
+    // clearSession, they would re-seed the store that call just emptied.
+    func captureUntriggeredEvents(_ events: [UntriggeredRealTimeEvent], generation: Int) {
+        guard currentSessionGeneration() == generation else { return }
+        RealTimeEventManager.shared.addUntriggeredEvents(events)
     }
 
     private func defaultTxnEventService(roktTagId: String) -> TxnEventService {
@@ -1254,9 +1298,9 @@ class RoktInternalImplementation {
         }
         // Latched once per execute, after the guard so a rejected call does not consume it. Both
         // cache reads in this execute — the experience response and the view state read later in
-        // processLayoutPageExecutePayload — must see the same answer.
+        // processLayoutPageExecutePayload — must see the same answer. Disarmed only when this
+        // execute fetches a fresh experience, so a failed placement keeps the next one off the cache.
         cacheSuppressedForCurrentExecute = mustBypassCacheOnNextExecute
-        mustBypassCacheOnNextExecute = false
         if #available(iOS 14.5, *) {
             if !initFeatureFlags.isEnabled(.roktTrackingStatus) &&
                 isPrivacyDenied(ATTrackingManager.trackingAuthorizationStatus) {
@@ -1278,6 +1322,8 @@ class RoktInternalImplementation {
         }
 
         isExecuting = true
+        // Anything this execute learns belongs to the session generation it started in.
+        let generation = currentSessionGeneration()
         self.placements = placements
         let startDate = Date()
         if let tagId = roktTagId {
@@ -1322,12 +1368,20 @@ class RoktInternalImplementation {
                     } else {
                         let onSuccess: (String?) -> Void = { page in
                             onExperiencesRequestEnd()
+                            // Released before the fence so a discarded completion cannot wedge execute.
                             self.isExecuting = false
 
+                            guard self.currentSessionGeneration() == generation else {
+                                RoktLogger.shared.info("Discarding a placement that completed after clearSession")
+                                self.conclude(withFailure: true)
+                                return
+                            }
                             guard let page else {
                                 self.conclude(withFailure: true)
                                 return
                             }
+                            // A fresh experience fetched in the live session: cache reads may resume.
+                            self.mustBypassCacheOnNextExecute = false
                             // cache experience if applicable
                             if self.isCacheEnabledAndConfigured() {
                                 let cacheAttributes = self.roktConfig.cacheConfig.getCacheAttributesOrFallback(attributes)
@@ -1360,6 +1414,13 @@ class RoktInternalImplementation {
                         }
                         let onFailure: (Error, Int?, String) -> Void = { error, statusCode, response in
                             onExperiencesRequestEnd()
+                            guard self.currentSessionGeneration() == generation else {
+                                // Skips executeFailureHandler: its diagnostics would carry the new session.
+                                self.isExecuting = false
+                                RoktLogger.shared.info("Discarding a placement that failed after clearSession")
+                                self.conclude(withFailure: true)
+                                return
+                            }
                             self.executeFailureHandler(error, statusCode, response)
                         }
 
@@ -1376,7 +1437,7 @@ class RoktInternalImplementation {
                             )
                         }
                         let offersService = self.makeOffersServiceOverride?(tagId)
-                            ?? self.defaultOffersService(roktTagId: tagId)
+                            ?? self.defaultOffersService(roktTagId: tagId, generation: generation)
                         offersService.getExperienceData(
                             viewName: viewName,
                             attributes: attributes,
@@ -1406,8 +1467,8 @@ class RoktInternalImplementation {
     /// Gate for *reading* the experience cache; writes are unaffected.
     ///
     /// `clearSession()` empties the cache asynchronously, but this read is a direct synchronous
-    /// file read — so the one-shot flag is what makes the first placement after a reset
-    /// deterministically reach the network.
+    /// file read — so the flag is what makes every placement after a reset deterministically
+    /// reach the network until one of them has fetched a fresh experience.
     private func shouldReadFromCache() -> Bool {
         !cacheSuppressedForCurrentExecute && isCacheEnabledAndConfigured()
     }

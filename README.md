@@ -135,6 +135,8 @@ Behaviour to be aware of:
 - **When the new session begins:** on the next `selectPlacements` call. `clearSession()` only ends the current session; the next placement starts the new one.
 - **What it clears:** the stored session, the real-time event state tied to it, and cached experiences. The id returned by `getSessionId()` becomes `nil`, so a WebView session hand-off must be re-established afterwards.
 - **Buffered events are not lost:** queued analytics events are flushed _before_ the session is dropped, so they are sent under the departing session and the previous customer's activity stays attributed to them.
+- **A placement still on screen stays with its session:** a layout that is visible when `clearSession()` is called is not dismissed, and the events it sends afterwards (a dismissal, a tap, attribute capture) are still attributed to the session that was cleared — never to the next customer's. Dismiss the placement yourself if the next customer should not see it.
+- **A placement still loading is discarded:** if `clearSession()` is called while a `selectPlacements` call is in flight, that placement is not shown when its response arrives; it reports `PlacementFailure` instead, and nothing from it is carried into the new session.
 - **Calling it is always safe:** repeated calls are idempotent, and with no active session there is no session state to clear.
 - **Experience caching:** avoid enabling `RoktConfig` experience caching on shared terminals — a cached experience belongs to the customer it was fetched for.
 

@@ -74,6 +74,81 @@ final class TestOffersExecuteWiring: XCTestCase {
         ) {}
     }
 
+    /// Holds the transport completion until `release()`, so a `clearSession()` can land while
+    /// the offers call is still in flight.
+    private final class DeferredHTTPClient: HTTPClientAdapter {
+        private let data: Data?
+        private let status: Int
+        private let lock = NSLock()
+        private var pending: (() -> Void)?
+        private var requests = 0
+        init(data: Data?, status: Int) {
+            self.data = data
+            self.status = status
+        }
+
+        var requestCount: Int {
+            lock.lock()
+            defer { lock.unlock() }
+            return requests
+        }
+
+        func release() {
+            lock.lock()
+            let completion = pending
+            pending = nil
+            lock.unlock()
+            completion?()
+        }
+
+        func updateTimeout(timeout: Double) {}
+
+        @discardableResult
+        func startRequestWith(
+            urlAddress: String,
+            method: RoktHTTPMethod,
+            parameters: RoktHTTPParameters?,
+            parameterArray: RoktHTTPParameterArray?,
+            headers: RoktHTTPHeaders?,
+            onRequestStart: (() -> Void)?,
+            requestTimeout: TimeInterval?,
+            completionQueue: DispatchQueue,
+            completionHandler: ((RoktHTTPRequestResult) -> Void)?
+        ) -> URLRequest? {
+            let url = URL(string: urlAddress) ?? URL(string: Environment.Prod.gatewayBaseURL)!
+            let result = RoktHTTPRequestResult(
+                httpURLResponse: HTTPURLResponse(url: url, statusCode: status, httpVersion: nil, headerFields: nil),
+                responseData: data,
+                responseError: nil,
+                jsonSerialisedResponseData: .success(NSNull())
+            )
+            lock.lock()
+            defer { lock.unlock() }
+            requests += 1
+            pending = { completionQueue.async { completionHandler?(result) } }
+            return nil
+        }
+
+        func downloadFile(
+            source urlAddress: String,
+            destinationURL: URL,
+            options: [RoktDownloadOptions],
+            parameters: RoktHTTPParameters?,
+            headers: RoktHTTPHeaders?,
+            requestTimeout: TimeInterval?,
+            completionQueue: DispatchQueue,
+            completionHandler: ((RoktDownloadResult) -> Void)?
+        ) {}
+    }
+
+    /// Scratch store so `clearSession()` never touches `UserDefaults.standard`.
+    private final class InMemoryTxnStore: TxnSessionStore {
+        private var values: [String: String] = [:]
+        func string(forKey key: String) -> String? { values[key] }
+        func setString(_ value: String, forKey key: String) { values[key] = value }
+        func removeValue(forKey key: String) { values[key] = nil }
+    }
+
     private var impl: CapturingImplementation!
     private var window: UIWindow!
     private var originalEnvironment: Environment!
@@ -83,6 +158,9 @@ final class TestOffersExecuteWiring: XCTestCase {
         originalEnvironment = config.environment
         Self.prepareExperienceCacheTestFiles()
         Self.deleteExperienceCacheTestFiles()
+        ensureDocumentDirectoryExists()
+        RealTimeEventManager.shared.clearAllEvents()
+        RoktLogger.shared.sessionId = nil
         impl = CapturingImplementation()
         // A real window/root so the success render hand-off has somewhere to attach.
         window = UIWindow(frame: UIScreen.main.bounds)
@@ -92,6 +170,8 @@ final class TestOffersExecuteWiring: XCTestCase {
 
     override func tearDown() {
         Self.deleteExperienceCacheTestFiles()
+        RealTimeEventManager.shared.clearAllEvents()
+        RoktLogger.shared.sessionId = nil
         config.environment = originalEnvironment
         window?.isHidden = true
         window = nil
@@ -127,6 +207,10 @@ final class TestOffersExecuteWiring: XCTestCase {
     }
 
     private func offersOverride(data: Data?, status: Int, error: Error? = nil) -> (String) -> OffersService {
+        offersOverride(httpClient: StubHTTPClient(data: data, status: status, error: error))
+    }
+
+    private func offersOverride(httpClient: HTTPClientAdapter) -> (String) -> OffersService {
         { tagId in
             OffersService(
                 environment: .Prod,
@@ -134,7 +218,7 @@ final class TestOffersExecuteWiring: XCTestCase {
                 sdkVersion: "5.2.2",
                 layoutSchemaVersion: "2.8",
                 sessionManager: TxnSessionManager(),
-                httpClient: StubHTTPClient(data: data, status: status, error: error),
+                httpClient: httpClient,
                 maxRetries: 0,
                 sleep: { _ in }
             )
@@ -216,5 +300,128 @@ final class TestOffersExecuteWiring: XCTestCase {
         impl.execute(viewName: viewName, attributes: attributes, config: cacheConfig)
         waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
         XCTAssertTrue(try XCTUnwrap(impl.capturedPage).contains("render-session"))
+    }
+
+    // MARK: - clearSession() while a placement is in flight
+
+    /// A placement whose offers call completes after `clearSession()` belongs to the session that
+    /// was cleared: it is not shown, does not restore the legacy session id, does not write the
+    /// cache — and `execute` is free again for the next placement.
+    func test_execute_clearSessionWhileOffersInFlight_discardsTheLateResult() throws {
+        impl.txnSessionStore = InMemoryTxnStore()
+        initialize(cacheEnabled: true)
+        let viewName = "checkout"
+        let attributes = ["email": "late@example.com"]
+        let cacheDuration = TimeInterval(300)
+        let cacheConfig = RoktConfig.Builder()
+            .cacheConfig(RoktConfig.CacheConfig(cacheDuration: cacheDuration))
+            .build()
+        let client = DeferredHTTPClient(data: try renderFixture(), status: 200)
+        impl.makeOffersServiceOverride = offersOverride(httpClient: client)
+
+        let discarded = expectation(description: "the late placement reports failure")
+        impl.execute(viewName: viewName, attributes: attributes, config: cacheConfig) { event in
+            if event is RoktEvent.PlacementFailure { discarded.fulfill() }
+        }
+        waitUntil({ client.requestCount == 1 }, timeout: 10)
+        impl.clearSession()
+        client.release()
+        wait(for: [discarded], timeout: 10)
+        settle()
+
+        XCTAssertNil(impl.capturedPage, "a placement that completes after clearSession is not rendered")
+        XCTAssertNil(impl.getSessionId(), "the cleared session id must not come back")
+        XCTAssertNil(RoktLogger.shared.sessionId)
+        let cached = ExperienceCacheManager.getCachedExperienceResponse(
+            viewName: viewName, attributes: attributes, cacheDuration: cacheDuration
+        )
+        XCTAssertNil(cached, "an experience fetched in the cleared session is not cached for the next one")
+
+        // The fence released `isExecuting`: the next placement is accepted and renders.
+        impl.makeOffersServiceOverride = offersOverride(data: try renderFixture(), status: 200)
+        impl.execute(viewName: viewName, attributes: attributes, config: cacheConfig)
+        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
+    }
+
+    /// The offers response echoes events for the next placement to forward. Captured after a
+    /// `clearSession()`, they would seed the new session's real-time event store with the old one's.
+    func test_captureUntriggeredEvents_afterClearSession_isDropped() {
+        impl.txnSessionStore = InMemoryTxnStore()
+        let generation = impl.currentSessionGeneration()
+        impl.clearSession()
+
+        impl.captureUntriggeredEvents([echoedEvent], generation: generation)
+        RealTimeEventManager.shared.markEventsAsTriggered(triggeredEvents: [echoedTrigger])
+
+        settle(1)
+        XCTAssertTrue(RealTimeEventManager.shared.getTriggeredEvents().isEmpty)
+    }
+
+    /// Control for the test above: in the live generation the echoed events are kept.
+    func test_captureUntriggeredEvents_inCurrentGeneration_isKept() {
+        impl.captureUntriggeredEvents([echoedEvent], generation: impl.currentSessionGeneration())
+        RealTimeEventManager.shared.markEventsAsTriggered(triggeredEvents: [echoedTrigger])
+
+        waitUntil({ RealTimeEventManager.shared.getTriggeredEvents().count == 1 }, timeout: 5)
+    }
+
+    /// After `clearSession()` every placement bypasses the cache until one of them has fetched a
+    /// fresh experience: a failed placement must not hand the next one whatever is still on disk.
+    func test_clearSession_keepsBypassingTheCacheUntilAFreshExperienceIsFetched() throws {
+        impl.txnSessionStore = InMemoryTxnStore()
+        initialize(cacheEnabled: true)
+        let viewName = "checkout"
+        let attributes = ["email": "stale@example.com"]
+        let cacheDuration = TimeInterval(300)
+        let cacheConfig = RoktConfig.Builder()
+            .cacheConfig(RoktConfig.CacheConfig(cacheDuration: cacheDuration))
+            .build()
+        impl.clearSession()
+        // Whatever is still on disk after the reset must not be served.
+        ExperienceCacheManager.cacheExperienceResponse(
+            viewName: viewName,
+            attributes: attributes,
+            experienceResponse: try String(decoding: renderFixture(), as: UTF8.self)
+        )
+        waitUntil({
+            ExperienceCacheManager.getCachedExperienceResponse(
+                viewName: viewName, attributes: attributes, cacheDuration: cacheDuration
+            ) != nil
+        }, timeout: 10)
+        impl.makeOffersServiceOverride = offersOverride(data: nil, status: 500)
+
+        let firstFailure = expectation(description: "the first placement after the reset fails")
+        impl.execute(viewName: viewName, attributes: attributes, config: cacheConfig) { event in
+            if event is RoktEvent.PlacementFailure { firstFailure.fulfill() }
+        }
+        wait(for: [firstFailure], timeout: 10)
+
+        let secondFailure = expectation(description: "the second placement still bypasses the cache")
+        impl.execute(viewName: viewName, attributes: attributes, config: cacheConfig) { event in
+            if event is RoktEvent.PlacementFailure { secondFailure.fulfill() }
+        }
+        wait(for: [secondFailure], timeout: 10)
+        XCTAssertNil(impl.capturedPage)
+    }
+
+    // MARK: - Helpers
+
+    private let echoedEvent = UntriggeredRealTimeEvent(
+        triggerGuid: "parent-1", triggerEvent: "SignalResponse", eventType: "x", payload: "y"
+    )
+
+    private var echoedTrigger: RealTimeTrigger {
+        RealTimeTrigger(
+            parentGuid: "parent-1",
+            eventTypeKey: "SignalResponse",
+            eventTime: EventDateFormatter.getDateString(Date())
+        )
+    }
+
+    /// Lets asynchronous work that follows an observed event run to completion.
+    private func settle(_ interval: TimeInterval = 0.3) {
+        let settled = expectation(description: "settled")
+        DispatchQueue.main.asyncAfter(deadline: .now() + interval) { settled.fulfill() }
+        wait(for: [settled], timeout: 5)
     }
 }

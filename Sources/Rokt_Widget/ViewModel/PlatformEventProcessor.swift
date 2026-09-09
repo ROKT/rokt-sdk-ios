@@ -124,13 +124,19 @@ class PlatformEventProcessor {
                                     cacheProperties: LayoutPageCacheProperties?) {
         let nonDiagnosticEvents = events.filter { $0.eventType != Wire.sdkDiagnostic }
 
+        // Dispatched per session, so a layout still on screen after clearSession() keeps reporting
+        // under the session it was rendered in. The session is a dispatch decision, not a field
+        // stamped on the event: the replay path adds it only when it sends without a token.
         let sendEvents = { (events: [PlatformEvent]) in
             RealTimeEventManager.shared.markEventsAsTriggered(
                 triggeredEvents: events.map { Self.realTimeTrigger(from: $0) }
             )
-            Rokt.shared.roktImplementation.dispatchTxnEvents(
-                events.map { Self.txnEvent(from: $0) }
-            )
+            for group in events.grouped(by: \.sessionId) {
+                Rokt.shared.roktImplementation.dispatchTxnEvents(
+                    group.elements.map { Self.txnEvent(from: $0) },
+                    originSessionId: group.key
+                )
+            }
         }
 
         guard !nonDiagnosticEvents.isEmpty else { return }

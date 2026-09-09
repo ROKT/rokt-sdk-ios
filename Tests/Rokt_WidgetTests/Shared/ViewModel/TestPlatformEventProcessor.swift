@@ -125,6 +125,33 @@ class TestPlatformEventProcessor: XCTestCase {
         XCTAssertTrue(mockStateManager.capturedEvents.isEmpty)
     }
 
+    // MARK: - Session binding
+
+    /// Each dispatch names the session the renderer produced its events in, so a layout still on
+    /// screen after `clearSession()` keeps reporting under its own session.
+    func test_process_dispatchesEachSessionsEventsUnderTheirOwnSessionId() {
+        let recorder = DispatchRecordingImplementation()
+        let originalImpl = Rokt.shared.roktImplementation
+        Rokt.shared.roktImplementation = recorder
+        defer { Rokt.shared.roktImplementation = originalImpl }
+        // User interactions are exempt from dedup, so no earlier test can have consumed them.
+        let payload = createPayload([
+            RoktEventRequest(sessionId: "session-a", eventType: .SignalUserInteraction, parentGuid: "a-1", jwtToken: "t"),
+            RoktEventRequest(sessionId: "session-b", eventType: .SignalUserInteraction, parentGuid: "b-1", jwtToken: "t"),
+            RoktEventRequest(sessionId: "session-a", eventType: .SignalUserInteraction, parentGuid: "a-2", jwtToken: "t")
+        ])
+
+        sut.process(payload, executeId: "1", cacheProperties: nil)
+
+        XCTAssertEqual(recorder.dispatches.map { $0.originSessionId }, ["session-a", "session-b"])
+        XCTAssertEqual(recorder.dispatches.map { $0.events.count }, [2, 1])
+        XCTAssertEqual(
+            recorder.dispatches.first?.events.map { $0.data?["parent_id"] },
+            [.string("a-1"), .string("a-2")],
+            "events keep their order inside a session's batch"
+        )
+    }
+
     // MARK: - ProcessTimingRequests Tests
 
     func test_processTimingRequests_WithValidEvent() {
@@ -406,6 +433,15 @@ class TestPlatformEventProcessor: XCTestCase {
     private func mockEventsPayload(events: [RoktEventRequest]) -> [String: Any]? {
         guard let data = try? JSONEncoder().encode(RoktSessionEventsBody(events: events)) else { return nil }
         return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+    }
+}
+
+/// Records each dispatch without standing up the network stack.
+private final class DispatchRecordingImplementation: RoktInternalImplementation {
+    private(set) var dispatches: [(events: [TxnEvent], originSessionId: String?)] = []
+
+    override func dispatchTxnEvents(_ events: [TxnEvent], originSessionId: String?) {
+        dispatches.append((events, originSessionId))
     }
 }
 
