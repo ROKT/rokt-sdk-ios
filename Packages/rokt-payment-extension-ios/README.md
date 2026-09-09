@@ -168,6 +168,7 @@ URL to use in production.
    incoming URL on scheme, host, port, and path only. The initializer returns `nil`
    (and raises an `assertionFailure` in DEBUG builds) if the URL is not of that
    form, or if `urlScheme` is passed as well.
+
 4. **Forward universal links** to the Rokt SDK. They arrive through the
    user-activity delegate methods (and through SwiftUI `.onOpenURL`, which
    already receives both universal links and custom-scheme URLs):
