@@ -47,9 +47,9 @@ pod 'RoktPaymentExtension'
 
 The extension accepts optional init params — you enable only the methods you
 want to support. At least one of `applePayMerchantId`, `universalLinkReturnURL`,
-or `urlScheme` must be provided; otherwise the initializer returns `nil`.
-`universalLinkReturnURL` and `urlScheme` are mutually exclusive — passing both
-also returns `nil`.
+or `urlScheme` must be provided; otherwise the initializer returns `nil`. The two
+Afterpay options are separate initializers — a call takes `universalLinkReturnURL:`
+or `urlScheme:`, never both.
 
 | Init parameters                                      | Enables                   |
 | ---------------------------------------------------- | ------------------------- |
@@ -72,12 +72,13 @@ Rokt.initWith(roktTagId: "your-tag-id")
 
 // 2. Create the payment extension.
 //    Supply `applePayMerchantId` for Apple Pay, `universalLinkReturnURL` (or
-//    `urlScheme`) for Afterpay, or both.
-guard let paymentExtension = RoktPaymentExtension(
-    applePayMerchantId: "merchant.com.example",
-    universalLinkReturnURL: URL(string: "https://www.example.com/rokt/payment-return")
-    // omit to keep the extension Apple-Pay-only
-) else { return }
+//    `urlScheme`) for Afterpay, or both. For Apple Pay only, call
+//    `RoktPaymentExtension(applePayMerchantId:)` instead.
+guard let returnURL = URL(string: "https://www.example.com/rokt/payment-return"),
+      let paymentExtension = RoktPaymentExtension(
+          applePayMerchantId: "merchant.com.example",
+          universalLinkReturnURL: returnURL
+      ) else { return }
 
 // 3. Register with the Rokt SDK — pass your Stripe publishable key
 Rokt.registerPaymentExtension(paymentExtension, config: [
@@ -120,11 +121,12 @@ import RoktPaymentExtension
 // 1. mParticle init handles Rokt.initialize via Kit (tagId from dashboard)
 
 // 2. Create and register the payment extension — no stripeKey needed.
-guard let paymentExtension = RoktPaymentExtension(
-    applePayMerchantId: "merchant.com.example",
-    universalLinkReturnURL: URL(string: "https://www.example.com/rokt/payment-return")
-    // omit to keep the extension Apple-Pay-only
-) else { return }
+//    For Apple Pay only, call `RoktPaymentExtension(applePayMerchantId:)` instead.
+guard let returnURL = URL(string: "https://www.example.com/rokt/payment-return"),
+      let paymentExtension = RoktPaymentExtension(
+          applePayMerchantId: "merchant.com.example",
+          universalLinkReturnURL: returnURL
+      ) else { return }
 MParticle.sharedInstance().rokt.registerPaymentExtension(paymentExtension)
 // Kit automatically injects stripeKey from dashboard config
 
@@ -143,8 +145,8 @@ MParticle.sharedInstance().rokt.shoppableAds(
 
 Afterpay/Clearpay is a redirect-based payment method: Stripe opens a web page for
 authentication and then redirects the browser to a return URL that brings the
-user back to your app. Two return-URL options are supported; configure exactly
-one. Omit both and the extension stays Apple-Pay-only.
+user back to your app. Two return-URL options are supported, each through its own
+initializer; configure exactly one. Omit both and the extension stays Apple-Pay-only.
 
 #### Option A — universal link (recommended)
 
@@ -157,17 +159,20 @@ URL to use in production.
    `applinks` section covers the return path (e.g. `/rokt/payment-return`).
 2. **Add the Associated Domains entitlement** to your app target:
    `applinks:www.example.com`.
-3. **Pass the return URL** when creating the extension:
+3. **Pass the return URL** when creating the extension, through the
+   `universalLinkReturnURL:` initializer:
 
    ```swift
-   universalLinkReturnURL: URL(string: "https://www.example.com/rokt/payment-return")
+   guard let returnURL = URL(string: "https://www.example.com/rokt/payment-return"),
+         let paymentExtension = RoktPaymentExtension(universalLinkReturnURL: returnURL)
+   else { return }
    ```
 
    The URL must be plain `https` with a host and no query, fragment, or
    credentials — Stripe appends its own query on return, and the SDK matches the
    incoming URL on scheme, host, port, and path only. The initializer returns `nil`
    (and raises an `assertionFailure` in DEBUG builds) if the URL is not of that
-   form, or if `urlScheme` is passed as well.
+   form.
 
 4. **Forward universal links** to the Rokt SDK. They arrive through the
    user-activity delegate methods (and through SwiftUI `.onOpenURL`, which

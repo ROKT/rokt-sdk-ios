@@ -13,15 +13,15 @@ import UIKit
 /// - `universalLinkReturnURL` or `urlScheme` only    → Afterpay
 /// - `applePayMerchantId` plus one of those two      → all three methods
 ///
-/// Prefer `universalLinkReturnURL` (an https URL under one of the host app's
-/// associated domains) for Afterpay in production: iOS delivers a universal link
-/// only to the app entitled for that domain, whereas custom URL schemes are not
+/// The two Afterpay options are separate initializers. Prefer
+/// `init(applePayMerchantId:countryCode:universalLinkReturnURL:)` (an https URL under
+/// one of the host app's associated domains) in production: iOS delivers a universal
+/// link only to the app entitled for that domain, whereas custom URL schemes are not
 /// exclusive to one app.
 ///
-/// Returns `nil` if none of the three parameters is provided, if both
-/// `urlScheme` and `universalLinkReturnURL` are provided, if the supplied
-/// `urlScheme` is not registered under `CFBundleURLSchemes` in the host app's
-/// `Info.plist`, or if `universalLinkReturnURL` is not a plain https URL.
+/// Returns `nil` if no payment method is enabled, if the supplied `urlScheme` is not
+/// registered under `CFBundleURLSchemes` in the host app's `Info.plist`, or if
+/// `universalLinkReturnURL` is not a plain https URL.
 public class RoktPaymentExtension: PaymentExtension {
 
     // MARK: - PaymentExtension Protocol Properties
@@ -74,22 +74,16 @@ public class RoktPaymentExtension: PaymentExtension {
     /// Initialize the Rokt payment extension.
     ///
     /// Supply `applePayMerchantId` to enable Apple Pay / card support.
-    /// Supply `universalLinkReturnURL` or `urlScheme` (not both) to enable Afterpay
-    /// (redirect-based). At least one method must be enabled — otherwise the
-    /// initializer returns `nil`.
+    /// Supply `urlScheme` to enable Afterpay (redirect-based). At least one of
+    /// the two must be provided — otherwise the initializer returns `nil`.
     ///
-    /// `universalLinkReturnURL` is the recommended Afterpay option: a plain `https` URL
-    /// (host required; no query, fragment, or credentials) under a domain listed in the
-    /// host app's Associated Domains entitlement (`applinks:<host>`) and covered by its
-    /// `apple-app-site-association` file. The incoming URL is matched on scheme, host,
-    /// port, and path only, so the query Stripe appends on return is ignored. Forward it from
-    /// `application(_:continue:restorationHandler:)` / `scene(_:continue:)` via
-    /// `userActivity.webpageURL`, or from SwiftUI `.onOpenURL`.
+    /// When `urlScheme` is provided, the SDK builds the full redirect URL
+    /// (`<scheme>://rokt-payment-return`) internally and verifies the scheme
+    /// is registered under `CFBundleURLSchemes` in `Info.plist`.
     ///
-    /// When `urlScheme` is provided instead, the SDK builds the full redirect URL
-    /// (`<scheme>://rokt-payment-return`) internally and verifies the scheme is
-    /// registered under `CFBundleURLSchemes` in `Info.plist`. Custom URL schemes are
-    /// not exclusive to one app, so prefer a universal link in production.
+    /// Custom URL schemes are not exclusive to one app, so
+    /// `init(applePayMerchantId:countryCode:universalLinkReturnURL:)` is the recommended
+    /// way to enable Afterpay in production.
     ///
     /// - Parameters:
     ///   - applePayMerchantId: Apple Pay merchant identifier. Omit to disable Apple Pay.
@@ -97,32 +91,65 @@ public class RoktPaymentExtension: PaymentExtension {
     ///     Applies only to Apple Pay.
     ///   - urlScheme: Bare custom URL scheme (e.g. `"com.partner.app"`) for redirect-based
     ///     payment methods like Afterpay. The scheme must also be registered under
-    ///     `CFBundleURLSchemes` in the host app's `Info.plist`. Omit when using
-    ///     `universalLinkReturnURL`, or to disable Afterpay.
-    ///   - universalLinkReturnURL: Plain https universal link (e.g.
-    ///     `https://www.example.com/rokt/payment-return`) under one of the host app's
-    ///     associated domains; handed to Stripe as given. Omit when using `urlScheme`,
-    ///     or to disable Afterpay.
-    /// - Returns: `nil` if no method is enabled, if both `urlScheme` and
-    ///   `universalLinkReturnURL` are provided, if `urlScheme` is provided but not
-    ///   registered in `Info.plist`, or if `universalLinkReturnURL` is not a plain https URL.
+    ///     `CFBundleURLSchemes` in the host app's `Info.plist`. Omit to disable Afterpay.
+    /// - Returns: `nil` if both `applePayMerchantId` and `urlScheme` are omitted or empty,
+    ///   or if `urlScheme` is provided but not registered in `Info.plist`.
     public convenience init?(
         applePayMerchantId: String? = nil,
         countryCode: String = "US",
-        urlScheme: String? = nil,
-        universalLinkReturnURL: URL? = nil
+        urlScheme: String? = nil
     ) {
         self.init(
             applePayMerchantId: applePayMerchantId,
             countryCode: countryCode,
             urlScheme: urlScheme,
+            universalLinkReturnURL: nil,
+            bundle: .main
+        )
+    }
+
+    /// Initialize the Rokt payment extension with a universal-link return URL for Afterpay.
+    ///
+    /// This is the recommended way to enable Afterpay (redirect-based): iOS delivers a
+    /// universal link only to the app entitled for its domain, whereas custom URL schemes
+    /// are not exclusive to one app. Supply `applePayMerchantId` as well to also enable
+    /// Apple Pay / card support.
+    ///
+    /// `universalLinkReturnURL` must be a plain `https` URL (host required; no query,
+    /// fragment, or credentials) under a domain listed in the host app's Associated Domains
+    /// entitlement (`applinks:<host>`) and covered by its `apple-app-site-association` file.
+    /// The incoming URL is matched on scheme, host, port, and path only, so the query Stripe
+    /// appends on return is ignored. Forward it from
+    /// `application(_:continue:restorationHandler:)` / `scene(_:continue:)` via
+    /// `userActivity.webpageURL`, or from SwiftUI `.onOpenURL`.
+    ///
+    /// - Parameters:
+    ///   - applePayMerchantId: Apple Pay merchant identifier. Omit to disable Apple Pay.
+    ///   - countryCode: ISO 3166-1 alpha-2 country code for the payment (default: "US").
+    ///     Applies only to Apple Pay.
+    ///   - universalLinkReturnURL: Plain https universal link (e.g.
+    ///     `https://www.example.com/rokt/payment-return`) under one of the host app's
+    ///     associated domains; handed to Stripe as given.
+    /// - Returns: `nil` if `universalLinkReturnURL` is not a plain https URL. Afterpay is
+    ///   always enabled by this initializer, so no other input makes it return `nil`.
+    public convenience init?(
+        applePayMerchantId: String? = nil,
+        countryCode: String = "US",
+        universalLinkReturnURL: URL
+    ) {
+        self.init(
+            applePayMerchantId: applePayMerchantId,
+            countryCode: countryCode,
+            urlScheme: nil,
             universalLinkReturnURL: universalLinkReturnURL,
             bundle: .main
         )
     }
 
-    /// Internal init used by tests to inject a `Bundle` whose `Info.plist`
-    /// contains a controlled `CFBundleURLTypes` entry.
+    /// Shared implementation behind the public initializers. Tests call it directly to
+    /// inject a `Bundle` whose `Info.plist` contains a controlled `CFBundleURLTypes` entry
+    /// and to reach the `urlScheme` + `universalLinkReturnURL` conflict, which the public
+    /// initializers cannot express.
     internal init?(
         applePayMerchantId: String? = nil,
         countryCode: String = "US",

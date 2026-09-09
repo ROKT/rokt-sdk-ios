@@ -81,6 +81,7 @@ final class RoktPaymentExtensionTests: XCTestCase {
         XCTAssertEqual(ext?.supportedMethods, ["apple_pay", "card", "afterpay_clearpay"])
     }
 
+    /// Only the internal initializer can receive both; the public initializers take one or the other.
     func testInitWithBothSchemeAndUniversalLinkReturnsNil() {
         XCTAssertNil(RoktPaymentExtension(
             urlScheme: "myapp",
@@ -235,6 +236,22 @@ final class RoktPaymentExtensionTests: XCTestCase {
         "myapp://rokt-payment-return",
         "https://rokt-payment-return"
     ]
+
+    // MARK: - Public initializer surface
+
+    func testOriginalInitializerSignatureStillResolves() {
+        let make: (String?, String, String?) -> RoktPaymentExtension? =
+            RoktPaymentExtension.init(applePayMerchantId:countryCode:urlScheme:)
+        let ext = make("merchant.test", "US", nil)
+        XCTAssertEqual(ext?.supportedMethods, ["apple_pay", "card"])
+    }
+
+    func testUniversalLinkInitializerResolvesByLabel() {
+        let make: (String?, String, URL) -> RoktPaymentExtension? =
+            RoktPaymentExtension.init(applePayMerchantId:countryCode:universalLinkReturnURL:)
+        let ext = make("merchant.test", "US", universalLink)
+        XCTAssertEqual(ext?.supportedMethods, ["apple_pay", "card", "afterpay_clearpay"])
+    }
 
     // MARK: - Protocol properties
 

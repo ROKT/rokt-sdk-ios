@@ -7,23 +7,26 @@ This document provides guidance on migrating to newer versions of the Rokt Payme
 This is an additive change; no migration is required. Existing `urlScheme:`
 integrations keep working unchanged.
 
-`RoktPaymentExtension.init` gains an optional `universalLinkReturnURL: URL?`
-parameter. Pass an https universal link under one of your app's Associated
-Domains instead of a custom URL scheme: iOS delivers a universal link only to
-the app entitled for that domain, whereas custom URL schemes are not exclusive
-to one app.
+`RoktPaymentExtension` gains a second initializer,
+`init?(applePayMerchantId:countryCode:universalLinkReturnURL:)`; the existing
+`init?(applePayMerchantId:countryCode:urlScheme:)` is unchanged. Pass an https
+universal link under one of your app's Associated Domains instead of a custom
+URL scheme: iOS delivers a universal link only to the app entitled for that
+domain, whereas custom URL schemes are not exclusive to one app.
 
 ```swift
-guard let paymentExtension = RoktPaymentExtension(
-    applePayMerchantId: "merchant.com.example",
-    universalLinkReturnURL: URL(string: "https://www.example.com/rokt/payment-return")
-) else { return }
+guard let returnURL = URL(string: "https://www.example.com/rokt/payment-return"),
+      let paymentExtension = RoktPaymentExtension(
+          applePayMerchantId: "merchant.com.example",
+          universalLinkReturnURL: returnURL
+      ) else { return }
 ```
 
 To adopt it:
 
-1. Remove `urlScheme:` from the init call — the two options are mutually
-   exclusive and passing both returns `nil`.
+1. Replace `urlScheme:` with `universalLinkReturnURL:` in the init call — the
+   two Afterpay options are separate initializers, so a call takes one or the
+   other.
 2. Host an `apple-app-site-association` file covering the return path and add
    the `applinks:<host>` Associated Domains entitlement.
 3. Forward universal links from `application(_:continue:restorationHandler:)` /
