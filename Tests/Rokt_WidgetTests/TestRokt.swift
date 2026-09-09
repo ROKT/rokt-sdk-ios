@@ -305,6 +305,66 @@ class TestRokt: XCTestCase {
         XCTAssertNil(UserDefaultsTxnSessionStore().string(forKey: TxnSessionStoreKeys.token))
     }
 
+    /// The store writes its keys one at a time, so a read that lands before the expiry key is written
+    /// must return nil and leave the just-written session in place.
+    func test_getSession_missingExpiryKey_returnsNilWithoutClearing() {
+        let roktInternalImplementation = RoktInternalImplementation()
+        roktInternalImplementation.roktTagId = "tag-missing-expiry-key"
+        let expiresAt = Int64(Date().addingTimeInterval(1800).timeIntervalSince1970 * 1000)
+        roktInternalImplementation.setSession(
+            RoktSession(sessionId: "sid", sessionToken: "jwt", expiresAtMilliseconds: expiresAt)
+        )
+        XCTAssertNotNil(roktInternalImplementation.getSession())
+
+        UserDefaultsTxnSessionStore().removeValue(forKey: TxnSessionStoreKeys.expiresAt)
+
+        XCTAssertNil(roktInternalImplementation.getSession())
+        XCTAssertEqual(UserDefaultsTxnSessionStore().string(forKey: TxnSessionStoreKeys.token), "jwt")
+        XCTAssertEqual(UserDefaultsTxnSessionStore().string(forKey: TxnSessionStoreKeys.sessionId), "sid")
+    }
+
+    /// A persisted expiry outside the accepted range reads as no session and is cleared.
+    func test_getSession_outOfRangePersistedExpiry_returnsNilAndClears() {
+        let roktInternalImplementation = RoktInternalImplementation()
+        roktInternalImplementation.roktTagId = "tag-out-of-range-expiry"
+        let expiresAt = Int64(Date().addingTimeInterval(1800).timeIntervalSince1970 * 1000)
+
+        for raw in ["9.223372036854776e+18", "9223372036854775807", "9223372036854774784", "inf", "nan"] {
+            roktInternalImplementation.setSession(
+                RoktSession(sessionId: "sid", sessionToken: "jwt", expiresAtMilliseconds: expiresAt)
+            )
+            XCTAssertNotNil(roktInternalImplementation.getSession(), raw)
+
+            UserDefaultsTxnSessionStore().setString(raw, forKey: TxnSessionStoreKeys.expiresAt)
+
+            XCTAssertNil(roktInternalImplementation.getSession(), raw)
+            XCTAssertNil(UserDefaultsTxnSessionStore().string(forKey: TxnSessionStoreKeys.token), raw)
+            XCTAssertNil(UserDefaultsTxnSessionStore().string(forKey: TxnSessionStoreKeys.expiresAt), raw)
+        }
+    }
+
+    func test_setSession_farFutureExpiresAt_isCappedAndRoundTrips() {
+        let roktInternalImplementation = RoktInternalImplementation()
+        roktInternalImplementation.roktTagId = "tag-far-future"
+        let before = Date()
+
+        roktInternalImplementation.setSession(
+            RoktSession(sessionId: "sid", sessionToken: "jwt", expiresAtMilliseconds: Int64.max)
+        )
+
+        let loaded = roktInternalImplementation.getSession()
+        XCTAssertEqual(loaded?.sessionId, "sid")
+        XCTAssertEqual(loaded?.sessionToken, "jwt")
+        guard let expiresAtMs = loaded?.expiresAt?.int64Value else {
+            XCTFail("Expected a capped expiresAt after setSession with a far-future expiry")
+            return
+        }
+        // Allow a few seconds of test slack on the cap.
+        let capMs = Int64(before.addingTimeInterval(TxnSessionPersistence.maxTokenTTL + 5).timeIntervalSince1970 * 1000)
+        XCTAssertLessThanOrEqual(expiresAtMs, capMs)
+        XCTAssertGreaterThan(expiresAtMs, Int64(before.timeIntervalSince1970 * 1000))
+    }
+
     func test_setSession_pastExpiresAt_fallsBackToDefaultTTL() async {
         let roktInternalImplementation = RoktInternalImplementation()
         roktInternalImplementation.roktTagId = "tag-expired"

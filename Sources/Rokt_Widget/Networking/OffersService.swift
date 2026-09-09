@@ -40,7 +40,7 @@ internal struct OffersService {
         requestTimeout: TimeInterval = 7,
         baseBackoff: TimeInterval = 0.2,
         sleep: @escaping (TimeInterval) async throws -> Void = { seconds in
-            try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+            try await Task.sleep(nanoseconds: NetworkRetryRules.sleepNanoseconds(clamping: seconds))
         },
         makeRequestId: @escaping () -> String = { UUID().uuidString },
         makePageInstanceGuid: @escaping () -> String = { UUID().uuidString },

@@ -61,9 +61,10 @@ internal actor TxnSessionManager {
         Self.storeLock.lock()
         defer { Self.storeLock.unlock() }
         guard isCurrentEpochLocked() else { return }
+        let bounded = sessionToken.clampingExpiry(now: clock())
         self.sessionId = sessionId
-        token = sessionToken.token
-        expiresAt = sessionToken.expiresAtDate
+        token = bounded.token
+        expiresAt = bounded.expiresAtDate
         persistLocked(includeSessionId: true)
     }
 
@@ -72,8 +73,9 @@ internal actor TxnSessionManager {
         Self.storeLock.lock()
         defer { Self.storeLock.unlock() }
         guard isCurrentEpochLocked() else { return }
-        token = sessionToken.token
-        expiresAt = sessionToken.expiresAtDate
+        let bounded = sessionToken.clampingExpiry(now: clock())
+        token = bounded.token
+        expiresAt = bounded.expiresAtDate
         persistLocked(includeSessionId: false)
     }
 
@@ -158,7 +160,7 @@ internal actor TxnSessionManager {
             clearStateLocked(bumpEpoch: false)
             return
         }
-        let raw = TxnSessionPersistence.readRaw(store: store)
+        let raw = TxnSessionPersistence.readRaw(store: store, now: clock())
         sessionId = raw.sessionId
         token = raw.token
         expiresAt = raw.expiresAt
