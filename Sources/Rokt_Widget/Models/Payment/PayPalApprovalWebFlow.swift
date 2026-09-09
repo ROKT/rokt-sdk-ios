@@ -53,6 +53,11 @@ final class PayPalCheckoutCoordinator {
         completeOnce(result)
     }
 
+    /// Called when the approval step cannot be presented; ends the checkout with a failure.
+    func completeWithFailure(_ message: String) {
+        completeOnce(.failed(error: message))
+    }
+
     /// Called from ``PaymentOrchestrator/handleURLCallback(with:)`` when the host app receives the return/cancel deep link.
     /// - Returns: `true` if the URL matches the configured return or cancel URL (including after checkout already finished).
     @discardableResult
@@ -139,6 +144,14 @@ final class PayPalApprovalWebPresenter: PayPalApprovalPresenting {
         from viewController: UIViewController,
         checkoutCoordinator: PayPalCheckoutCoordinator
     ) {
+        // `SFSafariViewController` only accepts http/https URLs; anything else ends the checkout instead.
+        guard approvalURL.isWebURLWithHost() else {
+            RoktLogger.shared.warning(
+                "\(PaymentOrchestrator.devicePayErrorCode) \(PaymentOrchestrator.payPalApprovalURLInvalidMessage)"
+            )
+            checkoutCoordinator.completeWithFailure(PaymentOrchestrator.payPalApprovalURLInvalidMessage)
+            return
+        }
         DispatchQueue.main.async {
             let safari = SFSafariViewController(url: approvalURL)
             safari.modalPresentationStyle = .fullScreen

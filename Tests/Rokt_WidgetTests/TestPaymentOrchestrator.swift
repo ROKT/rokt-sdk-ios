@@ -1008,7 +1008,9 @@ class TestPaymentOrchestrator: XCTestCase {
     }
 
     /// Includes ``InitializePurchasePayPalData/approvalUrl`` so built-in PayPal can present the hosted approve flow.
-    private static func validPayPalInitializePurchaseResponse() -> InitializePurchaseResponse {
+    private static func validPayPalInitializePurchaseResponse(
+        approvalUrl: String = "https://www.paypal.com/checkoutnow?token=MOCK"
+    ) -> InitializePurchaseResponse {
         InitializePurchaseResponse(
             success: true,
             totalUpsellPrice: 9.99,
@@ -1026,7 +1028,7 @@ class TestPaymentOrchestrator: XCTestCase {
             ),
             paypalData: InitializePurchasePayPalData(
                 orderId: "ORDER_MOCK",
-                approvalUrl: "https://www.paypal.com/checkoutnow?token=MOCK"
+                approvalUrl: approvalUrl
             )
         )
     }
@@ -1054,6 +1056,114 @@ class TestPaymentOrchestrator: XCTestCase {
         }
         wait(for: [expectation], timeout: 1.0)
         XCTAssertEqual(payPalPresenter.presentCallCount, 0)
+    }
+
+    /// Runs Step-1 with the given approval URL and returns the failed result; fails the test if the
+    /// confirm button is shown, the presenter is called, or anything is left pending.
+    private func runPayPalStepOneExpectingRejection(approvalUrl: String) -> PaymentSheetResult? {
+        PaymentOrchestrator.resetBuiltInTwoStepDeferredStateForTesting()
+        PaymentOrchestratorAPIHelperSpy.reset()
+        let payPalPresenter = MockPayPalApprovalPresenter()
+        sut = PaymentOrchestrator(
+            apiHelper: PaymentOrchestratorAPIHelperSpy.self,
+            payPalApprovalPresenter: payPalPresenter
+        )
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse =
+            Self.validPayPalInitializePurchaseResponse(approvalUrl: approvalUrl)
+
+        var stepOneResult: PaymentSheetResult?
+        let failed = expectation(description: "PayPal Step-1 fails for approval URL \(approvalUrl)")
+        sut.processPayment(
+            method: .paypal,
+            item: PaymentItem(id: "p1", name: "P", amount: 1, currency: "USD"),
+            context: PaymentContext(
+                billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                returnURL: "myapp://paypal/success",
+                cancelURL: nil
+            ),
+            cartItemId: "v1:cart:1",
+            from: UIViewController(),
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests { _, _, _ in
+                XCTFail("Confirmation must not be shown for approval URL \(approvalUrl)")
+            }
+        ) { result in
+            stepOneResult = result
+            failed.fulfill()
+        }
+        wait(for: [failed], timeout: 1.0)
+
+        XCTAssertEqual(payPalPresenter.presentCallCount, 0, approvalUrl)
+        XCTAssertFalse(sut.presentPendingBuiltInPayPalForForwardPayment { _ in }, "Nothing may stay pending: \(approvalUrl)")
+        return stepOneResult
+    }
+
+    func test_processPayment_payPal_failsWhenApprovalUrlIsNotWebURL() {
+        for approvalUrl in ["myapp://x", "javascript:1", "file:///etc", "paypal.com/checkoutnow"] {
+            let result = runPayPalStepOneExpectingRejection(approvalUrl: approvalUrl)
+
+            XCTAssertEqual(result?.outcome, .failed, approvalUrl)
+            XCTAssertEqual(result?.errorMessage, PaymentOrchestrator.payPalApprovalURLInvalidMessage, approvalUrl)
+            XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.sendDiagnosticsCallCount, 1, approvalUrl)
+            XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastDiagnosticsMessage, PaymentOrchestrator.devicePayErrorCode)
+            XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastDiagnosticsSeverity, .warning)
+            let loggedStrings = (PaymentOrchestratorAPIHelperSpy.lastDiagnosticsAdditionalInfo ?? [:])
+                .values.compactMap { $0 as? String }
+            XCTAssertFalse(
+                loggedStrings.contains { $0.contains(approvalUrl) },
+                "Diagnostics must not carry the approval URL: \(approvalUrl)"
+            )
+        }
+    }
+
+    /// A web scheme without a host is rejected before the confirm button; whether `URL(string:)` parses these at
+    /// all differs between Foundation versions, so either rejection message is acceptable.
+    func test_processPayment_payPal_failsWhenApprovalUrlHasWebSchemeButNoHost() {
+        for approvalUrl in ["https://", "https:///x"] {
+            let result = runPayPalStepOneExpectingRejection(approvalUrl: approvalUrl)
+
+            XCTAssertEqual(result?.outcome, .failed, approvalUrl)
+            XCTAssertTrue(
+                [
+                    PaymentOrchestrator.payPalApprovalURLInvalidMessage,
+                    PaymentOrchestrator.payPalApprovalURLMissingMessage
+                ].contains(result?.errorMessage ?? ""),
+                approvalUrl
+            )
+        }
+    }
+
+    func test_processPayment_payPal_acceptsHttpApprovalUrl() {
+        let payPalPresenter = MockPayPalApprovalPresenter()
+        sut = PaymentOrchestrator(
+            apiHelper: PaymentOrchestratorAPIHelperSpy.self,
+            payPalApprovalPresenter: payPalPresenter
+        )
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse =
+            Self.validPayPalInitializePurchaseResponse(approvalUrl: "http://localhost:9011/approve")
+
+        let completed = expectation(description: "PayPal completes with an http approval URL")
+        let presentingViewController = UIViewController()
+        sut.processPayment(
+            method: .paypal,
+            item: PaymentItem(id: "p1", name: "P", amount: 1, currency: "USD"),
+            context: PaymentContext(
+                billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                returnURL: "myapp://paypal/success",
+                cancelURL: nil
+            ),
+            cartItemId: "v1:cart:1",
+            from: presentingViewController,
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests()
+        ) { result in
+            XCTAssertEqual(result.outcome, .succeeded)
+            completed.fulfill()
+        }
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment { _ in })
+
+        wait(for: [completed], timeout: 1.0)
+        XCTAssertEqual(payPalPresenter.presentCallCount, 1)
+        XCTAssertEqual(payPalPresenter.lastApprovalURL?.absoluteString, "http://localhost:9011/approve")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.sendDiagnosticsCallCount, 0)
     }
 
     func test_processPayment_payPal_failsWhenDevicePaySessionMissing() {

@@ -11,4 +11,9 @@ internal extension URL {
     static func isWebURL(url: String) -> Bool {
         return url.lowercased().hasPrefix(httpPrefix) || url.lowercased().hasPrefix(httpsPrefix)
     }
+
+    /// `true` for an `http`/`https` URL that also names a host — the only shape a web view can load.
+    func isWebURLWithHost() -> Bool {
+        return isWebURL() && !(host ?? "").isEmpty
+    }
 }
