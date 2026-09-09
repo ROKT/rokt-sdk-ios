@@ -1170,7 +1170,33 @@ class TestPaymentOrchestrator: XCTestCase {
         XCTAssertNotNil(sut.beginBuiltInCardForwardPaymentIfReady(for: keyB))
     }
 
-    func test_discardAllPendingBuiltInTwoStep_dropsEveryEntryWithoutCompleting() {
+    func test_discardPendingBuiltInTwoStep_forExecuteId_keepsARunningCardPurchaseUntilItsResultArrives() {
+        let heldKey = BuiltInTwoStepCheckoutKey(executeId: "execute_a", layoutId: "l", catalogItemId: "c", cartItemId: "cart_a")
+        let sentKey = BuiltInTwoStepCheckoutKey(executeId: "execute_a", layoutId: "l", catalogItemId: "c", cartItemId: "cart_b")
+        sut.unitTest_seedDeferredBuiltInCardForwardPayment(for: heldKey) { _ in
+            XCTFail("Discard must not invoke the Step-1 completion")
+        }
+        let sentResult = expectation(description: "The running card purchase still delivers its result")
+        sut.unitTest_seedDeferredBuiltInCardForwardPayment(for: sentKey) { result in
+            XCTAssertEqual(result.outcome, .succeeded)
+            sentResult.fulfill()
+        }
+        XCTAssertNotNil(sut.beginBuiltInCardForwardPaymentIfReady(for: sentKey), "Item B's purchase is in flight")
+
+        sut.discardPendingBuiltInTwoStep(forExecuteId: "execute_a")
+        drainMainQueue()
+
+        XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: heldKey), "A confirm not yet tapped goes with its layout")
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: sentKey), "A purchase already sent keeps its completion")
+        XCTAssertTrue(sut.isBuiltInCardForwardPaymentInFlight(), "One cart purchase at a time still holds while it runs")
+
+        sut.finishBuiltInCardForwardPaymentAttempt(for: sentKey, result: .succeeded(transactionId: ""))
+        wait(for: [sentResult], timeout: 1.0)
+        XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: sentKey))
+        XCTAssertFalse(sut.isBuiltInCardForwardPaymentInFlight())
+    }
+
+    func test_discardAllPendingBuiltInTwoStep_dropsEntriesNotInFlightAndKeepsTheRunningCardPurchase() {
         let keyA = BuiltInTwoStepCheckoutKey(executeId: "execute_a", layoutId: "l", catalogItemId: "c", cartItemId: "cart_a")
         let keyB = BuiltInTwoStepCheckoutKey(executeId: "execute_b", layoutId: "l", catalogItemId: "c", cartItemId: "cart_b")
         sut.unitTest_seedDeferredBuiltInPayPalForwardPayment(
@@ -1181,8 +1207,10 @@ class TestPaymentOrchestrator: XCTestCase {
         ) { _ in
             XCTFail("Discard must not invoke the Step-1 completion")
         }
-        sut.unitTest_seedDeferredBuiltInCardForwardPayment(for: keyB) { _ in
-            XCTFail("Discard must not invoke the Step-1 completion")
+        let inFlightResult = expectation(description: "The running card purchase still delivers its result")
+        sut.unitTest_seedDeferredBuiltInCardForwardPayment(for: keyB) { result in
+            XCTAssertEqual(result.outcome, .succeeded)
+            inFlightResult.fulfill()
         }
         XCTAssertNotNil(sut.beginBuiltInCardForwardPaymentIfReady(for: keyB), "Item B is in flight when the session ends")
 
@@ -1190,10 +1218,15 @@ class TestPaymentOrchestrator: XCTestCase {
         drainMainQueue()
 
         XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: keyA))
+        XCTAssertFalse(sut.presentPendingBuiltInPayPalForForwardPayment(for: keyA) { _ in })
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: keyB), "A purchase already sent keeps its completion")
+        XCTAssertTrue(sut.isBuiltInCardForwardPaymentInFlight(), "One cart purchase at a time still holds while it runs")
+        XCTAssertNil(sut.beginBuiltInCardForwardPaymentIfReady(for: keyB), "The running purchase is not started twice")
+
+        sut.finishBuiltInCardForwardPaymentAttempt(for: keyB, result: .succeeded(transactionId: ""))
+        wait(for: [inFlightResult], timeout: 1.0)
         XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: keyB))
         XCTAssertFalse(sut.isBuiltInCardForwardPaymentInFlight())
-        XCTAssertFalse(sut.presentPendingBuiltInPayPalForForwardPayment(for: keyA) { _ in })
-        XCTAssertNil(sut.beginBuiltInCardForwardPaymentIfReady(for: keyB))
     }
 
     func test_cancelPendingBuiltInTwoStep_forKey_failsOnlyThatItem() {

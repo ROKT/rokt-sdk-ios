@@ -121,11 +121,17 @@ final class PaymentOrchestrator {
         case card(PendingBuiltInCardCheckout)
         /// Forward-payment cart purchase POST (built-in two-step) is in flight; same snapshot as ``card`` until terminal or retryable restore.
         case cardInFlight(PendingBuiltInCardCheckout)
+
+        /// A `/v1/cart/purchase` request is running for this entry; only its terminal outcome may clear it.
+        var isCardPurchaseInFlight: Bool {
+            if case .cardInFlight = self { return true }
+            return false
+        }
     }
 
     /// Deferred Step-1 state per item and placement. Step-2 consumes only the entry under its own event's key,
-    /// so a confirm for one item never resumes another item's checkout; entries for a closed placement or a
-    /// cleared session are discarded.
+    /// so a confirm for one item never resumes another item's checkout; entries not yet in flight for a closed
+    /// placement or a cleared session are discarded.
     private static var pendingBuiltInTwoStepCheckouts: [BuiltInTwoStepCheckoutKey: PendingBuiltInTwoStepCheckout] = [:]
 
     static let builtInPayPalMissingDeferredSessionMessage =
@@ -664,18 +670,22 @@ final class PaymentOrchestrator {
     // MARK: - Lifecycle fences
 
     /// Drops deferred Step-1 state for every item of `executeId` without invoking completions: the placement
-    /// is gone, so no confirm button can resume them and no failure event is owed for them.
+    /// is gone, so no confirm button can resume them and no failure event is owed for them. A card purchase
+    /// already in flight (``cardInFlight``) is kept so its terminal outcome still reaches the Step-1 completion.
     func discardPendingBuiltInTwoStep(forExecuteId executeId: String) {
         Self.pendingBuiltInTwoStepLock.lock()
-        Self.pendingBuiltInTwoStepCheckouts = Self.pendingBuiltInTwoStepCheckouts.filter { $0.key.executeId != executeId }
+        Self.pendingBuiltInTwoStepCheckouts = Self.pendingBuiltInTwoStepCheckouts.filter { entry in
+            entry.key.executeId != executeId || entry.value.isCardPurchaseInFlight
+        }
         Self.pendingBuiltInTwoStepLock.unlock()
     }
 
-    /// Drops all deferred Step-1 state without invoking completions; called at a session boundary so nothing
-    /// started under one session can be resumed under the next.
+    /// Drops all deferred Step-1 state not yet in flight, without invoking completions; called at a session
+    /// boundary so nothing started under one session can be resumed under the next. A card purchase already
+    /// in flight (``cardInFlight``) is kept so its terminal outcome still reaches the Step-1 completion.
     func discardAllPendingBuiltInTwoStep() {
         Self.pendingBuiltInTwoStepLock.lock()
-        Self.pendingBuiltInTwoStepCheckouts.removeAll()
+        Self.pendingBuiltInTwoStepCheckouts = Self.pendingBuiltInTwoStepCheckouts.filter { $0.value.isCardPurchaseInFlight }
         Self.pendingBuiltInTwoStepLock.unlock()
     }
 

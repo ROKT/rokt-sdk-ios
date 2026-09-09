@@ -4,8 +4,8 @@ import XCTest
 @testable internal import RoktUXHelper
 
 /// Deferred built-in two-step state is bound to the item and placement that started it: a Step-2 confirm for a
-/// different item runs its own cart purchase and leaves the other entry alone, and the state is dropped when its
-/// layout closes or fails, or the session is cleared.
+/// different item runs its own cart purchase and leaves the other entry alone, and state not yet in flight is
+/// dropped when its layout closes or fails, or the session is cleared; a purchase already sent keeps its result.
 final class TestBuiltInTwoStepCheckoutBinding: XCTestCase {
 
     private let purchaseURL = URL(string: "https://apps.rokt.com/rokt-mobile/v1/cart/purchase")!
@@ -209,6 +209,34 @@ final class TestBuiltInTwoStepCheckoutBinding: XCTestCase {
         XCTAssertFalse(orch.presentPendingBuiltInPayPalForForwardPayment(for: closingKey) { _ in })
         XCTAssertTrue(orch.unitTest_hasPendingBuiltInTwoStep(for: otherExecuteKey), "Another placement's checkout is untouched")
         XCTAssertNotNil(orch.beginBuiltInCardForwardPaymentIfReady(for: otherExecuteKey))
+    }
+
+    func test_layoutClosed_whileCardPurchaseIsInFlight_stillDeliversTheStepOneResult() {
+        let (impl, bag) = makeImplementationAfterStepTwoTap()
+        let orch = impl.paymentOrchestratorForTesting
+        let itemKey = key(cartItemId: "cart-a", catalogItemId: "catalog-a")
+        let stepOneResult = expectation(description: "Step-1 completion receives the purchase result")
+        orch.unitTest_seedDeferredBuiltInCardForwardPayment(for: itemKey) { result in
+            XCTAssertEqual(result.outcome, .succeeded)
+            stepOneResult.fulfill()
+        }
+        registerPurchaseMock(body: #"{"success":true}"#) { _ in }
+        installMockingHTTPClient()
+        let cleared = expectFlagCleared(bag)
+
+        Rokt.shared.roktImplementation.roktTagId = forwardPaymentTestTagId
+        impl.handleForwardPayment(
+            executeId: executeId,
+            event: makeForwardPaymentEvent(cartItemId: "cart-a", catalogItemId: "catalog-a")
+        )
+        // The purchase response is delivered on the main queue, so it cannot land before this close runs.
+        impl.callOnRoktUXEvent(executeId, uxEvent: RoktUXEvent.LayoutClosed(layoutId: "layout-1"))
+
+        XCTAssertTrue(orch.isBuiltInCardForwardPaymentInFlight(), "Closing the layout keeps a purchase already sent")
+        XCTAssertTrue(orch.unitTest_hasPendingBuiltInTwoStep(for: itemKey))
+        wait(for: [stepOneResult, cleared], timeout: 3.0)
+        XCTAssertFalse(orch.unitTest_hasPendingBuiltInTwoStep(for: itemKey))
+        XCTAssertFalse(orch.isBuiltInCardForwardPaymentInFlight())
     }
 
     func test_layoutFailure_dropsPendingTwoStepForThatExecute() {
