@@ -58,6 +58,10 @@ final class PaymentOrchestrator {
     /// Built-in PayPal uses ``PaymentContext/returnURL`` to detect completion when PayPal redirects after approval.
     static let payPalReturnURLMissingMessage =
         "PaymentContext.returnURL is required for PayPal checkout."
+    /// The screen that should show the PayPal approval sheet is already presenting another view, so the sheet would
+    /// not appear and nothing would ever report back; the checkout fails instead of waiting on a sheet that never opened.
+    static let payPalApprovalPresenterBusyMessage =
+        "PayPal approval could not be shown; the screen is already presenting another view."
     /// Cart `initialize-purchase` body `paymentMethodType` wire value. PascalCase tokens that
     /// match both the cart-api `PaymentMethodType` member names and the values DCUI returns in
     /// `paymentProvider` — so iOS sends the method back in the same vocabulary it receives.
@@ -138,15 +142,19 @@ final class PaymentOrchestrator {
 
     /// Where a PayPal entry taken out of ``pendingBuiltInTwoStepCheckouts`` for its hosted approval stands.
     private enum PresentedBuiltInPayPalCheckout {
-        /// The approval sheet is up; a cancel re-queues the entry for the confirm button to start again.
+        /// The approval sheet is up; a cancel re-queues the entry for the confirm button to start again, and no other
+        /// PayPal approval is started until this one ends.
         case presenting
         /// Its layout closed or failed, or the session was cleared, while the sheet was up; a cancel drops the entry.
+        /// The placement is gone, so this mark does not hold later confirms back: a sheet the host tore down without
+        /// reporting back must not block PayPal for the rest of the process.
         case fenced
     }
 
     /// PayPal entries currently out for presentation, keyed like the pending table. A lifecycle fence cannot see
-    /// them there, so it marks them here and the cancel path reads the mark before re-queueing. While it holds any
-    /// entry an approval sheet is up, and no second approval is started until that one ends.
+    /// them there, so it marks them here and the cancel path reads the mark before re-queueing. While it holds a
+    /// ``PresentedBuiltInPayPalCheckout/presenting`` entry an approval sheet is up, and no second approval is started
+    /// until that one ends.
     private static var presentedBuiltInPayPalCheckouts: [BuiltInTwoStepCheckoutKey: PresentedBuiltInPayPalCheckout] = [:]
 
     /// Card purchases still in flight when their layout closed or failed, or the session was cleared. Their result
@@ -521,8 +529,9 @@ final class PaymentOrchestrator {
         }
         // One hosted approval at a time. A second item's confirm while a sheet is up would present over it and
         // take over the return-link routing (``activePayPalCheckout`` is one coordinator), so its entry stays
-        // pending for a confirm after the current sheet ends.
-        guard Self.presentedBuiltInPayPalCheckouts.isEmpty else {
+        // pending for a confirm after the current sheet ends. Only a live sheet holds it back: a fenced mark belongs
+        // to a placement that is gone, and its sheet may already have been torn down without reporting back.
+        guard !Self.presentedBuiltInPayPalCheckouts.values.contains(.presenting) else {
             Self.pendingBuiltInTwoStepLock.unlock()
             RoktLogger.shared.warning("PayPal approval not started: another PayPal approval is already on screen.")
             return true

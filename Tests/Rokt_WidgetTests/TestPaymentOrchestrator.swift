@@ -130,11 +130,12 @@ class TestPaymentOrchestrator: XCTestCase {
     private static let testExecuteId = "test_execute"
 
     private func paypalDeviceSessionForTests(
+        layoutId: String = "test_layout",
         onConfirmation: ((String, String, [String: String]) -> Void)? = nil
     ) -> BuiltInTwoStepDevicePaySession {
         BuiltInTwoStepDevicePaySession(
             executeId: Self.testExecuteId,
-            layoutId: "test_layout",
+            layoutId: layoutId,
             catalogItemId: "test_catalog"
         ) { lid, cid, data in
             onConfirmation?(lid, cid, data)
@@ -1800,11 +1801,12 @@ class TestPaymentOrchestrator: XCTestCase {
     /// and drains the main queue, so the checkout coordinator is active when a deep link is simulated.
     private func startHeldPayPalCheckout(
         cancelURL: String? = nil,
+        presenter: HoldingPayPalApprovalPresenter = HoldingPayPalApprovalPresenter(),
         onStepOneResult: @escaping (PaymentSheetResult) -> Void
     ) {
         sut = PaymentOrchestrator(
             apiHelper: PaymentOrchestratorAPIHelperSpy.self,
-            payPalApprovalPresenter: HoldingPayPalApprovalPresenter()
+            payPalApprovalPresenter: presenter
         )
         PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = Self.validPayPalInitializePurchaseResponse()
 
@@ -2016,6 +2018,119 @@ class TestPaymentOrchestrator: XCTestCase {
         drainMainQueue()
         XCTAssertEqual(secondResult?.outcome, .succeeded)
         XCTAssertEqual(secondResult?.transactionId, "ORDER_2")
+    }
+
+    func test_presentPendingBuiltInPayPal_afterASheetForAClosedLayoutNeverReportedBack_aLaterItemStillPresents() {
+        let payPalPresenter = HoldingPayPalApprovalPresenter()
+        var firstResult: PaymentSheetResult?
+        startHeldPayPalCheckout(presenter: payPalPresenter) { firstResult = $0 }
+        XCTAssertEqual(payPalPresenter.presentCallCount, 1)
+
+        // The placement closes while its sheet is up, and the host then tears the sheet down (for example by replacing
+        // its root view controller), so the sheet never reports a cancel or a return.
+        sut.discardPendingBuiltInTwoStep(forExecuteId: Self.testExecuteId, layoutId: "test_layout")
+
+        // A later placement offers a PayPal item; its confirm must not be held back by a sheet that is gone.
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse =
+            Self.validPayPalInitializePurchaseResponse(orderId: "ORDER_2")
+        // Held strongly until the deferred present has run; the pending checkout only keeps a weak reference.
+        let presentingViewController = UIViewController()
+        var laterResult: PaymentSheetResult?
+        sut.processPayment(
+            method: .paypal,
+            item: PaymentItem(id: "p2", name: "P", amount: 1, currency: "USD"),
+            context: PaymentContext(
+                billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                returnURL: "myapp://paypal/success",
+                cancelURL: nil
+            ),
+            cartItemId: "v1:cart:2",
+            from: presentingViewController,
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests(layoutId: "other_layout")
+        ) { laterResult = $0 }
+        let laterKey = BuiltInTwoStepCheckoutKey(
+            executeId: Self.testExecuteId,
+            layoutId: "other_layout",
+            catalogItemId: "test_catalog",
+            cartItemId: "v1:cart:2"
+        )
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: laterKey) { _ in })
+        drainMainQueue()
+
+        XCTAssertEqual(payPalPresenter.presentCallCount, 2, "The later item's approval sheet is presented")
+        XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: laterKey), "The later item's checkout was started")
+        XCTAssertNil(firstResult, "Nothing is owed for the placement that closed")
+
+        // The later order's return link completes the later checkout.
+        XCTAssertTrue(sut.handleURLCallback(with: URL(string: "myapp://paypal/success?token=ORDER_2")!))
+        drainMainQueue()
+        XCTAssertEqual(laterResult?.outcome, .succeeded)
+        XCTAssertEqual(laterResult?.transactionId, "ORDER_2")
+    }
+
+    func test_presentPendingBuiltInPayPal_whenTheScreenAlreadyPresentsAnotherView_failsStepOneAndALaterItemStillPresents() {
+        sut = PaymentOrchestrator(
+            apiHelper: PaymentOrchestratorAPIHelperSpy.self,
+            payPalApprovalPresenter: PayPalApprovalWebPresenter()
+        )
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = Self.validPayPalInitializePurchaseResponse()
+        // By the time the confirm is tapped, the screen that started Step-1 is showing another view (an alert, another
+        // sheet), so the approval sheet cannot be shown and nothing would ever report back for it.
+        let busyViewController = AlreadyPresentingViewController()
+        var stepOneResult: PaymentSheetResult?
+        sut.processPayment(
+            method: .paypal,
+            item: PaymentItem(id: "p1", name: "P", amount: 1, currency: "USD"),
+            context: PaymentContext(
+                billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                returnURL: "myapp://paypal/success",
+                cancelURL: nil
+            ),
+            cartItemId: "v1:cart:1",
+            from: busyViewController,
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests()
+        ) { stepOneResult = $0 }
+        var confirmResult: PaymentSheetResult?
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { confirmResult = $0 })
+        drainMainQueue()
+
+        XCTAssertEqual(stepOneResult?.outcome, .failed)
+        XCTAssertEqual(stepOneResult?.errorMessage, PaymentOrchestrator.payPalApprovalPresenterBusyMessage)
+        XCTAssertEqual(confirmResult?.outcome, .failed)
+        XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()))
+        XCTAssertFalse(
+            sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in },
+            "The failed item is no longer counted as a sheet on screen"
+        )
+
+        // The presenter is fixed per orchestrator, so the later item runs through one whose screen can show a sheet;
+        // the one-approval-at-a-time gate is shared between them, and the failed item must not hold it closed.
+        let laterPresenter = HoldingPayPalApprovalPresenter()
+        let laterOrchestrator = PaymentOrchestrator(
+            apiHelper: PaymentOrchestratorAPIHelperSpy.self,
+            payPalApprovalPresenter: laterPresenter
+        )
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse =
+            Self.validPayPalInitializePurchaseResponse(orderId: "ORDER_2")
+        let presentingViewController = UIViewController()
+        laterOrchestrator.processPayment(
+            method: .paypal,
+            item: PaymentItem(id: "p2", name: "P", amount: 1, currency: "USD"),
+            context: PaymentContext(
+                billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                returnURL: "myapp://paypal/success",
+                cancelURL: nil
+            ),
+            cartItemId: "v1:cart:2",
+            from: presentingViewController,
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests()
+        ) { _ in }
+        let laterKey = testKey(cartItemId: "v1:cart:2")
+        XCTAssertTrue(laterOrchestrator.presentPendingBuiltInPayPalForForwardPayment(for: laterKey) { _ in })
+        drainMainQueue()
+
+        XCTAssertEqual(laterPresenter.presentCallCount, 1, "The later item's approval sheet is presented")
+        XCTAssertFalse(laterOrchestrator.unitTest_hasPendingBuiltInTwoStep(for: laterKey))
     }
 
     func test_processPayment_payPal_failsWhenOrderIdMissing() {

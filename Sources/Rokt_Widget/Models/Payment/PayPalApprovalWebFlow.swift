@@ -190,6 +190,16 @@ final class PayPalApprovalWebPresenter: PayPalApprovalPresenting {
             return
         }
         DispatchQueue.main.async {
+            // UIKit refuses to present over a view controller that is already presenting, and reports the refusal
+            // to no one: the present completion is skipped and no delegate call follows. Fail the checkout here
+            // instead, so its result still reaches the caller and the checkout is not left waiting for ever.
+            guard viewController.presentedViewController == nil else {
+                RoktLogger.shared.warning(
+                    "\(PaymentOrchestrator.devicePayErrorCode) \(PaymentOrchestrator.payPalApprovalPresenterBusyMessage)"
+                )
+                checkoutCoordinator.completeWithFailure(PaymentOrchestrator.payPalApprovalPresenterBusyMessage)
+                return
+            }
             let safari = SFSafariViewController(url: approvalURL)
             safari.modalPresentationStyle = .fullScreen
             let delegate = PayPalApprovalSafariDelegate(checkoutCoordinator: checkoutCoordinator)
