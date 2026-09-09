@@ -1486,6 +1486,45 @@ class TestPaymentOrchestrator: XCTestCase {
         wait(for: [purchaseResultDelivered], timeout: 1.0)
     }
 
+    func test_stepOne_card_replacementThatSucceeds_keepsACardPurchaseAlreadyInFlight() {
+        sut = PaymentOrchestrator(apiHelper: PaymentOrchestratorAPIHelperSpy.self)
+        let purchaseResultDelivered = expectation(description: "The purchase already sent still reaches its completion")
+        sut.unitTest_seedDeferredBuiltInCardForwardPayment(for: testKey()) { result in
+            XCTAssertEqual(result.outcome, .succeeded)
+            purchaseResultDelivered.fulfill()
+        }
+        XCTAssertNotNil(sut.beginBuiltInCardForwardPaymentIfReady(for: testKey()))
+        XCTAssertTrue(sut.isBuiltInCardForwardPaymentInFlight())
+
+        // Step-1 runs again for the same item while its purchase is out, and succeeds: the purchase already
+        // sent keeps its place, no confirm button appears for the new attempt, and the new attempt is reported
+        // as failed.
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = Self.validInitializePurchaseResponse()
+        var replacementResult: PaymentSheetResult?
+        sut.processPayment(
+            method: .card,
+            item: PaymentItem(id: "item-card", name: "Widget", amount: 9.99, currency: "USD"),
+            context: PaymentContext(),
+            cartItemId: "v1:cart:1",
+            from: UIViewController(),
+            builtInCardDevicePaySession: BuiltInTwoStepDevicePaySession(
+                executeId: Self.testExecuteId,
+                layoutId: "test_layout",
+                catalogItemId: "test_catalog"
+            ) { _, _, _ in
+                XCTFail("A replacement for a purchase already in flight shows no confirm button")
+            }
+        ) { replacementResult = $0 }
+        drainMainQueue()
+
+        XCTAssertEqual(replacementResult?.outcome, .failed)
+        XCTAssertEqual(replacementResult?.errorMessage, PaymentOrchestrator.builtInCardPurchaseInFlightMessage)
+        XCTAssertTrue(sut.isBuiltInCardForwardPaymentInFlight(), "The purchase already sent keeps its entry")
+
+        sut.finishBuiltInCardForwardPaymentAttempt(for: testKey(), result: .succeeded(transactionId: "card_txn"))
+        wait(for: [purchaseResultDelivered], timeout: 1.0)
+    }
+
     func test_stepOne_card_responseAfterTheSessionCleared_showsNoConfirmationAndStoresNothing() {
         sut = PaymentOrchestrator(apiHelper: PaymentOrchestratorAPIHelperSpy.self)
         PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = Self.validInitializePurchaseResponse()

@@ -67,6 +67,10 @@ final class PaymentOrchestrator {
     /// that never opened.
     static let payPalApprovalPresenterOffScreenMessage =
         "PayPal approval could not be shown; the screen that started the checkout is no longer showing."
+    /// A Step-1 started again for an item whose card purchase has already been sent: the purchase already out keeps
+    /// its place so its result still reaches its completion, and the new attempt is reported as failed.
+    static let builtInCardPurchaseInFlightMessage =
+        "A card purchase for this item is already in progress."
     /// Cart `initialize-purchase` body `paymentMethodType` wire value. PascalCase tokens that
     /// match both the cart-api `PaymentMethodType` member names and the values DCUI returns in
     /// `paymentProvider` — so iOS sends the method back in the same vocabulary it receives.
@@ -413,8 +417,8 @@ final class PaymentOrchestrator {
         let preparingToken = preparingKey.map { Self.beginPreparingBuiltInTwoStep(for: $0) }
         // `false` when the placement or session went away, or Step-1 was started again for this item, while the
         // request was out: its response then shows nothing, stores nothing and reports nothing.
-        let endPreparing: (PendingBuiltInTwoStepCheckout?) -> Bool = { entry in
-            guard let preparingKey, let preparingToken else { return true }
+        let endPreparing: (PendingBuiltInTwoStepCheckout?) -> FinishedPreparing = { entry in
+            guard let preparingKey, let preparingToken else { return .stored }
             return Self.finishPreparingBuiltInTwoStep(for: preparingKey, token: preparingToken, storing: entry)
         }
         preparePaymentForItem(
@@ -435,7 +439,7 @@ final class PaymentOrchestrator {
                       !approvalString.isEmpty,
                       let approvalURL = URL(string: approvalString)
                 else {
-                    guard endPreparing(nil) else { return }
+                    if case .superseded = endPreparing(nil) { return }
                     DispatchQueue.main.async {
                         completion(.failed(error: Self.payPalApprovalURLMissingMessage))
                     }
@@ -452,7 +456,7 @@ final class PaymentOrchestrator {
                             "hostPresent": !(approvalURL.host ?? "").isEmpty
                         ]
                     )
-                    guard endPreparing(nil) else { return }
+                    if case .superseded = endPreparing(nil) { return }
                     DispatchQueue.main.async {
                         completion(.failed(error: Self.payPalApprovalURLInvalidMessage))
                     }
@@ -464,7 +468,7 @@ final class PaymentOrchestrator {
                         callStack: Self.payPalOrderIdMissingMessage,
                         severity: .warning
                     )
-                    guard endPreparing(nil) else { return }
+                    if case .superseded = endPreparing(nil) { return }
                     DispatchQueue.main.async {
                         completion(.failed(error: Self.payPalOrderIdMissingMessage))
                     }
@@ -481,7 +485,7 @@ final class PaymentOrchestrator {
                       !returnURL.isEmpty,
                       URL(string: returnURL) != nil
                 else {
-                    guard endPreparing(nil) else { return }
+                    if case .superseded = endPreparing(nil) { return }
                     DispatchQueue.main.async {
                         completion(.failed(error: Self.payPalReturnURLMissingMessage))
                     }
@@ -500,10 +504,20 @@ final class PaymentOrchestrator {
                     completion: completion
                 )
                 // Stored before the confirm button appears, so a confirm can never miss it.
-                guard endPreparing(.paypal(pending)) else { return }
+                switch endPreparing(.paypal(pending)) {
+                case .superseded:
+                    return
+                case .keptPurchaseInFlight:
+                    DispatchQueue.main.async {
+                        completion(.failed(error: Self.builtInCardPurchaseInFlightMessage))
+                    }
+                    return
+                case .stored:
+                    break
+                }
                 devicePaySession.showConfirmation(devicePaySession.layoutId, devicePaySession.catalogItemId, catalogRuntimeData)
             case .failure(let error):
-                guard endPreparing(nil) else { return }
+                if case .superseded = endPreparing(nil) { return }
                 DispatchQueue.main.async {
                     completion(.failed(error: error.localizedDescription))
                 }
@@ -701,12 +715,22 @@ final class PaymentOrchestrator {
                 )
                 let pending = PendingBuiltInCardCheckout(owner: self, completion: completion)
                 // Stored before the confirm button appears, so a confirm can never miss it.
-                guard Self.finishPreparingBuiltInTwoStep(for: key, token: preparingToken, storing: .card(pending)) else {
+                switch Self.finishPreparingBuiltInTwoStep(for: key, token: preparingToken, storing: .card(pending)) {
+                case .superseded:
                     return
+                case .keptPurchaseInFlight:
+                    DispatchQueue.main.async {
+                        completion(.failed(error: Self.builtInCardPurchaseInFlightMessage))
+                    }
+                    return
+                case .stored:
+                    break
                 }
                 devicePaySession.showConfirmation(devicePaySession.layoutId, devicePaySession.catalogItemId, catalogRuntimeData)
             case .failure(let error):
-                guard Self.finishPreparingBuiltInTwoStep(for: key, token: preparingToken, storing: nil) else { return }
+                if case .superseded = Self.finishPreparingBuiltInTwoStep(for: key, token: preparingToken, storing: nil) {
+                    return
+                }
                 DispatchQueue.main.async {
                     completion(.failed(error: error.localizedDescription))
                 }
@@ -888,27 +912,41 @@ final class PaymentOrchestrator {
         return token
     }
 
-    /// Ends the Step-1 request `token` for `key`, storing `entry` as its deferred state when one is given. Returns
-    /// `false`, storing nothing, when a lifecycle fence or a later Step-1 for the same key dropped the request while
-    /// it was out; the check and the store happen under one lock so a fence cannot slip between them. A request that
-    /// ends with nothing to store drops an earlier checkout still on offer for the item: its layout is told this
-    /// attempt failed, so a later confirm must not start the superseded one. A card purchase already sent keeps its
-    /// entry, because its result still has to reach its completion.
+    /// How a Step-1 request ended, as ``finishPreparingBuiltInTwoStep`` reports it.
+    private enum FinishedPreparing {
+        /// The request still owned the item; its deferred state, if any, is stored.
+        case stored
+        /// A lifecycle fence or a later Step-1 for the same key dropped the request while it was out: show nothing,
+        /// store nothing, report nothing.
+        case superseded
+        /// The item's card purchase has already been sent, so the new state was not stored; that purchase's own
+        /// result reaches its completion, and the new attempt is reported as failed.
+        case keptPurchaseInFlight
+    }
+
+    /// Ends the Step-1 request `token` for `key`, storing `entry` as its deferred state when one is given; the check
+    /// and the store happen under one lock so a fence cannot slip between them. A request that ends with nothing to
+    /// store drops an earlier checkout still on offer for the item: its layout is told this attempt failed, so a
+    /// later confirm must not start the superseded one. A card purchase already sent keeps its entry whatever the
+    /// new request brings, because its result still has to reach its completion.
     private static func finishPreparingBuiltInTwoStep(
         for key: BuiltInTwoStepCheckoutKey,
         token: UUID,
         storing entry: PendingBuiltInTwoStepCheckout?
-    ) -> Bool {
+    ) -> FinishedPreparing {
         pendingBuiltInTwoStepLock.lock()
         defer { pendingBuiltInTwoStepLock.unlock() }
-        guard preparingBuiltInTwoStepCheckouts[key] == token else { return false }
+        guard preparingBuiltInTwoStepCheckouts[key] == token else { return .superseded }
         preparingBuiltInTwoStepCheckouts.removeValue(forKey: key)
+        if pendingBuiltInTwoStepCheckouts[key]?.isCardPurchaseInFlight == true {
+            return entry == nil ? .stored : .keptPurchaseInFlight
+        }
         if let entry {
             pendingBuiltInTwoStepCheckouts[key] = entry
-        } else if let earlier = pendingBuiltInTwoStepCheckouts[key], !earlier.isCardPurchaseInFlight {
+        } else {
             pendingBuiltInTwoStepCheckouts.removeValue(forKey: key)
         }
-        return true
+        return .stored
     }
 
     private static func catalogRuntimeDataForDevicePayConfirmation(
