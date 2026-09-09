@@ -1604,8 +1604,7 @@ class RoktInternalImplementation {
             return nil
         }
 
-        // A missing or unreadable expiry counts as expired, matching restore, so a corrupt stored
-        // value is cleared here rather than returned on every call.
+        // A missing or unreadable expiry counts as expired, matching restore.
         if TxnSessionPersistence.clearIfExpired(expiresAt: snapshot.expiresAt, store: store, clock: Date.init) {
             RoktLogger.shared.warning(
                 "Rokt.getSession returned nil: session token is expired."

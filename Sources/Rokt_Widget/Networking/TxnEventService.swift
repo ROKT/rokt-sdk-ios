@@ -6,8 +6,7 @@ internal struct TxnEventService {
 
     static let unauthorizedDiagnosticCode = "[TXN_EVENTS_401]"
 
-    // Longest `Retry-After` honored. The batch stays in memory for the whole pause and is only
-    // persisted for replay once the retry loop gives up, so a longer pause is an event-loss window.
+    // Longest `Retry-After` honored; the batch stays in memory for the whole pause.
     static let maxRetryAfterDelay: TimeInterval = 60
 
     enum TxnEventError: Error, Equatable {

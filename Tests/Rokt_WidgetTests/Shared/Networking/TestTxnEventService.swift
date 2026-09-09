@@ -491,13 +491,6 @@ final class TestTxnEventService: XCTestCase {
     }
 }
 
-private final class InMemoryTxnSessionStore: TxnSessionStore {
-    private var values: [String: String] = [:]
-    func string(forKey key: String) -> String? { values[key] }
-    func setString(_ value: String, forKey key: String) { values[key] = value }
-    func removeValue(forKey key: String) { values[key] = nil }
-}
-
 private final class SpyTxnPendingEventStore: TxnPendingEventStoring {
     private(set) var persistedBatches: [[TxnEvent]] = []
     private(set) var persistedSessionIds: [String?] = []
