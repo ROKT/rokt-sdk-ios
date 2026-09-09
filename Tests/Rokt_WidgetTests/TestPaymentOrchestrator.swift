@@ -606,7 +606,7 @@ class TestPaymentOrchestrator: XCTestCase {
 
         // Hold the presenting VC strongly: ``PendingBuiltInPayPalWebCheckout/presentingViewController``
         // is weak, and the deferred ``DispatchQueue.main.async`` in
-        // ``presentPendingBuiltInPayPalForForwardPayment(onCompletion:)`` would otherwise see nil.
+        // ``presentPendingBuiltInPayPalForForwardPayment(for:onCompletion:)`` would otherwise see nil.
         let viewController = UIViewController()
         sut.processPayment(
             method: .paypal,
@@ -1470,7 +1470,7 @@ class TestPaymentOrchestrator: XCTestCase {
 
         let expectation = expectation(description: "PayPal completes via deep link callback")
         // Hold the presenting VC strongly: ``PendingBuiltInPayPalWebCheckout/presentingViewController``
-        // is weak, and the deferred main-queue dispatch in ``presentPendingBuiltInPayPalForForwardPayment(onCompletion:)``
+        // is weak, and the deferred main-queue dispatch in ``presentPendingBuiltInPayPalForForwardPayment(for:onCompletion:)``
         // would otherwise see nil and complete with .failed before the deep link arrives.
         let viewController = UIViewController()
         sut.processPayment(
