@@ -1276,6 +1276,51 @@ class TestPaymentOrchestrator: XCTestCase {
         XCTAssertFalse(sut.isBuiltInCardForwardPaymentInFlight())
     }
 
+    func test_restoreAfterRetryableFailure_dropsACardPurchaseWhoseLayoutClosedWhileItWasInFlight() {
+        let fencedKey = BuiltInTwoStepCheckoutKey(
+            executeId: "execute_a", layoutId: "closed", catalogItemId: "c", cartItemId: "cart_a"
+        )
+        let openKey = BuiltInTwoStepCheckoutKey(
+            executeId: "execute_a", layoutId: "open", catalogItemId: "c", cartItemId: "cart_b"
+        )
+        for key in [fencedKey, openKey] {
+            sut.unitTest_seedDeferredBuiltInCardForwardPayment(for: key) { _ in
+                XCTFail("A retryable failure invokes no Step-1 completion")
+            }
+            XCTAssertNotNil(sut.beginBuiltInCardForwardPaymentIfReady(for: key))
+        }
+
+        sut.discardPendingBuiltInTwoStep(forExecuteId: "execute_a", layoutId: "closed")
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: fencedKey), "The purchase already sent is kept")
+
+        // The purchase then fails in a retryable way: the closed layout's entry is dropped, not restored to a
+        // confirm state nothing can resume; the open layout's entry is restored as before.
+        sut.restoreBuiltInCardForwardPaymentAfterRetryableFailure(for: fencedKey)
+        sut.restoreBuiltInCardForwardPaymentAfterRetryableFailure(for: openKey)
+        drainMainQueue()
+
+        XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: fencedKey))
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: openKey))
+        XCTAssertNotNil(sut.beginBuiltInCardForwardPaymentIfReady(for: openKey), "The open layout can confirm again")
+    }
+
+    func test_restoreAfterRetryableFailure_dropsACardPurchaseWhoseSessionClearedWhileItWasInFlight() {
+        let key = BuiltInTwoStepCheckoutKey(executeId: "execute_a", layoutId: "l", catalogItemId: "c", cartItemId: "cart_a")
+        sut.unitTest_seedDeferredBuiltInCardForwardPayment(for: key) { _ in
+            XCTFail("A retryable failure invokes no Step-1 completion")
+        }
+        XCTAssertNotNil(sut.beginBuiltInCardForwardPaymentIfReady(for: key))
+
+        sut.discardAllPendingBuiltInTwoStep()
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: key), "The purchase already sent is kept")
+
+        sut.restoreBuiltInCardForwardPaymentAfterRetryableFailure(for: key)
+        drainMainQueue()
+
+        XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: key))
+        XCTAssertFalse(sut.isBuiltInCardForwardPaymentInFlight())
+    }
+
     func test_discardAllPendingBuiltInTwoStep_dropsEntriesNotInFlightAndKeepsTheRunningCardPurchase() {
         let keyA = BuiltInTwoStepCheckoutKey(executeId: "execute_a", layoutId: "l", catalogItemId: "c", cartItemId: "cart_a")
         let keyB = BuiltInTwoStepCheckoutKey(executeId: "execute_b", layoutId: "l", catalogItemId: "c", cartItemId: "cart_b")

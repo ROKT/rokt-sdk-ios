@@ -148,6 +148,11 @@ final class PaymentOrchestrator {
     /// them there, so it marks them here and the cancel path reads the mark before re-queueing.
     private static var presentedBuiltInPayPalCheckouts: [BuiltInTwoStepCheckoutKey: PresentedBuiltInPayPalCheckout] = [:]
 
+    /// Card purchases still in flight when their layout closed or failed, or the session was cleared. Their result
+    /// still reaches the Step-1 completion; a retryable failure then drops the entry instead of restoring a confirm
+    /// state nothing can resume, so fenced entries cannot pile up for the life of the process.
+    private static var fencedInFlightBuiltInCardCheckouts: Set<BuiltInTwoStepCheckoutKey> = []
+
     static let builtInPayPalMissingDeferredSessionMessage =
         "Built-in PayPal device pay requires a layout session for confirmation (device pay hook)."
 
@@ -676,6 +681,12 @@ final class PaymentOrchestrator {
         else {
             return
         }
+        // The placement or session went away while the request was out: there is no confirm button left to
+        // retry from, so the entry is dropped like any other discarded one (its completion is not invoked).
+        if Self.fencedInFlightBuiltInCardCheckouts.remove(key) != nil {
+            Self.pendingBuiltInTwoStepCheckouts.removeValue(forKey: key)
+            return
+        }
         Self.pendingBuiltInTwoStepCheckouts[key] = .card(snapshot)
     }
 
@@ -688,6 +699,7 @@ final class PaymentOrchestrator {
            snapshot.owner === self {
             completion = snapshot.completion
             Self.pendingBuiltInTwoStepCheckouts.removeValue(forKey: key)
+            Self.fencedInFlightBuiltInCardCheckouts.remove(key)
         }
         Self.pendingBuiltInTwoStepLock.unlock()
         guard let completion else { return }
@@ -712,6 +724,9 @@ final class PaymentOrchestrator {
         Self.pendingBuiltInTwoStepCheckouts = Self.pendingBuiltInTwoStepCheckouts.filter { entry in
             !isFenced(entry.key) || entry.value.isCardPurchaseInFlight
         }
+        for (key, entry) in Self.pendingBuiltInTwoStepCheckouts where isFenced(key) && entry.isCardPurchaseInFlight {
+            Self.fencedInFlightBuiltInCardCheckouts.insert(key)
+        }
         for key in Self.presentedBuiltInPayPalCheckouts.keys where isFenced(key) {
             Self.presentedBuiltInPayPalCheckouts[key] = .fenced
         }
@@ -725,6 +740,7 @@ final class PaymentOrchestrator {
     func discardAllPendingBuiltInTwoStep() {
         Self.pendingBuiltInTwoStepLock.lock()
         Self.pendingBuiltInTwoStepCheckouts = Self.pendingBuiltInTwoStepCheckouts.filter { $0.value.isCardPurchaseInFlight }
+        Self.fencedInFlightBuiltInCardCheckouts.formUnion(Self.pendingBuiltInTwoStepCheckouts.keys)
         Self.presentedBuiltInPayPalCheckouts = Self.presentedBuiltInPayPalCheckouts.mapValues { _ in .fenced }
         Self.pendingBuiltInTwoStepLock.unlock()
     }
@@ -735,6 +751,7 @@ final class PaymentOrchestrator {
         pendingBuiltInTwoStepLock.lock()
         pendingBuiltInTwoStepCheckouts.removeAll()
         presentedBuiltInPayPalCheckouts.removeAll()
+        fencedInFlightBuiltInCardCheckouts.removeAll()
         pendingBuiltInTwoStepLock.unlock()
     }
 
