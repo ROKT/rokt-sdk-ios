@@ -1359,9 +1359,21 @@ class RoktInternalImplementation {
                         onExperiencesRequestEnd()
                         self.isExecuting = false
 
-                        guard let layoutPageExecutePayload = self.processLayoutPageExecutePayload(
-                            cachedExperience, selectionId: selectionId, viewName: viewName, attributes: attributes
-                        ) else {
+                        // A cached experience is committed — legacy session id, echoed events — under the same fence
+                        // as a network response, and re-checked before the render: a clearSession since the
+                        // placement started discards it whole.
+                        var layoutPageExecutePayload: LayoutPageExecutePayload?
+                        let committed = self.commitIfCurrent(generation: generation) {
+                            layoutPageExecutePayload = self.processLayoutPageExecutePayload(
+                                cachedExperience, selectionId: selectionId, viewName: viewName, attributes: attributes
+                            )
+                        }
+                        guard committed else {
+                            RoktLogger.shared.info("Discarding a cached placement that resolved after clearSession")
+                            self.conclude(withFailure: true)
+                            return
+                        }
+                        guard let layoutPageExecutePayload else {
                             self.conclude(withFailure: true)
                             return
                         }
@@ -1374,6 +1386,12 @@ class RoktInternalImplementation {
                                                               .cacheDuration),
                                                           Self.cacheAttributesKey: Array(cacheAttributes.keys).description
                                                       ])
+
+                        guard self.currentSessionGeneration() == generation else {
+                            RoktLogger.shared.info("Discarding a cached placement that resolved after clearSession")
+                            self.conclude(withFailure: true)
+                            return
+                        }
 
                         let payload = ExecutePayload(layoutPage: layoutPageExecutePayload,
                                                      startDate: startDate,
