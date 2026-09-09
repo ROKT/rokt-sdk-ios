@@ -41,7 +41,16 @@ Partners consume **RoktUXHelper** from [`github.com/ROKT/rokt-ux-helper-ios`](ht
 
 ## Pull request checks
 
-[Pull Request](.github/workflows/pull-request.yml) runs **`xcodebuild test`** from the root of each [`Packages/matrix.json`](Packages/matrix.json) `local_path` for mirrored packages (same pattern as [mParticle kit SPM tests](https://github.com/mParticle/mparticle-apple-sdk/blob/main/.github/workflows/build-kits.yml)), alongside the root `Rokt-Widget` SPM tests and Example scheme tests.
+[Pull Request](.github/workflows/pull-request.yml) always runs change detection and Trunk, then selects the smallest safe validation set:
+
+- Root SDK source and tests run the root `Rokt-Widget` SPM tests.
+- Changes under a mirrored package run **`xcodebuild test`** from that package's [`Packages/matrix.json`](Packages/matrix.json) `local_path` (the same pattern as [mParticle kit SPM tests](https://github.com/mParticle/mparticle-apple-sdk/blob/main/.github/workflows/build-kits.yml)).
+- Example and UI-test changes run the Example scheme tests.
+- Product source runs Periphery and the SDK size report; documentation-only changes do not.
+- Contract-facing networking and model changes call [Pact Consumer](.github/workflows/pact-consumer.yml).
+- Build manifests, validation configuration, and unknown paths fail closed to the full suite.
+
+The always-running `PR Gate` fails when any selected job fails or is cancelled and records unselected jobs as intentional skips. The workflow retains the existing `Trunk Check`, `SPM Unit Tests`, `UI Tests`, and `Consumer Test (PactSwift)` contexts during migration. After this workflow has merged and produced `PR Gate` on the default branch, repository administrators should replace those required contexts with **only `PR Gate`**. Do not add workflow-level path filters to this required workflow; selection happens at job level so the gate always reports a conclusion.
 
 **Podspec lint** runs `pod lib lint Rokt-Widget.podspec` against CocoaPods trunk; **`RoktUXHelper`** must satisfy the range declared in `Rokt-Widget.podspec` (see podspec).
 
