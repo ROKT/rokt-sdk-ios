@@ -1119,7 +1119,7 @@ class RoktInternalImplementation {
     // `generation` is the session generation the placement started in; the response's echoed
     // events are kept only while it is still current (the session roll-forward is fenced by the
     // store's own epoch).
-    private func defaultOffersService(roktTagId: String, generation: Int) -> OffersService {
+    func defaultOffersService(roktTagId: String, generation: Int) -> OffersService {
         var httpClient: HTTPClientAdapter = NetworkingHelper.shared.httpClient
         #if DEBUG
         if config.environment == .Mock { httpClient = MockOffersHTTPClient() }
@@ -1322,7 +1322,6 @@ class RoktInternalImplementation {
         }
 
         isExecuting = true
-        // Anything this execute learns belongs to the session generation it started in.
         let generation = currentSessionGeneration()
         self.placements = placements
         let startDate = Date()
@@ -1380,7 +1379,6 @@ class RoktInternalImplementation {
                                 self.conclude(withFailure: true)
                                 return
                             }
-                            // A fresh experience fetched in the live session: cache reads may resume.
                             self.mustBypassCacheOnNextExecute = false
                             // cache experience if applicable
                             if self.isCacheEnabledAndConfigured() {

@@ -351,15 +351,37 @@ final class TestOffersExecuteWiring: XCTestCase {
         impl.clearSession()
 
         impl.captureUntriggeredEvents([echoedEvent], generation: generation)
-        RealTimeEventManager.shared.markEventsAsTriggered(triggeredEvents: [echoedTrigger])
 
-        settle(1)
-        XCTAssertTrue(RealTimeEventManager.shared.getTriggeredEvents().isEmpty)
+        assertEchoedEventWasDropped()
     }
 
     /// Control for the test above: in the live generation the echoed events are kept.
     func test_captureUntriggeredEvents_inCurrentGeneration_isKept() {
         impl.captureUntriggeredEvents([echoedEvent], generation: impl.currentSessionGeneration())
+        RealTimeEventManager.shared.markEventsAsTriggered(triggeredEvents: [echoedTrigger])
+
+        waitUntil({ RealTimeEventManager.shared.getTriggeredEvents().count == 1 }, timeout: 5)
+    }
+
+    /// The factory `execute` uses when no override is installed must hand the response's echoed
+    /// events to the fence with the generation the placement started in, not straight to the store.
+    func test_defaultOffersService_dropsEchoedEventsCapturedAfterClearSession() {
+        impl.txnSessionStore = InMemoryTxnStore()
+        let service = impl.defaultOffersService(roktTagId: "tag-1", generation: impl.currentSessionGeneration())
+        impl.clearSession()
+
+        service.captureEvents([echoedEvent])
+
+        assertEchoedEventWasDropped()
+    }
+
+    /// Control for the test above: used in the generation it was built in, the factory's service
+    /// still delivers echoed events to the store.
+    func test_defaultOffersService_keepsEchoedEventsCapturedInTheLiveGeneration() {
+        impl.txnSessionStore = InMemoryTxnStore()
+        let service = impl.defaultOffersService(roktTagId: "tag-1", generation: impl.currentSessionGeneration())
+
+        service.captureEvents([echoedEvent])
         RealTimeEventManager.shared.markEventsAsTriggered(triggeredEvents: [echoedTrigger])
 
         waitUntil({ RealTimeEventManager.shared.getTriggeredEvents().count == 1 }, timeout: 5)
@@ -418,10 +440,33 @@ final class TestOffersExecuteWiring: XCTestCase {
         )
     }
 
+    private let controlEvent = UntriggeredRealTimeEvent(
+        triggerGuid: "control-1", triggerEvent: "SignalResponse", eventType: "x", payload: "y"
+    )
+
+    private var controlTrigger: RealTimeTrigger {
+        RealTimeTrigger(
+            parentGuid: "control-1",
+            eventTypeKey: "SignalResponse",
+            eventTime: EventDateFormatter.getDateString(Date())
+        )
+    }
+
+    /// Anchors "the echoed event was dropped" on a positive read: a control event is stored
+    /// directly and both triggers are marked in one batch, so once the control shows up as
+    /// triggered the same pass would have surfaced the echoed event had it reached the store.
+    private func assertEchoedEventWasDropped() {
+        RealTimeEventManager.shared.addUntriggeredEvents([controlEvent])
+        RealTimeEventManager.shared.markEventsAsTriggered(triggeredEvents: [echoedTrigger, controlTrigger])
+
+        waitUntil({ !RealTimeEventManager.shared.getTriggeredEvents().isEmpty }, timeout: 5)
+        XCTAssertEqual(RealTimeEventManager.shared.getTriggeredEvents().map(\.parentGuid), ["control-1"])
+    }
+
     /// Lets asynchronous work that follows an observed event run to completion.
-    private func settle(_ interval: TimeInterval = 0.3) {
+    private func settle() {
         let settled = expectation(description: "settled")
-        DispatchQueue.main.asyncAfter(deadline: .now() + interval) { settled.fulfill() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { settled.fulfill() }
         wait(for: [settled], timeout: 5)
     }
 }
