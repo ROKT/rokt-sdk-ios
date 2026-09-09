@@ -701,15 +701,19 @@ final class PaymentOrchestrator {
 
     /// Drops deferred Step-1 state for every item of the `layoutId` placement under `executeId` without invoking
     /// completions: that placement is gone, so no confirm button can resume them and no failure event is owed
-    /// for them. Other placements open under the same `executeId` keep theirs. A card purchase already in
-    /// flight (``cardInFlight``) is kept so its terminal outcome still reaches the Step-1 completion, and a
-    /// PayPal approval on screen for the placement is marked so its cancel drops the entry instead of re-queueing.
-    func discardPendingBuiltInTwoStep(forExecuteId executeId: String, layoutId: String) {
+    /// for them. Other placements open under the same `executeId` keep theirs; an event that carries no layout
+    /// id (`nil`) fences every placement under the execute. A card purchase already in flight (``cardInFlight``)
+    /// is kept so its terminal outcome still reaches the Step-1 completion, and a PayPal approval on screen for
+    /// the placement is marked so its cancel drops the entry instead of re-queueing.
+    func discardPendingBuiltInTwoStep(forExecuteId executeId: String, layoutId: String?) {
+        let isFenced: (BuiltInTwoStepCheckoutKey) -> Bool = { key in
+            key.executeId == executeId && (layoutId == nil || key.layoutId == layoutId)
+        }
         Self.pendingBuiltInTwoStepLock.lock()
         Self.pendingBuiltInTwoStepCheckouts = Self.pendingBuiltInTwoStepCheckouts.filter { entry in
-            entry.key.executeId != executeId || entry.key.layoutId != layoutId || entry.value.isCardPurchaseInFlight
+            !isFenced(entry.key) || entry.value.isCardPurchaseInFlight
         }
-        for key in Self.presentedBuiltInPayPalCheckouts.keys where key.executeId == executeId && key.layoutId == layoutId {
+        for key in Self.presentedBuiltInPayPalCheckouts.keys where isFenced(key) {
             Self.presentedBuiltInPayPalCheckouts[key] = .fenced
         }
         Self.pendingBuiltInTwoStepLock.unlock()

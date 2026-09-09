@@ -1226,6 +1226,30 @@ class TestPaymentOrchestrator: XCTestCase {
         XCTAssertEqual(forwardObserverResult?.outcome, .succeeded)
     }
 
+    func test_discardPendingBuiltInTwoStep_forExecuteId_withoutALayoutId_dropsEveryLayoutUnderTheExecute() {
+        let firstKey = BuiltInTwoStepCheckoutKey(
+            executeId: "execute_a", layoutId: "l1", catalogItemId: "c", cartItemId: "cart_a"
+        )
+        let secondKey = BuiltInTwoStepCheckoutKey(
+            executeId: "execute_a", layoutId: "l2", catalogItemId: "c", cartItemId: "cart_b"
+        )
+        let otherExecuteKey = BuiltInTwoStepCheckoutKey(
+            executeId: "execute_b", layoutId: "l1", catalogItemId: "c", cartItemId: "cart_c"
+        )
+        for key in [firstKey, secondKey, otherExecuteKey] {
+            sut.unitTest_seedDeferredBuiltInCardForwardPayment(for: key) { _ in
+                XCTFail("Discard must not invoke the Step-1 completion")
+            }
+        }
+
+        // An event without a layout id cannot be scoped, so it fences the whole execute, as before.
+        sut.discardPendingBuiltInTwoStep(forExecuteId: "execute_a", layoutId: nil)
+
+        XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: firstKey))
+        XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: secondKey))
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: otherExecuteKey), "Another execute keeps its checkout")
+    }
+
     func test_discardPendingBuiltInTwoStep_forExecuteId_keepsARunningCardPurchaseUntilItsResultArrives() {
         let heldKey = BuiltInTwoStepCheckoutKey(executeId: "execute_a", layoutId: "l", catalogItemId: "c", cartItemId: "cart_a")
         let sentKey = BuiltInTwoStepCheckoutKey(executeId: "execute_a", layoutId: "l", catalogItemId: "c", cartItemId: "cart_b")
