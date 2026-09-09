@@ -105,6 +105,9 @@ class RoktInternalImplementation {
     private var defaultLaunchDelayMilliseconds: Double = RoktInternalImplementation.defaultDelay
     private var isExecuting = false
     private var placements: [String: RoktEmbeddedView]?
+    // The selection id of the placement that currently owns `roktEvent` and `placements`. A placement whose result
+    // is discarded after clearSession clears them only while they are still its own (see concludeDiscarded).
+    private var executingSelectionId: String?
 
     // Bumped by clearSession and captured when an execute starts; a completion from an earlier
     // generation is discarded. Covers what the txn store's epoch does not: the legacy session id,
@@ -946,6 +949,19 @@ class RoktInternalImplementation {
         clearCallBacks()
     }
 
+    /// Ends a placement whose result was discarded because `clearSession` landed after it started. The failure is
+    /// reported through the handler that placement started with, never the shared `roktEvent`: `isExecuting` is
+    /// released before the fence is checked, so a placement started on another queue inside that window may already
+    /// own `roktEvent` and `placements`, and it must neither receive this failure nor lose its state. Shared state is
+    /// cleared only while it is still this placement's.
+    private func concludeDiscarded(selectionId: String, onRoktEvent: (RoktEvent) -> Void) {
+        onRoktEvent(RoktEvent.HideLoadingIndicator())
+        onRoktEvent(RoktEvent.PlacementFailure(identifier: nil))
+        if executingSelectionId == selectionId {
+            clearCallBacks()
+        }
+    }
+
     func clearCallBacks() {
         placements = nil
         roktEvent = nil
@@ -1370,6 +1386,8 @@ class RoktInternalImplementation {
         cacheSuppressedForCurrentExecute = start.bypassCache
         // The session the placement started in — a failure discarded after clearSession is reported against it.
         let departingSessionId = sessionManager.getCurrentSessionIdWithoutExpiring()
+        // Stamped before the state it guards, so a discarded placement that reads this id leaves that state alone.
+        executingSelectionId = selectionId
         self.placements = placements
         let startDate = Date()
         if let tagId = roktTagId {
@@ -1403,7 +1421,7 @@ class RoktInternalImplementation {
                         }
                         guard committed else {
                             RoktLogger.shared.info("Discarding a cached placement that resolved after clearSession")
-                            self.conclude(withFailure: true)
+                            self.concludeDiscarded(selectionId: selectionId, onRoktEvent: composedEventHandler)
                             return
                         }
                         guard let layoutPageExecutePayload else {
@@ -1423,7 +1441,7 @@ class RoktInternalImplementation {
                         self.unitTest_afterCacheHitCommit?()
                         guard self.currentSessionGeneration() == generation else {
                             RoktLogger.shared.info("Discarding a cached placement that resolved after clearSession")
-                            self.conclude(withFailure: true)
+                            self.concludeDiscarded(selectionId: selectionId, onRoktEvent: composedEventHandler)
                             return
                         }
 
@@ -1474,7 +1492,7 @@ class RoktInternalImplementation {
                             }
                             guard committed else {
                                 RoktLogger.shared.info("Discarding a placement that completed after clearSession")
-                                self.conclude(withFailure: true)
+                                self.concludeDiscarded(selectionId: selectionId, onRoktEvent: composedEventHandler)
                                 return
                             }
                             guard let layoutPageExecutePayload else {
@@ -1485,7 +1503,7 @@ class RoktInternalImplementation {
                             // went with it under the lock. (One landing during the render itself is the residual.)
                             guard self.currentSessionGeneration() == generation else {
                                 RoktLogger.shared.info("Discarding a placement that completed after clearSession")
-                                self.conclude(withFailure: true)
+                                self.concludeDiscarded(selectionId: selectionId, onRoktEvent: composedEventHandler)
                                 return
                             }
 
@@ -1511,7 +1529,7 @@ class RoktInternalImplementation {
                                     )
                                 }
                                 RoktLogger.shared.info("Discarding a placement that failed after clearSession")
-                                self.conclude(withFailure: true)
+                                self.concludeDiscarded(selectionId: selectionId, onRoktEvent: composedEventHandler)
                                 return
                             }
                             self.executeFailureHandler(error, statusCode, response)
@@ -1543,7 +1561,7 @@ class RoktInternalImplementation {
                         guard started, let offersService = builtOffersService else {
                             self.isExecuting = false
                             RoktLogger.shared.info("Discarding a placement that was reset before its offers request was sent")
-                            self.conclude(withFailure: true)
+                            self.concludeDiscarded(selectionId: selectionId, onRoktEvent: composedEventHandler)
                             return
                         }
                         offersService.getExperienceData(

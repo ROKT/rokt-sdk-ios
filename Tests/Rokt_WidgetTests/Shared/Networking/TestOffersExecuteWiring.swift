@@ -794,6 +794,76 @@ final class TestOffersExecuteWiring: XCTestCase {
         waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
     }
 
+    /// A placement releases `isExecuting` before its result is checked against the session fence, so a second
+    /// placement can start inside that window — after a `clearSession()` — and take over the shared event handler
+    /// and embedded views. The first placement's discarded result must then fail to the caller that started it, not
+    /// to the second placement's caller, and must leave the second placement's handler in place so it renders.
+    func test_execute_placementDiscardedAfterClearSession_failsToItsOwnCallerAndLeavesTheNextPlacementIntact() throws {
+        impl.txnSessionStore = InMemoryTxnStore()
+        initialize(cacheEnabled: true)
+        let viewName = "checkout"
+        let attributes = ["email": "handover@example.com"]
+        let cacheDuration = TimeInterval(300)
+        let cacheConfig = RoktConfig.Builder()
+            .cacheConfig(RoktConfig.CacheConfig(cacheDuration: cacheDuration))
+            .build()
+        ExperienceCacheManager.cacheExperienceResponse(
+            viewName: viewName,
+            attributes: attributes,
+            experienceResponse: try XCTUnwrap(String(bytes: renderFixture(), encoding: .utf8))
+        )
+        waitUntil({
+            ExperienceCacheManager.getCachedExperienceResponse(
+                viewName: viewName, attributes: attributes, cacheDuration: cacheDuration
+            ) != nil
+        }, timeout: 10)
+        // The first placement is served from the cache. The second fetches (the clear bypasses the cache) and its
+        // response is held, so the first placement's discarded result is dealt with while the second is in flight.
+        let client = DeferredHTTPClient(data: try renderFixture(), status: 200)
+        impl.makeOffersServiceOverride = offersOverride(httpClient: client)
+
+        var firstEvents: [RoktEvent] = []
+        var secondEvents: [RoktEvent] = []
+        var secondResponseReleased = false
+        var secondHidLoadingAfterItsResponse = false
+        var secondStarted = false
+        impl.unitTest_afterCacheHitCommit = { [weak impl] in
+            // The first placement has released `isExecuting` and committed its cached experience, and has not yet
+            // re-checked the fence. Clear the session and start the second placement inside that window.
+            guard !secondStarted, let impl else { return }
+            secondStarted = true
+            impl.clearSession()
+            impl.execute(viewName: viewName, attributes: attributes, config: cacheConfig) { event in
+                secondEvents.append(event)
+                if event is RoktEvent.HideLoadingIndicator, secondResponseReleased {
+                    secondHidLoadingAfterItsResponse = true
+                }
+            }
+        }
+        impl.execute(viewName: viewName, attributes: attributes, config: cacheConfig) { event in
+            firstEvents.append(event)
+        }
+        // The cached path runs synchronously: by here the first placement's result has been discarded.
+        XCTAssertTrue(secondStarted, "the second placement started inside the first placement's fence window")
+        XCTAssertTrue(firstEvents.contains(where: { $0 is RoktEvent.PlacementFailure }),
+                      "the discarded placement reports its failure to the caller that started it")
+        XCTAssertFalse(secondEvents.contains(where: { $0 is RoktEvent.PlacementFailure }),
+                       "the second placement's caller never hears the first placement's failure")
+        waitUntil({ client.requestCount == 1 }, timeout: 10)
+
+        impl.capturedPage = nil
+        secondResponseReleased = true
+        client.release()
+        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
+        settle()
+
+        XCTAssertNotNil(impl.capturedPage, "the second placement renders")
+        XCTAssertFalse(secondEvents.contains(where: { $0 is RoktEvent.PlacementFailure }),
+                       "the second placement's caller never hears a failure")
+        XCTAssertTrue(secondHidLoadingAfterItsResponse,
+                      "the second placement's render dismisses its own loading indicator, so its handler survived")
+    }
+
     /// Lets asynchronous work that follows an observed event run to completion.
     private func settle() {
         let settled = expectation(description: "settled")
