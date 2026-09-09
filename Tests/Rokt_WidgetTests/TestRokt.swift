@@ -402,10 +402,17 @@ class TestRokt: XCTestCase {
         XCTAssertNil(sessionId)
     }
 
-    func test_getSessionId_returnsSessionIdAfterSet() {
+    func test_getSessionId_returnsSessionIdAfterSetSession() {
         let roktInternalImplementation = RoktInternalImplementation()
+        roktInternalImplementation.roktTagId = "tag-get-session-id"
         let expectedSessionId = "test-session-123"
-        roktInternalImplementation.setSessionId(sessionId: expectedSessionId)
+        roktInternalImplementation.setSession(
+            RoktSession(
+                sessionId: expectedSessionId,
+                sessionToken: "jwt",
+                expiresAtMilliseconds: Int64(Date().addingTimeInterval(1800).timeIntervalSince1970 * 1000)
+            )
+        )
 
         let sessionId = roktInternalImplementation.getSessionId()
 

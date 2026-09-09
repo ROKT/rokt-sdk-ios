@@ -98,6 +98,24 @@ final class TestClearSession: XCTestCase {
         XCTAssertNil(implementation.getSessionId())
     }
 
+    /// The header reads the txn session, so a clear must silence it too.
+    func test_clearSession_dropsTheSessionIdSentOnHeaders() {
+        let store = InMemoryTxnStore()
+        implementation.txnSessionStore = store
+        implementation.roktTagId = "tag-1"
+        TxnSessionPersistence.seed(
+            roktTagId: "tag-1",
+            sessionId: "session-a",
+            sessionToken: TxnSessionToken(token: "jwt-a", expiresAt: farFutureExpiryMs),
+            store: store
+        )
+        XCTAssertEqual(implementation.currentValidSessionId(), "session-a")
+
+        implementation.clearSession()
+
+        XCTAssertNil(implementation.currentValidSessionId())
+    }
+
     /// The next customer must not inherit the previous customer's real-time events.
     func test_clearSession_invalidatesManagedSessions() {
         implementation.setSessionId(sessionId: "session-a")

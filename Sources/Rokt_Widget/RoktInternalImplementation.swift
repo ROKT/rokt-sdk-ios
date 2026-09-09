@@ -1620,6 +1620,19 @@ class RoktInternalImplementation {
         )
     }
 
+    /// Session id for the diagnostics/timings header, or nil when no unexpired session is bound.
+    ///
+    /// Deliberately not used by ``getSessionId()``: that reports whatever the partner last set,
+    /// which carries no expiry to gate on.
+    func currentValidSessionId(clock: () -> Date = Date.init) -> String? {
+        guard let roktTagId else { return nil }
+        return TxnSessionManager.currentValidSessionId(
+            roktTagId: roktTagId,
+            store: txnSessionStore,
+            clock: clock
+        )
+    }
+
     /// Uses a future partner-supplied expiry when present; otherwise (or when already past)
     /// falls back to now + ``partnerSessionTokenDefaultTTL``.
     private static func resolvedPartnerExpiresAtMilliseconds(
