@@ -481,6 +481,37 @@ final class TestOffersExecuteWiring: XCTestCase {
         triggerGuid: "parent-1", triggerEvent: "SignalResponse", eventType: "x", payload: "y"
     )
 
+    /// The positive control for the test above: served from the cache with no `clearSession()`, the cached
+    /// experience is rendered and the echoed event it carries reaches the real-time event store. It proves the
+    /// cache path decodes the fixture the fence test then drops.
+    func test_execute_cachedExperienceWithEchoedEvent_isRenderedAndItsEventReachesTheStore() throws {
+        impl.txnSessionStore = InMemoryTxnStore()
+        initialize(cacheEnabled: true)
+        let viewName = "checkout"
+        let attributes = ["email": "cached-control@example.com"]
+        let cacheDuration = TimeInterval(300)
+        let cacheConfig = RoktConfig.Builder()
+            .cacheConfig(RoktConfig.CacheConfig(cacheDuration: cacheDuration))
+            .build()
+        ExperienceCacheManager.cacheExperienceResponse(
+            viewName: viewName, attributes: attributes, experienceResponse: try renderFixtureWithEchoedEvent()
+        )
+        waitUntil({
+            ExperienceCacheManager.getCachedExperienceResponse(
+                viewName: viewName, attributes: attributes, cacheDuration: cacheDuration
+            ) != nil
+        }, timeout: 10)
+        // The placement must be served from the cache; a fetch here would be the wrong path and fails locally.
+        impl.makeOffersServiceOverride = offersOverride(data: nil, status: 500)
+
+        impl.execute(viewName: viewName, attributes: attributes, config: cacheConfig)
+        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
+        settle()
+
+        XCTAssertNotNil(impl.capturedPage, "a cached placement with no clearSession is rendered")
+        assertEchoedEventWasKept()
+    }
+
     /// The render fixture carrying `echoedEvent` for the next placement, so an experience served from the
     /// cache has something to hand the real-time event store.
     private func renderFixtureWithEchoedEvent() throws -> String {
@@ -515,6 +546,17 @@ final class TestOffersExecuteWiring: XCTestCase {
     /// Anchors "the echoed event was dropped" on a positive read: a control event is stored
     /// directly and both triggers are marked in one batch, so once the control shows up as
     /// triggered the same pass would have surfaced the echoed event had it reached the store.
+    /// The positive twin of `assertEchoedEventWasDropped`: the same batch marks both triggers, and both surface.
+    private func assertEchoedEventWasKept() {
+        RealTimeEventManager.shared.addUntriggeredEvents([controlEvent])
+        RealTimeEventManager.shared.markEventsAsTriggered(triggeredEvents: [echoedTrigger, controlTrigger])
+
+        waitUntil({ RealTimeEventManager.shared.getTriggeredEvents().count == 2 }, timeout: 5)
+        XCTAssertEqual(
+            Set(RealTimeEventManager.shared.getTriggeredEvents().map(\.parentGuid)), ["parent-1", "control-1"]
+        )
+    }
+
     private func assertEchoedEventWasDropped() {
         RealTimeEventManager.shared.addUntriggeredEvents([controlEvent])
         RealTimeEventManager.shared.markEventsAsTriggered(triggeredEvents: [echoedTrigger, controlTrigger])

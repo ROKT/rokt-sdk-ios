@@ -1246,6 +1246,10 @@ class RoktInternalImplementation {
     /// Runs `commit` under the generation lock while `generation` is still current and returns true; returns
     /// false, running nothing, once clearSession has moved the generation. A clearSession arriving on another
     /// queue waits for a commit in progress, so a response is committed whole or not at all — never half of it.
+    /// The commit parses the experience and reads the plugin view-state files under the lock, so that wait is
+    /// bounded by one experience's parse — tens of milliseconds on a device — and never by network: nothing
+    /// under this lock waits on a request. Keep it that way; a longer hold here is a longer stall for the host's
+    /// clearSession call.
     func commitIfCurrent(generation: Int, _ commit: () -> Void) -> Bool {
         sessionGenerationLock.lock()
         defer { sessionGenerationLock.unlock() }
