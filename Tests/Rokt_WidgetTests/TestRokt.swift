@@ -305,6 +305,24 @@ class TestRokt: XCTestCase {
         XCTAssertNil(UserDefaultsTxnSessionStore().string(forKey: TxnSessionStoreKeys.token))
     }
 
+    /// The store writes its keys one at a time, so a read that lands before the expiry key is written
+    /// must return nil and leave the just-written session in place.
+    func test_getSession_missingExpiryKey_returnsNilWithoutClearing() {
+        let roktInternalImplementation = RoktInternalImplementation()
+        roktInternalImplementation.roktTagId = "tag-missing-expiry-key"
+        let expiresAt = Int64(Date().addingTimeInterval(1800).timeIntervalSince1970 * 1000)
+        roktInternalImplementation.setSession(
+            RoktSession(sessionId: "sid", sessionToken: "jwt", expiresAtMilliseconds: expiresAt)
+        )
+        XCTAssertNotNil(roktInternalImplementation.getSession())
+
+        UserDefaultsTxnSessionStore().removeValue(forKey: TxnSessionStoreKeys.expiresAt)
+
+        XCTAssertNil(roktInternalImplementation.getSession())
+        XCTAssertEqual(UserDefaultsTxnSessionStore().string(forKey: TxnSessionStoreKeys.token), "jwt")
+        XCTAssertEqual(UserDefaultsTxnSessionStore().string(forKey: TxnSessionStoreKeys.sessionId), "sid")
+    }
+
     /// A persisted expiry outside the accepted range reads as no session and is cleared.
     func test_getSession_outOfRangePersistedExpiry_returnsNilAndClears() {
         let roktInternalImplementation = RoktInternalImplementation()
