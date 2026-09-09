@@ -13,6 +13,8 @@ final class TestOffersExecuteWiring: XCTestCase {
     /// observable without depending on the on-screen render completing.
     private final class CapturingImplementation: RoktInternalImplementation {
         var capturedPage: String?
+        /// Runs inside the response commit, before the page is processed — a seam for racing it.
+        var onCommit: (() -> Void)?
         override func processLayoutPageExecutePayload(
             _ page: String,
             selectionId: String,
@@ -20,6 +22,7 @@ final class TestOffersExecuteWiring: XCTestCase {
             attributes: [String: String]
         ) -> LayoutPageExecutePayload? {
             capturedPage = page
+            onCommit?()
             return super.processLayoutPageExecutePayload(
                 page, selectionId: selectionId, viewName: viewName, attributes: attributes
             )
@@ -464,6 +467,52 @@ final class TestOffersExecuteWiring: XCTestCase {
     }
 
     /// Lets asynchronous work that follows an observed event run to completion.
+    /// A `clearSession()` that arrives while the response is being committed waits for the commit and then
+    /// wins: the placement is not rendered, the session id the commit restored is gone, nothing stays cached.
+    func test_execute_clearSessionDuringTheResponseCommit_waitsForItThenWins() throws {
+        impl.txnSessionStore = InMemoryTxnStore()
+        initialize(cacheEnabled: true)
+        let viewName = "checkout"
+        let attributes = ["email": "commit@example.com"]
+        let cacheDuration = TimeInterval(300)
+        let cacheConfig = RoktConfig.Builder()
+            .cacheConfig(RoktConfig.CacheConfig(cacheDuration: cacheDuration))
+            .build()
+        impl.makeOffersServiceOverride = offersOverride(data: try renderFixture(), status: 200)
+
+        let clearSessionReturned = expectation(description: "clearSession returned")
+        var clearSessionReturnedDuringCommit = true
+        impl.onCommit = { [weak impl] in
+            // clearSession from another queue while the commit holds the fence: it has to wait.
+            let entered = DispatchSemaphore(value: 0)
+            let returned = DispatchSemaphore(value: 0)
+            DispatchQueue.global().async {
+                entered.signal()
+                impl?.clearSession()
+                returned.signal()
+                clearSessionReturned.fulfill()
+            }
+            entered.wait()
+            clearSessionReturnedDuringCommit = returned.wait(timeout: .now() + 0.3) == .success
+        }
+        let discarded = expectation(description: "the late placement reports failure")
+        impl.execute(viewName: viewName, attributes: attributes, config: cacheConfig) { event in
+            if event is RoktEvent.PlacementFailure { discarded.fulfill() }
+        }
+        wait(for: [clearSessionReturned, discarded], timeout: 10)
+        settle()
+        settle()
+
+        XCTAssertFalse(clearSessionReturnedDuringCommit, "clearSession waits for a commit in progress")
+        XCTAssertNotNil(impl.capturedPage, "a commit that started before clearSession runs to its end")
+        XCTAssertNil(impl.getSessionId(), "the session id the commit restored does not survive the clear")
+        XCTAssertNil(RoktLogger.shared.sessionId)
+        let cached = ExperienceCacheManager.getCachedExperienceResponse(
+            viewName: viewName, attributes: attributes, cacheDuration: cacheDuration
+        )
+        XCTAssertNil(cached, "the experience committed just before the clear is not cached for the next session")
+    }
+
     private func settle() {
         let settled = expectation(description: "settled")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { settled.fulfill() }
