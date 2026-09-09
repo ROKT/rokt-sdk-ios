@@ -127,19 +127,28 @@ final class StripeAfterpayClientScopeTests: XCTestCase {
         )
     }
 
+    /// A second manager driving the same confirmer, as the replacement manager does after the
+    /// extension is re-registered while a confirmation is still in flight.
+    private func makeSecondManager(apiClient: STPAPIClient) -> StripeAfterpayManager {
+        let sharedSpy: SpyConfirmer = spy
+        return StripeAfterpayManager(apiClient: apiClient, returnURL: Self.returnURL, makeConfirmer: { sharedSpy })
+    }
+
     /// Drives a full Afterpay flow whose preparation step yields `preparation` (or `error`)
-    /// and returns the terminal result.
+    /// on `flowManager` (the fixture's manager by default) and returns the terminal result.
     @discardableResult
     private func runFlow(
         preparation: PaymentPreparation?,
         error: Error? = nil,
+        on flowManager: StripeAfterpayManager? = nil,
         file: StaticString = #filePath,
         line: UInt = #line
     ) -> PaymentSheetResult? {
         let expect = expectation(description: "completion")
         var received: PaymentSheetResult?
+        let target: StripeAfterpayManager = flowManager ?? manager
 
-        manager.presentPayment(
+        target.presentPayment(
             item: makeItem(),
             context: makeContext(),
             from: UIViewController(),
@@ -283,6 +292,61 @@ final class StripeAfterpayClientScopeTests: XCTestCase {
         XCTAssertTrue(spy.apiClient === hostHandlerClient)
         XCTAssertNil(extensionClient.stripeAccount)
         XCTAssertNil(manager.activeConfirmer)
+    }
+
+    // MARK: - The handler is borrowed process-wide, not per manager
+
+    func testAfterpaySecondManagerCannotBorrowHandlerWhileFirstFlowIsInFlight() {
+        spy.completesImmediately = false
+        let first = expectation(description: "first completion")
+        let otherClient = STPAPIClient(publishableKey: Self.extensionPublishableKey)
+        let other = makeSecondManager(apiClient: otherClient)
+
+        manager.presentPayment(
+            item: makeItem(),
+            context: makeContext(),
+            from: UIViewController(),
+            preparePayment: { _, done in done(self.makePreparation(), nil) }
+        ) { _ in first.fulfill() }
+
+        let confirmStarted = expectation(description: "confirm dispatched")
+        DispatchQueue.main.async { confirmStarted.fulfill() }
+        wait(for: [confirmStarted], timeout: 1)
+
+        let second = runFlow(preparation: makePreparation(merchantId: "acct_1Other"), on: other)
+        XCTAssertEqual(second?.outcome, .failed)
+        XCTAssertTrue(second?.errorMessage?.contains("already in progress") ?? false)
+        XCTAssertEqual(spy.confirmCallCount, 1)
+        XCTAssertTrue(spy.apiClient === extensionClient, "second manager must not touch the in-flight handler")
+        XCTAssertNil(otherClient.stripeAccount, "second manager must not scope its client")
+        XCTAssertNil(other.activeConfirmer)
+        XCTAssertTrue(manager.activeConfirmer === spy)
+        assertSharedClientUntouched()
+
+        spy.finish()
+        wait(for: [first], timeout: 1)
+
+        XCTAssertTrue(spy.apiClient === hostHandlerClient)
+        XCTAssertNil(extensionClient.stripeAccount)
+        XCTAssertNil(manager.activeConfirmer)
+    }
+
+    func testAfterpaySecondManagerCanBorrowHandlerAfterFirstFlowCompletes() {
+        runFlow(preparation: makePreparation())
+        XCTAssertEqual(spy.confirmCallCount, 1)
+
+        let otherClient = STPAPIClient(publishableKey: Self.extensionPublishableKey)
+        let other = makeSecondManager(apiClient: otherClient)
+        let result = runFlow(preparation: makePreparation(merchantId: "acct_1Other"), on: other)
+
+        XCTAssertEqual(result?.outcome, .succeeded)
+        XCTAssertEqual(spy.confirmCallCount, 2)
+        XCTAssertTrue(spy.clientUsedForConfirmation === otherClient)
+        XCTAssertEqual(spy.stripeAccountAtConfirmation, "acct_1Other")
+        XCTAssertTrue(spy.apiClient === hostHandlerClient)
+        XCTAssertNil(otherClient.stripeAccount)
+        XCTAssertNil(other.activeConfirmer)
+        assertSharedClientUntouched()
     }
 
     func testAfterpayPreparationFailureTouchesNoClient() {
