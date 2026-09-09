@@ -13,6 +13,7 @@ private final class SpyConfirmer: AfterpayPaymentConfirming {
     private(set) var confirmCallCount = 0
     private(set) var confirmedParams: STPPaymentIntentParams?
     private(set) var clientUsedForConfirmation: STPAPIClient?
+    private(set) var stripeAccountAtConfirmation: String?
     private var pendingCompletion: STPPaymentHandlerActionPaymentIntentCompletionBlock?
 
     init(apiClient: STPAPIClient) {
@@ -27,6 +28,7 @@ private final class SpyConfirmer: AfterpayPaymentConfirming {
         confirmCallCount += 1
         confirmedParams = params
         clientUsedForConfirmation = apiClient
+        stripeAccountAtConfirmation = apiClient.stripeAccount
         if completesImmediately {
             completion(scriptedStatus, nil, nil)
         } else {
@@ -185,7 +187,7 @@ final class StripeAfterpayClientScopeTests: XCTestCase {
         XCTAssertTrue(used === extensionClient)
         XCTAssertFalse(used === STPAPIClient.shared)
         XCTAssertEqual(used?.publishableKey, Self.extensionPublishableKey)
-        XCTAssertEqual(used?.stripeAccount, Self.preparationAccount)
+        XCTAssertEqual(spy.stripeAccountAtConfirmation, Self.preparationAccount)
     }
 
     func testAfterpayConfirmParamsAndOutcomeMappingAreUnchanged() {
@@ -319,6 +321,6 @@ final class StripeAfterpayClientScopeTests: XCTestCase {
         XCTAssertEqual(result?.outcome, .succeeded)
         XCTAssertNotNil(result?.transactionId)
         XCTAssertEqual(spy.confirmCallCount, 1)
-        XCTAssertEqual(spy.clientUsedForConfirmation?.stripeAccount, "acct_mock_123")
+        XCTAssertEqual(spy.stripeAccountAtConfirmation, "acct_mock_123")
     }
 }
