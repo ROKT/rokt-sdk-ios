@@ -16,8 +16,8 @@ internal extension URL {
     ///
     /// The comparison is purely lexical: `.` and `..` segments are collapsed and the
     /// components compared, without consulting the filesystem. Foundation's own
-    /// standardization only rewrites paths that already exist, which would make the answer
-    /// differ for a file that is about to be created.
+    /// standardization consults it (symbolic links and the `/private` prefix), so its answer
+    /// can differ between a directory that exists and a file that has not been created yet.
     func isContained(in directory: URL) -> Bool {
         let directoryComponents = URL.collapsedPathComponents(directory)
         let candidateComponents = URL.collapsedPathComponents(self)
