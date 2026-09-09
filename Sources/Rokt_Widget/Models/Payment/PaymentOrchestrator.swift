@@ -137,6 +137,18 @@ final class PaymentOrchestrator {
     /// placement or a cleared session are discarded.
     private static var pendingBuiltInTwoStepCheckouts: [BuiltInTwoStepCheckoutKey: PendingBuiltInTwoStepCheckout] = [:]
 
+    /// Where a PayPal entry taken out of ``pendingBuiltInTwoStepCheckouts`` for its hosted approval stands.
+    private enum PresentedBuiltInPayPalCheckout {
+        /// The approval sheet is up; a cancel re-queues the entry for the confirm button to start again.
+        case presenting
+        /// Its layout closed or failed, or the session was cleared, while the sheet was up; a cancel drops the entry.
+        case fenced
+    }
+
+    /// PayPal entries currently out for presentation, keyed like the pending table. A lifecycle fence cannot see
+    /// them there, so it marks them here and the cancel path reads the mark before re-queueing.
+    private static var presentedBuiltInPayPalCheckouts: [BuiltInTwoStepCheckoutKey: PresentedBuiltInPayPalCheckout] = [:]
+
     static let builtInPayPalMissingDeferredSessionMessage =
         "Built-in PayPal device pay requires a layout session for confirmation (device pay hook)."
 
@@ -477,11 +489,13 @@ final class PaymentOrchestrator {
             return false
         }
         Self.pendingBuiltInTwoStepCheckouts.removeValue(forKey: key)
+        Self.presentedBuiltInPayPalCheckouts[key] = .presenting
         Self.pendingBuiltInTwoStepLock.unlock()
 
         DispatchQueue.main.async { [weak self] in
             guard let self else {
                 let result = PaymentSheetResult.failed(error: Self.payPalReturnURLMissingMessage)
+                Self.endPresentingBuiltInPayPal(for: key)
                 snapshot.completion(result)
                 onCompletion(result)
                 return
@@ -492,6 +506,7 @@ final class PaymentOrchestrator {
                 let result = PaymentSheetResult.failed(
                     error: "No view controller available for PayPal checkout."
                 )
+                Self.endPresentingBuiltInPayPal(for: key)
                 snapshot.completion(result)
                 onCompletion(result)
                 return
@@ -510,11 +525,13 @@ final class PaymentOrchestrator {
                                 owner: self
                             )
                         } else {
+                            Self.endPresentingBuiltInPayPal(for: key)
                             snapshot.completion(result)
                             onCompletion(result)
                         }
                         return
                     }
+                    Self.endPresentingBuiltInPayPal(for: key)
                     snapshot.completion(result)
                     onCompletion(result)
                 }
@@ -544,7 +561,17 @@ final class PaymentOrchestrator {
             completion: snapshot.completion
         )
         pendingBuiltInTwoStepLock.lock()
+        defer { pendingBuiltInTwoStepLock.unlock() }
+        // A fence that ran while the sheet was up means the placement or session is gone; re-queueing would
+        // leave state nothing can resume, so the entry is dropped like any other discarded one.
+        guard presentedBuiltInPayPalCheckouts.removeValue(forKey: key) != .fenced else { return }
         pendingBuiltInTwoStepCheckouts[key] = .paypal(restored)
+    }
+
+    /// Forgets that `key` is out for presentation once its hosted approval reached a terminal outcome.
+    private static func endPresentingBuiltInPayPal(for key: BuiltInTwoStepCheckoutKey) {
+        pendingBuiltInTwoStepLock.lock()
+        presentedBuiltInPayPalCheckouts.removeValue(forKey: key)
         pendingBuiltInTwoStepLock.unlock()
     }
 
@@ -672,23 +699,30 @@ final class PaymentOrchestrator {
 
     // MARK: - Lifecycle fences
 
-    /// Drops deferred Step-1 state for every item of `executeId` without invoking completions: the placement
-    /// is gone, so no confirm button can resume them and no failure event is owed for them. A card purchase
-    /// already in flight (``cardInFlight``) is kept so its terminal outcome still reaches the Step-1 completion.
-    func discardPendingBuiltInTwoStep(forExecuteId executeId: String) {
+    /// Drops deferred Step-1 state for every item of the `layoutId` placement under `executeId` without invoking
+    /// completions: that placement is gone, so no confirm button can resume them and no failure event is owed
+    /// for them. Other placements open under the same `executeId` keep theirs. A card purchase already in
+    /// flight (``cardInFlight``) is kept so its terminal outcome still reaches the Step-1 completion, and a
+    /// PayPal approval on screen for the placement is marked so its cancel drops the entry instead of re-queueing.
+    func discardPendingBuiltInTwoStep(forExecuteId executeId: String, layoutId: String) {
         Self.pendingBuiltInTwoStepLock.lock()
         Self.pendingBuiltInTwoStepCheckouts = Self.pendingBuiltInTwoStepCheckouts.filter { entry in
-            entry.key.executeId != executeId || entry.value.isCardPurchaseInFlight
+            entry.key.executeId != executeId || entry.key.layoutId != layoutId || entry.value.isCardPurchaseInFlight
+        }
+        for key in Self.presentedBuiltInPayPalCheckouts.keys where key.executeId == executeId && key.layoutId == layoutId {
+            Self.presentedBuiltInPayPalCheckouts[key] = .fenced
         }
         Self.pendingBuiltInTwoStepLock.unlock()
     }
 
     /// Drops all deferred Step-1 state not yet in flight, without invoking completions; called at a session
     /// boundary so nothing started under one session can be resumed under the next. A card purchase already
-    /// in flight (``cardInFlight``) is kept so its terminal outcome still reaches the Step-1 completion.
+    /// in flight (``cardInFlight``) is kept so its terminal outcome still reaches the Step-1 completion, and
+    /// every PayPal approval on screen is marked so its cancel drops the entry instead of re-queueing.
     func discardAllPendingBuiltInTwoStep() {
         Self.pendingBuiltInTwoStepLock.lock()
         Self.pendingBuiltInTwoStepCheckouts = Self.pendingBuiltInTwoStepCheckouts.filter { $0.value.isCardPurchaseInFlight }
+        Self.presentedBuiltInPayPalCheckouts = Self.presentedBuiltInPayPalCheckouts.mapValues { _ in .fenced }
         Self.pendingBuiltInTwoStepLock.unlock()
     }
 
@@ -697,6 +731,7 @@ final class PaymentOrchestrator {
     static func resetBuiltInTwoStepDeferredStateForTesting() {
         pendingBuiltInTwoStepLock.lock()
         pendingBuiltInTwoStepCheckouts.removeAll()
+        presentedBuiltInPayPalCheckouts.removeAll()
         pendingBuiltInTwoStepLock.unlock()
     }
 

@@ -529,10 +529,10 @@ class RoktInternalImplementation {
                                                      ]))
                 })
             }
-        } else if (uxEvent as? RoktUXEvent.LayoutFailure) != nil {
+        } else if let event = uxEvent as? RoktUXEvent.LayoutFailure {
 
             callOnRoktEvent(executeId, event: uxEvent.mapToRoktEvent)
-            paymentOrchestrator.discardPendingBuiltInTwoStep(forExecuteId: executeId)
+            paymentOrchestrator.discardPendingBuiltInTwoStep(forExecuteId: executeId, layoutId: event.layoutId)
             callOnUnLoad(executeId)
             placements = nil
             _swiftUiExecuteLayout = nil
@@ -544,10 +544,11 @@ class RoktInternalImplementation {
                     || (uxEvent as? RoktUXEvent.LayoutCompleted) != nil {
             // Track placement unload.
             callOnRoktEvent(executeId, event: uxEvent.mapToRoktEvent)
-            if uxEvent is RoktUXEvent.LayoutClosed {
-                // A closed layout has no confirm button left to resume a deferred two-step checkout.
+            if let event = uxEvent as? RoktUXEvent.LayoutClosed {
+                // A closed layout has no confirm button left to resume a deferred two-step checkout; other
+                // layouts still open under the same execute keep theirs.
                 // LayoutCompleted is left out until its timing against a still-visible confirm button is confirmed.
-                paymentOrchestrator.discardPendingBuiltInTwoStep(forExecuteId: executeId)
+                paymentOrchestrator.discardPendingBuiltInTwoStep(forExecuteId: executeId, layoutId: event.layoutId)
             }
             callOnUnLoad(executeId)
         } else if let event = uxEvent as? RoktUXEvent.CartItemInstantPurchase {
