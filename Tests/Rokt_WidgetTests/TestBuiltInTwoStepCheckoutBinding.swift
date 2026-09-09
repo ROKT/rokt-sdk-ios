@@ -136,9 +136,10 @@ final class TestBuiltInTwoStepCheckoutBinding: XCTestCase {
 
     private func requestBodyText(_ request: URLRequest) -> String {
         guard let json = request.bodyStreamAsJSON(),
-              let data = try? JSONSerialization.data(withJSONObject: json)
+              let data = try? JSONSerialization.data(withJSONObject: json),
+              let text = String(bytes: data, encoding: .utf8)
         else { return "" }
-        return String(decoding: data, as: UTF8.self)
+        return text
     }
 
     // MARK: - Step-2 resumes only its own item's Step-1
