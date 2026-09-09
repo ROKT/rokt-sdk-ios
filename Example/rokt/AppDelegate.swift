@@ -6,7 +6,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
-        print(url)
         return Rokt.handleURLCallback(with: url)
     }
 
@@ -19,7 +18,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
               let url = userActivity.webpageURL else {
             return false
         }
-        print(url)
         return Rokt.handleURLCallback(with: url)
     }
 }
