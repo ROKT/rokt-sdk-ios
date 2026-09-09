@@ -179,14 +179,14 @@ RoktPaymentExtension (public facade)
   │    ├── STPApplePayContext (Stripe SDK)
   │    └── ContactAddressMapping (PKContact → ContactAddress)
   ├── StripeAfterpayManager (Afterpay / Clearpay)    ← built if urlScheme provided
-  │    ├── STPPaymentHandler (Stripe SDK, driven with the extension-owned STPAPIClient)
+  │    ├── STPPaymentHandler (Stripe SDK)
   │    └── BillingDetailsMapping (ContactAddress → Stripe billing/shipping)
   └── handleURLCallback(with:) → StripeAPI.handleURLCallback
 ```
 
 - **RoktPaymentExtension**: Implements `PaymentExtension` protocol from RoktContracts; routes each `PaymentMethodType` to the matching internal manager. `supportedMethods` is computed from the configured managers.
 - **StripeApplePayManager**: Manages Apple Pay / card flows via Stripe's `STPApplePayContext`, including line-item totals from the backend payment preparation response.
-- **StripeAfterpayManager**: Manages redirect-based Afterpay / Clearpay flows via `STPPaymentHandler`; validates `PaymentContext.billingAddress` and confirms the PaymentIntent with a Rokt-owned return URL built from the partner's `urlScheme`. The confirmation runs on an extension-owned `STPAPIClient` (created from the `stripeKey` passed at registration, separate from the Apple Pay manager's client): during an Afterpay confirmation the process-wide `STPPaymentHandler.shared()` is pointed at that client and handed back to the client it held afterwards, on every outcome. The extension never changes the shared client's publishable key or connected-account scope, so a host app's own Stripe integration keeps both.
+- **StripeAfterpayManager**: Manages redirect-based Afterpay / Clearpay flows via `STPPaymentHandler`; validates `PaymentContext.billingAddress` and confirms the PaymentIntent with a Rokt-owned return URL built from the partner's `urlScheme`. The confirmation runs through the extension's own Stripe client and no longer changes the host app's shared `STPAPIClient` (its publishable key or connected account).
 - **ContactAddressMapping**: Converts Apple Pay `PKContact` to `ContactAddress`.
 - **BillingDetailsMapping**: Converts `ContactAddress` to `STPPaymentMethodBillingDetails` and `STPPaymentIntentShippingDetailsParams`.
 

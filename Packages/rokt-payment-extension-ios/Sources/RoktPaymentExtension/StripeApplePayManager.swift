@@ -166,7 +166,7 @@ private class StripeApplePayDelegate: NSObject, ApplePayContextDelegate {
         preparePayment(address) { [weak self] preparation, _ in
             guard let self else { return }
 
-            if let preparation, StripeAccountId.isValid(preparation.merchantId) {
+            if let preparation {
                 self.isPaymentPrepared = true
                 self.clientSecret = preparation.clientSecret
                 self.apiClient.stripeAccount = preparation.merchantId

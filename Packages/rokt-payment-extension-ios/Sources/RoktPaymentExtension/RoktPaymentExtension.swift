@@ -128,8 +128,7 @@ public class RoktPaymentExtension: PaymentExtension {
 
         if let urlScheme, !urlScheme.isEmpty {
             let returnURL = "\(urlScheme)://\(Self.returnHost)"
-            // The Afterpay flow sets and clears the connected-account scope on its client;
-            // a client of its own (same key) keeps that away from Apple Pay.
+            // Afterpay scopes its client to a connected account per payment, so it gets a client of its own.
             stripeAfterpayManager = StripeAfterpayManager(
                 apiClient: STPAPIClient(publishableKey: stripeKey),
                 returnURL: returnURL

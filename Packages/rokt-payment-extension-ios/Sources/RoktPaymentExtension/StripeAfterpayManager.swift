@@ -3,56 +3,18 @@ import RoktContracts
 import StripePayments
 import UIKit
 
-/// The slice of `STPPaymentHandler` the Afterpay flow drives, so the confirmation
-/// step can be exercised in tests without Stripe's network stack.
-internal protocol AfterpayPaymentConfirming: AnyObject {
-    var apiClient: STPAPIClient { get set }
-
-    func confirmPaymentIntent(
-        params: STPPaymentIntentParams,
-        authenticationContext: STPAuthenticationContext,
-        completion: @escaping STPPaymentHandlerActionPaymentIntentCompletionBlock
-    )
-}
-
-extension STPPaymentHandler: AfterpayPaymentConfirming {}
-
 internal class StripeAfterpayManager {
 
     private let apiClient: STPAPIClient
     private let returnURL: String
-    private let makeConfirmer: () -> AfterpayPaymentConfirming
 
-    /// Retained until the confirmation reaches a terminal status so the handler
-    /// survives the redirect round-trip.
-    private(set) var activeConfirmer: AfterpayPaymentConfirming?
+    /// True from the moment a confirmation is handed to Stripe until its completion runs, so a
+    /// second tap in that window fails instead of starting another confirmation. Main queue only.
+    private var isConfirming = false
 
-    /// Confirmers borrowed by any manager in the process. `STPPaymentHandler.shared()` is
-    /// process-wide, so a manager created while another's confirmation is still in flight
-    /// (the extension re-registered mid-redirect) must not borrow the same handler again.
-    private static var borrowedConfirmers = Set<ObjectIdentifier>()
-    private static let borrowLock = NSLock()
-
-    private static func borrow(_ confirmer: AfterpayPaymentConfirming) -> Bool {
-        borrowLock.lock()
-        defer { borrowLock.unlock() }
-        return borrowedConfirmers.insert(ObjectIdentifier(confirmer)).inserted
-    }
-
-    private static func release(_ confirmer: AfterpayPaymentConfirming) {
-        borrowLock.lock()
-        defer { borrowLock.unlock() }
-        borrowedConfirmers.remove(ObjectIdentifier(confirmer))
-    }
-
-    internal init(
-        apiClient: STPAPIClient,
-        returnURL: String,
-        makeConfirmer: @escaping () -> AfterpayPaymentConfirming = { STPPaymentHandler.shared() }
-    ) {
+    internal init(apiClient: STPAPIClient, returnURL: String) {
         self.apiClient = apiClient
         self.returnURL = returnURL
-        self.makeConfirmer = makeConfirmer
     }
 
     internal func presentPayment(
@@ -119,57 +81,45 @@ internal class StripeAfterpayManager {
                 return
             }
 
-            // All manager state is read and written on the main queue; Stripe's handler completes there.
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
+            let params = STPPaymentIntentParams(clientSecret: preparation.clientSecret)
+            params.paymentMethodParams = STPPaymentMethodParams(
+                afterpayClearpay: STPPaymentMethodAfterpayClearpayParams(),
+                billingDetails: BillingDetailsMapping.map(from: billingAddress, fallbackName: billingName),
+                metadata: nil
+            )
+            params.returnURL = self.returnURL
 
-                guard self.activeConfirmer == nil else {
+            if let shippingAddress = context.shippingAddress {
+                params.shipping = BillingDetailsMapping.mapShipping(from: shippingAddress, fallbackName: billingName)
+            }
+
+            let authContext = SimpleAuthenticationContext(presentingController: viewController)
+
+            DispatchQueue.main.async {
+                guard !self.isConfirming else {
                     completion(.failed(error: "A payment is already in progress"))
                     return
                 }
+                self.isConfirming = true
 
-                guard StripeAccountId.isValid(preparation.merchantId) else {
-                    completion(.failed(error: "Payment preparation returned an invalid merchant account id"))
-                    return
-                }
-
-                let confirmer = self.makeConfirmer()
-                guard Self.borrow(confirmer) else {
-                    completion(.failed(error: "A payment is already in progress"))
-                    return
-                }
-
+                // Stripe exposes one payment handler, so for this confirmation it is pointed at the
+                // extension's own client (scoped to the connected account) and afterwards handed back
+                // the client it held. STPAPIClient.shared itself is never changed.
                 let extensionClient = self.apiClient
                 extensionClient.stripeAccount = preparation.merchantId
+                let handler = STPPaymentHandler.shared()
+                let previousClient = handler.apiClient
+                handler.apiClient = extensionClient
 
-                let params = STPPaymentIntentParams(clientSecret: preparation.clientSecret)
-                params.paymentMethodParams = STPPaymentMethodParams(
-                    afterpayClearpay: STPPaymentMethodAfterpayClearpayParams(),
-                    billingDetails: BillingDetailsMapping.map(from: billingAddress, fallbackName: billingName),
-                    metadata: nil
-                )
-                params.returnURL = self.returnURL
-
-                if let shippingAddress = context.shippingAddress {
-                    params.shipping = BillingDetailsMapping.mapShipping(from: shippingAddress, fallbackName: billingName)
-                }
-
-                let authContext = SimpleAuthenticationContext(presentingController: viewController)
-                self.activeConfirmer = confirmer
-
-                // The process-wide handler is borrowed for this confirmation: pointed at the
-                // extension-owned client and handed back with the client it held on every outcome.
-                let hostClient = confirmer.apiClient
-                confirmer.apiClient = extensionClient
-
-                confirmer.confirmPaymentIntent(
+                handler.confirmPaymentIntent(
                     params: params,
                     authenticationContext: authContext
                 ) { [weak self] status, intent, error in
-                    confirmer.apiClient = hostClient
+                    // The redirect and polling steps also run on the handler's client, so the
+                    // hand-back waits for the completion and happens on every outcome.
+                    handler.apiClient = previousClient
                     extensionClient.stripeAccount = nil
-                    self?.activeConfirmer = nil
-                    Self.release(confirmer)
+                    self?.isConfirming = false
 
                     switch status {
                     case .succeeded:
