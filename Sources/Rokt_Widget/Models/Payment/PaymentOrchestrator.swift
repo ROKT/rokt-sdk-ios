@@ -62,6 +62,11 @@ final class PaymentOrchestrator {
     /// not appear and nothing would ever report back; the checkout fails instead of waiting on a sheet that never opened.
     static let payPalApprovalPresenterBusyMessage =
         "PayPal approval could not be shown; the screen is already presenting another view."
+    /// The screen that should show the PayPal approval sheet is no longer in a window, or is being dismissed, so the
+    /// sheet would not appear and nothing would ever report back; the checkout fails instead of waiting on a sheet
+    /// that never opened.
+    static let payPalApprovalPresenterOffScreenMessage =
+        "PayPal approval could not be shown; the screen that started the checkout is no longer showing."
     /// Cart `initialize-purchase` body `paymentMethodType` wire value. PascalCase tokens that
     /// match both the cart-api `PaymentMethodType` member names and the values DCUI returns in
     /// `paymentProvider` — so iOS sends the method back in the same vocabulary it receives.

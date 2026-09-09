@@ -61,7 +61,9 @@ final class PayPalCheckoutCoordinator {
     /// over it. Read on the main thread. `false` once the checkout has finished; `true` while the presenter is still
     /// putting the sheet up and has not handed it over yet. After the hand-over the sheet counts as on screen while
     /// its view is in a window: a sheet the host released, or took off screen with the view hierarchy it replaced,
-    /// reads as gone even though no cancel or return will ever report it.
+    /// reads as gone even though no cancel or return will ever report it. The wait for a hand-over ends:
+    /// ``PayPalApprovalWebPresenter`` hands over every sheet UIKit accepts and fails the checkout for one it would
+    /// drop, so a sheet that was never shown does not read as on screen for good.
     var isApprovalSheetOnScreen: Bool {
         lock.lock()
         let isFinished = finished
@@ -218,6 +220,16 @@ final class PayPalApprovalWebPresenter: PayPalApprovalPresenting {
                     "\(PaymentOrchestrator.devicePayErrorCode) \(PaymentOrchestrator.payPalApprovalPresenterBusyMessage)"
                 )
                 checkoutCoordinator.completeWithFailure(PaymentOrchestrator.payPalApprovalPresenterBusyMessage)
+                return
+            }
+            // UIKit drops a present just as silently when the presenting view controller's view is not in a window,
+            // or when that view controller is being dismissed. Fail the checkout for those too, so a sheet that was
+            // never shown does not count as on screen for the rest of the process.
+            guard viewController.viewIfLoaded?.window != nil, !viewController.isBeingDismissed else {
+                RoktLogger.shared.warning(
+                    "\(PaymentOrchestrator.devicePayErrorCode) \(PaymentOrchestrator.payPalApprovalPresenterOffScreenMessage)"
+                )
+                checkoutCoordinator.completeWithFailure(PaymentOrchestrator.payPalApprovalPresenterOffScreenMessage)
                 return
             }
             let safari = SFSafariViewController(url: approvalURL)

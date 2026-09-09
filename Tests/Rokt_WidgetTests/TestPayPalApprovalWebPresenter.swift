@@ -10,9 +10,24 @@ final class AlreadyPresentingViewController: UIViewController {
     override var presentedViewController: UIViewController? { viewAlreadyOnTop }
 }
 
+/// Stands in for a screen on its way off: its view is still in a window, but UIKit reports the controller as being
+/// dismissed, and drops a further present from it without reporting back.
+final class DismissingViewController: UIViewController {
+    private let window = UIWindow()
+
+    static func onScreen() -> DismissingViewController {
+        let viewController = DismissingViewController()
+        viewController.window.addSubview(viewController.view)
+        return viewController
+    }
+
+    override var isBeingDismissed: Bool { true }
+}
+
 /// ``PayPalApprovalWebPresenter`` loads the approval URL in `SFSafariViewController`, which accepts only
 /// http/https URLs. Any other URL must end the checkout with a failure instead of being presented, and so must a
-/// screen that is already presenting another view, since UIKit would refuse the sheet without reporting back.
+/// screen that cannot show the sheet: one already presenting another view, one whose view is in no window, or one
+/// being dismissed. UIKit drops the present in each of those states without calling the completion or the delegate.
 final class TestPayPalApprovalWebPresenter: XCTestCase {
 
     private func makeCoordinator(onResult: @escaping (PaymentSheetResult) -> Void) -> PayPalCheckoutCoordinator {
@@ -55,21 +70,50 @@ final class TestPayPalApprovalWebPresenter: XCTestCase {
         assertPresenterRejects("https:///x")
     }
 
-    func test_presentPayPalApproval_whenTheScreenAlreadyPresentsAnotherView_failsCheckoutWithoutPresenting() throws {
-        let approvalURL = try XCTUnwrap(URL(string: "https://www.paypal.com/checkoutnow?token=MOCK"))
-        let failed = expectation(description: "checkout fails when the screen is already presenting another view")
+    /// The URL is fine; the screen is not. The checkout must end with `message` through the ordinary completion, which
+    /// a present UIKit dropped would never reach.
+    private func assertPresenterFailsCheckout(
+        from viewController: UIViewController,
+        expecting message: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let approvalURL = try XCTUnwrap(URL(string: "https://www.paypal.com/checkoutnow?token=MOCK"), file: file, line: line)
+        let failed = expectation(description: "checkout fails for a screen that cannot show the sheet")
         let coordinator = makeCoordinator { result in
-            XCTAssertEqual(result.outcome, .failed)
-            XCTAssertEqual(result.errorMessage, PaymentOrchestrator.payPalApprovalPresenterBusyMessage)
+            XCTAssertEqual(result.outcome, .failed, file: file, line: line)
+            XCTAssertEqual(result.errorMessage, message, file: file, line: line)
             failed.fulfill()
         }
 
         PayPalApprovalWebPresenter().presentPayPalApproval(
             approvalURL: approvalURL,
-            from: AlreadyPresentingViewController(),
+            from: viewController,
             checkoutCoordinator: coordinator
         )
 
         wait(for: [failed], timeout: 1.0)
+    }
+
+    func test_presentPayPalApproval_whenTheScreenAlreadyPresentsAnotherView_failsCheckoutWithoutPresenting() throws {
+        try assertPresenterFailsCheckout(
+            from: AlreadyPresentingViewController(),
+            expecting: PaymentOrchestrator.payPalApprovalPresenterBusyMessage
+        )
+    }
+
+    func test_presentPayPalApproval_whenTheScreenIsNotInAWindow_failsCheckoutWithoutPresenting() throws {
+        // A plain view controller never shown: its view is in no window.
+        try assertPresenterFailsCheckout(
+            from: UIViewController(),
+            expecting: PaymentOrchestrator.payPalApprovalPresenterOffScreenMessage
+        )
+    }
+
+    func test_presentPayPalApproval_whenTheScreenIsBeingDismissed_failsCheckoutWithoutPresenting() throws {
+        try assertPresenterFailsCheckout(
+            from: DismissingViewController.onScreen(),
+            expecting: PaymentOrchestrator.payPalApprovalPresenterOffScreenMessage
+        )
     }
 }

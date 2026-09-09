@@ -2304,6 +2304,75 @@ class TestPaymentOrchestrator: XCTestCase {
         XCTAssertFalse(laterOrchestrator.unitTest_hasPendingBuiltInTwoStep(for: laterKey))
     }
 
+    func test_presentPendingBuiltInPayPal_screenNotInAWindowAndLayoutCloses_failsStepOneAndALaterItemStillPresents() {
+        sut = PaymentOrchestrator(
+            apiHelper: PaymentOrchestratorAPIHelperSpy.self,
+            payPalApprovalPresenter: PayPalApprovalWebPresenter()
+        )
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = Self.validPayPalInitializePurchaseResponse()
+        // By the time the confirm is tapped, the screen that started Step-1 is no longer showing (its view is in no
+        // window), so UIKit would drop the approval sheet without ever reporting back for it.
+        let offScreenViewController = UIViewController()
+        var stepOneResult: PaymentSheetResult?
+        sut.processPayment(
+            method: .paypal,
+            item: PaymentItem(id: "p1", name: "P", amount: 1, currency: "USD"),
+            context: PaymentContext(
+                billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                returnURL: "myapp://paypal/success",
+                cancelURL: nil
+            ),
+            cartItemId: "v1:cart:1",
+            from: offScreenViewController,
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests()
+        ) { stepOneResult = $0 }
+        var confirmResult: PaymentSheetResult?
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { confirmResult = $0 })
+        // The placement closes before the present has run, so the item's mark is fenced. A fenced mark whose sheet
+        // never reports back would otherwise hold every later PayPal confirm for the rest of the process.
+        sut.discardPendingBuiltInTwoStep(forExecuteId: Self.testExecuteId, layoutId: "test_layout")
+        drainMainQueue()
+
+        XCTAssertEqual(stepOneResult?.outcome, .failed)
+        XCTAssertEqual(stepOneResult?.errorMessage, PaymentOrchestrator.payPalApprovalPresenterOffScreenMessage)
+        XCTAssertEqual(confirmResult?.outcome, .failed)
+        XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()))
+
+        // A later placement offers a PayPal item through an orchestrator whose screen can show a sheet; the
+        // one-approval-at-a-time gate is shared between them, and the sheet that never opened must not hold it closed.
+        let laterPresenter = HoldingPayPalApprovalPresenter()
+        let laterOrchestrator = PaymentOrchestrator(
+            apiHelper: PaymentOrchestratorAPIHelperSpy.self,
+            payPalApprovalPresenter: laterPresenter
+        )
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse =
+            Self.validPayPalInitializePurchaseResponse(orderId: "ORDER_2")
+        let presentingViewController = UIViewController()
+        laterOrchestrator.processPayment(
+            method: .paypal,
+            item: PaymentItem(id: "p2", name: "P", amount: 1, currency: "USD"),
+            context: PaymentContext(
+                billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                returnURL: "myapp://paypal/success",
+                cancelURL: nil
+            ),
+            cartItemId: "v1:cart:2",
+            from: presentingViewController,
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests(layoutId: "other_layout")
+        ) { _ in }
+        let laterKey = BuiltInTwoStepCheckoutKey(
+            executeId: Self.testExecuteId,
+            layoutId: "other_layout",
+            catalogItemId: "test_catalog",
+            cartItemId: "v1:cart:2"
+        )
+        XCTAssertTrue(laterOrchestrator.presentPendingBuiltInPayPalForForwardPayment(for: laterKey) { _ in })
+        drainMainQueue()
+
+        XCTAssertEqual(laterPresenter.presentCallCount, 1, "The later item's approval sheet is presented")
+        XCTAssertFalse(laterOrchestrator.unitTest_hasPendingBuiltInTwoStep(for: laterKey), "The later item's checkout started")
+    }
+
     func test_processPayment_payPal_failsWhenOrderIdMissing() {
         let payPalPresenter = MockPayPalApprovalPresenter()
         sut = PaymentOrchestrator(
