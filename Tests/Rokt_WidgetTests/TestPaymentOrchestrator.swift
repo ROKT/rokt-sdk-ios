@@ -1161,13 +1161,69 @@ class TestPaymentOrchestrator: XCTestCase {
             XCTFail("Another execute's entry must be untouched")
         }
 
-        sut.discardPendingBuiltInTwoStep(forExecuteId: "execute_a")
+        sut.discardPendingBuiltInTwoStep(forExecuteId: "execute_a", layoutId: "l")
         drainMainQueue()
 
         XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: keyA))
         XCTAssertFalse(sut.presentPendingBuiltInPayPalForForwardPayment(for: keyA) { _ in })
         XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: keyB))
         XCTAssertNotNil(sut.beginBuiltInCardForwardPaymentIfReady(for: keyB))
+    }
+
+    func test_discardPendingBuiltInTwoStep_forLayout_keepsAnotherOpenLayoutsCheckoutUnderTheSameExecute() {
+        let payPalPresenter = MockPayPalApprovalPresenter()
+        sut = PaymentOrchestrator(
+            apiHelper: PaymentOrchestratorAPIHelperSpy.self,
+            payPalApprovalPresenter: payPalPresenter
+        )
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = Self.validPayPalInitializePurchaseResponse()
+        // Held strongly until the deferred present has run; the pending checkout only keeps a weak reference.
+        let presentingViewController = UIViewController()
+        func startStepOne(layoutId: String, cartItemId: String, completion: @escaping (PaymentSheetResult) -> Void) {
+            sut.processPayment(
+                method: .paypal,
+                item: PaymentItem(id: "p1", name: "P", amount: 1, currency: "USD"),
+                context: PaymentContext(
+                    billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                    returnURL: "myapp://paypal/success",
+                    cancelURL: nil
+                ),
+                cartItemId: cartItemId,
+                from: presentingViewController,
+                builtInPayPalDevicePaySession: BuiltInTwoStepDevicePaySession(
+                    executeId: Self.testExecuteId,
+                    layoutId: layoutId,
+                    catalogItemId: "test_catalog"
+                ) { _, _, _ in },
+                completion: completion
+            )
+        }
+        startStepOne(layoutId: "closing_layout", cartItemId: "v1:cart:1") { _ in
+            XCTFail("Discard must not invoke the Step-1 completion")
+        }
+        var openLayoutStepOneResult: PaymentSheetResult?
+        startStepOne(layoutId: "open_layout", cartItemId: "v1:cart:2") { openLayoutStepOneResult = $0 }
+        let closingKey = BuiltInTwoStepCheckoutKey(
+            executeId: Self.testExecuteId, layoutId: "closing_layout", catalogItemId: "test_catalog", cartItemId: "v1:cart:1"
+        )
+        let openKey = BuiltInTwoStepCheckoutKey(
+            executeId: Self.testExecuteId, layoutId: "open_layout", catalogItemId: "test_catalog", cartItemId: "v1:cart:2"
+        )
+
+        sut.discardPendingBuiltInTwoStep(forExecuteId: Self.testExecuteId, layoutId: "closing_layout")
+        drainMainQueue()
+
+        XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: closingKey))
+        XCTAssertFalse(sut.presentPendingBuiltInPayPalForForwardPayment(for: closingKey) { _ in })
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: openKey), "The other open layout keeps its checkout")
+
+        // The other layout's confirm still resumes its own checkout.
+        var forwardObserverResult: PaymentSheetResult?
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: openKey) { forwardObserverResult = $0 })
+        drainMainQueue()
+        XCTAssertEqual(payPalPresenter.presentCallCount, 1)
+        XCTAssertEqual(openLayoutStepOneResult?.outcome, .succeeded)
+        XCTAssertEqual(forwardObserverResult?.outcome, .succeeded)
     }
 
     func test_discardPendingBuiltInTwoStep_forExecuteId_keepsARunningCardPurchaseUntilItsResultArrives() {
@@ -1183,7 +1239,7 @@ class TestPaymentOrchestrator: XCTestCase {
         }
         XCTAssertNotNil(sut.beginBuiltInCardForwardPaymentIfReady(for: sentKey), "Item B's purchase is in flight")
 
-        sut.discardPendingBuiltInTwoStep(forExecuteId: "execute_a")
+        sut.discardPendingBuiltInTwoStep(forExecuteId: "execute_a", layoutId: "l")
         drainMainQueue()
 
         XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: heldKey), "A confirm not yet tapped goes with its layout")
@@ -1610,6 +1666,58 @@ class TestPaymentOrchestrator: XCTestCase {
         XCTAssertTrue(sut.handleURLCallback(with: URL(string: "myapp://paypal/cancel?token=ORDER_MOCK")!))
         drainMainQueue()
         XCTAssertNil(stepOneResult, "Cancel defers the Step-1 completion")
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in })
+    }
+
+    // MARK: - A cancel after a lifecycle fence drops the checkout instead of re-queueing it
+
+    func test_handleURLCallback_payPalCancel_afterItsLayoutClosedWhilePresented_dropsTheCheckout() {
+        var stepOneResult: PaymentSheetResult?
+        startHeldPayPalCheckout(cancelURL: "myapp://paypal/cancel") { stepOneResult = $0 }
+
+        // The placement closes while the approval sheet is up; its entry is out of the pending table at this point.
+        sut.discardPendingBuiltInTwoStep(forExecuteId: Self.testExecuteId, layoutId: "test_layout")
+
+        XCTAssertTrue(sut.handleURLCallback(with: URL(string: "myapp://paypal/cancel?token=ORDER_MOCK")!))
+        drainMainQueue()
+
+        XCTAssertNil(stepOneResult, "Nothing is owed for a placement that is gone")
+        XCTAssertFalse(
+            sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()),
+            "A cancel must not re-queue a checkout for a placement that closed while the sheet was up"
+        )
+        XCTAssertFalse(sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in })
+    }
+
+    func test_handleURLCallback_payPalCancel_afterTheSessionClearedWhilePresented_dropsTheCheckout() {
+        var stepOneResult: PaymentSheetResult?
+        startHeldPayPalCheckout(cancelURL: "myapp://paypal/cancel") { stepOneResult = $0 }
+
+        sut.discardAllPendingBuiltInTwoStep()
+
+        XCTAssertTrue(sut.handleURLCallback(with: URL(string: "myapp://paypal/cancel?token=ORDER_MOCK")!))
+        drainMainQueue()
+
+        XCTAssertNil(stepOneResult)
+        XCTAssertFalse(
+            sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()),
+            "A cancel must not re-queue a checkout for a session that was cleared while the sheet was up"
+        )
+        XCTAssertFalse(sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in })
+    }
+
+    func test_handleURLCallback_payPalCancel_withoutAFenceOnItsLayout_requeuesTheCheckout() {
+        var stepOneResult: PaymentSheetResult?
+        startHeldPayPalCheckout(cancelURL: "myapp://paypal/cancel") { stepOneResult = $0 }
+
+        // Another layout under the same execute closes while the sheet is up; this checkout's layout stays open.
+        sut.discardPendingBuiltInTwoStep(forExecuteId: Self.testExecuteId, layoutId: "other_layout")
+
+        XCTAssertTrue(sut.handleURLCallback(with: URL(string: "myapp://paypal/cancel?token=ORDER_MOCK")!))
+        drainMainQueue()
+
+        XCTAssertNil(stepOneResult, "Cancel defers the Step-1 completion")
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()), "The confirm button can start the checkout again")
         XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in })
     }
 

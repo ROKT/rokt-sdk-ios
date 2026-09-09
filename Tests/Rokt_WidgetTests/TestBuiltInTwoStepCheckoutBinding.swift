@@ -38,9 +38,13 @@ final class TestBuiltInTwoStepCheckoutBinding: XCTestCase {
 
     // MARK: - Helpers
 
-    private func makeForwardPaymentEvent(cartItemId: String, catalogItemId: String) -> RoktUXEvent.CartItemForwardPayment {
+    private func makeForwardPaymentEvent(
+        layoutId: String = "layout-1",
+        cartItemId: String,
+        catalogItemId: String
+    ) -> RoktUXEvent.CartItemForwardPayment {
         RoktUXEvent.CartItemForwardPayment(
-            layoutId: "layout-1",
+            layoutId: layoutId,
             name: "Test item",
             cartItemId: cartItemId,
             catalogItemId: catalogItemId,
@@ -55,10 +59,15 @@ final class TestBuiltInTwoStepCheckoutBinding: XCTestCase {
         )
     }
 
-    private func key(executeId: String? = nil, cartItemId: String, catalogItemId: String) -> BuiltInTwoStepCheckoutKey {
+    private func key(
+        executeId: String? = nil,
+        layoutId: String = "layout-1",
+        cartItemId: String,
+        catalogItemId: String
+    ) -> BuiltInTwoStepCheckoutKey {
         BuiltInTwoStepCheckoutKey(
             executeId: executeId ?? self.executeId,
-            layoutId: "layout-1",
+            layoutId: layoutId,
             catalogItemId: catalogItemId,
             cartItemId: cartItemId
         )
@@ -251,6 +260,59 @@ final class TestBuiltInTwoStepCheckoutBinding: XCTestCase {
 
         XCTAssertFalse(orch.unitTest_hasPendingBuiltInTwoStep(for: failingKey))
         XCTAssertNil(orch.beginBuiltInCardForwardPaymentIfReady(for: failingKey))
+    }
+
+    // MARK: - One execute can host several open layouts; a fence is per layout
+
+    func test_layoutClosed_keepsAnotherOpenLayoutsPendingTwoStepUnderTheSameExecute_andItsConfirmStillResumes() {
+        let (impl, bag) = makeImplementationAfterStepTwoTap()
+        // Two placements open under the one execute; closing one leaves the other's deferred state alone.
+        bag.loadedPlacements = 2
+        let orch = impl.paymentOrchestratorForTesting
+        let closingKey = key(cartItemId: "cart-a", catalogItemId: "catalog-a")
+        let openKey = key(layoutId: "layout-2", cartItemId: "cart-b", catalogItemId: "catalog-b")
+        seedPayPal(orch, for: closingKey)
+        let stepOneResult = expectation(description: "The open layout's Step-1 completion receives its purchase result")
+        orch.unitTest_seedDeferredBuiltInCardForwardPayment(for: openKey) { result in
+            XCTAssertEqual(result.outcome, .succeeded)
+            stepOneResult.fulfill()
+        }
+
+        impl.callOnRoktUXEvent(executeId, uxEvent: RoktUXEvent.LayoutClosed(layoutId: "layout-1"))
+        drainMainQueue()
+
+        XCTAssertFalse(orch.unitTest_hasPendingBuiltInTwoStep(for: closingKey))
+        XCTAssertFalse(orch.presentPendingBuiltInPayPalForForwardPayment(for: closingKey) { _ in })
+        XCTAssertTrue(orch.unitTest_hasPendingBuiltInTwoStep(for: openKey), "The other open layout keeps its checkout")
+
+        registerPurchaseMock(body: #"{"success":true}"#) { _ in }
+        installMockingHTTPClient()
+        let cleared = expectFlagCleared(bag)
+        Rokt.shared.roktImplementation.roktTagId = forwardPaymentTestTagId
+        impl.handleForwardPayment(
+            executeId: executeId,
+            event: makeForwardPaymentEvent(layoutId: "layout-2", cartItemId: "cart-b", catalogItemId: "catalog-b")
+        )
+
+        wait(for: [stepOneResult, cleared], timeout: 3.0)
+        XCTAssertFalse(orch.unitTest_hasPendingBuiltInTwoStep(for: openKey))
+    }
+
+    func test_layoutFailure_keepsAnotherOpenLayoutsPendingTwoStepUnderTheSameExecute() {
+        let impl = RoktInternalImplementation()
+        let orch = impl.paymentOrchestratorForTesting
+        let failingKey = key(cartItemId: "cart-a", catalogItemId: "catalog-a")
+        let openKey = key(layoutId: "layout-2", cartItemId: "cart-b", catalogItemId: "catalog-b")
+        seedCard(orch, for: failingKey)
+        seedCard(orch, for: openKey)
+
+        impl.callOnRoktUXEvent(executeId, uxEvent: RoktUXEvent.LayoutFailure(layoutId: "layout-1", reason: .invalidSchema))
+        drainMainQueue()
+
+        XCTAssertFalse(orch.unitTest_hasPendingBuiltInTwoStep(for: failingKey))
+        XCTAssertNil(orch.beginBuiltInCardForwardPaymentIfReady(for: failingKey))
+        XCTAssertTrue(orch.unitTest_hasPendingBuiltInTwoStep(for: openKey), "The other open layout keeps its checkout")
+        XCTAssertNotNil(orch.beginBuiltInCardForwardPaymentIfReady(for: openKey), "Its confirm still resumes")
     }
 
     func test_clearSession_dropsEveryPendingTwoStep() {
