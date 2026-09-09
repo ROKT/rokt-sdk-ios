@@ -176,8 +176,8 @@ final class PaymentOrchestrator {
 
     /// PayPal entries currently out for presentation, keyed like the pending table. A lifecycle fence cannot see
     /// them there, so it marks them here and the cancel path reads the mark before re-queueing. While any entry
-    /// ``PresentedBuiltInPayPalCheckout/holdsBackOtherApprovals`` an approval sheet is up, and no second approval is
-    /// started until that one ends.
+    /// holds back other approvals (``PresentedBuiltInPayPalCheckout/holdsBackOtherApprovals``), an approval sheet is
+    /// up and no second approval is started until it ends.
     private static var presentedBuiltInPayPalCheckouts: [BuiltInTwoStepCheckoutKey: PresentedBuiltInPayPalCheckout] = [:]
 
     /// Card purchases still in flight when their layout closed or failed, or the session was cleared. Their result
