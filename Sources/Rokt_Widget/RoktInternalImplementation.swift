@@ -98,6 +98,8 @@ class RoktInternalImplementation {
     var unitTest_afterCacheHitCommit: (() -> Void)?
     // Test-only hook, run while a placement's starting state is being read under the generation lock; nil in production.
     var unitTest_duringPlacementStart: (() -> Void)?
+    // Test-only hook, run before a placement's offers service is built and its generation re-checked; nil in production.
+    var unitTest_beforeOffersServiceBuilt: (() -> Void)?
     private var pendingPayload: ExecutePayload?
     private var clientTimeoutMilliseconds: Double = RoktInternalImplementation.defaultTimeoutMilliseconds
     private var defaultLaunchDelayMilliseconds: Double = RoktInternalImplementation.defaultDelay
@@ -1198,15 +1200,20 @@ class RoktInternalImplementation {
     ///
     /// Order matters: flushing first hands buffered events to a `TxnEventService` that captures
     /// the departing token as it is built, so they stay attributed to the customer leaving. Only
-    /// then is the session wiped, synchronously, so the next placement cannot rehydrate it.
+    /// then is the session wiped, synchronously, so the next placement cannot rehydrate it — and
+    /// under the generation lock, together with the generation, so a placement that reads either
+    /// one after this reset reads both after it.
     func clearSession() {
         RoktAPIHelper.logApiCalled(Self.apiClearSessionCode)
         EventQueue.flush()
-        TxnSessionManager.clearPersistedSession(store: txnSessionStore)
         // The generation moves first and the store clears under the same lock, so a capture from a
         // placement still in flight either lands before the clear or is fenced out — never after it.
         sessionGenerationLock.lock()
         sessionGeneration &+= 1
+        // The persisted session and its epoch go under the same lock as the generation. A placement builds its
+        // offers request under this lock too, so the session manager it carries can never read the old epoch
+        // against a new generation, or the new epoch against an old one.
+        TxnSessionManager.clearPersistedSession(store: txnSessionStore)
         // Also clears the legacy session id and, via ManagedSession, the real-time event store.
         sessionManager.invalidateSession()
         // The cached experience was fetched inside the dropped session, so it goes with it. Under the same lock,
@@ -1518,8 +1525,23 @@ class RoktInternalImplementation {
                                 time: validPageInitTime
                             )
                         }
-                        let offersService = self.makeOffersServiceOverride?(tagId)
-                            ?? self.defaultOffersService(roktTagId: tagId, generation: generation)
+                        self.unitTest_beforeOffersServiceBuilt?()
+                        // The service, and the session manager it carries (which reads the store's epoch as it is
+                        // built), is created only while the placement's generation is still current, under the
+                        // generation lock. Once a clearSession has landed, no request is sent for this placement:
+                        // the session the server would mint for the departing customer's attributes must never be
+                        // written for the next customer to restore.
+                        var builtOffersService: OffersService?
+                        let started = self.commitIfCurrent(generation: generation) {
+                            builtOffersService = self.makeOffersServiceOverride?(tagId)
+                                ?? self.defaultOffersService(roktTagId: tagId, generation: generation)
+                        }
+                        guard started, let offersService = builtOffersService else {
+                            self.isExecuting = false
+                            RoktLogger.shared.info("Discarding a placement that was reset before its offers request was sent")
+                            self.conclude(withFailure: true)
+                            return
+                        }
                         offersService.getExperienceData(
                             viewName: viewName,
                             attributes: attributes,

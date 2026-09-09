@@ -691,6 +691,67 @@ final class TestOffersExecuteWiring: XCTestCase {
         XCTAssertNil(impl.getSessionId(), "the cleared session id must not come back")
     }
 
+    /// A `clearSession()` that lands after a placement has started but before its offers request is built belongs to
+    /// the customer leaving: the request is not sent, and the session the server would mint for it is never written
+    /// to the store the next customer's placement restores from.
+    func test_execute_clearSessionBeforeTheOffersRequestIsBuilt_sendsNothingAndPersistsNoSession() throws {
+        let store = InMemoryTxnStore()
+        impl.txnSessionStore = store
+        initialize()
+        let client = DeferredHTTPClient(data: try renderFixture(), status: 200)
+        // A store-backed session manager, built with the request as in production, so a session the response
+        // carries would be persisted where the next placement restores from.
+        impl.makeOffersServiceOverride = { tagId in
+            OffersService(
+                environment: .Prod,
+                accountId: tagId,
+                sdkVersion: "5.2.2",
+                layoutSchemaVersion: "2.8",
+                sessionManager: TxnSessionManager(roktTagId: tagId, store: store),
+                httpClient: client,
+                maxRetries: 0,
+                sleep: { _ in }
+            )
+        }
+        let generationBefore = impl.currentSessionGeneration()
+        let clearSessionReturned = expectation(description: "clearSession returned")
+        let clearSessionLanded = DispatchSemaphore(value: 0)
+        impl.unitTest_duringPlacementStart = { [weak impl] in
+            // clearSession from another queue once the placement's start has been read.
+            DispatchQueue.global().async {
+                impl?.clearSession()
+                clearSessionLanded.signal()
+                clearSessionReturned.fulfill()
+            }
+        }
+        // Let the clear land before the request is built, so the window is exercised on every run.
+        impl.unitTest_beforeOffersServiceBuilt = { _ = clearSessionLanded.wait(timeout: .now() + 5) }
+        let discarded = expectation(description: "the placement reports failure")
+        impl.execute(viewName: "checkout", attributes: ["email": "leaving@example.com"], config: nil) { event in
+            if event is RoktEvent.PlacementFailure { discarded.fulfill() }
+        }
+        wait(for: [clearSessionReturned], timeout: 10)
+        // Were a request sent regardless, let it reach the transport and be answered, so whatever its response
+        // persisted is visible below.
+        settle()
+        client.release()
+        wait(for: [discarded], timeout: 10)
+        settle()
+
+        XCTAssertEqual(impl.currentSessionGeneration(), generationBefore + 1, "the clear landed")
+        XCTAssertEqual(client.requestCount, 0, "the departing customer's attributes are not sent to start a new session")
+        XCTAssertNil(store.string(forKey: TxnSessionStoreKeys.sessionId), "no session is left for the next customer")
+        XCTAssertNil(store.string(forKey: TxnSessionStoreKeys.token))
+        XCTAssertNil(impl.capturedPage)
+
+        // The fence released `isExecuting`: the next placement is accepted and renders.
+        impl.unitTest_duringPlacementStart = nil
+        impl.unitTest_beforeOffersServiceBuilt = nil
+        impl.makeOffersServiceOverride = offersOverride(data: try renderFixture(), status: 200)
+        impl.execute(viewName: "checkout", attributes: ["email": "arriving@example.com"], config: nil)
+        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
+    }
+
     /// Lets asynchronous work that follows an observed event run to completion.
     private func settle() {
         let settled = expectation(description: "settled")
