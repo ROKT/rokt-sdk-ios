@@ -415,8 +415,10 @@ final class PaymentOrchestrator {
         let contactAddress = Self.contactAddressForInitializePurchase(context: context)
         let preparingKey = devicePaySession?.checkoutKey(cartItemId: cartItemId)
         let preparingToken = preparingKey.map { Self.beginPreparingBuiltInTwoStep(for: $0) }
-        // `false` when the placement or session went away, or Step-1 was started again for this item, while the
-        // request was out: its response then shows nothing, stores nothing and reports nothing.
+        // `.superseded` when the placement or session went away, or Step-1 was started again for this item, while
+        // the request was out: its response then shows nothing, stores nothing and reports nothing.
+        // `.keptPurchaseInFlight` when the item's card purchase is already out: nothing is stored and the new attempt
+        // is reported as failed.
         let endPreparing: (PendingBuiltInTwoStepCheckout?) -> FinishedPreparing = { entry in
             guard let preparingKey, let preparingToken else { return .stored }
             return Self.finishPreparingBuiltInTwoStep(for: preparingKey, token: preparingToken, storing: entry)

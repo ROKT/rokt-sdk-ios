@@ -1525,6 +1525,51 @@ class TestPaymentOrchestrator: XCTestCase {
         wait(for: [purchaseResultDelivered], timeout: 1.0)
     }
 
+    func test_stepOne_payPal_replacementThatSucceeds_keepsACardPurchaseAlreadyInFlight() {
+        let payPalPresenter = HoldingPayPalApprovalPresenter()
+        sut = PaymentOrchestrator(
+            apiHelper: PaymentOrchestratorAPIHelperSpy.self,
+            payPalApprovalPresenter: payPalPresenter
+        )
+        let purchaseResultDelivered = expectation(description: "The purchase already sent still reaches its completion")
+        sut.unitTest_seedDeferredBuiltInCardForwardPayment(for: testKey()) { result in
+            XCTAssertEqual(result.outcome, .succeeded)
+            purchaseResultDelivered.fulfill()
+        }
+        XCTAssertNotNil(sut.beginBuiltInCardForwardPaymentIfReady(for: testKey()))
+        XCTAssertTrue(sut.isBuiltInCardForwardPaymentInFlight())
+
+        // A PayPal Step-1 for the same item succeeds while the card purchase is out: the purchase keeps its place,
+        // no confirm button appears, no PayPal checkout is stored, and the new attempt is reported as failed.
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = Self.validPayPalInitializePurchaseResponse()
+        var replacementResult: PaymentSheetResult?
+        sut.processPayment(
+            method: .paypal,
+            item: PaymentItem(id: "p1", name: "P", amount: 1, currency: "USD"),
+            context: PaymentContext(
+                billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                returnURL: "myapp://paypal/success",
+                cancelURL: nil
+            ),
+            cartItemId: "v1:cart:1",
+            from: UIViewController(),
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests { _, _, _ in
+                XCTFail("A replacement for a purchase already in flight shows no confirm button")
+            }
+        ) { replacementResult = $0 }
+        drainMainQueue()
+
+        XCTAssertEqual(replacementResult?.outcome, .failed)
+        XCTAssertEqual(replacementResult?.errorMessage, PaymentOrchestrator.builtInCardPurchaseInFlightMessage)
+        XCTAssertTrue(sut.isBuiltInCardForwardPaymentInFlight(), "The purchase already sent keeps its entry")
+        XCTAssertFalse(sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in })
+        drainMainQueue()
+        XCTAssertEqual(payPalPresenter.presentCallCount, 0, "No PayPal checkout was stored for the new attempt")
+
+        sut.finishBuiltInCardForwardPaymentAttempt(for: testKey(), result: .succeeded(transactionId: "card_txn"))
+        wait(for: [purchaseResultDelivered], timeout: 1.0)
+    }
+
     func test_stepOne_card_responseAfterTheSessionCleared_showsNoConfirmationAndStoresNothing() {
         sut = PaymentOrchestrator(apiHelper: PaymentOrchestratorAPIHelperSpy.self)
         PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = Self.validInitializePurchaseResponse()
