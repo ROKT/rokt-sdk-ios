@@ -628,6 +628,65 @@ final class TestOffersExecuteWiring: XCTestCase {
         XCTAssertNil(cached, "the cached experience goes with the session it was fetched in")
     }
 
+    /// The generation a placement is checked against and whether it may read the cache are one reading under the
+    /// generation lock: a `clearSession()` on another queue waits for that reading to finish, so it can never hand a
+    /// placement the new generation while leaving the departing customer's cached experience readable. Once the
+    /// clear lands, the placement is discarded whichever way it resolves — from the cache or from the network.
+    func test_execute_clearSessionDuringThePlacementStart_waitsForItThenDiscardsThePlacement() throws {
+        impl.txnSessionStore = InMemoryTxnStore()
+        initialize(cacheEnabled: true)
+        let viewName = "checkout"
+        let attributes = ["email": "start@example.com"]
+        let cacheDuration = TimeInterval(300)
+        let cacheConfig = RoktConfig.Builder()
+            .cacheConfig(RoktConfig.CacheConfig(cacheDuration: cacheDuration))
+            .build()
+        // The departing customer's experience is on disk and would be served were the bypass not read with the
+        // generation; a fetch, should the placement reach the network instead, fails locally.
+        ExperienceCacheManager.cacheExperienceResponse(
+            viewName: viewName,
+            attributes: attributes,
+            experienceResponse: try XCTUnwrap(String(bytes: renderFixture(), encoding: .utf8))
+        )
+        waitUntil({
+            ExperienceCacheManager.getCachedExperienceResponse(
+                viewName: viewName, attributes: attributes, cacheDuration: cacheDuration
+            ) != nil
+        }, timeout: 10)
+        impl.makeOffersServiceOverride = offersOverride(data: nil, status: 500)
+
+        let clearSessionReturned = expectation(description: "clearSession returned")
+        let clearSessionLanded = DispatchSemaphore(value: 0)
+        var clearSessionReturnedDuringStart = true
+        impl.unitTest_duringPlacementStart = { [weak impl] in
+            // clearSession from another queue while the placement's start holds the lock: it has to wait.
+            let entered = DispatchSemaphore(value: 0)
+            let returned = DispatchSemaphore(value: 0)
+            DispatchQueue.global().async {
+                entered.signal()
+                impl?.clearSession()
+                returned.signal()
+                clearSessionLanded.signal()
+                clearSessionReturned.fulfill()
+            }
+            entered.wait()
+            clearSessionReturnedDuringStart = returned.wait(timeout: .now() + 0.3) == .success
+        }
+        // Should the cached experience still be on disk when it is read, let the clear land before the commit is
+        // attempted, so the fence is exercised on every run and not only when the other queue takes the lock first.
+        impl.unitTest_beforeCacheHitCommit = { _ = clearSessionLanded.wait(timeout: .now() + 5) }
+        let discarded = expectation(description: "the placement reports failure")
+        impl.execute(viewName: viewName, attributes: attributes, config: cacheConfig) { event in
+            if event is RoktEvent.PlacementFailure { discarded.fulfill() }
+        }
+        wait(for: [clearSessionReturned, discarded], timeout: 10)
+        settle()
+
+        XCTAssertFalse(clearSessionReturnedDuringStart, "clearSession waits for a placement's start to be read")
+        XCTAssertNil(impl.capturedPage, "the departing customer's cached experience is not shown to the next one")
+        XCTAssertNil(impl.getSessionId(), "the cleared session id must not come back")
+    }
+
     /// Lets asynchronous work that follows an observed event run to completion.
     private func settle() {
         let settled = expectation(description: "settled")

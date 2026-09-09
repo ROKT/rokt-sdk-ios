@@ -96,6 +96,8 @@ class RoktInternalImplementation {
     var unitTest_beforeCacheHitCommit: (() -> Void)?
     // Test-only hook, run once a cached experience is committed and before the render is re-checked; nil in production.
     var unitTest_afterCacheHitCommit: (() -> Void)?
+    // Test-only hook, run while a placement's starting state is being read under the generation lock; nil in production.
+    var unitTest_duringPlacementStart: (() -> Void)?
     private var pendingPayload: ExecutePayload?
     private var clientTimeoutMilliseconds: Double = RoktInternalImplementation.defaultTimeoutMilliseconds
     private var defaultLaunchDelayMilliseconds: Double = RoktInternalImplementation.defaultDelay
@@ -1221,6 +1223,19 @@ class RoktInternalImplementation {
         return sessionGeneration
     }
 
+    /// The state a placement starts from, read in one hold of the generation lock: the generation its commits
+    /// are checked against, and whether it must bypass the cache. Read as two separate values, a clearSession
+    /// on another queue could land between them and hand the placement the new generation with the bypass
+    /// still off — and the cache read is a direct file read, so the departing customer's experience would be
+    /// served and every later generation check would accept it as current.
+    private func placementStart() -> (generation: Int, bypassCache: Bool) {
+        sessionGenerationLock.lock()
+        defer { sessionGenerationLock.unlock() }
+        let generation = sessionGeneration
+        unitTest_duringPlacementStart?()
+        return (generation, mustBypassCacheOnNextExecute)
+    }
+
     /// Runs `commit` under the generation lock while `generation` is still current and returns true; returns
     /// false, running nothing, once clearSession has moved the generation. A clearSession arriving on another
     /// queue waits for a commit in progress, so a response is committed whole or not at all — never half of it.
@@ -1313,11 +1328,6 @@ class RoktInternalImplementation {
             preExecuteFailureHandler()
             return
         }
-        // Latched once per execute, after the guard so a rejected call does not consume it. Both
-        // cache reads in this execute — the experience response and the view state read later in
-        // processLayoutPageExecutePayload — must see the same answer. Disarmed only when this
-        // execute fetches a fresh experience, so a failed placement keeps the next one off the cache.
-        cacheSuppressedForCurrentExecute = mustBypassCacheOnNextExecute
         if #available(iOS 14.5, *) {
             if !initFeatureFlags.isEnabled(.roktTrackingStatus) &&
                 isPrivacyDenied(ATTrackingManager.trackingAuthorizationStatus) {
@@ -1339,7 +1349,14 @@ class RoktInternalImplementation {
         }
 
         isExecuting = true
-        let generation = currentSessionGeneration()
+        // The generation and the cache bypass are one reading under the generation lock (see placementStart), so
+        // a clearSession on another queue lands wholly before or wholly after this placement's start. The bypass is
+        // latched once per execute: both cache reads in it — the experience response and the view state read later
+        // in processLayoutPageExecutePayload — must see the same answer. Disarmed only when an execute fetches a
+        // fresh experience, so a failed placement keeps the next one off the cache.
+        let start = placementStart()
+        let generation = start.generation
+        cacheSuppressedForCurrentExecute = start.bypassCache
         // The session the placement started in — a failure discarded after clearSession is reported against it.
         let departingSessionId = sessionManager.getCurrentSessionIdWithoutExpiring()
         self.placements = placements
@@ -1426,6 +1443,10 @@ class RoktInternalImplementation {
                                         success: {
                                             // The store writes on its own queue, so a clearSession that ran after
                                             // this commit may have cleared before the write landed: clear again.
+                                            // The whole cache goes, not one entry: every write is already preceded
+                                            // by a full clear (the cache holds one experience), the next session's
+                                            // own write would share this key, and a fresh experience cleared this
+                                            // way costs the new session one refetch — never a wrong experience.
                                             if self.currentSessionGeneration() != generation {
                                                 ExperienceCacheManager.clearCache()
                                             }
