@@ -15,6 +15,7 @@ on:
 permissions:
   contents: read
   pull-requests: read
+  checks: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -42,10 +43,6 @@ jobs:
   trunk-check:
     name: Trunk Check
     runs-on: macos-latest
-    permissions:
-      contents: read
-      pull-requests: read
-      checks: write
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -55,8 +52,6 @@ jobs:
 
       - name: Trunk Check
         uses: trunk-io/trunk-action@e1234e67a86010d61ddac8d8ebf4b783e2ffd2fa # v2.0.0
-        with:
-          check-mode: all
 
   podspec-lint:
     name: Podspec Lint
