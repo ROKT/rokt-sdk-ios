@@ -429,11 +429,64 @@ final class TestOffersExecuteWiring: XCTestCase {
         XCTAssertNil(impl.capturedPage)
     }
 
+    /// A placement served from the cache is fenced like one served from the network: a `clearSession()` that
+    /// lands after the cache read and before the commit means the cached experience is not shown, does not
+    /// restore the legacy session id it carries and does not re-seed the real-time event store the clear emptied.
+    func test_execute_clearSessionAfterTheCacheRead_discardsTheCachedPlacement() throws {
+        impl.txnSessionStore = InMemoryTxnStore()
+        initialize(cacheEnabled: true)
+        let viewName = "checkout"
+        let attributes = ["email": "cached@example.com"]
+        let cacheDuration = TimeInterval(300)
+        let cacheConfig = RoktConfig.Builder()
+            .cacheConfig(RoktConfig.CacheConfig(cacheDuration: cacheDuration))
+            .build()
+        ExperienceCacheManager.cacheExperienceResponse(
+            viewName: viewName, attributes: attributes, experienceResponse: try renderFixtureWithEchoedEvent()
+        )
+        waitUntil({
+            ExperienceCacheManager.getCachedExperienceResponse(
+                viewName: viewName, attributes: attributes, cacheDuration: cacheDuration
+            ) != nil
+        }, timeout: 10)
+        // The placement must be served from the cache; a fetch here would be the wrong path and fails locally.
+        impl.makeOffersServiceOverride = offersOverride(data: nil, status: 500)
+
+        var clearedAfterTheCacheRead = false
+        impl.unitTest_beforeCacheHitCommit = { [weak impl] in
+            impl?.clearSession()
+            clearedAfterTheCacheRead = true
+        }
+        let discarded = expectation(description: "the cached placement reports failure")
+        impl.execute(viewName: viewName, attributes: attributes, config: cacheConfig) { event in
+            if event is RoktEvent.PlacementFailure { discarded.fulfill() }
+        }
+        wait(for: [discarded], timeout: 10)
+        settle()
+
+        XCTAssertTrue(clearedAfterTheCacheRead, "the placement was served from the cache")
+        XCTAssertNil(impl.capturedPage, "a cached placement that resolves after clearSession is not rendered")
+        XCTAssertNil(impl.getSessionId(), "the session id the cached experience carries must not come back")
+        XCTAssertNil(RoktLogger.shared.sessionId)
+        assertEchoedEventWasDropped()
+    }
+
     // MARK: - Helpers
 
     private let echoedEvent = UntriggeredRealTimeEvent(
         triggerGuid: "parent-1", triggerEvent: "SignalResponse", eventType: "x", payload: "y"
     )
+
+    /// The render fixture carrying `echoedEvent` for the next placement, so an experience served from the
+    /// cache has something to hand the real-time event store.
+    private func renderFixtureWithEchoedEvent() throws -> String {
+        let fixture = try XCTUnwrap(String(bytes: renderFixture(), encoding: .utf8))
+        let opening = try XCTUnwrap(fixture.firstIndex(of: "{"))
+        let echoed = """
+        "eventData": { "parent-1": { "events": { "SignalResponse": { "eventType": "x", "payload": "y" } } } },
+        """
+        return String(fixture[...opening]) + echoed + String(fixture[fixture.index(after: opening)...])
+    }
 
     private var echoedTrigger: RealTimeTrigger {
         RealTimeTrigger(
@@ -466,7 +519,6 @@ final class TestOffersExecuteWiring: XCTestCase {
         XCTAssertEqual(RealTimeEventManager.shared.getTriggeredEvents().map(\.parentGuid), ["control-1"])
     }
 
-    /// Lets asynchronous work that follows an observed event run to completion.
     /// A `clearSession()` that arrives while the response is being committed waits for the commit and then
     /// wins: the placement is not rendered, the session id the commit restored is gone, nothing stays cached.
     func test_execute_clearSessionDuringTheResponseCommit_waitsForItThenWins() throws {
@@ -513,6 +565,7 @@ final class TestOffersExecuteWiring: XCTestCase {
         XCTAssertNil(cached, "the experience committed just before the clear is not cached for the next session")
     }
 
+    /// Lets asynchronous work that follows an observed event run to completion.
     private func settle() {
         let settled = expectation(description: "settled")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { settled.fulfill() }

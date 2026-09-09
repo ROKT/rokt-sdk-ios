@@ -92,6 +92,8 @@ class RoktInternalImplementation {
 
     // Test-only override for the events service factory; nil uses the real builder.
     var makeTxnEventServiceOverride: ((String) -> TxnEventService)?
+    // Test-only hook, run once a cached experience has been read and before it is committed; nil in production.
+    var unitTest_beforeCacheHitCommit: (() -> Void)?
     private var pendingPayload: ExecutePayload?
     private var clientTimeoutMilliseconds: Double = RoktInternalImplementation.defaultTimeoutMilliseconds
     private var defaultLaunchDelayMilliseconds: Double = RoktInternalImplementation.defaultDelay
@@ -1356,6 +1358,7 @@ class RoktInternalImplementation {
                            attributes: cacheAttributes,
                            cacheDuration: self.roktConfig.cacheConfig.cacheDuration
                        ) {
+                        self.unitTest_beforeCacheHitCommit?()
                         onExperiencesRequestEnd()
                         self.isExecuting = false
 
