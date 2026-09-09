@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'RoktPaymentExtension'
-  s.version          = '5.4.1'
+  s.version          = '5.5.0'
   s.summary          = 'Payment extension for the Rokt SDK ecosystem (Apple Pay + Afterpay via Stripe).'
   s.swift_version    = '5.9'
   s.description      = <<-DESC
