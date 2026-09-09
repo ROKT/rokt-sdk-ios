@@ -72,11 +72,14 @@ final class MockPaymentExtension: PaymentExtension {
 
 /// Keeps the PayPal sheet open until a separate deep-link simulation runs (for testing ``PaymentOrchestrator/handleURLCallback(with:)``).
 final class HoldingPayPalApprovalPresenter: PayPalApprovalPresenting {
+    private(set) var presentCallCount = 0
+
     func presentPayPalApproval(
         approvalURL: URL,
         from viewController: UIViewController,
         checkoutCoordinator: PayPalCheckoutCoordinator
     ) {
+        presentCallCount += 1
         _ = approvalURL
         _ = viewController
         _ = checkoutCoordinator
@@ -1250,6 +1253,121 @@ class TestPaymentOrchestrator: XCTestCase {
         XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: otherExecuteKey), "Another execute keeps its checkout")
     }
 
+    // MARK: - A Step-1 response that lands after its placement or session went away shows and stores nothing
+
+    /// Starts built-in PayPal Step-1 with the response held back, so the test can close a layout or clear the
+    /// session while the request is still out, then deliver the response with `releaseHeldInitializePurchase()`.
+    private func startHeldPayPalStepOne(
+        response: InitializePurchaseResponse? = TestPaymentOrchestrator.validPayPalInitializePurchaseResponse(),
+        onConfirmation: @escaping () -> Void,
+        onStepOneResult: @escaping (PaymentSheetResult) -> Void
+    ) {
+        sut = PaymentOrchestrator(apiHelper: PaymentOrchestratorAPIHelperSpy.self)
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = response
+        PaymentOrchestratorAPIHelperSpy.holdInitializePurchaseResponse = true
+        sut.processPayment(
+            method: .paypal,
+            item: PaymentItem(id: "p1", name: "P", amount: 1, currency: "USD"),
+            context: PaymentContext(
+                billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                returnURL: "myapp://paypal/success",
+                cancelURL: nil
+            ),
+            cartItemId: "v1:cart:1",
+            from: UIViewController(),
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests { _, _, _ in onConfirmation() },
+            completion: onStepOneResult
+        )
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.initializePurchaseCallCount, 1)
+        XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()), "Nothing is stored before the response")
+    }
+
+    func test_stepOne_payPal_responseAfterItsLayoutClosed_showsNoConfirmationAndStoresNothing() {
+        var stepOneResult: PaymentSheetResult?
+        startHeldPayPalStepOne(
+            onConfirmation: { XCTFail("No confirm button is shown for a placement that closed while the request was out") },
+            onStepOneResult: { stepOneResult = $0 }
+        )
+
+        sut.discardPendingBuiltInTwoStep(forExecuteId: Self.testExecuteId, layoutId: "test_layout")
+        PaymentOrchestratorAPIHelperSpy.releaseHeldInitializePurchase()
+        drainMainQueue()
+
+        XCTAssertNil(stepOneResult, "Nothing is owed for a placement that is gone")
+        XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()))
+        XCTAssertFalse(sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in })
+    }
+
+    func test_stepOne_payPal_failureAfterItsLayoutClosed_reportsNothing() {
+        var stepOneResult: PaymentSheetResult?
+        startHeldPayPalStepOne(
+            response: nil,
+            onConfirmation: { XCTFail("A failed Step-1 never shows a confirm button") },
+            onStepOneResult: { stepOneResult = $0 }
+        )
+
+        sut.discardPendingBuiltInTwoStep(forExecuteId: Self.testExecuteId, layoutId: "test_layout")
+        PaymentOrchestratorAPIHelperSpy.releaseHeldInitializePurchase()
+        drainMainQueue()
+
+        XCTAssertNil(stepOneResult, "No failure is reported for a placement that is gone")
+        XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()))
+    }
+
+    func test_stepOne_payPal_responseAfterAnotherLayoutClosed_showsConfirmationWithTheCheckoutAlreadyStored() {
+        var confirmationCount = 0
+        var stepOneResult: PaymentSheetResult?
+        startHeldPayPalStepOne(
+            onConfirmation: {
+                confirmationCount += 1
+                XCTAssertTrue(
+                    self.sut.unitTest_hasPendingBuiltInTwoStep(for: self.testKey()),
+                    "The checkout is stored before the confirm button appears, so a confirm can never miss it"
+                )
+            },
+            onStepOneResult: { stepOneResult = $0 }
+        )
+
+        // Another layout under the same execute closes while the request is out; this checkout's layout stays open.
+        sut.discardPendingBuiltInTwoStep(forExecuteId: Self.testExecuteId, layoutId: "other_layout")
+        PaymentOrchestratorAPIHelperSpy.releaseHeldInitializePurchase()
+        drainMainQueue()
+
+        XCTAssertEqual(confirmationCount, 1)
+        XCTAssertNil(stepOneResult, "The Step-1 completion waits for Step-2")
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()))
+    }
+
+    func test_stepOne_card_responseAfterTheSessionCleared_showsNoConfirmationAndStoresNothing() {
+        sut = PaymentOrchestrator(apiHelper: PaymentOrchestratorAPIHelperSpy.self)
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = Self.validInitializePurchaseResponse()
+        PaymentOrchestratorAPIHelperSpy.holdInitializePurchaseResponse = true
+        var stepOneResult: PaymentSheetResult?
+        sut.processPayment(
+            method: .card,
+            item: PaymentItem(id: "item-card", name: "Widget", amount: 9.99, currency: "USD"),
+            context: PaymentContext(),
+            cartItemId: "v1:cart:1",
+            from: UIViewController(),
+            builtInCardDevicePaySession: BuiltInTwoStepDevicePaySession(
+                executeId: Self.testExecuteId,
+                layoutId: "test_layout",
+                catalogItemId: "test_catalog"
+            ) { _, _, _ in
+                XCTFail("No confirm button is shown for a session that was cleared while the request was out")
+            }
+        ) { stepOneResult = $0 }
+        XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()), "Nothing is stored before the response")
+
+        sut.discardAllPendingBuiltInTwoStep()
+        PaymentOrchestratorAPIHelperSpy.releaseHeldInitializePurchase()
+        drainMainQueue()
+
+        XCTAssertNil(stepOneResult, "Nothing is owed for a session that is gone")
+        XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()))
+        XCTAssertNil(sut.beginBuiltInCardForwardPaymentIfReady(for: testKey()))
+    }
+
     func test_discardPendingBuiltInTwoStep_forExecuteId_keepsARunningCardPurchaseUntilItsResultArrives() {
         let heldKey = BuiltInTwoStepCheckoutKey(executeId: "execute_a", layoutId: "l", catalogItemId: "c", cartItemId: "cart_a")
         let sentKey = BuiltInTwoStepCheckoutKey(executeId: "execute_a", layoutId: "l", catalogItemId: "c", cartItemId: "cart_b")
@@ -1727,8 +1845,14 @@ class TestPaymentOrchestrator: XCTestCase {
         XCTAssertNil(stepOneResult)
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.sendDiagnosticsCallCount, 1)
         XCTAssertFalse(
-            sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in },
+            sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()),
             "The checkout is still active in the approval sheet; nothing was re-queued"
+        )
+        XCTAssertTrue(
+            sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in
+                XCTFail("A repeated confirm while the sheet is up starts nothing")
+            },
+            "A repeated confirm stays on the PayPal path instead of running a card purchase"
         )
 
         // The genuine cancel re-queues the checkout so the confirm button can start it again.
@@ -1788,6 +1912,71 @@ class TestPaymentOrchestrator: XCTestCase {
         XCTAssertNil(stepOneResult, "Cancel defers the Step-1 completion")
         XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()), "The confirm button can start the checkout again")
         XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in })
+    }
+
+    // MARK: - One PayPal approval at a time
+
+    func test_presentPendingBuiltInPayPal_secondItemWhileASheetIsUp_waitsAndKeepsReturnLinksOnTheFirstOrder() {
+        let payPalPresenter = HoldingPayPalApprovalPresenter()
+        sut = PaymentOrchestrator(
+            apiHelper: PaymentOrchestratorAPIHelperSpy.self,
+            payPalApprovalPresenter: payPalPresenter
+        )
+        // Held strongly until the deferred presents have run; the pending checkouts only keep a weak reference.
+        let presentingViewController = UIViewController()
+        var firstResult: PaymentSheetResult?
+        var secondResult: PaymentSheetResult?
+        func startStepOne(cartItemId: String, orderId: String, completion: @escaping (PaymentSheetResult) -> Void) {
+            PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse =
+                Self.validPayPalInitializePurchaseResponse(orderId: orderId)
+            sut.processPayment(
+                method: .paypal,
+                item: PaymentItem(id: "p1", name: "P", amount: 1, currency: "USD"),
+                context: PaymentContext(
+                    billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                    returnURL: "myapp://paypal/success",
+                    cancelURL: nil
+                ),
+                cartItemId: cartItemId,
+                from: presentingViewController,
+                builtInPayPalDevicePaySession: paypalDeviceSessionForTests(),
+                completion: completion
+            )
+        }
+        startStepOne(cartItemId: "v1:cart:1", orderId: "ORDER_1") { firstResult = $0 }
+        startStepOne(cartItemId: "v1:cart:2", orderId: "ORDER_2") { secondResult = $0 }
+        let firstKey = testKey(cartItemId: "v1:cart:1")
+        let secondKey = testKey(cartItemId: "v1:cart:2")
+
+        // Both confirms arrive before the first presentation has run on the main queue.
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: firstKey) { _ in })
+        XCTAssertTrue(
+            sut.presentPendingBuiltInPayPalForForwardPayment(for: secondKey) { _ in
+                XCTFail("The second item is not presented while the first sheet is up")
+            },
+            "The second confirm stays on the PayPal path instead of running a card purchase"
+        )
+        drainMainQueue()
+
+        XCTAssertEqual(payPalPresenter.presentCallCount, 1, "Only one approval sheet is presented")
+        XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: firstKey))
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: secondKey), "The second item waits for a later confirm")
+
+        // The first order's return link still reaches the first order's checkout.
+        XCTAssertTrue(sut.handleURLCallback(with: URL(string: "myapp://paypal/success?token=ORDER_1")!))
+        drainMainQueue()
+        XCTAssertEqual(firstResult?.outcome, .succeeded)
+        XCTAssertEqual(firstResult?.transactionId, "ORDER_1")
+        XCTAssertNil(secondResult)
+
+        // With the first sheet gone, the second item's confirm presents its own order.
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: secondKey) { _ in })
+        drainMainQueue()
+        XCTAssertEqual(payPalPresenter.presentCallCount, 2)
+        XCTAssertTrue(sut.handleURLCallback(with: URL(string: "myapp://paypal/success?token=ORDER_2")!))
+        drainMainQueue()
+        XCTAssertEqual(secondResult?.outcome, .succeeded)
+        XCTAssertEqual(secondResult?.transactionId, "ORDER_2")
     }
 
     func test_processPayment_payPal_failsWhenOrderIdMissing() {
@@ -2085,8 +2274,20 @@ class PaymentOrchestratorAPIHelperSpy: RoktAPIHelper {
     static var lastDiagnosticsCallStack: String?
     static var lastDiagnosticsSeverity: Severity?
     static var lastDiagnosticsAdditionalInfo: [String: Any]?
+    /// When `true`, `initializePurchase` keeps its response back until `releaseHeldInitializePurchase()` runs, so a
+    /// test can act while the request is still out.
+    static var holdInitializePurchaseResponse = false
+    private static var heldInitializePurchaseDelivery: (() -> Void)?
+
+    static func releaseHeldInitializePurchase() {
+        let delivery = heldInitializePurchaseDelivery
+        heldInitializePurchaseDelivery = nil
+        delivery?()
+    }
 
     static func reset() {
+        holdInitializePurchaseResponse = false
+        heldInitializePurchaseDelivery = nil
         initializePurchaseResponse = nil
         initializePurchaseCallCount = 0
         lastInitializePurchaseReturnURL = nil
@@ -2117,15 +2318,23 @@ class PaymentOrchestratorAPIHelperSpy: RoktAPIHelper {
         lastInitializePurchasePaymentMethodType = paymentMethodType
         lastInitializePurchasePaymentProvider = paymentProvider
         lastInitializePurchaseShippingAttributes = shippingAttributes
-        if let initializePurchaseResponse {
-            success?(initializePurchaseResponse)
+        let response = initializePurchaseResponse
+        let deliver: () -> Void = {
+            if let response {
+                success?(response)
+            } else {
+                let error = NSError(
+                    domain: "RoktSDK",
+                    code: -1,
+                    userInfo: [NSLocalizedDescriptionKey: "Missing test initializePurchase response"]
+                )
+                failure?(error, 500, "Missing test initializePurchase response")
+            }
+        }
+        if holdInitializePurchaseResponse {
+            heldInitializePurchaseDelivery = deliver
         } else {
-            let error = NSError(
-                domain: "RoktSDK",
-                code: -1,
-                userInfo: [NSLocalizedDescriptionKey: "Missing test initializePurchase response"]
-            )
-            failure?(error, 500, "Missing test initializePurchase response")
+            deliver()
         }
     }
 

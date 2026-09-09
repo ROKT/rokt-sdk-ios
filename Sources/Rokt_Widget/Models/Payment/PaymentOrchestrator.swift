@@ -145,13 +145,20 @@ final class PaymentOrchestrator {
     }
 
     /// PayPal entries currently out for presentation, keyed like the pending table. A lifecycle fence cannot see
-    /// them there, so it marks them here and the cancel path reads the mark before re-queueing.
+    /// them there, so it marks them here and the cancel path reads the mark before re-queueing. While it holds any
+    /// entry an approval sheet is up, and no second approval is started until that one ends.
     private static var presentedBuiltInPayPalCheckouts: [BuiltInTwoStepCheckoutKey: PresentedBuiltInPayPalCheckout] = [:]
 
     /// Card purchases still in flight when their layout closed or failed, or the session was cleared. Their result
     /// still reaches the Step-1 completion; a retryable failure then drops the entry instead of restoring a confirm
     /// state nothing can resume, so fenced entries cannot pile up for the life of the process.
     private static var fencedInFlightBuiltInCardCheckouts: Set<BuiltInTwoStepCheckoutKey> = []
+
+    /// Step-1 `initialize-purchase` requests still waiting on their response, by key. A lifecycle fence removes the
+    /// key, so a response that lands after its layout closed or failed, or the session was cleared, shows no confirm
+    /// button and stores nothing for a placement that is gone. The value identifies one request: a Step-1 started
+    /// again for the same key supersedes the earlier request, whose response is dropped the same way.
+    private static var preparingBuiltInTwoStepCheckouts: [BuiltInTwoStepCheckoutKey: UUID] = [:]
 
     static let builtInPayPalMissingDeferredSessionMessage =
         "Built-in PayPal device pay requires a layout session for confirmation (device pay hook)."
@@ -370,6 +377,14 @@ final class PaymentOrchestrator {
         completion: @escaping (PaymentSheetResult) -> Void
     ) {
         let contactAddress = Self.contactAddressForInitializePurchase(context: context)
+        let preparingKey = devicePaySession?.checkoutKey(cartItemId: cartItemId)
+        let preparingToken = preparingKey.map { Self.beginPreparingBuiltInTwoStep(for: $0) }
+        // `false` when the placement or session went away, or Step-1 was started again for this item, while the
+        // request was out: its response then shows nothing, stores nothing and reports nothing.
+        let endPreparing: (PendingBuiltInTwoStepCheckout?) -> Bool = { entry in
+            guard let preparingKey, let preparingToken else { return true }
+            return Self.finishPreparingBuiltInTwoStep(for: preparingKey, token: preparingToken, storing: entry)
+        }
         preparePaymentForItem(
             item: item,
             cartItemId: cartItemId,
@@ -388,6 +403,7 @@ final class PaymentOrchestrator {
                       !approvalString.isEmpty,
                       let approvalURL = URL(string: approvalString)
                 else {
+                    guard endPreparing(nil) else { return }
                     DispatchQueue.main.async {
                         completion(.failed(error: Self.payPalApprovalURLMissingMessage))
                     }
@@ -404,6 +420,7 @@ final class PaymentOrchestrator {
                             "hostPresent": !(approvalURL.host ?? "").isEmpty
                         ]
                     )
+                    guard endPreparing(nil) else { return }
                     DispatchQueue.main.async {
                         completion(.failed(error: Self.payPalApprovalURLInvalidMessage))
                     }
@@ -415,6 +432,7 @@ final class PaymentOrchestrator {
                         callStack: Self.payPalOrderIdMissingMessage,
                         severity: .warning
                     )
+                    guard endPreparing(nil) else { return }
                     DispatchQueue.main.async {
                         completion(.failed(error: Self.payPalOrderIdMissingMessage))
                     }
@@ -433,6 +451,7 @@ final class PaymentOrchestrator {
                       URL(string: returnURL) != nil
                 else {
                     Self.removePendingBuiltInTwoStep(for: key)
+                    guard endPreparing(nil) else { return }
                     DispatchQueue.main.async {
                         completion(.failed(error: Self.payPalReturnURLMissingMessage))
                     }
@@ -440,7 +459,6 @@ final class PaymentOrchestrator {
                 }
                 let sanitizedCancelURL = Self.nonEmptyTrimmed(context.cancelURL)
                 let catalogRuntimeData = Self.catalogRuntimeDataForDevicePayConfirmation(item: item, preparation: preparation)
-                devicePaySession.showConfirmation(devicePaySession.layoutId, devicePaySession.catalogItemId, catalogRuntimeData)
 
                 let pending = PendingBuiltInPayPalWebCheckout(
                     owner: self,
@@ -451,10 +469,11 @@ final class PaymentOrchestrator {
                     presentingViewController: viewController,
                     completion: completion
                 )
-                Self.pendingBuiltInTwoStepLock.lock()
-                Self.pendingBuiltInTwoStepCheckouts[key] = .paypal(pending)
-                Self.pendingBuiltInTwoStepLock.unlock()
+                // Stored before the confirm button appears, so a confirm can never miss it.
+                guard endPreparing(.paypal(pending)) else { return }
+                devicePaySession.showConfirmation(devicePaySession.layoutId, devicePaySession.catalogItemId, catalogRuntimeData)
             case .failure(let error):
+                guard endPreparing(nil) else { return }
                 DispatchQueue.main.async {
                     completion(.failed(error: error.localizedDescription))
                 }
@@ -477,20 +496,35 @@ final class PaymentOrchestrator {
     /// - Parameters:
     ///   - key: item and placement of the Step-2 confirm; only that item's pending PayPal checkout is consumed.
     ///   - onCompletion: called on the main queue with the coordinator outcome.
-    /// - Returns: `true` when a pending PayPal checkout existed for `key` and was presented; `false`
-    ///   when the caller should fall through to the non-PayPal `/v1/cart/purchase` flow.
+    /// - Returns: `true` when the confirm belongs to the built-in PayPal path: a pending PayPal checkout existed for
+    ///   `key` and was presented, or was left pending because a PayPal approval sheet is already up (one hosted
+    ///   approval at a time; `onCompletion` is not called for it). `false` when the caller should fall through to
+    ///   the non-PayPal `/v1/cart/purchase` flow.
     @discardableResult
     func presentPendingBuiltInPayPalForForwardPayment(
         for key: BuiltInTwoStepCheckoutKey,
         onCompletion: @escaping (PaymentSheetResult) -> Void
     ) -> Bool {
         Self.pendingBuiltInTwoStepLock.lock()
+        // This item's approval sheet is already up: a repeated confirm has nothing to start, and is not a card purchase.
+        if Self.presentedBuiltInPayPalCheckouts[key] != nil {
+            Self.pendingBuiltInTwoStepLock.unlock()
+            return true
+        }
         // Only consume PayPal entries; leave built-in card entries (``card`` / ``cardInFlight``) intact.
         guard case let .paypal(snapshot)? = Self.pendingBuiltInTwoStepCheckouts[key],
               snapshot.owner === self
         else {
             Self.pendingBuiltInTwoStepLock.unlock()
             return false
+        }
+        // One hosted approval at a time. A second item's confirm while a sheet is up would present over it and
+        // take over the return-link routing (``activePayPalCheckout`` is one coordinator), so its entry stays
+        // pending for a confirm after the current sheet ends.
+        guard Self.presentedBuiltInPayPalCheckouts.isEmpty else {
+            Self.pendingBuiltInTwoStepLock.unlock()
+            RoktLogger.shared.warning("PayPal approval not started: another PayPal approval is already on screen.")
+            return true
         }
         Self.pendingBuiltInTwoStepCheckouts.removeValue(forKey: key)
         Self.presentedBuiltInPayPalCheckouts[key] = .presenting
@@ -613,6 +647,8 @@ final class PaymentOrchestrator {
         completion: @escaping (PaymentSheetResult) -> Void
     ) {
         let contactAddress = Self.contactAddressForInitializePurchase(context: context)
+        let key = devicePaySession.checkoutKey(cartItemId: cartItemId)
+        let preparingToken = Self.beginPreparingBuiltInTwoStep(for: key)
         preparePaymentForItem(
             item: item,
             cartItemId: cartItemId,
@@ -622,19 +658,22 @@ final class PaymentOrchestrator {
             paymentMethodType: Self.cartPaymentMethodTypeWireValue(for: .card),
             paymentProvider: Self.cartPaymentProviderWireValue(for: .card)
         ) { result in
+            // A response for a placement or session that went away, or for a Step-1 since started again for this
+            // item, shows nothing, stores nothing and reports nothing.
             switch result {
             case .success(let prepared):
                 let catalogRuntimeData = Self.catalogRuntimeDataForDevicePayConfirmation(
                     item: item,
                     preparation: prepared.preparation
                 )
-                devicePaySession.showConfirmation(devicePaySession.layoutId, devicePaySession.catalogItemId, catalogRuntimeData)
-
                 let pending = PendingBuiltInCardCheckout(owner: self, completion: completion)
-                Self.pendingBuiltInTwoStepLock.lock()
-                Self.pendingBuiltInTwoStepCheckouts[devicePaySession.checkoutKey(cartItemId: cartItemId)] = .card(pending)
-                Self.pendingBuiltInTwoStepLock.unlock()
+                // Stored before the confirm button appears, so a confirm can never miss it.
+                guard Self.finishPreparingBuiltInTwoStep(for: key, token: preparingToken, storing: .card(pending)) else {
+                    return
+                }
+                devicePaySession.showConfirmation(devicePaySession.layoutId, devicePaySession.catalogItemId, catalogRuntimeData)
             case .failure(let error):
+                guard Self.finishPreparingBuiltInTwoStep(for: key, token: preparingToken, storing: nil) else { return }
                 DispatchQueue.main.async {
                     completion(.failed(error: error.localizedDescription))
                 }
@@ -715,12 +754,14 @@ final class PaymentOrchestrator {
     /// for them. Other placements open under the same `executeId` keep theirs; an event that carries no layout
     /// id (`nil`) fences every placement under the execute. A card purchase already in flight (``cardInFlight``)
     /// is kept so its terminal outcome still reaches the Step-1 completion, and a PayPal approval on screen for
-    /// the placement is marked so its cancel drops the entry instead of re-queueing.
+    /// the placement is marked so its cancel drops the entry instead of re-queueing. A Step-1 request still out
+    /// for the placement is dropped too: its response then shows no confirm button and stores nothing.
     func discardPendingBuiltInTwoStep(forExecuteId executeId: String, layoutId: String?) {
         let isFenced: (BuiltInTwoStepCheckoutKey) -> Bool = { key in
             key.executeId == executeId && (layoutId == nil || key.layoutId == layoutId)
         }
         Self.pendingBuiltInTwoStepLock.lock()
+        Self.preparingBuiltInTwoStepCheckouts = Self.preparingBuiltInTwoStepCheckouts.filter { !isFenced($0.key) }
         Self.pendingBuiltInTwoStepCheckouts = Self.pendingBuiltInTwoStepCheckouts.filter { entry in
             !isFenced(entry.key) || entry.value.isCardPurchaseInFlight
         }
@@ -736,9 +777,11 @@ final class PaymentOrchestrator {
     /// Drops all deferred Step-1 state not yet in flight, without invoking completions; called at a session
     /// boundary so nothing started under one session can be resumed under the next. A card purchase already
     /// in flight (``cardInFlight``) is kept so its terminal outcome still reaches the Step-1 completion, and
-    /// every PayPal approval on screen is marked so its cancel drops the entry instead of re-queueing.
+    /// every PayPal approval on screen is marked so its cancel drops the entry instead of re-queueing. Every
+    /// Step-1 request still out is dropped too: its response then shows no confirm button and stores nothing.
     func discardAllPendingBuiltInTwoStep() {
         Self.pendingBuiltInTwoStepLock.lock()
+        Self.preparingBuiltInTwoStepCheckouts.removeAll()
         Self.pendingBuiltInTwoStepCheckouts = Self.pendingBuiltInTwoStepCheckouts.filter { $0.value.isCardPurchaseInFlight }
         Self.fencedInFlightBuiltInCardCheckouts.formUnion(Self.pendingBuiltInTwoStepCheckouts.keys)
         Self.presentedBuiltInPayPalCheckouts = Self.presentedBuiltInPayPalCheckouts.mapValues { _ in .fenced }
@@ -752,6 +795,7 @@ final class PaymentOrchestrator {
         pendingBuiltInTwoStepCheckouts.removeAll()
         presentedBuiltInPayPalCheckouts.removeAll()
         fencedInFlightBuiltInCardCheckouts.removeAll()
+        preparingBuiltInTwoStepCheckouts.removeAll()
         pendingBuiltInTwoStepLock.unlock()
     }
 
@@ -804,6 +848,33 @@ final class PaymentOrchestrator {
         pendingBuiltInTwoStepLock.lock()
         pendingBuiltInTwoStepCheckouts.removeValue(forKey: key)
         pendingBuiltInTwoStepLock.unlock()
+    }
+
+    /// Records that a Step-1 request for `key` is about to be sent; the returned value identifies that request.
+    private static func beginPreparingBuiltInTwoStep(for key: BuiltInTwoStepCheckoutKey) -> UUID {
+        let token = UUID()
+        pendingBuiltInTwoStepLock.lock()
+        preparingBuiltInTwoStepCheckouts[key] = token
+        pendingBuiltInTwoStepLock.unlock()
+        return token
+    }
+
+    /// Ends the Step-1 request `token` for `key`, storing `entry` as its deferred state when one is given. Returns
+    /// `false`, storing nothing, when a lifecycle fence or a later Step-1 for the same key dropped the request while
+    /// it was out; the check and the store happen under one lock so a fence cannot slip between them.
+    private static func finishPreparingBuiltInTwoStep(
+        for key: BuiltInTwoStepCheckoutKey,
+        token: UUID,
+        storing entry: PendingBuiltInTwoStepCheckout?
+    ) -> Bool {
+        pendingBuiltInTwoStepLock.lock()
+        defer { pendingBuiltInTwoStepLock.unlock() }
+        guard preparingBuiltInTwoStepCheckouts[key] == token else { return false }
+        preparingBuiltInTwoStepCheckouts.removeValue(forKey: key)
+        if let entry {
+            pendingBuiltInTwoStepCheckouts[key] = entry
+        }
+        return true
     }
 
     private static func catalogRuntimeDataForDevicePayConfirmation(
