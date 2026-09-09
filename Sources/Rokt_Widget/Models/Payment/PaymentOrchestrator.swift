@@ -141,20 +141,38 @@ final class PaymentOrchestrator {
     private static var pendingBuiltInTwoStepCheckouts: [BuiltInTwoStepCheckoutKey: PendingBuiltInTwoStepCheckout] = [:]
 
     /// Where a PayPal entry taken out of ``pendingBuiltInTwoStepCheckouts`` for its hosted approval stands.
-    private enum PresentedBuiltInPayPalCheckout {
-        /// The approval sheet is up; a cancel re-queues the entry for the confirm button to start again, and no other
-        /// PayPal approval is started until this one ends.
-        case presenting
-        /// Its layout closed or failed, or the session was cleared, while the sheet was up; a cancel drops the entry.
-        /// The placement is gone, so this mark does not hold later confirms back: a sheet the host tore down without
-        /// reporting back must not block PayPal for the rest of the process.
-        case fenced
+    private struct PresentedBuiltInPayPalCheckout {
+        enum Phase {
+            /// The approval sheet is up; a cancel re-queues the entry for the confirm button to start again, and no
+            /// other PayPal approval is started until this one ends.
+            case presenting
+            /// Its layout closed or failed, or the session was cleared, while the sheet was up; a cancel drops the
+            /// entry. The sheet itself is not interrupted: while it is still on screen it holds later confirms back
+            /// like any other, and once the host has torn it down without reporting back it lets them through, so a
+            /// sheet that is gone cannot block PayPal for the rest of the process.
+            case fenced
+        }
+
+        var phase: Phase
+        /// The checkout whose sheet this is; it knows whether that sheet is still on screen. Weak: the orchestrator
+        /// that presented the sheet holds the checkout until it completes.
+        weak var coordinator: PayPalCheckoutCoordinator?
+
+        /// Whether a confirm for another item must leave its checkout pending for now. Read on the main thread.
+        var holdsBackOtherApprovals: Bool {
+            switch phase {
+            case .presenting:
+                return true
+            case .fenced:
+                return coordinator?.isApprovalSheetOnScreen ?? false
+            }
+        }
     }
 
     /// PayPal entries currently out for presentation, keyed like the pending table. A lifecycle fence cannot see
-    /// them there, so it marks them here and the cancel path reads the mark before re-queueing. While it holds a
-    /// ``PresentedBuiltInPayPalCheckout/presenting`` entry an approval sheet is up, and no second approval is started
-    /// until that one ends.
+    /// them there, so it marks them here and the cancel path reads the mark before re-queueing. While any entry
+    /// ``PresentedBuiltInPayPalCheckout/holdsBackOtherApprovals`` an approval sheet is up, and no second approval is
+    /// started until that one ends.
     private static var presentedBuiltInPayPalCheckouts: [BuiltInTwoStepCheckoutKey: PresentedBuiltInPayPalCheckout] = [:]
 
     /// Card purchases still in flight when their layout closed or failed, or the session was cleared. Their result
@@ -529,15 +547,42 @@ final class PaymentOrchestrator {
         }
         // One hosted approval at a time. A second item's confirm while a sheet is up would present over it and
         // take over the return-link routing (``activePayPalCheckout`` is one coordinator), so its entry stays
-        // pending for a confirm after the current sheet ends. Only a live sheet holds it back: a fenced mark belongs
-        // to a placement that is gone, and its sheet may already have been torn down without reporting back.
-        guard !Self.presentedBuiltInPayPalCheckouts.values.contains(.presenting) else {
+        // pending for a confirm after the current sheet ends. A sheet whose placement closed is not interrupted, so
+        // it holds later confirms back for as long as it is still on screen; once the host has torn it down without
+        // reporting back it no longer does, so it cannot block PayPal for the rest of the process.
+        guard !Self.presentedBuiltInPayPalCheckouts.values.contains(where: \.holdsBackOtherApprovals) else {
             Self.pendingBuiltInTwoStepLock.unlock()
             RoktLogger.shared.warning("PayPal approval not started: another PayPal approval is already on screen.")
             return true
         }
         Self.pendingBuiltInTwoStepCheckouts.removeValue(forKey: key)
-        Self.presentedBuiltInPayPalCheckouts[key] = .presenting
+        // Built here so the mark carries its checkout from the start; the main-queue block below presents it.
+        let coordinator = PayPalCheckoutCoordinator(
+            returnURLString: snapshot.returnURLString,
+            cancelURLString: snapshot.cancelURLString,
+            expectedOrderId: snapshot.orderId,
+            completion: { [weak self] result in
+                self?.activePayPalCheckout = nil
+                if result.outcome == .canceled {
+                    if let self {
+                        Self.requeuePendingBuiltInPayPalAfterForwardPaymentCancel(
+                            key: key,
+                            snapshot: snapshot,
+                            owner: self
+                        )
+                    } else {
+                        Self.endPresentingBuiltInPayPal(for: key)
+                        snapshot.completion(result)
+                        onCompletion(result)
+                    }
+                    return
+                }
+                Self.endPresentingBuiltInPayPal(for: key)
+                snapshot.completion(result)
+                onCompletion(result)
+            }
+        )
+        Self.presentedBuiltInPayPalCheckouts[key] = PresentedBuiltInPayPalCheckout(phase: .presenting, coordinator: coordinator)
         Self.pendingBuiltInTwoStepLock.unlock()
 
         DispatchQueue.main.async { [weak self] in
@@ -559,31 +604,6 @@ final class PaymentOrchestrator {
                 onCompletion(result)
                 return
             }
-            let coordinator = PayPalCheckoutCoordinator(
-                returnURLString: snapshot.returnURLString,
-                cancelURLString: snapshot.cancelURLString,
-                expectedOrderId: snapshot.orderId,
-                completion: { [weak self] result in
-                    self?.activePayPalCheckout = nil
-                    if result.outcome == .canceled {
-                        if let self {
-                            Self.requeuePendingBuiltInPayPalAfterForwardPaymentCancel(
-                                key: key,
-                                snapshot: snapshot,
-                                owner: self
-                            )
-                        } else {
-                            Self.endPresentingBuiltInPayPal(for: key)
-                            snapshot.completion(result)
-                            onCompletion(result)
-                        }
-                        return
-                    }
-                    Self.endPresentingBuiltInPayPal(for: key)
-                    snapshot.completion(result)
-                    onCompletion(result)
-                }
-            )
             self.activePayPalCheckout = coordinator
             self.payPalApprovalPresenter.presentPayPalApproval(
                 approvalURL: snapshot.approvalURL,
@@ -612,7 +632,7 @@ final class PaymentOrchestrator {
         defer { pendingBuiltInTwoStepLock.unlock() }
         // A fence that ran while the sheet was up means the placement or session is gone; re-queueing would
         // leave state nothing can resume, so the entry is dropped like any other discarded one.
-        guard presentedBuiltInPayPalCheckouts.removeValue(forKey: key) != .fenced else { return }
+        guard presentedBuiltInPayPalCheckouts.removeValue(forKey: key)?.phase != .fenced else { return }
         pendingBuiltInTwoStepCheckouts[key] = .paypal(restored)
     }
 
@@ -779,7 +799,7 @@ final class PaymentOrchestrator {
             Self.fencedInFlightBuiltInCardCheckouts.insert(key)
         }
         for key in Self.presentedBuiltInPayPalCheckouts.keys where isFenced(key) {
-            Self.presentedBuiltInPayPalCheckouts[key] = .fenced
+            Self.presentedBuiltInPayPalCheckouts[key]?.phase = .fenced
         }
         Self.pendingBuiltInTwoStepLock.unlock()
     }
@@ -794,7 +814,9 @@ final class PaymentOrchestrator {
         Self.preparingBuiltInTwoStepCheckouts.removeAll()
         Self.pendingBuiltInTwoStepCheckouts = Self.pendingBuiltInTwoStepCheckouts.filter { $0.value.isCardPurchaseInFlight }
         Self.fencedInFlightBuiltInCardCheckouts.formUnion(Self.pendingBuiltInTwoStepCheckouts.keys)
-        Self.presentedBuiltInPayPalCheckouts = Self.presentedBuiltInPayPalCheckouts.mapValues { _ in .fenced }
+        Self.presentedBuiltInPayPalCheckouts = Self.presentedBuiltInPayPalCheckouts.mapValues {
+            PresentedBuiltInPayPalCheckout(phase: .fenced, coordinator: $0.coordinator)
+        }
         Self.pendingBuiltInTwoStepLock.unlock()
     }
 

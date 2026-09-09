@@ -71,8 +71,11 @@ final class MockPaymentExtension: PaymentExtension {
 }
 
 /// Keeps the PayPal sheet open until a separate deep-link simulation runs (for testing ``PaymentOrchestrator/handleURLCallback(with:)``).
+/// Hands each checkout a stand-in sheet that reads as on screen until the checkout dismisses it or the test tears it
+/// down, the way the web presenter hands over the Safari sheet it presented.
 final class HoldingPayPalApprovalPresenter: PayPalApprovalPresenting {
     private(set) var presentCallCount = 0
+    private(set) var presentedSheets: [PayPalApprovalSheetStandIn] = []
 
     func presentPayPalApproval(
         approvalURL: URL,
@@ -82,7 +85,32 @@ final class HoldingPayPalApprovalPresenter: PayPalApprovalPresenting {
         presentCallCount += 1
         _ = approvalURL
         _ = viewController
-        _ = checkoutCoordinator
+        let sheet = PayPalApprovalSheetStandIn.onScreen()
+        presentedSheets.append(sheet)
+        checkoutCoordinator.attachPresentingCheckoutViewController(sheet)
+    }
+}
+
+/// Stands in for a presented approval sheet: its view sits in a window until the checkout dismisses it, or until the
+/// test tears it down the way a host replacing the screen would, without a cancel or a return ever reporting back.
+final class PayPalApprovalSheetStandIn: UIViewController {
+    private let window = UIWindow()
+
+    static func onScreen() -> PayPalApprovalSheetStandIn {
+        let sheet = PayPalApprovalSheetStandIn()
+        sheet.window.addSubview(sheet.view)
+        return sheet
+    }
+
+    /// Takes the sheet off screen without reporting back.
+    func tearDown() {
+        view.removeFromSuperview()
+    }
+
+    override func dismiss(animated flag: Bool, completion: (() -> Void)?) {
+        _ = flag
+        tearDown()
+        completion?()
     }
 }
 
@@ -2029,6 +2057,7 @@ class TestPaymentOrchestrator: XCTestCase {
         // The placement closes while its sheet is up, and the host then tears the sheet down (for example by replacing
         // its root view controller), so the sheet never reports a cancel or a return.
         sut.discardPendingBuiltInTwoStep(forExecuteId: Self.testExecuteId, layoutId: "test_layout")
+        payPalPresenter.presentedSheets.last?.tearDown()
 
         // A later placement offers a PayPal item; its confirm must not be held back by a sheet that is gone.
         PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse =
@@ -2062,6 +2091,68 @@ class TestPaymentOrchestrator: XCTestCase {
         XCTAssertNil(firstResult, "Nothing is owed for the placement that closed")
 
         // The later order's return link completes the later checkout.
+        XCTAssertTrue(sut.handleURLCallback(with: URL(string: "myapp://paypal/success?token=ORDER_2")!))
+        drainMainQueue()
+        XCTAssertEqual(laterResult?.outcome, .succeeded)
+        XCTAssertEqual(laterResult?.transactionId, "ORDER_2")
+    }
+
+    func test_presentPendingBuiltInPayPal_afterItsLayoutClosedWhileItsSheetIsStillUp_aLaterItemWaitsUntilThatSheetEnds() {
+        let payPalPresenter = HoldingPayPalApprovalPresenter()
+        var firstResult: PaymentSheetResult?
+        startHeldPayPalCheckout(presenter: payPalPresenter) { firstResult = $0 }
+        XCTAssertEqual(payPalPresenter.presentCallCount, 1)
+
+        // The placement closes while its sheet is up. The sheet is not interrupted and stays on screen.
+        sut.discardPendingBuiltInTwoStep(forExecuteId: Self.testExecuteId, layoutId: "test_layout")
+
+        // A later placement offers a PayPal item; its confirm must wait, or its sheet would cover the one still up and
+        // take the return-link routing away from the first order.
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse =
+            Self.validPayPalInitializePurchaseResponse(orderId: "ORDER_2")
+        // Held strongly until the deferred present has run; the pending checkout only keeps a weak reference.
+        let presentingViewController = UIViewController()
+        var laterResult: PaymentSheetResult?
+        sut.processPayment(
+            method: .paypal,
+            item: PaymentItem(id: "p2", name: "P", amount: 1, currency: "USD"),
+            context: PaymentContext(
+                billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                returnURL: "myapp://paypal/success",
+                cancelURL: nil
+            ),
+            cartItemId: "v1:cart:2",
+            from: presentingViewController,
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests(layoutId: "other_layout")
+        ) { laterResult = $0 }
+        let laterKey = BuiltInTwoStepCheckoutKey(
+            executeId: Self.testExecuteId,
+            layoutId: "other_layout",
+            catalogItemId: "test_catalog",
+            cartItemId: "v1:cart:2"
+        )
+        XCTAssertTrue(
+            sut.presentPendingBuiltInPayPalForForwardPayment(for: laterKey) { _ in },
+            "The later confirm stays on the PayPal path instead of running a card purchase"
+        )
+        drainMainQueue()
+
+        XCTAssertEqual(payPalPresenter.presentCallCount, 1, "No second sheet is presented over the one still up")
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: laterKey), "The later item waits for a later confirm")
+        XCTAssertNil(firstResult)
+
+        // The first order's return link still reaches the first order's checkout, which ends its sheet.
+        XCTAssertTrue(sut.handleURLCallback(with: URL(string: "myapp://paypal/success?token=ORDER_MOCK")!))
+        drainMainQueue()
+        XCTAssertEqual(firstResult?.outcome, .succeeded)
+        XCTAssertEqual(firstResult?.transactionId, "ORDER_MOCK")
+        XCTAssertNil(laterResult)
+
+        // With the first sheet gone, the later item's confirm presents its own order.
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: laterKey) { _ in })
+        drainMainQueue()
+        XCTAssertEqual(payPalPresenter.presentCallCount, 2, "The later item's approval sheet is presented")
+        XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: laterKey))
         XCTAssertTrue(sut.handleURLCallback(with: URL(string: "myapp://paypal/success?token=ORDER_2")!))
         drainMainQueue()
         XCTAssertEqual(laterResult?.outcome, .succeeded)

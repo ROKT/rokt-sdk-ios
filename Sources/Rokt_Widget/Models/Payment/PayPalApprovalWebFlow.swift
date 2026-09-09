@@ -45,6 +45,8 @@ final class PayPalCheckoutCoordinator {
 
     private let lock = NSLock()
     private var finished = false
+    /// Set once the presenter has handed over the approval sheet it put on screen.
+    private var sheetAttached = false
 
     private let returnURLString: String
     private let cancelURLString: String?
@@ -54,6 +56,21 @@ final class PayPalCheckoutCoordinator {
     private let completion: (PaymentSheetResult) -> Void
 
     weak var presentingCheckoutViewController: UIViewController?
+
+    /// Whether this checkout's approval sheet still holds the screen, so no other PayPal approval may be presented
+    /// over it. Read on the main thread. `false` once the checkout has finished; `true` while the presenter is still
+    /// putting the sheet up and has not handed it over yet. After the hand-over the sheet counts as on screen while
+    /// its view is in a window: a sheet the host released, or took off screen with the view hierarchy it replaced,
+    /// reads as gone even though no cancel or return will ever report it.
+    var isApprovalSheetOnScreen: Bool {
+        lock.lock()
+        let isFinished = finished
+        let isAttached = sheetAttached
+        lock.unlock()
+        if isFinished { return false }
+        guard isAttached else { return true }
+        return presentingCheckoutViewController?.viewIfLoaded?.window != nil
+    }
 
     init(
         returnURLString: String,
@@ -69,6 +86,9 @@ final class PayPalCheckoutCoordinator {
 
     func attachPresentingCheckoutViewController(_ viewController: UIViewController) {
         presentingCheckoutViewController = viewController
+        lock.lock()
+        sheetAttached = true
+        lock.unlock()
     }
 
     /// Called when the buyer dismisses ``SFSafariViewController`` without completing approval.
