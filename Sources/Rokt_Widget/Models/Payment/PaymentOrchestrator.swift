@@ -471,14 +471,11 @@ final class PaymentOrchestrator {
                     }
                     return
                 }
-                let key = devicePaySession.checkoutKey(cartItemId: cartItemId)
                 guard let returnURL = context.returnURL?.trimmingCharacters(in: .whitespacesAndNewlines),
                       !returnURL.isEmpty,
                       URL(string: returnURL) != nil
                 else {
                     guard endPreparing(nil) else { return }
-                    // Only the request that still owns this item drops its earlier checkout, if one was on offer.
-                    Self.removePendingBuiltInTwoStep(for: key)
                     DispatchQueue.main.async {
                         completion(.failed(error: Self.payPalReturnURLMissingMessage))
                     }
@@ -876,12 +873,6 @@ final class PaymentOrchestrator {
         return Self.pendingBuiltInTwoStepCheckouts[key] != nil
     }
 
-    private static func removePendingBuiltInTwoStep(for key: BuiltInTwoStepCheckoutKey) {
-        pendingBuiltInTwoStepLock.lock()
-        pendingBuiltInTwoStepCheckouts.removeValue(forKey: key)
-        pendingBuiltInTwoStepLock.unlock()
-    }
-
     /// Records that a Step-1 request for `key` is about to be sent; the returned value identifies that request.
     private static func beginPreparingBuiltInTwoStep(for key: BuiltInTwoStepCheckoutKey) -> UUID {
         let token = UUID()
@@ -893,7 +884,10 @@ final class PaymentOrchestrator {
 
     /// Ends the Step-1 request `token` for `key`, storing `entry` as its deferred state when one is given. Returns
     /// `false`, storing nothing, when a lifecycle fence or a later Step-1 for the same key dropped the request while
-    /// it was out; the check and the store happen under one lock so a fence cannot slip between them.
+    /// it was out; the check and the store happen under one lock so a fence cannot slip between them. A request that
+    /// ends with nothing to store drops an earlier checkout still on offer for the item: its layout is told this
+    /// attempt failed, so a later confirm must not start the superseded one. A card purchase already sent keeps its
+    /// entry, because its result still has to reach its completion.
     private static func finishPreparingBuiltInTwoStep(
         for key: BuiltInTwoStepCheckoutKey,
         token: UUID,
@@ -905,6 +899,8 @@ final class PaymentOrchestrator {
         preparingBuiltInTwoStepCheckouts.removeValue(forKey: key)
         if let entry {
             pendingBuiltInTwoStepCheckouts[key] = entry
+        } else if let earlier = pendingBuiltInTwoStepCheckouts[key], !earlier.isCardPurchaseInFlight {
+            pendingBuiltInTwoStepCheckouts.removeValue(forKey: key)
         }
         return true
     }
