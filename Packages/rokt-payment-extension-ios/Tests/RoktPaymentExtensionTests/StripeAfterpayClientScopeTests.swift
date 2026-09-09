@@ -219,6 +219,7 @@ final class StripeAfterpayClientScopeTests: XCTestCase {
             XCTAssertTrue(spy.apiClient === hostHandlerClient, "handler client not restored after \(status)")
             XCTAssertNil(hostHandlerClient.stripeAccount)
             XCTAssertEqual(hostHandlerClient.publishableKey, Self.hostPublishableKey)
+            XCTAssertNil(extensionClient.stripeAccount, "account scope kept after \(status)")
             XCTAssertNil(manager.activeConfirmer, "confirmer still retained after \(status)")
         }
     }
@@ -250,6 +251,38 @@ final class StripeAfterpayClientScopeTests: XCTestCase {
         XCTAssertNil(manager.activeConfirmer)
     }
 
+    func testAfterpayFailsSecondFlowWhileOneIsInFlight() {
+        spy.completesImmediately = false
+        let first = expectation(description: "first completion")
+
+        manager.presentPayment(
+            item: makeItem(),
+            context: makeContext(),
+            from: UIViewController(),
+            preparePayment: { _, done in done(self.makePreparation(), nil) }
+        ) { _ in first.fulfill() }
+
+        let confirmStarted = expectation(description: "confirm dispatched")
+        DispatchQueue.main.async { confirmStarted.fulfill() }
+        wait(for: [confirmStarted], timeout: 1)
+
+        let second = runFlow(preparation: makePreparation(merchantId: "acct_1Other"))
+        XCTAssertEqual(second?.outcome, .failed)
+        XCTAssertTrue(second?.errorMessage?.contains("already in progress") ?? false)
+        XCTAssertEqual(spy.confirmCallCount, 1)
+        XCTAssertTrue(spy.apiClient === extensionClient, "second flow must not touch the in-flight handler")
+        XCTAssertEqual(extensionClient.stripeAccount, Self.preparationAccount)
+        XCTAssertTrue(manager.activeConfirmer === spy)
+        assertSharedClientUntouched()
+
+        spy.finish()
+        wait(for: [first], timeout: 1)
+
+        XCTAssertTrue(spy.apiClient === hostHandlerClient)
+        XCTAssertNil(extensionClient.stripeAccount)
+        XCTAssertNil(manager.activeConfirmer)
+    }
+
     func testAfterpayPreparationFailureTouchesNoClient() {
         let result = runFlow(preparation: nil, error: PrepError())
 
@@ -265,7 +298,7 @@ final class StripeAfterpayClientScopeTests: XCTestCase {
     // MARK: - Connected-account id shape
 
     func testAfterpayRejectsMalformedMerchantAccountId() {
-        let malformed = ["merchant.com.test", "acct_", "", "acct_x;drop", String(repeating: "a", count: 200)]
+        let malformed = ["merchant.com.test", "acct_", "", "acct_1.2", String(repeating: "a", count: 200)]
 
         for merchantId in malformed {
             let result = runFlow(preparation: makePreparation(merchantId: merchantId))

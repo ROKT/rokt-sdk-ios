@@ -27,7 +27,7 @@ final class StripeAccountIdTests: XCTestCase {
             " acct_123",
             "acct_123 ",
             "acct_12 3",
-            "acct_x;drop",
+            "acct_1.2",
             "acct_1-2",
             "acct_1/2",
             "acct_é1",

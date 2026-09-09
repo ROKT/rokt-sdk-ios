@@ -101,6 +101,11 @@ internal class StripeAfterpayManager {
                 return
             }
 
+            guard self.activeConfirmer == nil else {
+                completion(.failed(error: "A payment is already in progress"))
+                return
+            }
+
             guard StripeAccountId.isValid(preparation.merchantId) else {
                 completion(.failed(error: "Payment preparation returned an invalid merchant account id"))
                 return
@@ -127,10 +132,8 @@ internal class StripeAfterpayManager {
             self.activeConfirmer = confirmer
 
             DispatchQueue.main.async {
-                // Stripe exposes no public per-instance STPPaymentHandler initializer, so the
-                // shared handler is borrowed: pointed at the extension-owned client for this
-                // confirmation and handed back with the host app's client on every outcome.
-                // STPAPIClient.shared is never read or written.
+                // The shared handler is borrowed for this confirmation: pointed at the
+                // extension-owned client and handed back with the host app's client on every outcome.
                 let hostClient = confirmer.apiClient
                 confirmer.apiClient = extensionClient
 
@@ -139,6 +142,7 @@ internal class StripeAfterpayManager {
                     authenticationContext: authContext
                 ) { [weak self] status, intent, error in
                     confirmer.apiClient = hostClient
+                    extensionClient.stripeAccount = nil
                     self?.activeConfirmer = nil
 
                     switch status {
