@@ -403,7 +403,7 @@ final class TestOffersExecuteWiring: XCTestCase {
         ExperienceCacheManager.cacheExperienceResponse(
             viewName: viewName,
             attributes: attributes,
-            experienceResponse: try String(decoding: renderFixture(), as: UTF8.self)
+            experienceResponse: try XCTUnwrap(String(bytes: renderFixture(), encoding: .utf8))
         )
         waitUntil({
             ExperienceCacheManager.getCachedExperienceResponse(
