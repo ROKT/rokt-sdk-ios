@@ -41,18 +41,6 @@ private final class SpyConfirmer: AfterpayPaymentConfirming {
     }
 }
 
-private extension PaymentSheetResult {
-    var succeededTransactionId: String? {
-        if case .succeeded(let transactionId) = self { return transactionId }
-        return nil
-    }
-
-    var isCanceledResult: Bool {
-        if case .canceled = self { return true }
-        return false
-    }
-}
-
 /// Verifies that the Afterpay flow confirms through the extension-owned `STPAPIClient` and
 /// leaves the host app's process-global Stripe configuration untouched.
 final class StripeAfterpayClientScopeTests: XCTestCase {
@@ -203,7 +191,8 @@ final class StripeAfterpayClientScopeTests: XCTestCase {
     func testAfterpayConfirmParamsAndOutcomeMappingAreUnchanged() {
         spy.scriptedStatus = .succeeded
         let succeeded = runFlow(preparation: makePreparation())
-        XCTAssertEqual(succeeded?.succeededTransactionId, "pi_1Test")
+        XCTAssertEqual(succeeded?.outcome, .succeeded)
+        XCTAssertEqual(succeeded?.transactionId, "pi_1Test")
 
         let params = spy.confirmedParams
         XCTAssertEqual(params?.clientSecret, Self.clientSecret)
@@ -212,7 +201,7 @@ final class StripeAfterpayClientScopeTests: XCTestCase {
         XCTAssertEqual(params?.paymentMethodParams?.billingDetails?.name, "Jane Smith")
 
         spy.scriptedStatus = .canceled
-        XCTAssertEqual(runFlow(preparation: makePreparation())?.isCanceledResult, true)
+        XCTAssertEqual(runFlow(preparation: makePreparation())?.outcome, .canceled)
 
         spy.scriptedStatus = .failed
         let failed = runFlow(preparation: makePreparation())
@@ -294,7 +283,8 @@ final class StripeAfterpayClientScopeTests: XCTestCase {
     func testAfterpayAcceptsWellFormedMerchantAccountId() {
         let result = runFlow(preparation: makePreparation(merchantId: "acct_mock_123"))
 
-        XCTAssertNotNil(result?.succeededTransactionId)
+        XCTAssertEqual(result?.outcome, .succeeded)
+        XCTAssertNotNil(result?.transactionId)
         XCTAssertEqual(spy.confirmCallCount, 1)
         XCTAssertEqual(spy.clientUsedForConfirmation?.stripeAccount, "acct_mock_123")
     }
