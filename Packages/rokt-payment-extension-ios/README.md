@@ -179,14 +179,14 @@ RoktPaymentExtension (public facade)
   │    ├── STPApplePayContext (Stripe SDK)
   │    └── ContactAddressMapping (PKContact → ContactAddress)
   ├── StripeAfterpayManager (Afterpay / Clearpay)    ← built if urlScheme provided
-  │    ├── STPPaymentHandler (Stripe SDK)
+  │    ├── STPPaymentHandler (Stripe SDK, driven with the extension-owned STPAPIClient)
   │    └── BillingDetailsMapping (ContactAddress → Stripe billing/shipping)
   └── handleURLCallback(with:) → StripeAPI.handleURLCallback
 ```
 
 - **RoktPaymentExtension**: Implements `PaymentExtension` protocol from RoktContracts; routes each `PaymentMethodType` to the matching internal manager. `supportedMethods` is computed from the configured managers.
 - **StripeApplePayManager**: Manages Apple Pay / card flows via Stripe's `STPApplePayContext`, including line-item totals from the backend payment preparation response.
-- **StripeAfterpayManager**: Manages redirect-based Afterpay / Clearpay flows via `STPPaymentHandler`; validates `PaymentContext.billingAddress` and confirms the PaymentIntent with a Rokt-owned return URL built from the partner's `urlScheme`.
+- **StripeAfterpayManager**: Manages redirect-based Afterpay / Clearpay flows via `STPPaymentHandler`; validates `PaymentContext.billingAddress` and confirms the PaymentIntent with a Rokt-owned return URL built from the partner's `urlScheme`. The confirmation runs on the extension-owned `STPAPIClient` (created from the `stripeKey` passed at registration): the handler is pointed at that client for the duration of the confirmation and handed back with the host app's client on every outcome. The extension never reads or writes `STPAPIClient.shared`, so a host app's own Stripe integration keeps its publishable key and connected-account scope.
 - **ContactAddressMapping**: Converts Apple Pay `PKContact` to `ContactAddress`.
 - **BillingDetailsMapping**: Converts `ContactAddress` to `STPPaymentMethodBillingDetails` and `STPPaymentIntentShippingDetailsParams`.
 

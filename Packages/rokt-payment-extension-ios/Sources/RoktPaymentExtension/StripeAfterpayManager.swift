@@ -3,14 +3,38 @@ import RoktContracts
 import StripePayments
 import UIKit
 
+/// The slice of `STPPaymentHandler` the Afterpay flow drives, so the confirmation
+/// step can be exercised in tests without Stripe's network stack.
+internal protocol AfterpayPaymentConfirming: AnyObject {
+    var apiClient: STPAPIClient { get set }
+
+    func confirmPaymentIntent(
+        params: STPPaymentIntentParams,
+        authenticationContext: STPAuthenticationContext,
+        completion: @escaping STPPaymentHandlerActionPaymentIntentCompletionBlock
+    )
+}
+
+extension STPPaymentHandler: AfterpayPaymentConfirming {}
+
 internal class StripeAfterpayManager {
 
     private let apiClient: STPAPIClient
     private let returnURL: String
+    private let makeConfirmer: () -> AfterpayPaymentConfirming
 
-    internal init(apiClient: STPAPIClient, returnURL: String) {
+    /// Retained until the confirmation reaches a terminal status so the handler
+    /// survives the redirect round-trip.
+    private(set) var activeConfirmer: AfterpayPaymentConfirming?
+
+    internal init(
+        apiClient: STPAPIClient,
+        returnURL: String,
+        makeConfirmer: @escaping () -> AfterpayPaymentConfirming = { STPPaymentHandler.shared() }
+    ) {
         self.apiClient = apiClient
         self.returnURL = returnURL
+        self.makeConfirmer = makeConfirmer
     }
 
     internal func presentPayment(
@@ -77,13 +101,8 @@ internal class StripeAfterpayManager {
                 return
             }
 
-            // STPPaymentHandler.shared() uses STPAPIClient.shared internally,
-            // so we must configure the shared client with the same publishable key
-            // and connected account. (Unlike STPApplePayContext which accepts a
-            // custom apiClient directly.)
-            STPAPIClient.shared.publishableKey = self.apiClient.publishableKey
-            STPAPIClient.shared.stripeAccount = preparation.merchantId
-            self.apiClient.stripeAccount = preparation.merchantId
+            let extensionClient = self.apiClient
+            extensionClient.stripeAccount = preparation.merchantId
 
             let params = STPPaymentIntentParams(clientSecret: preparation.clientSecret)
             params.paymentMethodParams = STPPaymentMethodParams(
@@ -99,9 +118,24 @@ internal class StripeAfterpayManager {
 
             let authContext = SimpleAuthenticationContext(presentingController: viewController)
 
+            let confirmer = self.makeConfirmer()
+            self.activeConfirmer = confirmer
+
             DispatchQueue.main.async {
-                STPPaymentHandler.shared()
-                    .confirmPaymentIntent(params: params, authenticationContext: authContext) { status, intent, error in
+                // Stripe exposes no public per-instance STPPaymentHandler initializer, so the
+                // shared handler is borrowed: pointed at the extension-owned client for this
+                // confirmation and handed back with the host app's client on every outcome.
+                // STPAPIClient.shared is never read or written.
+                let hostClient = confirmer.apiClient
+                confirmer.apiClient = extensionClient
+
+                confirmer.confirmPaymentIntent(
+                    params: params,
+                    authenticationContext: authContext
+                ) { [weak self] status, intent, error in
+                    confirmer.apiClient = hostClient
+                    self?.activeConfirmer = nil
+
                     switch status {
                     case .succeeded:
                         completion(.succeeded(transactionId: StripePaymentDiagnostics.transactionId(
