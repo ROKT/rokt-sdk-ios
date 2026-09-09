@@ -220,9 +220,14 @@ internal import RoktUXHelper
     /// Forward an incoming URL to built-in PayPal (when active) and registered payment extensions.
     ///
     /// Redirect-based payment methods (e.g. Afterpay, built-in PayPal) authenticate in a browser or
-    /// web view and return to the host app via a custom URL scheme. The host app should forward every
-    /// incoming URL to this method — the SDK handles built-in PayPal first, then asks each registered
-    /// extension until one recognizes the URL.
+    /// web view and return to the host app via a custom URL scheme or an https universal link. The host
+    /// app should forward every incoming URL to this method — the SDK handles built-in PayPal first,
+    /// then asks each registered extension until one recognizes the URL.
+    ///
+    /// Custom-scheme URLs arrive through `application(_:open:options:)` /
+    /// `scene(_:openURLContexts:)`; universal links arrive through
+    /// `application(_:continue:restorationHandler:)` / `scene(_:continue:)` as
+    /// `userActivity.webpageURL`. Forward both. SwiftUI's `.onOpenURL` already receives both kinds.
     ///
     /// Example (SwiftUI):
     /// ```swift
@@ -231,6 +236,19 @@ internal import RoktUXHelper
     ///         .onOpenURL { url in
     ///             Rokt.handleURLCallback(with: url)
     ///         }
+    /// }
+    /// ```
+    ///
+    /// Example (UIKit `AppDelegate`, universal link):
+    /// ```swift
+    /// func application(
+    ///     _ application: UIApplication,
+    ///     continue userActivity: NSUserActivity,
+    ///     restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void
+    /// ) -> Bool {
+    ///     guard userActivity.activityType == NSUserActivityTypeBrowsingWeb,
+    ///           let url = userActivity.webpageURL else { return false }
+    ///     return Rokt.handleURLCallback(with: url)
     /// }
     /// ```
     ///

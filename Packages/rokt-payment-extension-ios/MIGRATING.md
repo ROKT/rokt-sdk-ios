@@ -2,6 +2,41 @@
 
 This document provides guidance on migrating to newer versions of the Rokt Payment Extension for iOS.
 
+## Unreleased — universal-link return URL for Afterpay
+
+This is an additive change; no migration is required. Existing `urlScheme:`
+integrations keep working unchanged.
+
+`RoktPaymentExtension.init` gains an optional `universalLinkReturnURL: URL?`
+parameter. Pass an https universal link under one of your app's Associated
+Domains instead of a custom URL scheme: iOS delivers a universal link only to
+the app entitled for that domain, whereas custom URL schemes are not exclusive
+to one app.
+
+```swift
+guard let paymentExtension = RoktPaymentExtension(
+    applePayMerchantId: "merchant.com.example",
+    universalLinkReturnURL: URL(string: "https://www.example.com/rokt/payment-return")
+) else { return }
+```
+
+To adopt it:
+
+1. Remove `urlScheme:` from the init call — the two options are mutually
+   exclusive and passing both returns `nil`.
+2. Host an `apple-app-site-association` file covering the return path and add
+   the `applinks:<host>` Associated Domains entitlement.
+3. Forward universal links from `application(_:continue:restorationHandler:)` /
+   `scene(_:continue:)` (`userActivity.webpageURL`) to `Rokt.handleURLCallback(with:)`.
+
+The Afterpay-not-configured error message now reads:
+
+> `Afterpay not configured. Provide a urlScheme or universalLinkReturnURL at init.`
+
+See the README section "Enabling Afterpay / Clearpay" for the full setup.
+
+---
+
 ## Migrating from 1.x to 2.0.0
 
 Version 2.0 replaces the `returnURL:` init parameter with `urlScheme:`. Partners now pass only the bare URL scheme — the SDK builds the full redirect URL (`<scheme>://rokt-payment-return`) internally and verifies the scheme is registered under `CFBundleURLSchemes` in the host app's `Info.plist` at init time.

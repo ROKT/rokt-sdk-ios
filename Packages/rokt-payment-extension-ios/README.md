@@ -13,9 +13,11 @@ This package depends only on [RoktContracts](https://github.com/ROKT/rokt-contra
 - Swift 5.9+
 - Xcode 15.0+
 - Stripe account with Apple Pay enabled (for Apple Pay / card)
-- For Afterpay / Clearpay: a Stripe account with the method enabled and a custom
-  URL scheme registered in the host app's `Info.plist` under `CFBundleURLSchemes`
-  (you pass the same scheme to the extension via `urlScheme:`)
+- For Afterpay / Clearpay: a Stripe account with the method enabled, plus a return
+  URL the browser can hand back to your app — either (recommended) an https
+  universal link under one of your app's Associated Domains (pass it via
+  `universalLinkReturnURL:`), or a custom URL scheme registered in the host app's
+  `Info.plist` under `CFBundleURLSchemes` (pass the same scheme via `urlScheme:`)
 
 ## Installation
 
@@ -44,14 +46,17 @@ pod 'RoktPaymentExtension'
 ## Usage
 
 The extension accepts optional init params — you enable only the methods you
-want to support. At least one of `applePayMerchantId` or `urlScheme` must be
-provided; otherwise the initializer returns `nil`.
+want to support. At least one of `applePayMerchantId`, `universalLinkReturnURL`,
+or `urlScheme` must be provided; otherwise the initializer returns `nil`.
+`universalLinkReturnURL` and `urlScheme` are mutually exclusive — passing both
+also returns `nil`.
 
-| Init parameters           | Enables                   |
-| ------------------------- | ------------------------- |
-| `applePayMerchantId` only | Apple Pay, card           |
-| `urlScheme` only          | Afterpay / Clearpay       |
-| Both                      | Apple Pay, card, Afterpay |
+| Init parameters                                      | Enables                   |
+| ---------------------------------------------------- | ------------------------- |
+| `applePayMerchantId` only                            | Apple Pay, card           |
+| `universalLinkReturnURL` only (recommended)          | Afterpay / Clearpay       |
+| `urlScheme` only                                     | Afterpay / Clearpay       |
+| `applePayMerchantId` + one of the two return options | Apple Pay, card, Afterpay |
 
 ### Direct Rokt SDK Integration
 
@@ -66,10 +71,12 @@ import RoktPaymentExtension
 Rokt.initWith(roktTagId: "your-tag-id")
 
 // 2. Create the payment extension.
-//    Supply `applePayMerchantId` for Apple Pay, `urlScheme` for Afterpay, or both.
+//    Supply `applePayMerchantId` for Apple Pay, `universalLinkReturnURL` (or
+//    `urlScheme`) for Afterpay, or both.
 guard let paymentExtension = RoktPaymentExtension(
     applePayMerchantId: "merchant.com.example",
-    urlScheme: "myapp" // bare scheme — omit to keep the extension Apple-Pay-only
+    universalLinkReturnURL: URL(string: "https://www.example.com/rokt/payment-return")
+    // omit to keep the extension Apple-Pay-only
 ) else { return }
 
 // 3. Register with the Rokt SDK — pass your Stripe publishable key
@@ -115,7 +122,8 @@ import RoktPaymentExtension
 // 2. Create and register the payment extension — no stripeKey needed.
 guard let paymentExtension = RoktPaymentExtension(
     applePayMerchantId: "merchant.com.example",
-    urlScheme: "myapp" // bare scheme — omit to keep the extension Apple-Pay-only
+    universalLinkReturnURL: URL(string: "https://www.example.com/rokt/payment-return")
+    // omit to keep the extension Apple-Pay-only
 ) else { return }
 MParticle.sharedInstance().rokt.registerPaymentExtension(paymentExtension)
 // Kit automatically injects stripeKey from dashboard config
@@ -134,20 +142,75 @@ MParticle.sharedInstance().rokt.shoppableAds(
 ### Enabling Afterpay / Clearpay
 
 Afterpay/Clearpay is a redirect-based payment method: Stripe opens a web page for
-authentication and redirects back to your app via a custom URL scheme.
+authentication and then redirects the browser to a return URL that brings the
+user back to your app. Two return-URL options are supported; configure exactly
+one. Omit both and the extension stays Apple-Pay-only.
+
+#### Option A — universal link (recommended)
+
+An https URL under one of your app's Associated Domains. iOS delivers a universal
+link only to the app whose entitlement claims that domain, so it is the return
+URL to use in production.
+
+1. **Host an `apple-app-site-association` file** on the domain (e.g.
+   `https://www.example.com/.well-known/apple-app-site-association`) whose
+   `applinks` section covers the return path (e.g. `/rokt/payment-return`).
+2. **Add the Associated Domains entitlement** to your app target:
+   `applinks:www.example.com`.
+3. **Pass the return URL** when creating the extension:
+
+   ```swift
+   universalLinkReturnURL: URL(string: "https://www.example.com/rokt/payment-return")
+   ```
+
+   The URL must be plain `https` with a host and no query, fragment, or
+   credentials — Stripe appends its own query on return, and the SDK matches the
+   incoming URL on scheme, host, and path only. The initializer returns `nil`
+   (and raises an `assertionFailure` in DEBUG builds) if the URL is not of that
+   form, or if `urlScheme` is passed as well.
+4. **Forward universal links** to the Rokt SDK. They arrive through the
+   user-activity delegate methods (and through SwiftUI `.onOpenURL`, which
+   already receives both universal links and custom-scheme URLs):
+
+   ```swift
+   // AppDelegate
+   func application(
+       _ application: UIApplication,
+       continue userActivity: NSUserActivity,
+       restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void
+   ) -> Bool {
+       guard userActivity.activityType == NSUserActivityTypeBrowsingWeb,
+             let url = userActivity.webpageURL else { return false }
+       return Rokt.handleURLCallback(with: url)
+   }
+
+   // SceneDelegate
+   func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
+       guard let url = userActivity.webpageURL else { return }
+       Rokt.handleURLCallback(with: url)
+   }
+   ```
+
+5. **Serve a fallback page** at the return URL. If the link ever opens in the
+   browser instead of your app (for example when the association file cannot be
+   fetched), the user sees that page inside the in-app browser; show a
+   "return to the app" message. The payment itself still completes when the
+   app returns to the foreground.
+
+#### Option B — custom URL scheme
+
+Custom URL schemes are not exclusive to one app, so prefer Option A in
+production and use this option only when you cannot host a universal link.
 
 1. **Declare the URL scheme** in your host app's `Info.plist` under
    `CFBundleURLTypes` (e.g. `myapp`).
 2. **Pass the matching `urlScheme`** when creating the extension
-   (e.g. `"myapp"`). The SDK builds the full return URL internally — you
-   never need to type the path. The initializer returns `nil` if the scheme
-   isn't registered in `Info.plist` (and raises an `assertionFailure` in
-   DEBUG builds). Omit `urlScheme` entirely and the extension stays
-   Apple-Pay-only.
+   (e.g. `"myapp"`). The SDK builds the full return URL
+   (`myapp://rokt-payment-return`) internally — you never need to type the
+   path. The initializer returns `nil` if the scheme isn't registered in
+   `Info.plist` (and raises an `assertionFailure` in DEBUG builds).
 3. **Forward redirect URLs** to the Rokt SDK from your `SceneDelegate` /
-   `AppDelegate`. The SDK dispatches the URL to every registered
-   `PaymentExtension` via the optional `handleURLCallback(with:)` hook, which
-   this extension implements by calling `StripeAPI.handleURLCallback(with:)`.
+   `AppDelegate`:
 
    ```swift
    // SceneDelegate
@@ -157,6 +220,11 @@ authentication and redirects back to your app via a custom URL scheme.
        }
    }
    ```
+
+With either option the SDK dispatches the URL to every registered
+`PaymentExtension` via the optional `handleURLCallback(with:)` hook; this
+extension forwards only URLs matching its configured return URL to
+`StripeAPI.handleURLCallback(with:)` and returns `false` for everything else.
 
 ### What Partners Need for Each Scenario
 
@@ -178,7 +246,7 @@ RoktPaymentExtension (public facade)
   ├── StripeApplePayManager (Apple Pay / card)       ← built if applePayMerchantId provided
   │    ├── STPApplePayContext (Stripe SDK)
   │    └── ContactAddressMapping (PKContact → ContactAddress)
-  ├── StripeAfterpayManager (Afterpay / Clearpay)    ← built if urlScheme provided
+  ├── StripeAfterpayManager (Afterpay / Clearpay)    ← built if universalLinkReturnURL or urlScheme provided
   │    ├── STPPaymentHandler (Stripe SDK)
   │    └── BillingDetailsMapping (ContactAddress → Stripe billing/shipping)
   └── handleURLCallback(with:) → StripeAPI.handleURLCallback
@@ -186,7 +254,7 @@ RoktPaymentExtension (public facade)
 
 - **RoktPaymentExtension**: Implements `PaymentExtension` protocol from RoktContracts; routes each `PaymentMethodType` to the matching internal manager. `supportedMethods` is computed from the configured managers.
 - **StripeApplePayManager**: Manages Apple Pay / card flows via Stripe's `STPApplePayContext`, including line-item totals from the backend payment preparation response.
-- **StripeAfterpayManager**: Manages redirect-based Afterpay / Clearpay flows via `STPPaymentHandler`; validates `PaymentContext.billingAddress` and confirms the PaymentIntent with a Rokt-owned return URL built from the partner's `urlScheme`.
+- **StripeAfterpayManager**: Manages redirect-based Afterpay / Clearpay flows via `STPPaymentHandler`; validates `PaymentContext.billingAddress` and confirms the PaymentIntent with the configured return URL — the partner's `universalLinkReturnURL` verbatim, or `<urlScheme>://rokt-payment-return`.
 - **ContactAddressMapping**: Converts Apple Pay `PKContact` to `ContactAddress`.
 - **BillingDetailsMapping**: Converts `ContactAddress` to `STPPaymentMethodBillingDetails` and `STPPaymentIntentShippingDetailsParams`.
 
