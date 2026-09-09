@@ -6,8 +6,9 @@ import UIKit
 // MARK: - Return URL matching (deep link)
 
 enum PayPalMerchantReturnURL {
-    /// Same rules for app deep links: scheme, host, and path must match
-    /// (PayPal appends query parameters such as ``token``).
+    /// Same rules for app deep links: scheme, host, and path must match. The query is not part of the
+    /// match; ``PayPalCheckoutCoordinator`` reads the ``token`` PayPal appends and requires it to name
+    /// the order this checkout started.
     static func matches(navigated: URL, expectedRedirectString: String) -> Bool {
         guard let expected = URL(string: expectedRedirectString) else { return false }
         guard let es = navigated.scheme?.lowercased(), let et = expected.scheme?.lowercased(), es == et else {
@@ -28,19 +29,41 @@ enum PayPalMerchantReturnURL {
 /// iOS opens the host app with that URL, and ``PaymentOrchestrator/handleURLCallback(with:)`` forwards
 /// matching URLs here. The hosted approval UI is presented with ``SFSafariViewController``.
 final class PayPalCheckoutCoordinator {
+    /// What a return/cancel deep link did to this checkout.
+    enum DeepLinkOutcome: Equatable {
+        /// The URL is not this checkout's return or cancel URL.
+        case notOurs
+        /// Matched, but the checkout had already completed.
+        case alreadyDone
+        case completedReturn
+        case completedCancel
+        /// Matched, but carried no `token`; the checkout stays pending.
+        case rejectedMissingToken
+        /// Matched, but its `token` is not this checkout's order id; the checkout stays pending.
+        case rejectedTokenMismatch
+    }
+
     private let lock = NSLock()
     private var finished = false
 
     private let returnURLString: String
     private let cancelURLString: String?
+    /// PayPal order id from cart prepare; a deep link completes this checkout only when its `token` equals it.
+    private let expectedOrderId: String
 
     private let completion: (PaymentSheetResult) -> Void
 
     weak var presentingCheckoutViewController: UIViewController?
 
-    init(returnURLString: String, cancelURLString: String?, completion: @escaping (PaymentSheetResult) -> Void) {
+    init(
+        returnURLString: String,
+        cancelURLString: String?,
+        expectedOrderId: String,
+        completion: @escaping (PaymentSheetResult) -> Void
+    ) {
         self.returnURLString = returnURLString
         self.cancelURLString = cancelURLString
+        self.expectedOrderId = expectedOrderId
         self.completion = completion
     }
 
@@ -59,16 +82,17 @@ final class PayPalCheckoutCoordinator {
     }
 
     /// Called from ``PaymentOrchestrator/handleURLCallback(with:)`` when the host app receives the return/cancel deep link.
-    /// - Returns: `true` if the URL matches the configured return or cancel URL (including after checkout already finished).
-    @discardableResult
-    func handleDeepLinkReturn(_ url: URL) -> Bool {
+    ///
+    /// The checkout completes only when the link's `token` equals the order id this checkout was started with;
+    /// a matching link without that token is reported and otherwise ignored, so the checkout stays pending.
+    func handleDeepLinkReturn(_ url: URL) -> DeepLinkOutcome {
         let matchesReturn = PayPalMerchantReturnURL.matches(navigated: url, expectedRedirectString: returnURLString)
         let matchesCancel = cancelURLString.map {
             PayPalMerchantReturnURL.matches(navigated: url, expectedRedirectString: $0)
         } ?? false
 
         guard matchesReturn || matchesCancel else {
-            return false
+            return .notOurs
         }
 
         lock.lock()
@@ -76,19 +100,32 @@ final class PayPalCheckoutCoordinator {
         lock.unlock()
 
         if alreadyDone {
-            return true
+            return .alreadyDone
+        }
+
+        guard let token = Self.orderToken(in: url) else {
+            return .rejectedMissingToken
+        }
+        guard token == expectedOrderId else {
+            return .rejectedTokenMismatch
         }
 
         if matchesCancel {
             completeOnce(.canceled)
-        } else {
-            let token = URLComponents(url: url, resolvingAgainstBaseURL: false)?
-                .queryItems?
-                .first { $0.name.caseInsensitiveCompare("token") == .orderedSame }?
-                .value
-            completeOnce(.succeeded(transactionId: token ?? url.absoluteString))
+            return .completedCancel
         }
-        return true
+        completeOnce(.succeeded(transactionId: expectedOrderId))
+        return .completedReturn
+    }
+
+    private static func orderToken(in url: URL) -> String? {
+        let token = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?
+            .first { $0.name.caseInsensitiveCompare("token") == .orderedSame }?
+            .value?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let token, !token.isEmpty else { return nil }
+        return token
     }
 
     private func completeOnce(_ result: PaymentSheetResult) {

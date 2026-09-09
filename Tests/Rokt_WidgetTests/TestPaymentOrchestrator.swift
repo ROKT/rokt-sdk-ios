@@ -1009,7 +1009,8 @@ class TestPaymentOrchestrator: XCTestCase {
 
     /// Includes ``InitializePurchasePayPalData/approvalUrl`` so built-in PayPal can present the hosted approve flow.
     private static func validPayPalInitializePurchaseResponse(
-        approvalUrl: String = "https://www.paypal.com/checkoutnow?token=MOCK"
+        approvalUrl: String = "https://www.paypal.com/checkoutnow?token=MOCK",
+        orderId: String = "ORDER_MOCK"
     ) -> InitializePurchaseResponse {
         InitializePurchaseResponse(
             success: true,
@@ -1027,7 +1028,7 @@ class TestPaymentOrchestrator: XCTestCase {
                 totalAmount: 9.99
             ),
             paypalData: InitializePurchasePayPalData(
-                orderId: "ORDER_MOCK",
+                orderId: orderId,
                 approvalUrl: approvalUrl
             )
         )
@@ -1221,7 +1222,8 @@ class TestPaymentOrchestrator: XCTestCase {
             builtInPayPalDevicePaySession: paypalDeviceSessionForTests()
         ) { result in
             XCTAssertEqual(result.outcome, .succeeded)
-            XCTAssertEqual(result.transactionId, "ORDER_FROM_LINK")
+            // The surfaced transaction id is the order id from cart prepare, which the link must carry.
+            XCTAssertEqual(result.transactionId, "ORDER_MOCK")
             expectation.fulfill()
         }
         _ = sut.presentPendingBuiltInPayPalForForwardPayment { _ in }
@@ -1232,10 +1234,148 @@ class TestPaymentOrchestrator: XCTestCase {
         DispatchQueue.main.async { flush.fulfill() }
         wait(for: [flush], timeout: 1.0)
 
-        let deepLink = URL(string: "myapp://paypal/success?token=ORDER_FROM_LINK")!
+        let deepLink = URL(string: "myapp://paypal/success?token=ORDER_MOCK")!
         XCTAssertTrue(sut.handleURLCallback(with: deepLink))
 
         wait(for: [expectation], timeout: 2.0)
+    }
+
+    // MARK: - Deep-link binding to the pending order
+
+    private func drainMainQueue(turns: Int = 8) {
+        for _ in 0..<turns {
+            let flush = expectation(description: "main queue flush")
+            DispatchQueue.main.async { flush.fulfill() }
+            wait(for: [flush], timeout: 1.0)
+        }
+    }
+
+    /// Starts built-in PayPal Step-1 with a presenter that holds the sheet open, presents the pending checkout
+    /// and drains the main queue, so the checkout coordinator is active when a deep link is simulated.
+    private func startHeldPayPalCheckout(
+        cancelURL: String? = nil,
+        onStepOneResult: @escaping (PaymentSheetResult) -> Void
+    ) {
+        sut = PaymentOrchestrator(
+            apiHelper: PaymentOrchestratorAPIHelperSpy.self,
+            payPalApprovalPresenter: HoldingPayPalApprovalPresenter()
+        )
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = Self.validPayPalInitializePurchaseResponse()
+
+        // Held strongly until the deferred present has run; the pending checkout only keeps a weak reference.
+        let presentingViewController = UIViewController()
+        sut.processPayment(
+            method: .paypal,
+            item: PaymentItem(id: "p1", name: "P", amount: 1, currency: "USD"),
+            context: PaymentContext(
+                billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                returnURL: "myapp://paypal/success",
+                cancelURL: cancelURL
+            ),
+            cartItemId: "v1:cart:1",
+            from: presentingViewController,
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests()
+        ) { result in
+            onStepOneResult(result)
+        }
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment { _ in })
+        drainMainQueue()
+        PaymentOrchestratorAPIHelperSpy.reset()
+    }
+
+    func test_handleURLCallback_payPalReturn_tokenForAnotherOrder_leavesCheckoutPending() {
+        var stepOneResult: PaymentSheetResult?
+        startHeldPayPalCheckout { stepOneResult = $0 }
+
+        let otherOrderLink = URL(string: "myapp://paypal/success?token=OTHER_ORDER")!
+        XCTAssertTrue(sut.handleURLCallback(with: otherOrderLink), "The link is ours and must not reach payment extensions")
+        drainMainQueue()
+
+        XCTAssertNil(stepOneResult, "A return link for another order must not complete the checkout")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.sendDiagnosticsCallCount, 1)
+        XCTAssertEqual(
+            PaymentOrchestratorAPIHelperSpy.lastDiagnosticsCallStack,
+            PaymentOrchestrator.payPalReturnLinkOrderMismatchMessage
+        )
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastDiagnosticsAdditionalInfo?["tokenPresent"] as? Bool, true)
+        XCTAssertTrue(
+            (PaymentOrchestratorAPIHelperSpy.lastDiagnosticsAdditionalInfo ?? [:]).values.allSatisfy { $0 is Bool },
+            "Diagnostics carry flags only, never the link's token or the order id"
+        )
+
+        // The genuine redirect still completes the same pending checkout.
+        XCTAssertTrue(sut.handleURLCallback(with: URL(string: "myapp://paypal/success?token=ORDER_MOCK")!))
+        drainMainQueue()
+        XCTAssertEqual(stepOneResult?.outcome, .succeeded)
+        XCTAssertEqual(stepOneResult?.transactionId, "ORDER_MOCK")
+    }
+
+    func test_handleURLCallback_payPalReturn_withoutToken_leavesCheckoutPending() {
+        var stepOneResult: PaymentSheetResult?
+        startHeldPayPalCheckout { stepOneResult = $0 }
+
+        XCTAssertTrue(sut.handleURLCallback(with: URL(string: "myapp://paypal/success")!))
+        drainMainQueue()
+
+        XCTAssertNil(stepOneResult, "A return link without a token must not complete the checkout")
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.sendDiagnosticsCallCount, 1)
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastDiagnosticsAdditionalInfo?["tokenPresent"] as? Bool, false)
+    }
+
+    func test_handleURLCallback_payPalCancel_tokenForAnotherOrder_leavesCheckoutPending() {
+        var stepOneResult: PaymentSheetResult?
+        startHeldPayPalCheckout(cancelURL: "myapp://paypal/cancel") { stepOneResult = $0 }
+
+        XCTAssertTrue(sut.handleURLCallback(with: URL(string: "myapp://paypal/cancel?token=OTHER_ORDER")!))
+        drainMainQueue()
+
+        XCTAssertNil(stepOneResult)
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.sendDiagnosticsCallCount, 1)
+        XCTAssertFalse(
+            sut.presentPendingBuiltInPayPalForForwardPayment { _ in },
+            "The checkout is still active in the approval sheet; nothing was re-queued"
+        )
+
+        // The genuine cancel re-queues the checkout so the confirm button can start it again.
+        XCTAssertTrue(sut.handleURLCallback(with: URL(string: "myapp://paypal/cancel?token=ORDER_MOCK")!))
+        drainMainQueue()
+        XCTAssertNil(stepOneResult, "Cancel defers the Step-1 completion")
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment { _ in })
+    }
+
+    func test_processPayment_payPal_failsWhenOrderIdMissing() {
+        let payPalPresenter = MockPayPalApprovalPresenter()
+        sut = PaymentOrchestrator(
+            apiHelper: PaymentOrchestratorAPIHelperSpy.self,
+            payPalApprovalPresenter: payPalPresenter
+        )
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = Self.validPayPalInitializePurchaseResponse(orderId: "  ")
+
+        let failed = expectation(description: "PayPal fails without an order id")
+        sut.processPayment(
+            method: .paypal,
+            item: PaymentItem(id: "p1", name: "P", amount: 1, currency: "USD"),
+            context: PaymentContext(
+                billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                returnURL: "myapp://paypal/success",
+                cancelURL: nil
+            ),
+            cartItemId: "v1:cart:1",
+            from: UIViewController(),
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests { _, _, _ in
+                XCTFail("Confirmation must not be shown without an order id")
+            }
+        ) { result in
+            XCTAssertEqual(result.outcome, .failed)
+            XCTAssertEqual(result.errorMessage, PaymentOrchestrator.payPalOrderIdMissingMessage)
+            failed.fulfill()
+        }
+        wait(for: [failed], timeout: 1.0)
+
+        XCTAssertEqual(payPalPresenter.presentCallCount, 0)
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.sendDiagnosticsCallCount, 1)
+        XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastDiagnosticsCallStack, PaymentOrchestrator.payPalOrderIdMissingMessage)
+        XCTAssertFalse(sut.presentPendingBuiltInPayPalForForwardPayment { _ in })
     }
 
     func test_processPayment_payPal_failsWhenReturnURLMissing() {

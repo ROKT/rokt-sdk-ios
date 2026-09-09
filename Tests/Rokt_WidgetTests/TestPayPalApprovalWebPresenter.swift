@@ -10,6 +10,7 @@ final class TestPayPalApprovalWebPresenter: XCTestCase {
         PayPalCheckoutCoordinator(
             returnURLString: "myapp://paypal/success",
             cancelURLString: nil,
+            expectedOrderId: "ORDER_MOCK",
             completion: onResult
         )
     }

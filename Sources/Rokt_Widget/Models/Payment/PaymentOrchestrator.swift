@@ -27,6 +27,12 @@ final class PaymentOrchestrator {
     /// Cart prepare returned a PayPal approval URL that is not an `http`/`https` URL with a host.
     static let payPalApprovalURLInvalidMessage =
         "PayPal approval URL must be an http or https URL with a host; cannot start checkout."
+    /// Cart prepare returned PayPal data without an order id, so a return link could not be tied to this checkout.
+    static let payPalOrderIdMissingMessage =
+        "PayPal order id was not returned; cannot start checkout."
+    /// A return or cancel link for the active checkout did not name the order it started; the checkout stays pending.
+    static let payPalReturnLinkOrderMismatchMessage =
+        "PayPal return link did not reference the pending order; ignored."
     /// Built-in PayPal uses ``PaymentContext/returnURL`` to detect completion when PayPal redirects after approval.
     static let payPalReturnURLMissingMessage =
         "PaymentContext.returnURL is required for PayPal checkout."
@@ -62,10 +68,19 @@ final class PaymentOrchestrator {
 
     private static let pendingBuiltInTwoStepLock = NSLock()
 
+    /// Cart prepare result plus the PayPal order id the response carried (nil when absent or empty).
+    /// `PaymentPreparation` is a contracts type, so the order id rides beside it rather than inside it.
+    private struct PreparedPurchase {
+        let preparation: PaymentPreparation
+        let payPalOrderId: String?
+    }
+
     /// PayPal Step-1 cache: WebView context + deferred Step-1 completion fired on Step-2 resolve.
     private struct PendingBuiltInPayPalWebCheckout {
         weak var owner: PaymentOrchestrator?
         let approvalURL: URL
+        /// Order id from cart prepare; the return link must carry it before the checkout completes.
+        let orderId: String
         let returnURLString: String
         let cancelURLString: String?
         weak var presentingViewController: UIViewController?
@@ -257,9 +272,9 @@ final class PaymentOrchestrator {
                 paymentProvider: Self.nonEmptyTrimmed(paymentProvider)
             ) { result in
                 switch result {
-                case .success(let preparation):
+                case .success(let prepared):
                     lastPreparePaymentFailureMessage = nil
-                    prepareCompletion(preparation, nil)
+                    prepareCompletion(prepared.preparation, nil)
                 case .failure(let error):
                     lastPreparePaymentFailureMessage = error.localizedDescription
                     prepareCompletion(nil, error)
@@ -317,7 +332,8 @@ final class PaymentOrchestrator {
             paymentProvider: Self.cartPaymentProviderWireValue(for: .paypal)
         ) { result in
             switch result {
-            case .success(let preparation):
+            case .success(let prepared):
+                let preparation = prepared.preparation
                 Self.verboseLogBuiltInPayPalPaymentPreparation(preparation)
                 guard let approvalString = preparation.approvalUrl?
                     .trimmingCharacters(in: .whitespacesAndNewlines),
@@ -345,6 +361,17 @@ final class PaymentOrchestrator {
                     }
                     return
                 }
+                guard let orderId = prepared.payPalOrderId else {
+                    self.apiHelper.sendDiagnostics(
+                        message: Self.devicePayErrorCode,
+                        callStack: Self.payPalOrderIdMissingMessage,
+                        severity: .warning
+                    )
+                    DispatchQueue.main.async {
+                        completion(.failed(error: Self.payPalOrderIdMissingMessage))
+                    }
+                    return
+                }
 
                 guard let devicePaySession else {
                     DispatchQueue.main.async {
@@ -369,6 +396,7 @@ final class PaymentOrchestrator {
                 let pending = PendingBuiltInPayPalWebCheckout(
                     owner: self,
                     approvalURL: approvalURL,
+                    orderId: orderId,
                     returnURLString: returnURL,
                     cancelURLString: sanitizedCancelURL,
                     presentingViewController: viewController,
@@ -435,6 +463,7 @@ final class PaymentOrchestrator {
             let coordinator = PayPalCheckoutCoordinator(
                 returnURLString: snapshot.returnURLString,
                 cancelURLString: snapshot.cancelURLString,
+                expectedOrderId: snapshot.orderId,
                 completion: { [weak self] result in
                     self?.activePayPalCheckout = nil
                     if result.outcome == .canceled {
@@ -470,6 +499,7 @@ final class PaymentOrchestrator {
         let restored = PendingBuiltInPayPalWebCheckout(
             owner: owner,
             approvalURL: snapshot.approvalURL,
+            orderId: snapshot.orderId,
             returnURLString: snapshot.returnURLString,
             cancelURLString: snapshot.cancelURLString,
             presentingViewController: snapshot.presentingViewController,
@@ -525,8 +555,11 @@ final class PaymentOrchestrator {
             paymentProvider: Self.cartPaymentProviderWireValue(for: .card)
         ) { result in
             switch result {
-            case .success(let preparation):
-                let catalogRuntimeData = Self.catalogRuntimeDataForDevicePayConfirmation(item: item, preparation: preparation)
+            case .success(let prepared):
+                let catalogRuntimeData = Self.catalogRuntimeDataForDevicePayConfirmation(
+                    item: item,
+                    preparation: prepared.preparation
+                )
                 devicePaySession.showConfirmation(devicePaySession.layoutId, devicePaySession.catalogItemId, catalogRuntimeData)
 
                 let pending = PendingBuiltInCardCheckout(owner: self, completion: completion)
@@ -732,8 +765,26 @@ final class PaymentOrchestrator {
 
     /// When ``PaymentContext/returnURL`` is a **deep link**, PayPal may complete checkout by opening the host app;
     /// forward those URLs to the active ``PayPalCheckoutCoordinator``.
+    ///
+    /// A link that matches the return or cancel URL but does not name the pending order is still claimed
+    /// (never offered to payment extensions) and leaves the checkout pending for the genuine redirect.
     private func handleBuiltInPayPalURLIfNeeded(_ url: URL) -> Bool {
-        activePayPalCheckout?.handleDeepLinkReturn(url) ?? false
+        guard let checkout = activePayPalCheckout else { return false }
+        let outcome = checkout.handleDeepLinkReturn(url)
+        switch outcome {
+        case .notOurs:
+            return false
+        case .alreadyDone, .completedReturn, .completedCancel:
+            return true
+        case .rejectedMissingToken, .rejectedTokenMismatch:
+            apiHelper.sendDiagnostics(
+                message: Self.devicePayErrorCode,
+                callStack: Self.payPalReturnLinkOrderMismatchMessage,
+                severity: .warning,
+                additionalInfo: ["tokenPresent": outcome == .rejectedTokenMismatch]
+            )
+            return true
+        }
     }
 
     // MARK: - Private
@@ -746,7 +797,7 @@ final class PaymentOrchestrator {
         cancelURL: String? = nil,
         paymentMethodType: String? = nil,
         paymentProvider: String? = nil,
-        completion: @escaping (Result<PaymentPreparation, Error>) -> Void
+        completion: @escaping (Result<PreparedPurchase, Error>) -> Void
     ) {
         let upsellItem = UpsellItem(
             cartItemId: cartItemId,
@@ -804,7 +855,10 @@ final class PaymentOrchestrator {
                     tax: response.paymentDetails.tax,
                     approvalUrl: response.paypalData?.approvalUrl
                 )
-                completion(.success(preparation))
+                completion(.success(PreparedPurchase(
+                    preparation: preparation,
+                    payPalOrderId: Self.nonEmptyTrimmed(response.paypalData?.orderId)
+                )))
             },
             failure: { error, _, message in
                 self.apiHelper.sendDiagnostics(
