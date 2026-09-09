@@ -163,6 +163,8 @@ final class TestOffersExecuteWiring: XCTestCase {
         Self.deleteExperienceCacheTestFiles()
         ensureDocumentDirectoryExists()
         RealTimeEventManager.shared.clearAllEvents()
+        // The clear is queued, not waited for; this read orders the test thread behind it before the next step.
+        _ = RealTimeEventManager.shared.getTriggeredEvents()
         RoktLogger.shared.sessionId = nil
         impl = CapturingImplementation()
         // A real window/root so the success render hand-off has somewhere to attach.
@@ -174,6 +176,8 @@ final class TestOffersExecuteWiring: XCTestCase {
     override func tearDown() {
         Self.deleteExperienceCacheTestFiles()
         RealTimeEventManager.shared.clearAllEvents()
+        // The clear is queued, not waited for; this read orders the test thread behind it before the next step.
+        _ = RealTimeEventManager.shared.getTriggeredEvents()
         RoktLogger.shared.sessionId = nil
         config.environment = originalEnvironment
         window?.isHidden = true
