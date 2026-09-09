@@ -620,4 +620,43 @@ class RealTimeEventStoreFileTest: XCTestCase {
             "Triggered events should remain empty after clearing an already empty store."
         )
     }
+
+    /// `clear()` is queued on the processing queue rather than waited for, so a host calling it from the main
+    /// thread never blocks behind queued file work; a read that follows it still sees the empty store, because
+    /// reads take the same queue.
+    func test_clear_returnsBeforeItsDeletionRuns_andTheReadThatFollowsSeesIt() {
+        let untriggeredEvent = createRoktUXRealTimeEventResponse(
+            triggerGuid: guid1,
+            triggerEvent: signalImpressionRawValue,
+            eventType: finalType1,
+            payload: payload1
+        )
+        sut.addUntriggeredEvents([untriggeredEvent])
+        let eventRequest = createRoktEventRequest(
+            parentGuid: guid1,
+            eventType: RoktUXEventType(rawValue: signalImpressionRawValue)!
+        )
+        sut.markAsTriggered([eventRequest])
+        let expectationNotEmpty = expectation(description: "Pre-condition: triggeredEvents should not be empty")
+        DispatchQueue.main.asyncAfter(deadline: .now() + expectationTimeout, execute: {
+            XCTAssertFalse(self.sut.getTriggeredEvents().isEmpty, "Pre-condition: triggeredEvents should not be empty")
+            expectationNotEmpty.fulfill()
+        })
+        wait(for: [expectationNotEmpty], timeout: expectationTimeout + 0.5)
+
+        // The queued deletion holds until this thread has seen clear() return: a clear() that waited for its own
+        // deletion could only return after that hold had timed out, and the flag would stay false.
+        let clearReturned = DispatchSemaphore(value: 0)
+        var deletionRanAfterClearReturned = false
+        sut.unitTest_beforeClearLands = {
+            deletionRanAfterClearReturned = clearReturned.wait(timeout: .now() + 1) == .success
+        }
+        sut.clear()
+        clearReturned.signal()
+
+        // No wait between the clear and the read: the read is ordered behind the clear, not timed after it.
+        XCTAssertTrue(sut.getTriggeredEvents().isEmpty, "A read that follows clear() does not see what it removed.")
+        XCTAssertTrue(deletionRanAfterClearReturned, "clear() returns without waiting for the deletion it queued.")
+        sut.unitTest_beforeClearLands = nil
+    }
 }

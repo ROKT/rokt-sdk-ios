@@ -58,6 +58,8 @@ class RealTimeEventStoreFile: RealTimeEventStore {
     private var accumulatedEventsToMark: [RealTimeTrigger] = []
     private let debounceInterval: TimeInterval = 0.5
     private let eventProcessingQueue = DispatchQueue(label: "com.rokt.RealTimeEventManager.eventProcessingQueue")
+    // Test-only hook, run on the processing queue just before a queued clear removes the files; nil in production.
+    var unitTest_beforeClearLands: (() -> Void)?
 
     static let storageDirectoryName = "RoktRealTimeEvents"
     static let triggeredEventsFileName = "triggered_events.json"
@@ -137,8 +139,9 @@ class RealTimeEventStoreFile: RealTimeEventStore {
     }
 
     func getTriggeredEvents() -> [TriggeredRealTimeEvent] {
-        guard let triggeredEventsFilePath else { return [] }
-        return load(from: triggeredEventsFilePath)
+        // Read on the processing queue so a read that follows a clear or a write observes it: the queue is
+        // serial, so the read waits for what was queued before it and for nothing else.
+        eventProcessingQueue.sync { loadTriggeredEvents() }
     }
 
     func markAsTriggered(_ triggeredEvents: [RealTimeTrigger]) {
@@ -182,7 +185,7 @@ class RealTimeEventStoreFile: RealTimeEventStore {
         accumulatedEventsToMark.removeAll()
 
         let untriggeredEvents = getUntriggeredEvents()
-        let currentTriggeredEvents = getTriggeredEvents()
+        let currentTriggeredEvents = loadTriggeredEvents()
 
         let updatedTriggeredEvents = updateTriggeredEvents(
             currentTriggeredEvents: currentTriggeredEvents,
@@ -195,13 +198,20 @@ class RealTimeEventStoreFile: RealTimeEventStore {
     }
 
     func clear() {
-        // On the same queue as the writes, so a clear never lands inside an in-flight read-modify-write.
-        eventProcessingQueue.sync {
-            if let untriggeredEventsFilePath {
-                try? FileManager.default.removeItem(at: untriggeredEventsFilePath)
+        // Queued on the same serial queue as the writes, not waited for: the clear still lands after every
+        // read-modify-write queued before it and before any read queued after it (getTriggeredEvents takes the
+        // same queue), but the caller — usually the main thread, at a transaction boundary — does not block
+        // behind queued file work. The paths and the hook are captured so the block needs nothing from the store.
+        let untriggeredPath = untriggeredEventsFilePath
+        let triggeredPath = triggeredEventsFilePath
+        let beforeClearLands = unitTest_beforeClearLands
+        eventProcessingQueue.async {
+            beforeClearLands?()
+            if let untriggeredPath {
+                try? FileManager.default.removeItem(at: untriggeredPath)
             }
-            if let triggeredEventsFilePath {
-                try? FileManager.default.removeItem(at: triggeredEventsFilePath)
+            if let triggeredPath {
+                try? FileManager.default.removeItem(at: triggeredPath)
             }
         }
     }
@@ -209,6 +219,12 @@ class RealTimeEventStoreFile: RealTimeEventStore {
     private func getUntriggeredEvents() -> [UntriggeredRealTimeEvent] {
         guard let untriggeredEventsFilePath else { return [] }
         return load(from: untriggeredEventsFilePath)
+    }
+
+    // The bare file read, for callers already on the processing queue; `getTriggeredEvents` is the queued form.
+    private func loadTriggeredEvents() -> [TriggeredRealTimeEvent] {
+        guard let triggeredEventsFilePath else { return [] }
+        return load(from: triggeredEventsFilePath)
     }
 
     private func save<T: Codable>(_ value: T, to url: URL) {
