@@ -129,6 +129,22 @@ final class TestClearSession: XCTestCase {
         XCTAssertEqual(implementation.currentSessionGeneration(), before + 2)
     }
 
+    /// The generation moves BEFORE the managed sessions (and with them the real-time store) are
+    /// invalidated, so a placement's capture that checks the generation once the reset has begun is
+    /// fenced out and can never write into the store the reset just emptied.
+    func test_clearSession_advancesTheGenerationBeforeInvalidatingSessions() {
+        let recorder = GenerationRecordingManagedSession()
+        let recordingImplementation = RoktInternalImplementation(
+            sessionManager: SessionManager(managedSessions: [recorder], userDefaults: userDefaults)
+        )
+        recorder.readGeneration = { recordingImplementation.currentSessionGeneration() }
+        let before = recordingImplementation.currentSessionGeneration()
+
+        recordingImplementation.clearSession()
+
+        XCTAssertEqual(recorder.generationAtInvalidation, before + 1)
+    }
+
     // MARK: - Pending event replay
 
     func test_replayPendingTxnEvents_replaysEachBatchAgainstItsOwnSession() {
@@ -202,5 +218,15 @@ final class TestClearSession: XCTestCase {
             defer { batches = [] }
             return batches
         }
+    }
+}
+
+/// Records the session generation at the moment the session is invalidated.
+private final class GenerationRecordingManagedSession: ManagedSession {
+    var readGeneration: (() -> Int)?
+    private(set) var generationAtInvalidation: Int?
+
+    func sessionInvalidated() {
+        generationAtInvalidation = readGeneration?()
     }
 }

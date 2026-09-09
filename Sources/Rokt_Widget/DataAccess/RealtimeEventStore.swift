@@ -195,11 +195,14 @@ class RealTimeEventStoreFile: RealTimeEventStore {
     }
 
     func clear() {
-        if let untriggeredEventsFilePath {
-            try? FileManager.default.removeItem(at: untriggeredEventsFilePath)
-        }
-        if let triggeredEventsFilePath {
-            try? FileManager.default.removeItem(at: triggeredEventsFilePath)
+        // On the same queue as the writes, so a clear never lands inside an in-flight read-modify-write.
+        eventProcessingQueue.sync {
+            if let untriggeredEventsFilePath {
+                try? FileManager.default.removeItem(at: untriggeredEventsFilePath)
+            }
+            if let triggeredEventsFilePath {
+                try? FileManager.default.removeItem(at: triggeredEventsFilePath)
+            }
         }
     }
 

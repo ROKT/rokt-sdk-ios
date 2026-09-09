@@ -102,7 +102,8 @@ class RoktInternalImplementation {
     // generation is discarded. Covers what the txn store's epoch does not: the legacy session id,
     // the real-time event store, the experience cache and the render itself.
     private var sessionGeneration = 0
-    private let sessionGenerationLock = NSLock()
+    // Recursive so a managed session invalidated under the lock may read the generation.
+    private let sessionGenerationLock = NSRecursiveLock()
 
     // Caching is disabled by default when no CacheConfig is provided to the Builder.
     var roktConfig: RoktConfig = RoktConfig.Builder().build()
@@ -1196,10 +1197,13 @@ class RoktInternalImplementation {
         RoktAPIHelper.logApiCalled(Self.apiClearSessionCode)
         EventQueue.flush()
         TxnSessionManager.clearPersistedSession(store: txnSessionStore)
+        // The generation moves first and the store clears under the same lock, so a capture from a
+        // placement still in flight either lands before the clear or is fenced out — never after it.
+        sessionGenerationLock.lock()
+        sessionGeneration &+= 1
         // Also clears the legacy session id and, via ManagedSession, the real-time event store.
         sessionManager.invalidateSession()
-        // Fences out a placement still loading: its completion would otherwise redo the above.
-        bumpSessionGeneration()
+        sessionGenerationLock.unlock()
         // The cached experience was fetched inside the dropped session, so it goes with it.
         ExperienceCacheManager.clearCache()
         mustBypassCacheOnNextExecute = true
@@ -1212,16 +1216,14 @@ class RoktInternalImplementation {
         return sessionGeneration
     }
 
-    private func bumpSessionGeneration() {
-        sessionGenerationLock.lock()
-        defer { sessionGenerationLock.unlock() }
-        sessionGeneration &+= 1
-    }
 
     // The offers response echoes events for the next placement to forward. Captured after a
     // clearSession, they would re-seed the store that call just emptied.
     func captureUntriggeredEvents(_ events: [UntriggeredRealTimeEvent], generation: Int) {
-        guard currentSessionGeneration() == generation else { return }
+        // Checked and written under the generation lock, so a clearSession cannot slip between them.
+        sessionGenerationLock.lock()
+        defer { sessionGenerationLock.unlock() }
+        guard sessionGeneration == generation else { return }
         RealTimeEventManager.shared.addUntriggeredEvents(events)
     }
 
@@ -1323,6 +1325,8 @@ class RoktInternalImplementation {
 
         isExecuting = true
         let generation = currentSessionGeneration()
+        // The session the placement started in — a failure discarded after clearSession is reported against it.
+        let departingSessionId = sessionManager.getCurrentSessionIdWithoutExpiring()
         self.placements = placements
         let startDate = Date()
         if let tagId = roktTagId {
@@ -1413,8 +1417,17 @@ class RoktInternalImplementation {
                         let onFailure: (Error, Int?, String) -> Void = { error, statusCode, response in
                             onExperiencesRequestEnd()
                             guard self.currentSessionGeneration() == generation else {
-                                // Skips executeFailureHandler: its diagnostics would carry the new session.
+                                // Not executeFailureHandler: its diagnostic would carry the new session.
+                                // The failure is still reported, against the session it happened in.
                                 self.isExecuting = false
+                                if let code = statusCode, code != 429 {
+                                    RoktAPIHelper.sendDiagnostics(
+                                        message: Self.executeDiagnosticCode,
+                                        callStack: "response: \(response) ,statusCode: \(String(describing: statusCode))"
+                                            + " ,error: \(error.localizedDescription) ,discardedAfterClearSession: true",
+                                        sessionId: departingSessionId
+                                    )
+                                }
                                 RoktLogger.shared.info("Discarding a placement that failed after clearSession")
                                 self.conclude(withFailure: true)
                                 return
