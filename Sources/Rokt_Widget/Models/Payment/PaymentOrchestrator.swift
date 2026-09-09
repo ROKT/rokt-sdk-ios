@@ -27,8 +27,11 @@ struct BuiltInTwoStepDevicePaySession {
 /// kept under this key so only the same item's Step-2 confirm can resume it.
 struct BuiltInTwoStepCheckoutKey: Hashable {
     let executeId: String
+    // periphery:ignore - compared through the synthesized Hashable conformance
     let layoutId: String
+    // periphery:ignore - compared through the synthesized Hashable conformance
     let catalogItemId: String
+    // periphery:ignore - compared through the synthesized Hashable conformance
     let cartItemId: String
 }
 
