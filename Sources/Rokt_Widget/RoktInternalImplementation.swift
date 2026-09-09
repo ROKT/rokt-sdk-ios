@@ -1216,7 +1216,6 @@ class RoktInternalImplementation {
         return sessionGeneration
     }
 
-
     // The offers response echoes events for the next placement to forward. Captured after a
     // clearSession, they would re-seed the store that call just emptied.
     func captureUntriggeredEvents(_ events: [UntriggeredRealTimeEvent], generation: Int) {
