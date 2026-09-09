@@ -1,0 +1,249 @@
+import Mocker
+import XCTest
+@testable import Rokt_Widget
+@testable internal import RoktUXHelper
+
+/// Deferred built-in two-step state is bound to the item and placement that started it: a Step-2 confirm for a
+/// different item runs its own cart purchase and leaves the other entry alone, and the state is dropped when its
+/// layout closes or fails, or the session is cleared.
+final class TestBuiltInTwoStepCheckoutBinding: XCTestCase {
+
+    private let purchaseURL = URL(string: "https://apps.rokt.com/rokt-mobile/v1/cart/purchase")!
+    private let executeId = "two-step-binding-test"
+    private let forwardPaymentTestTagId = "test-tag-id"
+
+    private var originalTagId: String?
+
+    /// Scratch session store so `clearSession()` never touches `UserDefaults.standard` in tests.
+    private final class ScratchTxnStore: TxnSessionStore {
+        private var values: [String: String] = [:]
+        func string(forKey key: String) -> String? { values[key] }
+        func setString(_ value: String, forKey key: String) { values[key] = value }
+        func removeValue(forKey key: String) { values[key] = nil }
+    }
+
+    override func setUp() {
+        super.setUp()
+        Rokt.setEnvironment(environment: .Prod)
+        originalTagId = Rokt.shared.roktImplementation.roktTagId
+        Rokt.shared.roktImplementation.roktTagId = forwardPaymentTestTagId
+        PaymentOrchestrator.resetBuiltInTwoStepDeferredStateForTesting()
+    }
+
+    override func tearDown() {
+        PaymentOrchestrator.resetBuiltInTwoStepDeferredStateForTesting()
+        Rokt.shared.roktImplementation.roktTagId = originalTagId
+        super.tearDown()
+    }
+
+    // MARK: - Helpers
+
+    private func makeForwardPaymentEvent(cartItemId: String, catalogItemId: String) -> RoktUXEvent.CartItemForwardPayment {
+        RoktUXEvent.CartItemForwardPayment(
+            layoutId: "layout-1",
+            name: "Test item",
+            cartItemId: cartItemId,
+            catalogItemId: catalogItemId,
+            currency: "USD",
+            description: "desc",
+            linkedProductId: nil,
+            providerData: "provider",
+            quantity: 1,
+            totalPrice: 9.99,
+            unitPrice: 9.99,
+            transactionData: nil
+        )
+    }
+
+    private func key(executeId: String? = nil, cartItemId: String, catalogItemId: String) -> BuiltInTwoStepCheckoutKey {
+        BuiltInTwoStepCheckoutKey(
+            executeId: executeId ?? self.executeId,
+            layoutId: "layout-1",
+            catalogItemId: catalogItemId,
+            cartItemId: cartItemId
+        )
+    }
+
+    /// Seeds a pending PayPal Step-1 whose completion must never run in these tests.
+    private func seedPayPal(_ orch: PaymentOrchestrator, for key: BuiltInTwoStepCheckoutKey) {
+        orch.unitTest_seedDeferredBuiltInPayPalForwardPayment(
+            for: key,
+            approvalURL: URL(string: "https://www.paypal.com/checkoutnow?token=MOCK")!,
+            returnURLString: "myapp://paypal/success",
+            orderId: "ORDER_MOCK"
+        ) { _ in
+            XCTFail("A pending PayPal checkout for another item or a closed placement must never complete")
+        }
+    }
+
+    /// Seeds a pending card Step-1 whose completion must never run in these tests.
+    private func seedCard(_ orch: PaymentOrchestrator, for key: BuiltInTwoStepCheckoutKey) {
+        orch.unitTest_seedDeferredBuiltInCardForwardPayment(for: key) { _ in
+            XCTFail("A pending card checkout for a closed placement must never complete")
+        }
+    }
+
+    private func installMockingHTTPClient() {
+        let configuration = URLSessionConfiguration.default
+        configuration.protocolClasses = [MockingURLProtocol.self]
+        NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
+    }
+
+    private func registerPurchaseMock(body: String, onRequest: @escaping (URLRequest) -> Void) {
+        var mock = Mock(
+            url: purchaseURL,
+            dataType: .json,
+            statusCode: 200,
+            data: [.post: Data(body.utf8)]
+        )
+        mock.onRequest = { request, _ in
+            onRequest(request)
+        }
+        mock.register()
+    }
+
+    /// An implementation with a state bag whose instant-purchase flag is set, as after the Step-2 tap;
+    /// `forwardPaymentFinalized` clears the flag, which is how the tests observe that the event's own flow ran.
+    private func makeImplementationAfterStepTwoTap() -> (RoktInternalImplementation, ExecuteStateBag) {
+        let impl = RoktInternalImplementation()
+        let bag = ExecuteStateBag(uxHelper: nil, onRoktEvent: nil)
+        bag.loadedPlacements = 1
+        bag.instantPurchaseInitiated = true
+        impl.stateManager.addState(id: executeId, state: bag)
+        return (impl, bag)
+    }
+
+    private func expectFlagCleared(_ bag: ExecuteStateBag) -> XCTestExpectation {
+        let exp = expectation(description: "instantPurchaseInitiated cleared")
+        func check() {
+            if !bag.instantPurchaseInitiated {
+                exp.fulfill()
+            } else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.02, execute: check)
+            }
+        }
+        DispatchQueue.main.async(execute: check)
+        return exp
+    }
+
+    private func drainMainQueue() {
+        for _ in 0..<2 {
+            let flush = expectation(description: "main queue flush")
+            DispatchQueue.main.async { flush.fulfill() }
+            wait(for: [flush], timeout: 1.0)
+        }
+    }
+
+    private func requestBodyText(_ request: URLRequest) -> String {
+        guard let json = request.bodyStreamAsJSON(),
+              let data = try? JSONSerialization.data(withJSONObject: json)
+        else { return "" }
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    // MARK: - Step-2 resumes only its own item's Step-1
+
+    func test_handleForwardPayment_pendingPayPalForAnotherItem_runsTheEventsOwnCartPurchase() {
+        let (impl, bag) = makeImplementationAfterStepTwoTap()
+        let orch = impl.paymentOrchestratorForTesting
+        let itemAKey = key(cartItemId: "cart-a", catalogItemId: "catalog-a")
+        seedPayPal(orch, for: itemAKey)
+
+        let requestSent = expectation(description: "cart purchase sent for item B")
+        var requestBodies: [String] = []
+        registerPurchaseMock(body: #"{"success":true}"#) { request in
+            requestBodies.append(self.requestBodyText(request))
+            requestSent.fulfill()
+        }
+        installMockingHTTPClient()
+        let cleared = expectFlagCleared(bag)
+
+        Rokt.shared.roktImplementation.roktTagId = forwardPaymentTestTagId
+        impl.handleForwardPayment(
+            executeId: executeId,
+            event: makeForwardPaymentEvent(cartItemId: "cart-b", catalogItemId: "catalog-b")
+        )
+
+        wait(for: [requestSent, cleared], timeout: 3.0)
+        XCTAssertEqual(requestBodies.count, 1)
+        XCTAssertTrue(requestBodies.first?.contains("cart-b") == true, "The purchase carries the confirmed item")
+        XCTAssertFalse(requestBodies.first?.contains("cart-a") == true, "The purchase never carries the other item")
+        XCTAssertTrue(orch.unitTest_hasPendingBuiltInTwoStep(for: itemAKey), "Item A stays pending for its own confirm")
+    }
+
+    func test_handleForwardPayment_pendingPayPalForSameItemInAnotherPlacement_runsTheEventsOwnCartPurchase() {
+        let (impl, bag) = makeImplementationAfterStepTwoTap()
+        let orch = impl.paymentOrchestratorForTesting
+        let otherPlacementKey = key(executeId: "other-execute", cartItemId: "cart-a", catalogItemId: "catalog-a")
+        seedPayPal(orch, for: otherPlacementKey)
+
+        let requestSent = expectation(description: "cart purchase sent")
+        registerPurchaseMock(body: #"{"success":true}"#) { _ in requestSent.fulfill() }
+        installMockingHTTPClient()
+        let cleared = expectFlagCleared(bag)
+
+        Rokt.shared.roktImplementation.roktTagId = forwardPaymentTestTagId
+        impl.handleForwardPayment(
+            executeId: executeId,
+            event: makeForwardPaymentEvent(cartItemId: "cart-a", catalogItemId: "catalog-a")
+        )
+
+        wait(for: [requestSent, cleared], timeout: 3.0)
+        XCTAssertTrue(orch.unitTest_hasPendingBuiltInTwoStep(for: otherPlacementKey))
+    }
+
+    // MARK: - Lifecycle fences
+
+    func test_layoutClosed_dropsPendingTwoStepForThatExecuteOnly() {
+        let impl = RoktInternalImplementation()
+        let orch = impl.paymentOrchestratorForTesting
+        let closingKey = key(cartItemId: "cart-a", catalogItemId: "catalog-a")
+        let otherExecuteKey = key(executeId: "other-execute", cartItemId: "cart-b", catalogItemId: "catalog-b")
+        seedPayPal(orch, for: closingKey)
+        seedCard(orch, for: otherExecuteKey)
+
+        impl.callOnRoktUXEvent(executeId, uxEvent: RoktUXEvent.LayoutClosed(layoutId: "layout-1"))
+        drainMainQueue()
+
+        XCTAssertFalse(orch.unitTest_hasPendingBuiltInTwoStep(for: closingKey))
+        XCTAssertFalse(orch.presentPendingBuiltInPayPalForForwardPayment(for: closingKey) { _ in })
+        XCTAssertTrue(orch.unitTest_hasPendingBuiltInTwoStep(for: otherExecuteKey), "Another placement's checkout is untouched")
+        XCTAssertNotNil(orch.beginBuiltInCardForwardPaymentIfReady(for: otherExecuteKey))
+    }
+
+    func test_layoutFailure_dropsPendingTwoStepForThatExecute() {
+        let impl = RoktInternalImplementation()
+        let orch = impl.paymentOrchestratorForTesting
+        let failingKey = key(cartItemId: "cart-a", catalogItemId: "catalog-a")
+        seedCard(orch, for: failingKey)
+
+        impl.callOnRoktUXEvent(executeId, uxEvent: RoktUXEvent.LayoutFailure(layoutId: "layout-1", reason: .invalidSchema))
+        drainMainQueue()
+
+        XCTAssertFalse(orch.unitTest_hasPendingBuiltInTwoStep(for: failingKey))
+        XCTAssertNil(orch.beginBuiltInCardForwardPaymentIfReady(for: failingKey))
+    }
+
+    func test_clearSession_dropsEveryPendingTwoStep() {
+        let userDefaults = UserDefaults(suiteName: #file)!
+        userDefaults.removePersistentDomain(forName: #file)
+        defer { userDefaults.removePersistentDomain(forName: #file) }
+        let impl = RoktInternalImplementation(
+            sessionManager: SessionManager(managedSessions: [], userDefaults: userDefaults)
+        )
+        impl.txnSessionStore = ScratchTxnStore()
+        let orch = impl.paymentOrchestratorForTesting
+        let keyA = key(cartItemId: "cart-a", catalogItemId: "catalog-a")
+        let keyB = key(executeId: "other-execute", cartItemId: "cart-b", catalogItemId: "catalog-b")
+        seedPayPal(orch, for: keyA)
+        seedCard(orch, for: keyB)
+
+        impl.clearSession()
+        drainMainQueue()
+
+        XCTAssertFalse(orch.unitTest_hasPendingBuiltInTwoStep(for: keyA))
+        XCTAssertFalse(orch.unitTest_hasPendingBuiltInTwoStep(for: keyB))
+        XCTAssertFalse(orch.presentPendingBuiltInPayPalForForwardPayment(for: keyA) { _ in })
+        XCTAssertNil(orch.beginBuiltInCardForwardPaymentIfReady(for: keyB))
+    }
+}

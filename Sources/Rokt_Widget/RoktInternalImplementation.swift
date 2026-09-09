@@ -532,6 +532,7 @@ class RoktInternalImplementation {
         } else if (uxEvent as? RoktUXEvent.LayoutFailure) != nil {
 
             callOnRoktEvent(executeId, event: uxEvent.mapToRoktEvent)
+            paymentOrchestrator.discardPendingBuiltInTwoStep(forExecuteId: executeId)
             callOnUnLoad(executeId)
             placements = nil
             _swiftUiExecuteLayout = nil
@@ -543,6 +544,11 @@ class RoktInternalImplementation {
                     || (uxEvent as? RoktUXEvent.LayoutCompleted) != nil {
             // Track placement unload.
             callOnRoktEvent(executeId, event: uxEvent.mapToRoktEvent)
+            if uxEvent is RoktUXEvent.LayoutClosed {
+                // A closed layout has no confirm button left to resume a deferred two-step checkout.
+                // LayoutCompleted is left out until its timing against a still-visible confirm button is confirmed.
+                paymentOrchestrator.discardPendingBuiltInTwoStep(forExecuteId: executeId)
+            }
             callOnUnLoad(executeId)
         } else if let event = uxEvent as? RoktUXEvent.CartItemInstantPurchase {
             callOnRoktEvent(executeId, event: RoktEvent.CartItemInstantPurchaseInitiated(
@@ -668,6 +674,7 @@ class RoktInternalImplementation {
 
             let twoStepSessionFactory: (() -> BuiltInTwoStepDevicePaySession) = {
                 BuiltInTwoStepDevicePaySession(
+                    executeId: executeId,
                     layoutId: event.layoutId,
                     catalogItemId: event.catalogItemId,
                     showConfirmation: { [weak self] layoutId, catalogItemId, catalogRuntimeData in
@@ -845,7 +852,9 @@ class RoktInternalImplementation {
 
     func handleForwardPayment(executeId: String,
                               event: RoktUXEvent.CartItemForwardPayment) {
-        let presentedPayPal = paymentOrchestrator.presentPendingBuiltInPayPalForForwardPayment { [weak self] result in
+        // Only this item's own pending Step-1 may be resumed; anything else runs the event's own cart purchase.
+        let key = BuiltInTwoStepCheckoutKey(executeId: executeId, forwardPayment: event)
+        let presentedPayPal = paymentOrchestrator.presentPendingBuiltInPayPalForForwardPayment(for: key) { [weak self] result in
             guard let self else { return }
             switch result.outcome {
             case .succeeded:
@@ -1178,6 +1187,8 @@ class RoktInternalImplementation {
         // The cached experience was fetched inside the dropped session, so it goes with it.
         ExperienceCacheManager.clearCache()
         mustBypassCacheOnNextExecute = true
+        // A checkout started under the dropped session must not be resumable by whoever comes next.
+        paymentOrchestrator.discardAllPendingBuiltInTwoStep()
         RoktLogger.shared.info("Session cleared; the next placement will start a new session")
     }
 

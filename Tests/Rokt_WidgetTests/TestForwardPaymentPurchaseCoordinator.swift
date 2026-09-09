@@ -72,11 +72,16 @@ final class TestForwardPaymentPurchaseCoordinator: XCTestCase {
     }
 
     /// - Parameter assertNoStepOneCompletion: When `true`, Step-1 completion fails the test if invoked (used for retry / restore flows where Step-1 must stay open). When `false`, Step-1 may complete after a terminal ``finishBuiltInCardForwardPaymentAttempt``.
+    /// Key of the item and placement ``makeForwardPaymentEvent()`` confirms, under which Step-1 state is seeded.
+    private var eventKey: BuiltInTwoStepCheckoutKey {
+        BuiltInTwoStepCheckoutKey(executeId: executeId, forwardPayment: makeForwardPaymentEvent())
+    }
+
     private func seedDeferredBuiltInCardForwardPaymentReady(
         orch: PaymentOrchestrator,
         assertNoStepOneCompletion: Bool = true
     ) {
-        orch.unitTest_seedDeferredBuiltInCardForwardPayment { _ in
+        orch.unitTest_seedDeferredBuiltInCardForwardPayment(for: eventKey) { _ in
             if assertNoStepOneCompletion {
                 XCTFail("Step-1 completion must not run until terminal finish")
             }
@@ -132,7 +137,10 @@ final class TestForwardPaymentPurchaseCoordinator: XCTestCase {
         wait(for: [hideExp], timeout: 3.0)
         XCTAssertTrue(finalizeLog.invocations.isEmpty, "Retryable transport failure must not call forwardPaymentFinalized")
         XCTAssertFalse(orch.isBuiltInCardForwardPaymentInFlight(), "Restore moves cardInFlight back to card")
-        XCTAssertNotNil(orch.beginBuiltInCardForwardPaymentIfReady(), "Buyer can start a second cart purchase after restore")
+        XCTAssertNotNil(
+            orch.beginBuiltInCardForwardPaymentIfReady(for: eventKey),
+            "Buyer can start a second cart purchase after restore"
+        )
     }
 
     func test_cardInFlight_retryableBusinessReason_skipsFinalize_restoresPendingCard() {
@@ -151,7 +159,7 @@ final class TestForwardPaymentPurchaseCoordinator: XCTestCase {
         wait(for: [hideExp], timeout: 3.0)
         XCTAssertTrue(finalizeLog.invocations.isEmpty)
         XCTAssertFalse(orch.isBuiltInCardForwardPaymentInFlight())
-        XCTAssertNotNil(orch.beginBuiltInCardForwardPaymentIfReady())
+        XCTAssertNotNil(orch.beginBuiltInCardForwardPaymentIfReady(for: eventKey))
     }
 
     func test_cardInFlight_terminalBusinessReason_invokesFinalizeAndClearsDeferredState() {
@@ -172,7 +180,7 @@ final class TestForwardPaymentPurchaseCoordinator: XCTestCase {
         XCTAssertEqual(finalizeLog.invocations.first?.success, false)
         XCTAssertEqual(finalizeLog.invocations.first?.failureReason, "declined")
         XCTAssertFalse(orch.isBuiltInCardForwardPaymentInFlight())
-        XCTAssertNil(orch.beginBuiltInCardForwardPaymentIfReady())
+        XCTAssertNil(orch.beginBuiltInCardForwardPaymentIfReady(for: eventKey))
     }
 
     func test_cardInFlight_success_invokesFinalizeWithSuccess() {

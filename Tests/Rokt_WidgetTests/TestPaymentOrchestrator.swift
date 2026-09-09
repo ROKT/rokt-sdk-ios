@@ -124,12 +124,28 @@ class TestPaymentOrchestrator: XCTestCase {
         super.tearDown()
     }
 
+    private static let testExecuteId = "test_execute"
+
     private func paypalDeviceSessionForTests(
         onConfirmation: ((String, String, [String: String]) -> Void)? = nil
     ) -> BuiltInTwoStepDevicePaySession {
-        BuiltInTwoStepDevicePaySession(layoutId: "test_layout", catalogItemId: "test_catalog") { lid, cid, data in
+        BuiltInTwoStepDevicePaySession(
+            executeId: Self.testExecuteId,
+            layoutId: "test_layout",
+            catalogItemId: "test_catalog"
+        ) { lid, cid, data in
             onConfirmation?(lid, cid, data)
         }
+    }
+
+    /// Key under which the test sessions store Step-1 for `cartItemId`; Step-2 lookups must present the same key.
+    private func testKey(cartItemId: String = "v1:cart:1") -> BuiltInTwoStepCheckoutKey {
+        BuiltInTwoStepCheckoutKey(
+            executeId: Self.testExecuteId,
+            layoutId: "test_layout",
+            catalogItemId: "test_catalog",
+            cartItemId: cartItemId
+        )
     }
 
     // MARK: - Registration
@@ -604,7 +620,7 @@ class TestPaymentOrchestrator: XCTestCase {
             XCTAssertEqual(result.transactionId, "mock_paypal_txn")
             expectation.fulfill()
         }
-        _ = sut.presentPendingBuiltInPayPalForForwardPayment { _ in }
+        _ = sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey(cartItemId: "v1:cart-paypal:canal")) { _ in }
 
         wait(for: [expectation], timeout: 1.0)
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.initializePurchaseCallCount, 1)
@@ -646,7 +662,7 @@ class TestPaymentOrchestrator: XCTestCase {
         ) { _ in
             expectation.fulfill()
         }
-        _ = sut.presentPendingBuiltInPayPalForForwardPayment { _ in }
+        _ = sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in }
 
         wait(for: [expectation], timeout: 1.0)
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchaseReturnURL, "myapp://paypal/success")
@@ -686,7 +702,7 @@ class TestPaymentOrchestrator: XCTestCase {
             step1Result = result
         }
 
-        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment { _ in
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in
             XCTFail("onCompletion must not run when hosted PayPal approval is canceled")
         })
 
@@ -703,7 +719,7 @@ class TestPaymentOrchestrator: XCTestCase {
 
         payPalPresenter.sheetResult = .succeeded(transactionId: "retry_ok")
         var forwardObserverResult: PaymentSheetResult?
-        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment { result in
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { result in
             forwardObserverResult = result
         })
         for _ in 0..<8 {
@@ -744,7 +760,7 @@ class TestPaymentOrchestrator: XCTestCase {
         ) { _ in
             paypalExpectation.fulfill()
         }
-        _ = sut.presentPendingBuiltInPayPalForForwardPayment { _ in }
+        _ = sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in }
         wait(for: [paypalExpectation], timeout: 1.0)
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethodType, "Paypal")
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "PayPal")
@@ -854,6 +870,7 @@ class TestPaymentOrchestrator: XCTestCase {
         let confirmationExpectation = expectation(description: "Card showConfirmation fires after prepare")
         var confirmationData: [String: String]?
         let cardSession = BuiltInTwoStepDevicePaySession(
+            executeId: Self.testExecuteId,
             layoutId: "test_layout",
             catalogItemId: "test_catalog"
         ) { _, _, data in
@@ -870,7 +887,7 @@ class TestPaymentOrchestrator: XCTestCase {
             from: UIViewController(),
             builtInCardDevicePaySession: cardSession
         ) { _ in
-            // Step-1 completion is held until the forward-payment attempt finishes (see ``beginBuiltInCardForwardPaymentIfReady()``).
+            // Step-1 completion is held until the forward-payment attempt finishes (see ``beginBuiltInCardForwardPaymentIfReady(for:)``).
             XCTFail("Card Step-1 completion fired before forward-payment terminal finish")
         }
 
@@ -891,6 +908,7 @@ class TestPaymentOrchestrator: XCTestCase {
 
         let confirmationExpectation = expectation(description: "Card showConfirmation fires")
         let cardSession = BuiltInTwoStepDevicePaySession(
+            executeId: Self.testExecuteId,
             layoutId: "test_layout",
             catalogItemId: "test_catalog"
         ) { _, _, _ in
@@ -911,20 +929,26 @@ class TestPaymentOrchestrator: XCTestCase {
         }
         wait(for: [confirmationExpectation], timeout: 1.0)
 
-        guard sut.beginBuiltInCardForwardPaymentIfReady() != nil else {
+        guard sut.beginBuiltInCardForwardPaymentIfReady(for: testKey(cartItemId: "v1:cart-card:canal")) != nil else {
             XCTFail("Expected begin after prepare")
             return
         }
         XCTAssertTrue(sut.isBuiltInCardForwardPaymentInFlight())
         XCTAssertNil(
-            sut.beginBuiltInCardForwardPaymentIfReady(),
+            sut.beginBuiltInCardForwardPaymentIfReady(for: testKey(cartItemId: "v1:cart-card:canal")),
             "Second begin must return nil while in flight"
         )
 
-        sut.finishBuiltInCardForwardPaymentAttempt(result: .succeeded(transactionId: "card_txn"))
+        sut.finishBuiltInCardForwardPaymentAttempt(
+            for: testKey(cartItemId: "v1:cart-card:canal"),
+            result: .succeeded(transactionId: "card_txn")
+        )
         wait(for: [stepOneCompletionExpectation], timeout: 1.0)
         XCTAssertFalse(sut.isBuiltInCardForwardPaymentInFlight())
-        XCTAssertNil(sut.beginBuiltInCardForwardPaymentIfReady(), "No pending card after terminal finish")
+        XCTAssertNil(
+            sut.beginBuiltInCardForwardPaymentIfReady(for: testKey(cartItemId: "v1:cart-card:canal")),
+            "No pending card after terminal finish"
+        )
     }
 
     func test_restoreBuiltInCardForwardPaymentAfterRetryableFailure_allowsSecondBegin() {
@@ -933,6 +957,7 @@ class TestPaymentOrchestrator: XCTestCase {
 
         let confirmationExpectation = expectation(description: "Card showConfirmation fires")
         let cardSession = BuiltInTwoStepDevicePaySession(
+            executeId: Self.testExecuteId,
             layoutId: "test_layout",
             catalogItemId: "test_catalog"
         ) { _, _, _ in
@@ -951,11 +976,11 @@ class TestPaymentOrchestrator: XCTestCase {
         }
         wait(for: [confirmationExpectation], timeout: 1.0)
 
-        XCTAssertNotNil(sut.beginBuiltInCardForwardPaymentIfReady())
+        XCTAssertNotNil(sut.beginBuiltInCardForwardPaymentIfReady(for: testKey(cartItemId: "v1:cart-card:canal")))
         XCTAssertTrue(sut.isBuiltInCardForwardPaymentInFlight())
-        sut.restoreBuiltInCardForwardPaymentAfterRetryableFailure()
+        sut.restoreBuiltInCardForwardPaymentAfterRetryableFailure(for: testKey(cartItemId: "v1:cart-card:canal"))
         XCTAssertFalse(sut.isBuiltInCardForwardPaymentInFlight())
-        XCTAssertNotNil(sut.beginBuiltInCardForwardPaymentIfReady())
+        XCTAssertNotNil(sut.beginBuiltInCardForwardPaymentIfReady(for: testKey(cartItemId: "v1:cart-card:canal")))
         XCTAssertTrue(sut.isBuiltInCardForwardPaymentInFlight())
     }
 
@@ -982,9 +1007,212 @@ class TestPaymentOrchestrator: XCTestCase {
             builtInPayPalDevicePaySession: paypalDeviceSessionForTests()
         ) { _ in }
 
-        // PayPal cache is set; built-in card begin must not apply.
-        XCTAssertNil(sut.beginBuiltInCardForwardPaymentIfReady())
-        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment { _ in })
+        // PayPal cache is set for this item; built-in card begin must not apply to it.
+        let payPalKey = testKey(cartItemId: "v1:cart-pp:canal")
+        XCTAssertNil(sut.beginBuiltInCardForwardPaymentIfReady(for: payPalKey))
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: payPalKey) { _ in })
+    }
+
+    // MARK: - Deferred Step-1 state is bound to its item and placement
+
+    func test_presentPendingBuiltInPayPal_otherItemKey_returnsFalseAndLeavesEntryIntact() {
+        let payPalPresenter = MockPayPalApprovalPresenter()
+        sut = PaymentOrchestrator(
+            apiHelper: PaymentOrchestratorAPIHelperSpy.self,
+            payPalApprovalPresenter: payPalPresenter
+        )
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = Self.validPayPalInitializePurchaseResponse()
+
+        let presentingViewController = UIViewController()
+        var stepOneResult: PaymentSheetResult?
+        sut.processPayment(
+            method: .paypal,
+            item: PaymentItem(id: "p1", name: "P", amount: 1, currency: "USD"),
+            context: PaymentContext(
+                billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                returnURL: "myapp://paypal/success",
+                cancelURL: nil
+            ),
+            cartItemId: "v1:cart:1",
+            from: presentingViewController,
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests()
+        ) { stepOneResult = $0 }
+
+        let otherItem = testKey(cartItemId: "v1:cart:2")
+        let otherPlacement = BuiltInTwoStepCheckoutKey(
+            executeId: "other_execute",
+            layoutId: "test_layout",
+            catalogItemId: "test_catalog",
+            cartItemId: "v1:cart:1"
+        )
+        XCTAssertFalse(sut.presentPendingBuiltInPayPalForForwardPayment(for: otherItem) { _ in
+            XCTFail("Another item's confirm must not resume this checkout")
+        })
+        XCTAssertFalse(sut.presentPendingBuiltInPayPalForForwardPayment(for: otherPlacement) { _ in
+            XCTFail("Another placement's confirm must not resume this checkout")
+        })
+        drainMainQueue()
+        XCTAssertEqual(payPalPresenter.presentCallCount, 0)
+        XCTAssertNil(stepOneResult)
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()))
+
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in })
+        drainMainQueue()
+        XCTAssertEqual(payPalPresenter.presentCallCount, 1)
+        XCTAssertEqual(stepOneResult?.outcome, .succeeded)
+    }
+
+    func test_beginBuiltInCardForwardPaymentIfReady_otherItemKey_returnsNilAndLeavesEntryIntact() {
+        sut = PaymentOrchestrator(apiHelper: PaymentOrchestratorAPIHelperSpy.self)
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = Self.validInitializePurchaseResponse()
+
+        let confirmationExpectation = expectation(description: "Card showConfirmation fires")
+        let cardSession = BuiltInTwoStepDevicePaySession(
+            executeId: Self.testExecuteId,
+            layoutId: "test_layout",
+            catalogItemId: "test_catalog"
+        ) { _, _, _ in
+            confirmationExpectation.fulfill()
+        }
+        sut.processPayment(
+            method: .card,
+            item: PaymentItem(id: "item-card", name: "Widget", amount: 9.99, currency: "USD"),
+            context: PaymentContext(),
+            cartItemId: "v1:cart-card:canal",
+            from: UIViewController(),
+            builtInCardDevicePaySession: cardSession
+        ) { _ in
+            XCTFail("Step-1 completion must not run until terminal finish")
+        }
+        wait(for: [confirmationExpectation], timeout: 1.0)
+
+        let cardKey = testKey(cartItemId: "v1:cart-card:canal")
+        XCTAssertNil(sut.beginBuiltInCardForwardPaymentIfReady(for: testKey(cartItemId: "v1:cart-other:canal")))
+        XCTAssertFalse(sut.isBuiltInCardForwardPaymentInFlight())
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: cardKey))
+
+        XCTAssertNotNil(sut.beginBuiltInCardForwardPaymentIfReady(for: cardKey))
+        XCTAssertTrue(sut.isBuiltInCardForwardPaymentInFlight())
+    }
+
+    func test_stepOne_secondItem_keepsFirstItemPending() {
+        let payPalPresenter = MockPayPalApprovalPresenter()
+        sut = PaymentOrchestrator(
+            apiHelper: PaymentOrchestratorAPIHelperSpy.self,
+            payPalApprovalPresenter: payPalPresenter
+        )
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = Self.validPayPalInitializePurchaseResponse()
+        sut.processPayment(
+            method: .paypal,
+            item: PaymentItem(id: "item-a", name: "A", amount: 1, currency: "USD"),
+            context: PaymentContext(returnURL: "myapp://paypal/success", cancelURL: nil),
+            cartItemId: "v1:cart-a:canal",
+            from: UIViewController(),
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests()
+        ) { _ in }
+
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = Self.validInitializePurchaseResponse()
+        let confirmationExpectation = expectation(description: "Card showConfirmation fires for item B")
+        let cardSession = BuiltInTwoStepDevicePaySession(
+            executeId: Self.testExecuteId,
+            layoutId: "test_layout",
+            catalogItemId: "catalog_b"
+        ) { _, _, _ in
+            confirmationExpectation.fulfill()
+        }
+        sut.processPayment(
+            method: .card,
+            item: PaymentItem(id: "item-b", name: "B", amount: 2, currency: "USD"),
+            context: PaymentContext(),
+            cartItemId: "v1:cart-b:canal",
+            from: UIViewController(),
+            builtInCardDevicePaySession: cardSession
+        ) { _ in
+            XCTFail("Step-1 completion must not run until terminal finish")
+        }
+        wait(for: [confirmationExpectation], timeout: 1.0)
+
+        let keyA = testKey(cartItemId: "v1:cart-a:canal")
+        let keyB = BuiltInTwoStepCheckoutKey(
+            executeId: Self.testExecuteId,
+            layoutId: "test_layout",
+            catalogItemId: "catalog_b",
+            cartItemId: "v1:cart-b:canal"
+        )
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: keyA), "Item B's Step-1 must not replace item A's")
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: keyB))
+        XCTAssertNil(sut.beginBuiltInCardForwardPaymentIfReady(for: keyA), "Item A is PayPal, not card")
+        XCTAssertNotNil(sut.beginBuiltInCardForwardPaymentIfReady(for: keyB))
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: keyA) { _ in })
+    }
+
+    func test_discardPendingBuiltInTwoStep_forExecuteId_dropsOnlyThatExecuteWithoutCompleting() {
+        let keyA = BuiltInTwoStepCheckoutKey(executeId: "execute_a", layoutId: "l", catalogItemId: "c", cartItemId: "cart_a")
+        let keyB = BuiltInTwoStepCheckoutKey(executeId: "execute_b", layoutId: "l", catalogItemId: "c", cartItemId: "cart_b")
+        sut.unitTest_seedDeferredBuiltInPayPalForwardPayment(
+            for: keyA,
+            approvalURL: URL(string: "https://www.paypal.com/checkoutnow?token=MOCK")!,
+            returnURLString: "myapp://paypal/success",
+            orderId: "ORDER_A"
+        ) { _ in
+            XCTFail("Discard must not invoke the Step-1 completion")
+        }
+        sut.unitTest_seedDeferredBuiltInCardForwardPayment(for: keyB) { _ in
+            XCTFail("Another execute's entry must be untouched")
+        }
+
+        sut.discardPendingBuiltInTwoStep(forExecuteId: "execute_a")
+        drainMainQueue()
+
+        XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: keyA))
+        XCTAssertFalse(sut.presentPendingBuiltInPayPalForForwardPayment(for: keyA) { _ in })
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: keyB))
+        XCTAssertNotNil(sut.beginBuiltInCardForwardPaymentIfReady(for: keyB))
+    }
+
+    func test_discardAllPendingBuiltInTwoStep_dropsEveryEntryWithoutCompleting() {
+        let keyA = BuiltInTwoStepCheckoutKey(executeId: "execute_a", layoutId: "l", catalogItemId: "c", cartItemId: "cart_a")
+        let keyB = BuiltInTwoStepCheckoutKey(executeId: "execute_b", layoutId: "l", catalogItemId: "c", cartItemId: "cart_b")
+        sut.unitTest_seedDeferredBuiltInPayPalForwardPayment(
+            for: keyA,
+            approvalURL: URL(string: "https://www.paypal.com/checkoutnow?token=MOCK")!,
+            returnURLString: "myapp://paypal/success",
+            orderId: "ORDER_A"
+        ) { _ in
+            XCTFail("Discard must not invoke the Step-1 completion")
+        }
+        sut.unitTest_seedDeferredBuiltInCardForwardPayment(for: keyB) { _ in
+            XCTFail("Discard must not invoke the Step-1 completion")
+        }
+        XCTAssertNotNil(sut.beginBuiltInCardForwardPaymentIfReady(for: keyB), "Item B is in flight when the session ends")
+
+        sut.discardAllPendingBuiltInTwoStep()
+        drainMainQueue()
+
+        XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: keyA))
+        XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: keyB))
+        XCTAssertFalse(sut.isBuiltInCardForwardPaymentInFlight())
+        XCTAssertFalse(sut.presentPendingBuiltInPayPalForForwardPayment(for: keyA) { _ in })
+        XCTAssertNil(sut.beginBuiltInCardForwardPaymentIfReady(for: keyB))
+    }
+
+    func test_cancelPendingBuiltInTwoStep_forKey_failsOnlyThatItem() {
+        let keyA = BuiltInTwoStepCheckoutKey(executeId: "execute", layoutId: "l", catalogItemId: "c", cartItemId: "cart_a")
+        let keyB = BuiltInTwoStepCheckoutKey(executeId: "execute", layoutId: "l", catalogItemId: "c", cartItemId: "cart_b")
+        let canceled = expectation(description: "Item A's Step-1 completion fails")
+        sut.unitTest_seedDeferredBuiltInCardForwardPayment(for: keyA) { result in
+            XCTAssertEqual(result.outcome, .failed)
+            canceled.fulfill()
+        }
+        sut.unitTest_seedDeferredBuiltInCardForwardPayment(for: keyB) { _ in
+            XCTFail("Cancelling item A must not touch item B")
+        }
+
+        sut.cancelPendingBuiltInTwoStep(for: keyA)
+
+        wait(for: [canceled], timeout: 1.0)
+        XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: keyA))
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: keyB))
     }
 
     private static func validInitializePurchaseResponse() -> InitializePurchaseResponse {
@@ -1094,7 +1322,10 @@ class TestPaymentOrchestrator: XCTestCase {
         wait(for: [failed], timeout: 1.0)
 
         XCTAssertEqual(payPalPresenter.presentCallCount, 0, approvalUrl)
-        XCTAssertFalse(sut.presentPendingBuiltInPayPalForForwardPayment { _ in }, "Nothing may stay pending: \(approvalUrl)")
+        XCTAssertFalse(
+            sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in },
+            "Nothing may stay pending: \(approvalUrl)"
+        )
         return stepOneResult
     }
 
@@ -1159,7 +1390,7 @@ class TestPaymentOrchestrator: XCTestCase {
             XCTAssertEqual(result.outcome, .succeeded)
             completed.fulfill()
         }
-        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment { _ in })
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in })
 
         wait(for: [completed], timeout: 1.0)
         XCTAssertEqual(payPalPresenter.presentCallCount, 1)
@@ -1193,7 +1424,7 @@ class TestPaymentOrchestrator: XCTestCase {
         }
         wait(for: [expectation], timeout: 1.0)
         XCTAssertEqual(payPalPresenter.presentCallCount, 0)
-        XCTAssertFalse(sut.presentPendingBuiltInPayPalForForwardPayment { _ in })
+        XCTAssertFalse(sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in })
     }
 
     func test_handleURLCallback_completesPayPal_whenActiveCheckoutMatchesReturnDeepLink() {
@@ -1226,7 +1457,7 @@ class TestPaymentOrchestrator: XCTestCase {
             XCTAssertEqual(result.transactionId, "ORDER_MOCK")
             expectation.fulfill()
         }
-        _ = sut.presentPendingBuiltInPayPalForForwardPayment { _ in }
+        _ = sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in }
 
         // Disambiguate from the local `expectation` var declared above, which shadows
         // ``XCTestCase/expectation(description:)`` and produced a build error in Brandon's commit.
@@ -1278,7 +1509,7 @@ class TestPaymentOrchestrator: XCTestCase {
         ) { result in
             onStepOneResult(result)
         }
-        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment { _ in })
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in })
         drainMainQueue()
         PaymentOrchestratorAPIHelperSpy.reset()
     }
@@ -1332,7 +1563,7 @@ class TestPaymentOrchestrator: XCTestCase {
         XCTAssertNil(stepOneResult)
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.sendDiagnosticsCallCount, 1)
         XCTAssertFalse(
-            sut.presentPendingBuiltInPayPalForForwardPayment { _ in },
+            sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in },
             "The checkout is still active in the approval sheet; nothing was re-queued"
         )
 
@@ -1340,7 +1571,7 @@ class TestPaymentOrchestrator: XCTestCase {
         XCTAssertTrue(sut.handleURLCallback(with: URL(string: "myapp://paypal/cancel?token=ORDER_MOCK")!))
         drainMainQueue()
         XCTAssertNil(stepOneResult, "Cancel defers the Step-1 completion")
-        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment { _ in })
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in })
     }
 
     func test_processPayment_payPal_failsWhenOrderIdMissing() {
@@ -1375,7 +1606,7 @@ class TestPaymentOrchestrator: XCTestCase {
         XCTAssertEqual(payPalPresenter.presentCallCount, 0)
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.sendDiagnosticsCallCount, 1)
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastDiagnosticsCallStack, PaymentOrchestrator.payPalOrderIdMissingMessage)
-        XCTAssertFalse(sut.presentPendingBuiltInPayPalForForwardPayment { _ in })
+        XCTAssertFalse(sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in })
     }
 
     func test_processPayment_payPal_failsWhenReturnURLMissing() {
@@ -1598,6 +1829,7 @@ class TestPaymentOrchestrator: XCTestCase {
 
         let confirmationExpectation = expectation(description: "Card showConfirmation fires")
         let cardSession = BuiltInTwoStepDevicePaySession(
+            executeId: Self.testExecuteId,
             layoutId: "test_layout",
             catalogItemId: "test_catalog"
         ) { _, _, _ in
