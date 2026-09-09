@@ -82,7 +82,7 @@ public class RoktPaymentExtension: PaymentExtension {
     /// (host required; no query, fragment, or credentials) under a domain listed in the
     /// host app's Associated Domains entitlement (`applinks:<host>`) and covered by its
     /// `apple-app-site-association` file. The incoming URL is matched on scheme, host,
-    /// and path only, so the query Stripe appends on return is ignored. Forward it from
+    /// port, and path only, so the query Stripe appends on return is ignored. Forward it from
     /// `application(_:continue:restorationHandler:)` / `scene(_:continue:)` via
     /// `userActivity.webpageURL`, or from SwiftUI `.onOpenURL`.
     ///
@@ -101,7 +101,8 @@ public class RoktPaymentExtension: PaymentExtension {
     ///     `universalLinkReturnURL`, or to disable Afterpay.
     ///   - universalLinkReturnURL: Plain https universal link (e.g.
     ///     `https://www.example.com/rokt/payment-return`) under one of the host app's
-    ///     associated domains. Omit when using `urlScheme`, or to disable Afterpay.
+    ///     associated domains; handed to Stripe as given. Omit when using `urlScheme`,
+    ///     or to disable Afterpay.
     /// - Returns: `nil` if no method is enabled, if both `urlScheme` and
     ///   `universalLinkReturnURL` are provided, if `urlScheme` is provided but not
     ///   registered in `Info.plist`, or if `universalLinkReturnURL` is not a plain https URL.
@@ -246,8 +247,8 @@ public class RoktPaymentExtension: PaymentExtension {
     /// forwarded — anything else returns `false`, leaving partner-owned URLs untouched.
     ///
     /// - With `universalLinkReturnURL`: scheme and host are compared case-insensitively
-    ///   and the path must match (a trailing slash is ignored); the query Stripe appends
-    ///   is ignored. Universal links reach the host app through
+    ///   and the port and path must match (a trailing slash is ignored); the query Stripe
+    ///   appends is ignored. Universal links reach the host app through
     ///   `application(_:continue:restorationHandler:)` / `scene(_:continue:)`
     ///   (`userActivity.webpageURL`) or SwiftUI `.onOpenURL`; forward them to
     ///   `Rokt.handleURLCallback(with:)` the same way as custom-scheme URLs.
@@ -301,10 +302,9 @@ public class RoktPaymentExtension: PaymentExtension {
         return false
     }
 
-    /// Reports an invalid / unregistered scheme.
-    /// In DEBUG builds the failure is surfaced via `assertionFailure` so the
-    /// integrating engineer sees it immediately. In release builds the message
-    /// is logged via `os_log` at `.error` and the initializer returns `nil`,
+    /// Reports an invalid / unregistered scheme. The message is logged via `os_log`
+    /// at `.error`; DEBUG builds also surface it via `assertionFailure` so the
+    /// integrating engineer sees it immediately. The initializer then returns `nil`,
     /// making the failure visible through the partner's `guard let ext = ...`.
     private static func reportInvalidScheme(_ scheme: String) {
         reportConfigurationFailure("""
@@ -337,16 +337,15 @@ public class RoktPaymentExtension: PaymentExtension {
         )
     }
 
-    /// DEBUG builds surface the failure via `assertionFailure`, except while running
-    /// under XCTest where the `nil` return is asserted on instead; release builds
-    /// log via `os_log` at `.error`.
+    /// Logs the failure via `os_log` at `.error` in every build. DEBUG builds also
+    /// surface it via `assertionFailure`, except while running under XCTest where
+    /// the `nil` return is asserted on instead.
     private static func reportConfigurationFailure(_ message: String) {
+        os_log("%{public}s", log: .default, type: .error, message)
         #if DEBUG
         if NSClassFromString("XCTestCase") == nil {
             assertionFailure(message)
-            return
         }
         #endif
-        os_log("%{public}s", log: .default, type: .error, message)
     }
 }

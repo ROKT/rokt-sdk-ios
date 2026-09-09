@@ -165,7 +165,7 @@ URL to use in production.
 
    The URL must be plain `https` with a host and no query, fragment, or
    credentials — Stripe appends its own query on return, and the SDK matches the
-   incoming URL on scheme, host, and path only. The initializer returns `nil`
+   incoming URL on scheme, host, port, and path only. The initializer returns `nil`
    (and raises an `assertionFailure` in DEBUG builds) if the URL is not of that
    form, or if `urlScheme` is passed as well.
 4. **Forward universal links** to the Rokt SDK. They arrive through the

@@ -134,7 +134,11 @@ final class RoktPaymentExtensionTests: XCTestCase {
             "https:///x"
         ]
         for candidate in rejected {
-            XCTAssertFalse(ReturnURLMatching.isValidUniversalLink(URL(string: candidate)!), candidate)
+            guard let url = URL(string: candidate) else {
+                XCTFail("Expected a parseable URL for \(candidate)")
+                continue
+            }
+            XCTAssertFalse(ReturnURLMatching.isValidUniversalLink(url), candidate)
         }
     }
 
@@ -188,6 +192,16 @@ final class RoktPaymentExtensionTests: XCTestCase {
         XCTAssertFalse(ext.matchesConfiguredReturnURL(URL(string: "https://partner.example/other")!))
     }
 
+    func testMatchesConfiguredReturnURLUniversalLinkComparesPort() {
+        let ext = RoktPaymentExtension(
+            universalLinkReturnURL: URL(string: "https://partner.example:8443/rokt/return")!,
+            bundle: makeBundleWithoutSchemes()
+        )!
+        XCTAssertTrue(ext.matchesConfiguredReturnURL(URL(string: "https://partner.example:8443/rokt/return?a=1")!))
+        XCTAssertFalse(ext.matchesConfiguredReturnURL(URL(string: "https://partner.example/rokt/return")!))
+        XCTAssertFalse(ext.matchesConfiguredReturnURL(URL(string: "https://partner.example:8444/rokt/return")!))
+    }
+
     func testMatchesConfiguredReturnURLCustomSchemeRejectsUniversalLink() {
         let ext = RoktPaymentExtension(
             urlScheme: "myapp",
@@ -216,6 +230,7 @@ final class RoktPaymentExtensionTests: XCTestCase {
         "https://partner.example/Rokt/Return",
         "https://other.example/rokt/return",
         "https://partner.example.other.example/rokt/return",
+        "https://partner.example:8443/rokt/return",
         "http://partner.example/rokt/return",
         "myapp://rokt-payment-return",
         "https://rokt-payment-return"

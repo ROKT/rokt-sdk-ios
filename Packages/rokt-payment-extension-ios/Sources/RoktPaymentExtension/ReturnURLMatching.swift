@@ -22,15 +22,16 @@ enum ReturnURLMatching {
     }
 
     /// Returns `true` when `url` and `expected` share a scheme and host
-    /// (case-insensitively) and the same path. A trailing slash on the path is
-    /// ignored, as are the query and fragment.
+    /// (case-insensitively), the same port, and the same path. A trailing slash
+    /// on the path is ignored, as are the query and fragment.
     static func matchesUniversalLink(_ url: URL, expected: URL) -> Bool {
         guard let scheme = url.scheme?.lowercased(),
               let expectedScheme = expected.scheme?.lowercased(),
               scheme == expectedScheme,
               let host = url.host?.lowercased(),
               let expectedHost = expected.host?.lowercased(),
-              host == expectedHost else {
+              host == expectedHost,
+              url.port == expected.port else {
             return false
         }
         return normalizedPath(of: url) == normalizedPath(of: expected)
