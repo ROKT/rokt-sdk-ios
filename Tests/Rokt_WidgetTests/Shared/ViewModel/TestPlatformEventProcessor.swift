@@ -458,6 +458,7 @@ private class MockStateManager: StateBagManaging {
     }
     func increasePlacements(id: String) {}
     func decreasePlacements(id: String) {}
+    func removeStateIfUnused(id: String) {}
     func find(where: (any Bag) -> Bool) -> (any Bag)? { nil }
 
     var stateIdRetrieved: String?

@@ -147,11 +147,15 @@ class RoktInternalImplementation {
     }
 
     // Payment orchestrator for Shoppable Ads
-    private lazy var paymentOrchestrator = PaymentOrchestrator()
+    private lazy var paymentOrchestrator: PaymentOrchestrator = makePaymentOrchestrator()
 
-    // Exposes `PaymentOrchestrator` for unit tests that exercise built-in card forwarding.
+    // Exposes `PaymentOrchestrator` for unit tests that exercise built-in card forwarding; a test may install its own,
+    // which is wired to the execute state the same way as the default one.
     // periphery:ignore
-    internal var paymentOrchestratorForTesting: PaymentOrchestrator { paymentOrchestrator }
+    internal var paymentOrchestratorForTesting: PaymentOrchestrator {
+        get { paymentOrchestrator }
+        set { paymentOrchestrator = wiredToExecuteState(newValue) }
+    }
 
     /// Bare URL scheme (no `://`) for built-in PayPal device-pay redirects: `\(scheme)://rokt-paypal-return` / `rokt-paypal-cancel`.
     /// Set via ``Rokt/setBuiltInPayPalRedirectURLScheme(_:)`` before PayPal device pay; required for that flow.
@@ -185,6 +189,30 @@ class RoktInternalImplementation {
         self.sessionManager = sessionManager ?? SessionManager(managedSessions: managedSessionObjects)
         self.linkHandler = linkHandler
         NetworkingHelper.updateTimeout(timeout: clientTimeoutMilliseconds/1000)
+        stateManager = makeStateBagManager()
+    }
+
+    /// The state keeper asks the payment orchestrator whether a checkout of an execute is still outstanding before it
+    /// drops that execute's state, so a result that arrives after every placement closed still finds the state.
+    private func makeStateBagManager() -> StateBagManager {
+        let manager = StateBagManager()
+        manager.hasOutstandingPurchase = { [weak self] executeId in
+            self?.paymentOrchestrator.hasOutstandingBuiltInTwoStepCheckout(forExecuteId: executeId) ?? false
+        }
+        return manager
+    }
+
+    private func makePaymentOrchestrator() -> PaymentOrchestrator {
+        wiredToExecuteState(PaymentOrchestrator())
+    }
+
+    /// The orchestrator reports when the last checkout of an execute ends without a finish of its own, so state kept
+    /// for that execute is checked again and dropped once nothing else holds it.
+    private func wiredToExecuteState(_ orchestrator: PaymentOrchestrator) -> PaymentOrchestrator {
+        orchestrator.onExecuteHasNoOutstandingCheckout = { [weak self] executeId in
+            self?.stateManager.removeStateIfUnused(id: executeId)
+        }
+        return orchestrator
     }
 
     func purchaseFinalized(identifier: String, catalogItemId: String, success: Bool) {
@@ -991,7 +1019,7 @@ class RoktInternalImplementation {
         isInitFailedForFont = false
         FontManager.resetFontRecoveryState()
         FontManager.resetDiskPressureState()
-        stateManager = StateBagManager()
+        stateManager = makeStateBagManager()
 
         RoktLogger.shared.debug("Starting API initialization request")
         initRecoveryAttempt = 0

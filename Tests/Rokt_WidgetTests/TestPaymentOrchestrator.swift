@@ -2809,6 +2809,132 @@ class TestPaymentOrchestrator: XCTestCase {
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentMethodType, "Card")
         XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastInitializePurchasePaymentProvider, "Card")
     }
+
+    // MARK: - Outstanding checkouts of an execute
+
+    private func startPayPalStepOne(
+        orderId: String,
+        from presentingViewController: UIViewController,
+        completion: @escaping (PaymentSheetResult) -> Void
+    ) {
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = Self.validPayPalInitializePurchaseResponse(orderId: orderId)
+        sut.processPayment(
+            method: .paypal,
+            item: PaymentItem(id: "p1", name: "P", amount: 1, currency: "USD"),
+            context: PaymentContext(
+                billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                returnURL: "myapp://paypal/success",
+                cancelURL: nil
+            ),
+            cartItemId: "v1:cart:1",
+            from: presentingViewController,
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests(),
+            completion: completion
+        )
+    }
+
+    func test_hasOutstandingBuiltInTwoStepCheckout_countsEveryStageOfThatExecutesCheckoutsOnly() {
+        let payPalPresenter = HoldingPayPalApprovalPresenter()
+        sut = PaymentOrchestrator(apiHelper: PaymentOrchestratorAPIHelperSpy.self, payPalApprovalPresenter: payPalPresenter)
+        let executeId = Self.testExecuteId
+        XCTAssertFalse(sut.hasOutstandingBuiltInTwoStepCheckout(forExecuteId: executeId))
+
+        let cardKey = testKey(cartItemId: "v1:cart:card")
+        sut.unitTest_seedDeferredBuiltInCardForwardPayment(for: cardKey) { _ in }
+        XCTAssertTrue(sut.hasOutstandingBuiltInTwoStepCheckout(forExecuteId: executeId), "A result waiting for its confirm")
+        XCTAssertFalse(sut.hasOutstandingBuiltInTwoStepCheckout(forExecuteId: "another_execute"))
+        XCTAssertNotNil(sut.beginBuiltInCardForwardPaymentIfReady(for: cardKey))
+        XCTAssertTrue(sut.hasOutstandingBuiltInTwoStepCheckout(forExecuteId: executeId), "A card purchase in flight")
+        sut.finishBuiltInCardForwardPaymentAttempt(for: cardKey, result: .succeeded(transactionId: ""))
+        XCTAssertFalse(sut.hasOutstandingBuiltInTwoStepCheckout(forExecuteId: executeId))
+
+        // Held strongly until the deferred present has run; the pending checkout only keeps a weak reference.
+        let presentingViewController = UIViewController()
+        PaymentOrchestratorAPIHelperSpy.holdInitializePurchaseResponse = true
+        startPayPalStepOne(orderId: "ORDER_1", from: presentingViewController) { _ in }
+        XCTAssertTrue(sut.hasOutstandingBuiltInTwoStepCheckout(forExecuteId: executeId), "A Step-1 request still out")
+        PaymentOrchestratorAPIHelperSpy.releaseHeldInitializePurchase()
+        XCTAssertTrue(sut.hasOutstandingBuiltInTwoStepCheckout(forExecuteId: executeId), "A result waiting for its confirm")
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in })
+        drainMainQueue()
+        XCTAssertEqual(payPalPresenter.presentCallCount, 1)
+        XCTAssertTrue(sut.hasOutstandingBuiltInTwoStepCheckout(forExecuteId: executeId), "An approval sheet up")
+
+        XCTAssertTrue(sut.handleURLCallback(with: URL(string: "myapp://paypal/success?token=ORDER_1")!))
+        drainMainQueue()
+        XCTAssertFalse(sut.hasOutstandingBuiltInTwoStepCheckout(forExecuteId: executeId))
+    }
+
+    func test_onExecuteHasNoOutstandingCheckout_reportsACancelThatDropsTheLastCheckoutOfAClosedPlacement() {
+        let payPalPresenter = MockPayPalApprovalPresenter()
+        payPalPresenter.sheetResult = .canceled
+        sut = PaymentOrchestrator(apiHelper: PaymentOrchestratorAPIHelperSpy.self, payPalApprovalPresenter: payPalPresenter)
+        var reported: [String] = []
+        sut.onExecuteHasNoOutstandingCheckout = { reported.append($0) }
+        let presentingViewController = UIViewController()
+        startPayPalStepOne(orderId: "ORDER_1", from: presentingViewController) { _ in
+            XCTFail("A cancel re-queues or drops the entry without reporting a result")
+        }
+
+        // With its placement still open, a cancel re-queues the entry: the checkout is still outstanding.
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in })
+        drainMainQueue()
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()))
+        XCTAssertTrue(reported.isEmpty)
+
+        // With its placement closed while the sheet is up, the cancel drops the entry and nothing of the execute is left.
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in })
+        sut.discardPendingBuiltInTwoStep(forExecuteId: Self.testExecuteId, layoutId: "test_layout")
+        drainMainQueue()
+        XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()))
+        XCTAssertFalse(sut.hasOutstandingBuiltInTwoStepCheckout(forExecuteId: Self.testExecuteId))
+        XCTAssertEqual(reported, [Self.testExecuteId])
+    }
+
+    func test_onExecuteHasNoOutstandingCheckout_reportsARetryableFailureThatDropsTheLastCheckoutOfAClosedPlacement() {
+        var reported: [String] = []
+        sut.onExecuteHasNoOutstandingCheckout = { reported.append($0) }
+        let firstKey = testKey(cartItemId: "v1:cart:1")
+        let secondKey = testKey(cartItemId: "v1:cart:2")
+        sut.unitTest_seedDeferredBuiltInCardForwardPayment(for: firstKey) { _ in XCTFail("A dropped entry reports nothing") }
+        sut.unitTest_seedDeferredBuiltInCardForwardPayment(for: secondKey) { _ in XCTFail("A dropped entry reports nothing") }
+        XCTAssertNotNil(sut.beginBuiltInCardForwardPaymentIfReady(for: firstKey))
+        XCTAssertNotNil(sut.beginBuiltInCardForwardPaymentIfReady(for: secondKey))
+        // The placement closes with both purchases in flight; each is kept until its own outcome.
+        sut.discardPendingBuiltInTwoStep(forExecuteId: Self.testExecuteId, layoutId: nil)
+
+        sut.restoreBuiltInCardForwardPaymentAfterRetryableFailure(for: firstKey)
+        drainMainQueue()
+        XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: firstKey))
+        XCTAssertTrue(sut.hasOutstandingBuiltInTwoStepCheckout(forExecuteId: Self.testExecuteId), "The other is still out")
+        XCTAssertTrue(reported.isEmpty, "Not reported while a checkout of the execute remains")
+
+        sut.restoreBuiltInCardForwardPaymentAfterRetryableFailure(for: secondKey)
+        drainMainQueue()
+        XCTAssertFalse(sut.hasOutstandingBuiltInTwoStepCheckout(forExecuteId: Self.testExecuteId))
+        XCTAssertEqual(reported, [Self.testExecuteId])
+    }
+
+    func test_onExecuteHasNoOutstandingCheckout_reportsEachExecuteASessionClearLeavesWithNothingOutstanding() {
+        var reported: Set<String> = []
+        sut.onExecuteHasNoOutstandingCheckout = { reported.insert($0) }
+        let waitingKey = BuiltInTwoStepCheckoutKey(
+            executeId: "execute_waiting", layoutId: "l", catalogItemId: "c", cartItemId: "v1:cart:1"
+        )
+        let inFlightKey = BuiltInTwoStepCheckoutKey(
+            executeId: "execute_in_flight", layoutId: "l", catalogItemId: "c", cartItemId: "v1:cart:2"
+        )
+        sut.unitTest_seedDeferredBuiltInCardForwardPayment(for: waitingKey) { _ in XCTFail("A dropped entry reports nothing") }
+        sut.unitTest_seedDeferredBuiltInCardForwardPayment(for: inFlightKey) { _ in }
+        XCTAssertNotNil(sut.beginBuiltInCardForwardPaymentIfReady(for: inFlightKey))
+
+        sut.discardAllPendingBuiltInTwoStep()
+        drainMainQueue()
+
+        XCTAssertEqual(reported, ["execute_waiting"], "A purchase still in flight keeps its execute outstanding")
+        XCTAssertTrue(sut.hasOutstandingBuiltInTwoStepCheckout(forExecuteId: "execute_in_flight"))
+        XCTAssertFalse(sut.hasOutstandingBuiltInTwoStepCheckout(forExecuteId: "execute_waiting"))
+    }
 }
 
 class PaymentOrchestratorAPIHelperSpy: RoktAPIHelper {

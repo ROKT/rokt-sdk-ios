@@ -1,4 +1,5 @@
 import Mocker
+import RoktContracts
 import XCTest
 @testable import Rokt_Widget
 @testable internal import RoktUXHelper
@@ -6,6 +7,7 @@ import XCTest
 /// Deferred built-in two-step state is bound to the item and placement that started it: a Step-2 confirm for a
 /// different item runs its own cart purchase and leaves the other entry alone, and state not yet in flight is
 /// dropped when its layout closes or fails, or the session is cleared; a purchase already sent keeps its result.
+/// The execute's own state outlives its placements while any checkout of that execute is still outstanding.
 final class TestBuiltInTwoStepCheckoutBinding: XCTestCase {
 
     private let purchaseURL = URL(string: "https://apps.rokt.com/rokt-mobile/v1/cart/purchase")!
@@ -336,5 +338,159 @@ final class TestBuiltInTwoStepCheckoutBinding: XCTestCase {
         XCTAssertFalse(orch.unitTest_hasPendingBuiltInTwoStep(for: keyB))
         XCTAssertFalse(orch.presentPendingBuiltInPayPalForForwardPayment(for: keyA) { _ in })
         XCTAssertNil(orch.beginBuiltInCardForwardPaymentIfReady(for: keyB))
+    }
+
+    // MARK: - An execute's state outlives its placements while a checkout of that execute is still outstanding
+
+    private func makeDevicePayEvent(
+        layoutId: String,
+        cartItemId: String,
+        catalogItemId: String
+    ) -> RoktUXEvent.CartItemDevicePay {
+        RoktUXEvent.CartItemDevicePay(
+            layoutId: layoutId,
+            name: "Test item",
+            cartItemId: cartItemId,
+            catalogItemId: catalogItemId,
+            currency: "USD",
+            description: "desc",
+            linkedProductId: nil,
+            providerData: "provider",
+            quantity: 1,
+            totalPrice: 9.99,
+            unitPrice: 9.99,
+            paymentProvider: .paypal,
+            transactionData: nil
+        )
+    }
+
+    /// A Step-1 response carrying a PayPal approval URL and `orderId`, so the item's confirm presents the approval sheet.
+    private func payPalInitializePurchaseResponse(orderId: String) -> InitializePurchaseResponse {
+        InitializePurchaseResponse(
+            success: true,
+            totalUpsellPrice: 9.99,
+            currency: "USD",
+            upsellItems: [],
+            paymentDetails: PaymentDetails(
+                gateway: "stripe",
+                merchantName: "Test",
+                merchantAccountId: "merchant.com.test",
+                paymentIntentId: "pi_test",
+                clientSecret: "cs_test_secret",
+                shippingCost: 0,
+                tax: 0,
+                totalAmount: 9.99
+            ),
+            paypalData: InitializePurchasePayPalData(
+                orderId: orderId,
+                approvalUrl: "https://www.paypal.com/checkoutnow?token=\(orderId)"
+            )
+        )
+    }
+
+    /// Two items of one execute start built-in checkouts. The first finishes, then both placements close while the
+    /// second item's PayPal approval sheet is still up. The execute's state must outlive the unload so the second
+    /// item's return still reaches the partner and the layout, and must go once that item has finished.
+    func test_layoutClosed_whileASecondItemsPayPalSheetIsUp_stillDeliversThatItemsResult() {
+        let impl = RoktInternalImplementation()
+        let presenter = HoldingPayPalApprovalPresenter()
+        impl.paymentOrchestratorForTesting = PaymentOrchestrator(
+            apiHelper: PaymentOrchestratorAPIHelperSpy.self,
+            payPalApprovalPresenter: presenter
+        )
+        defer { PaymentOrchestratorAPIHelperSpy.reset() }
+        let orch = impl.paymentOrchestratorForTesting
+        let uxHelper = DevicePayFinalizeRecordingRoktUX()
+        var partnerEvents: [RoktEvent] = []
+        let bag = ExecuteStateBag(uxHelper: uxHelper) { partnerEvents.append($0) }
+        bag.loadedPlacements = 2
+        impl.stateManager.addState(id: executeId, state: bag)
+        // Both items were tapped; the renderer reports each start through the execute's one flag.
+        impl.stateManager.initiateInstantPurchase(id: executeId)
+        impl.stateManager.initiateInstantPurchase(id: executeId)
+        Rokt.shared.roktImplementation.roktTagId = forwardPaymentTestTagId
+
+        // Item A (card, first placement) confirms and finishes, which clears the flag.
+        let itemAResult = expectation(description: "Item A's Step-1 completion receives its result")
+        orch.unitTest_seedDeferredBuiltInCardForwardPayment(for: key(cartItemId: "cart-a", catalogItemId: "catalog-a")) {
+            XCTAssertEqual($0.outcome, .succeeded)
+            itemAResult.fulfill()
+        }
+        registerPurchaseMock(body: #"{"success":true}"#) { _ in }
+        installMockingHTTPClient()
+        let cleared = expectFlagCleared(bag)
+        impl.handleForwardPayment(
+            executeId: executeId,
+            event: makeForwardPaymentEvent(cartItemId: "cart-a", catalogItemId: "catalog-a")
+        )
+        wait(for: [itemAResult, cleared], timeout: 3.0)
+
+        // Item B (PayPal, second placement) runs Step-1, then its confirm puts the approval sheet up.
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = payPalInitializePurchaseResponse(orderId: "ORDER_B")
+        // Held strongly: the pending checkout only keeps a weak reference to the screen it presents from.
+        let presentingViewController = UIViewController()
+        let itemBDevicePay = makeDevicePayEvent(layoutId: "layout-2", cartItemId: "cart-b", catalogItemId: "catalog-b")
+        let itemBSession = BuiltInTwoStepDevicePaySession(
+            executeId: executeId,
+            layoutId: "layout-2",
+            catalogItemId: "catalog-b"
+        ) { _, _, _ in }
+        orch.processPayment(
+            method: .paypal,
+            item: PaymentItem(id: "catalog-b", name: "Test item", amount: 1, currency: "USD"),
+            context: PaymentContext(
+                billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                returnURL: "myapp://paypal/success",
+                cancelURL: nil
+            ),
+            cartItemId: "cart-b",
+            from: presentingViewController,
+            builtInPayPalDevicePaySession: itemBSession
+        ) { result in
+            impl.handleDevicePayPaymentCompletion(executeId: self.executeId, event: itemBDevicePay, result: result)
+        }
+        impl.handleForwardPayment(
+            executeId: executeId,
+            event: makeForwardPaymentEvent(layoutId: "layout-2", cartItemId: "cart-b", catalogItemId: "catalog-b")
+        )
+        drainMainQueue()
+        XCTAssertEqual(presenter.presentCallCount, 1, "Item B's approval sheet is up")
+
+        // Both placements close while that sheet is still up.
+        impl.callOnRoktUXEvent(executeId, uxEvent: RoktUXEvent.LayoutClosed(layoutId: "layout-1"))
+        impl.callOnRoktUXEvent(executeId, uxEvent: RoktUXEvent.LayoutClosed(layoutId: "layout-2"))
+        XCTAssertEqual(bag.loadedPlacements, 0)
+        XCTAssertNotNil(
+            impl.stateManager.getState(id: executeId),
+            "The execute's state is kept while item B's checkout can still report back"
+        )
+
+        // The buyer approves, and the return link completes item B.
+        XCTAssertTrue(orch.handleURLCallback(with: URL(string: "myapp://paypal/success?token=ORDER_B")!))
+        drainMainQueue()
+
+        let itemBPurchase = partnerEvents.compactMap { $0 as? RoktEvent.CartItemInstantPurchase }.first
+        XCTAssertEqual(itemBPurchase?.catalogItemId, "catalog-b", "The partner hears item B's result")
+        XCTAssertTrue(
+            uxHelper.finalizedCalls.contains { $0.layoutId == "layout-2" && $0.catalogItemId == "catalog-b" && $0.success },
+            "The layout hears item B's result"
+        )
+        XCTAssertNil(impl.stateManager.getState(id: executeId), "Once item B has finished, nothing holds the state")
+    }
+}
+
+/// Records the layout finalize calls made for a device-pay outcome.
+private final class DevicePayFinalizeRecordingRoktUX: RoktUX {
+    struct FinalizedCall {
+        let layoutId: String
+        let catalogItemId: String
+        let success: Bool
+    }
+
+    private(set) var finalizedCalls: [FinalizedCall] = []
+
+    override func devicePayFinalized(layoutId: String, catalogItemId: String, success: Bool) {
+        finalizedCalls.append(FinalizedCall(layoutId: layoutId, catalogItemId: catalogItemId, success: success))
+        super.devicePayFinalized(layoutId: layoutId, catalogItemId: catalogItemId, success: success)
     }
 }

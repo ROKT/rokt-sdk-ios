@@ -64,6 +64,36 @@ class TestStateBagManager: XCTestCase {
         XCTAssertNil(sut.getState(id: "1"))
         XCTAssertNil(uxHelper)
     }
+
+    func testGivenAnOutstandingPurchase_ThenKeepStateUntilNothingHoldsIt() {
+        var bag: MockBag? = MockBag()
+        bag?.uxHelper = MockUXHelper()
+        weak var uxHelper: AnyObject? = bag?.uxHelper
+        sut.addState(id: "1", state: bag!)
+        bag = nil
+        var purchaseOutstanding = true
+        sut.hasOutstandingPurchase = { id in id == "1" && purchaseOutstanding }
+
+        // Two purchases started; the first finished and cleared the flag while the second is still out.
+        sut.increasePlacements(id: "1")
+        sut.initiateInstantPurchase(id: "1")
+        sut.initiateInstantPurchase(id: "1")
+        sut.finishInstantPurchase(id: "1")
+        sut.decreasePlacements(id: "1")
+        XCTAssertNotNil(sut.getState(id: "1"), "The outstanding purchase keeps the state after the last placement unloads")
+        XCTAssertNotNil(uxHelper)
+
+        sut.removeStateIfUnused(id: "1")
+        XCTAssertNotNil(sut.getState(id: "1"), "Checking again changes nothing while the purchase is outstanding")
+
+        purchaseOutstanding = false
+        sut.removeStateIfUnused(id: "unknown")
+        XCTAssertEqual(sut.stateMap.count, 1, "An id with no state is left alone")
+
+        sut.removeStateIfUnused(id: "1")
+        XCTAssertNil(sut.getState(id: "1"))
+        XCTAssertNil(uxHelper)
+    }
 }
 
 private class MockUXHelper {

@@ -8,11 +8,17 @@ protocol StateBagManaging {
     func decreasePlacements(id: String)
     func initiateInstantPurchase(id: String)
     func finishInstantPurchase(id: String)
+    func removeStateIfUnused(id: String)
     func find(where: (any Bag) -> Bool) -> (any Bag)?
 }
 
 class StateBagManager: StateBagManaging {
     private(set) var stateMap: [String: any Bag] = [:]
+    /// Whether a purchase of the execute `id` is still outstanding somewhere its state cannot see: a checkout the
+    /// payment orchestrator holds for that execute (a Step-1 request out, a result waiting for its confirm, a purchase
+    /// in flight, an approval sheet up). Such a purchase still has a result to deliver through the state, so the state
+    /// is kept until it has. The default sees no such purchase.
+    var hasOutstandingPurchase: (String) -> Bool = { _ in false }
 
     func addState(id: String, state: any Bag) {
         stateMap[id] = state
@@ -43,6 +49,13 @@ class StateBagManager: StateBagManaging {
         checkRemoveState(id: id)
     }
 
+    /// Drops the state for `id` once nothing holds it: no placement loaded, no instant purchase initiated and no
+    /// purchase of the execute outstanding. Called when the last outstanding purchase of an execute ends without a
+    /// finish of its own, so state kept for that purchase does not outlive it.
+    func removeStateIfUnused(id: String) {
+        checkRemoveState(id: id)
+    }
+
     func find(where: (any Bag) -> Bool) -> (any Bag)? {
         stateMap.values.first(where: `where`)
     }
@@ -50,7 +63,8 @@ class StateBagManager: StateBagManaging {
     private func checkRemoveState(id: String) {
         guard let loadedPlacements = stateMap[id]?.loadedPlacements,
               loadedPlacements <= 0,
-              stateMap[id]?.instantPurchaseInitiated == false else { return }
+              stateMap[id]?.instantPurchaseInitiated == false,
+              !hasOutstandingPurchase(id) else { return }
         removeState(id: id)
     }
 }

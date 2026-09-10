@@ -142,6 +142,15 @@ final class PaymentOrchestrator {
             if case .cardInFlight = self { return true }
             return false
         }
+
+        /// The orchestrator that stored this entry; only it consumes the entry, and an entry whose orchestrator is
+        /// gone can no longer report back.
+        var owner: PaymentOrchestrator? {
+            switch self {
+            case .paypal(let pending): return pending.owner
+            case .card(let pending), .cardInFlight(let pending): return pending.owner
+            }
+        }
     }
 
     /// Deferred Step-1 state per item and placement. Step-2 consumes only the entry under its own event's key,
@@ -206,6 +215,10 @@ final class PaymentOrchestrator {
     private let payPalApprovalPresenter: PayPalApprovalPresenting
     /// Active built-in PayPal session so ``handleURLCallback(with:)`` can complete checkout when the return/cancel **deep link** opens the host app.
     private var activePayPalCheckout: PayPalCheckoutCoordinator?
+    /// Called on the main queue with an execute id when the last outstanding checkout of that execute ended without
+    /// reporting back: a PayPal approval cancelled after its placement closed, a card purchase that failed retryably
+    /// after its placement closed, or a session cleared. State kept for the execute can then be checked again.
+    var onExecuteHasNoOutstandingCheckout: ((String) -> Void)?
 
     init(
         apiHelper: RoktAPIHelper.Type = RoktAPIHelper.self,
@@ -588,11 +601,14 @@ final class PaymentOrchestrator {
                 self?.activePayPalCheckout = nil
                 if result.outcome == .canceled {
                     if let self {
-                        Self.requeuePendingBuiltInPayPalAfterForwardPaymentCancel(
+                        let dropped = Self.requeuePendingBuiltInPayPalAfterForwardPaymentCancel(
                             key: key,
                             snapshot: snapshot,
                             owner: self
                         )
+                        if dropped {
+                            self.reportIfNoOutstandingCheckout(forExecuteId: key.executeId)
+                        }
                     } else {
                         Self.endPresentingBuiltInPayPal(for: key)
                         snapshot.completion(result)
@@ -637,11 +653,16 @@ final class PaymentOrchestrator {
         return true
     }
 
+    /// Puts a cancelled PayPal entry back for the confirm button to start again, unless a fence ran while its sheet
+    /// was up, in which case the entry is dropped.
+    ///
+    /// - Returns: `true` when the entry was dropped, so nothing of it is left to report back; `false` when it was
+    ///   re-queued.
     private static func requeuePendingBuiltInPayPalAfterForwardPaymentCancel(
         key: BuiltInTwoStepCheckoutKey,
         snapshot: PendingBuiltInPayPalWebCheckout,
         owner: PaymentOrchestrator
-    ) {
+    ) -> Bool {
         let restored = PendingBuiltInPayPalWebCheckout(
             owner: owner,
             approvalURL: snapshot.approvalURL,
@@ -655,8 +676,9 @@ final class PaymentOrchestrator {
         defer { pendingBuiltInTwoStepLock.unlock() }
         // A fence that ran while the sheet was up means the placement or session is gone; re-queueing would
         // leave state nothing can resume, so the entry is dropped like any other discarded one.
-        guard presentedBuiltInPayPalCheckouts.removeValue(forKey: key)?.phase != .fenced else { return }
+        guard presentedBuiltInPayPalCheckouts.removeValue(forKey: key)?.phase != .fenced else { return true }
         pendingBuiltInTwoStepCheckouts[key] = .paypal(restored)
+        return false
     }
 
     /// Forgets that `key` is out for presentation once its hosted approval reached a terminal outcome.
@@ -774,22 +796,27 @@ final class PaymentOrchestrator {
     }
 
     /// After a retryable card forwarding `/v1/cart/purchase` failure, move `key` from ``cardInFlight`` back to
-    /// ``card`` so the buyer can tap confirm again without re-running Step-1 ``initializePurchase``.
+    /// ``card`` so the buyer can tap confirm again without re-running Step-1 ``initializePurchase``. An entry whose
+    /// placement or session went away while the request was out is dropped instead, and when it was the last
+    /// checkout of its execute the execute is reported through ``onExecuteHasNoOutstandingCheckout``.
     func restoreBuiltInCardForwardPaymentAfterRetryableFailure(for key: BuiltInTwoStepCheckoutKey) {
         Self.pendingBuiltInTwoStepLock.lock()
-        defer { Self.pendingBuiltInTwoStepLock.unlock() }
         guard case let .cardInFlight(snapshot)? = Self.pendingBuiltInTwoStepCheckouts[key],
               snapshot.owner === self
         else {
+            Self.pendingBuiltInTwoStepLock.unlock()
             return
         }
         // The placement or session went away while the request was out: there is no confirm button left to
         // retry from, so the entry is dropped like any other discarded one (its completion is not invoked).
         if Self.fencedInFlightBuiltInCardCheckouts.remove(key) != nil {
             Self.pendingBuiltInTwoStepCheckouts.removeValue(forKey: key)
+            Self.pendingBuiltInTwoStepLock.unlock()
+            reportIfNoOutstandingCheckout(forExecuteId: key.executeId)
             return
         }
         Self.pendingBuiltInTwoStepCheckouts[key] = .card(snapshot)
+        Self.pendingBuiltInTwoStepLock.unlock()
     }
 
     /// Ends a built-in card forwarding attempt for `key`: clears ``cardInFlight`` and delivers ``result`` to the
@@ -843,16 +870,51 @@ final class PaymentOrchestrator {
     /// in flight (``cardInFlight``) is kept so its terminal outcome still reaches the Step-1 completion, and
     /// every PayPal approval on screen is marked so its cancel drops the entry instead of re-queueing. Every
     /// Step-1 request still out is dropped too: its response then shows no confirm button and stores nothing.
+    /// Every execute this leaves with no checkout outstanding is reported through
+    /// ``onExecuteHasNoOutstandingCheckout``, since nothing of it is left to report back on its own.
     func discardAllPendingBuiltInTwoStep() {
         Self.pendingBuiltInTwoStepLock.lock()
+        var executeIdsWithDroppedState = Set(Self.preparingBuiltInTwoStepCheckouts.keys.map(\.executeId))
         Self.preparingBuiltInTwoStepCheckouts.removeAll()
+        for (key, entry) in Self.pendingBuiltInTwoStepCheckouts where !entry.isCardPurchaseInFlight {
+            executeIdsWithDroppedState.insert(key.executeId)
+        }
         Self.pendingBuiltInTwoStepCheckouts = Self.pendingBuiltInTwoStepCheckouts.filter { $0.value.isCardPurchaseInFlight }
         Self.fencedInFlightBuiltInCardCheckouts.formUnion(Self.pendingBuiltInTwoStepCheckouts.keys)
         Self.presentedBuiltInPayPalCheckouts = Self.presentedBuiltInPayPalCheckouts.mapValues {
             PresentedBuiltInPayPalCheckout(phase: .fenced, coordinator: $0.coordinator)
         }
-        Self.pruneAbandonedPresentedBuiltInPayPal()
+        for key in Self.pruneAbandonedPresentedBuiltInPayPal() {
+            executeIdsWithDroppedState.insert(key.executeId)
+        }
         Self.pendingBuiltInTwoStepLock.unlock()
+        executeIdsWithDroppedState.forEach(reportIfNoOutstandingCheckout(forExecuteId:))
+    }
+
+    /// Whether a built-in two-step checkout of `executeId` is still outstanding: a Step-1 request out, a Step-1
+    /// result waiting for its confirm, a card purchase in flight, or a PayPal approval sheet up. Read by the
+    /// execute's state keeper before it drops the execute's state, so a result that arrives after every placement
+    /// closed still has somewhere to report. A mark whose checkout is gone can never report back and does not count.
+    func hasOutstandingBuiltInTwoStepCheckout(forExecuteId executeId: String) -> Bool {
+        Self.pendingBuiltInTwoStepLock.lock()
+        defer { Self.pendingBuiltInTwoStepLock.unlock() }
+        Self.pruneAbandonedPresentedBuiltInPayPal()
+        let hasPendingCheckout = Self.pendingBuiltInTwoStepCheckouts.contains { entry in
+            entry.key.executeId == executeId && entry.value.owner === self
+        }
+        let hasPreparingCheckout = Self.preparingBuiltInTwoStepCheckouts.keys.contains { $0.executeId == executeId }
+        let hasPresentedCheckout = Self.presentedBuiltInPayPalCheckouts.keys.contains { $0.executeId == executeId }
+        return hasPendingCheckout || hasPreparingCheckout || hasPresentedCheckout
+    }
+
+    /// Reports `executeId` through ``onExecuteHasNoOutstandingCheckout`` when no checkout of it is outstanding any
+    /// more. Called with the lock released: the report's receiver reads these tables again.
+    private func reportIfNoOutstandingCheckout(forExecuteId executeId: String) {
+        guard !hasOutstandingBuiltInTwoStepCheckout(forExecuteId: executeId) else { return }
+        let report = onExecuteHasNoOutstandingCheckout
+        DispatchQueue.main.async {
+            report?(executeId)
+        }
     }
 
     // Clears static deferred state without invoking a completion (unit tests).
@@ -911,8 +973,13 @@ final class PaymentOrchestrator {
     /// that checkout, and the mark is what tells a cancel whether to re-queue the entry or drop it. Such a mark no
     /// longer holds other approvals back (``PresentedBuiltInPayPalCheckout/holdsBackOtherApprovals``); a repeated
     /// confirm for its own item does nothing until the mark goes.
-    private static func pruneAbandonedPresentedBuiltInPayPal() {
-        presentedBuiltInPayPalCheckouts = presentedBuiltInPayPalCheckouts.filter { $0.value.coordinator != nil }
+    ///
+    /// - Returns: the keys of the marks pruned, so a caller can report an execute left with nothing outstanding.
+    @discardableResult
+    private static func pruneAbandonedPresentedBuiltInPayPal() -> [BuiltInTwoStepCheckoutKey] {
+        let abandoned = presentedBuiltInPayPalCheckouts.filter { $0.value.coordinator == nil }.map(\.key)
+        abandoned.forEach { presentedBuiltInPayPalCheckouts.removeValue(forKey: $0) }
+        return abandoned
     }
 
     // Unit test hook: how many PayPal approval marks are held (any phase), so a test can see abandoned marks pruned.
