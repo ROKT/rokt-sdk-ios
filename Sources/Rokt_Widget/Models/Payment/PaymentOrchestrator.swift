@@ -900,8 +900,6 @@ final class PaymentOrchestrator {
         Self.pendingBuiltInTwoStepLock.unlock()
     }
 
-    // Unit test hook: whether deferred Step-1 state exists for `key` (either provider, any phase).
-    // periphery:ignore
     /// Drops fenced marks whose checkout is gone. A fenced sheet the host tore down without a cancel or a return never
     /// completes, so nothing else would remove its mark; once its checkout has been released (the next presentation
     /// replaces it) the mark can never be read again and is pruned here, under the lock, so abandoned approvals do not
@@ -913,12 +911,16 @@ final class PaymentOrchestrator {
         }
     }
 
+    // Unit test hook: how many PayPal approval marks are held (any phase), so a test can see abandoned marks pruned.
+    // periphery:ignore
     internal func unitTest_presentedBuiltInPayPalCount() -> Int {
         Self.pendingBuiltInTwoStepLock.lock()
         defer { Self.pendingBuiltInTwoStepLock.unlock() }
         return Self.presentedBuiltInPayPalCheckouts.count
     }
 
+    // Unit test hook: whether deferred Step-1 state exists for `key` (either provider, any phase).
+    // periphery:ignore
     internal func unitTest_hasPendingBuiltInTwoStep(for key: BuiltInTwoStepCheckoutKey) -> Bool {
         Self.pendingBuiltInTwoStepLock.lock()
         defer { Self.pendingBuiltInTwoStepLock.unlock() }
