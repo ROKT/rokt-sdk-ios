@@ -52,6 +52,26 @@ final class TestTxnInitResponse: XCTestCase {
         XCTAssertEqual(token.expiresAtDate, Date(timeIntervalSince1970: 1_774_474_053))
     }
 
+    func test_sessionToken_decodesMaximumExpiresAt_toFiniteDate() throws {
+        let json = #"{ "token": "t", "expires_at": 9223372036854775807 }"#
+        let token = try JSONDecoder().decode(TxnSessionToken.self, from: Data(json.utf8))
+        XCTAssertEqual(token.expiresAt, Int64.max)
+        XCTAssertTrue(token.expiresAtDate.timeIntervalSince1970.isFinite)
+    }
+
+    func test_sessionToken_clampingExpiry_capsFarFutureAndKeepsPlausible() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let capMs = Int64(now.addingTimeInterval(TxnSessionPersistence.maxTokenTTL).timeIntervalSince1970 * 1000)
+
+        for wireValue in [Int64.max - 511, Int64.max - 256, Int64.max, capMs + 1] {
+            let clamped = TxnSessionToken(token: "t", expiresAt: wireValue).clampingExpiry(now: now)
+            XCTAssertEqual(clamped.expiresAt, capMs, "\(wireValue)")
+            XCTAssertEqual(clamped.token, "t")
+        }
+        let plausible = TxnSessionToken(token: "t", expiresAt: 1_001_800_000).clampingExpiry(now: now)
+        XCTAssertEqual(plausible, TxnSessionToken(token: "t", expiresAt: 1_001_800_000))
+    }
+
     // MARK: - Feature flag accessors
 
     func test_featureFlags_typedAccessors() throws {

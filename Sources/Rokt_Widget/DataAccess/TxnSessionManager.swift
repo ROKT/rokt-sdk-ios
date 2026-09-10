@@ -61,9 +61,10 @@ internal actor TxnSessionManager {
         Self.storeLock.lock()
         defer { Self.storeLock.unlock() }
         guard isCurrentEpochLocked() else { return }
+        let bounded = sessionToken.clampingExpiry(now: clock())
         self.sessionId = sessionId
-        token = sessionToken.token
-        expiresAt = sessionToken.expiresAtDate
+        token = bounded.token
+        expiresAt = bounded.expiresAtDate
         persistLocked(includeSessionId: true)
     }
 
@@ -72,8 +73,9 @@ internal actor TxnSessionManager {
         Self.storeLock.lock()
         defer { Self.storeLock.unlock() }
         guard isCurrentEpochLocked() else { return }
-        token = sessionToken.token
-        expiresAt = sessionToken.expiresAtDate
+        let bounded = sessionToken.clampingExpiry(now: clock())
+        token = bounded.token
+        expiresAt = bounded.expiresAtDate
         persistLocked(includeSessionId: false)
     }
 
@@ -104,6 +106,33 @@ internal actor TxnSessionManager {
         store.setString(String(current &+ 1), forKey: TxnSessionStoreKeys.epoch)
     }
 
+    /// Session id for outbound request headers, or nil when no unexpired session is bound.
+    ///
+    /// Nonisolated so header construction need not hop onto the actor, and `storeLock`-guarded so
+    /// it still sees a consistent pair: `update` persists the id and the expiry under that lock, so
+    /// an unlocked read can pair a stale id with a fresh expiry and defeat the gate.
+    ///
+    /// Reads only. Unlike ``getSession()``, building a header must not clear an expired session.
+    nonisolated static func currentValidSessionId(
+        roktTagId: String,
+        store: TxnSessionStore = UserDefaultsTxnSessionStore(),
+        clock: () -> Date = Date.init
+    ) -> String? {
+        storeLock.lock()
+        defer { storeLock.unlock() }
+        guard TxnSessionPersistence.isBound(to: roktTagId, store: store) else { return nil }
+
+        let snapshot = TxnSessionPersistence.readRaw(store: store)
+        guard let sessionId = snapshot.sessionId,
+              !sessionId.isEmpty,
+              !TxnSessionPersistence.isExpired(expiresAt: snapshot.expiresAt, clock: clock)
+        else {
+            return nil
+        }
+
+        return sessionId
+    }
+
     private var hasExpired: Bool {
         TxnSessionPersistence.isExpired(expiresAt: expiresAt, clock: clock)
     }
@@ -131,7 +160,7 @@ internal actor TxnSessionManager {
             clearStateLocked(bumpEpoch: false)
             return
         }
-        let raw = TxnSessionPersistence.readRaw(store: store)
+        let raw = TxnSessionPersistence.readRaw(store: store, now: clock())
         sessionId = raw.sessionId
         token = raw.token
         expiresAt = raw.expiresAt

@@ -104,6 +104,70 @@ class ExperienceCacheTests: XCTestCase {
         ))
     }
 
+    /// Caching a response must not take the view state with it: the plugin view states and
+    /// sent-event hashes share that directory and are what the next execute restores. Deleting the
+    /// directory to evict the previous response destroyed them, and because the delete is an async
+    /// barrier while the view state is read straight off disk, it did so at a nondeterministic
+    /// point — which is what made `uses cached plugin view states` fail on some runs and not others.
+    func test_cacheExperienceResponse_evictsOnlyResponses_keepingViewState() {
+        ExperienceCacheManager.updatePluginViewStateCache(
+            viewName: mockedViewName,
+            attributes: mockedAttributes,
+            updateStates: RoktPluginViewState(pluginId: mockedPluginId, offerIndex: 4)
+        )
+        ExperienceCacheManager.cacheExperiencesViewStateSentEventHashes(
+            viewName: mockedViewName,
+            attributes: mockedAttributes,
+            sentEventHashes: mockedEventHash1
+        )
+        // A superseded response, to prove eviction still happens.
+        ExperienceCacheManager.cacheExperienceResponse(viewName: mockedViewName,
+                                                       attributes: mockedNonMatchingAttributes,
+                                                       experienceResponse: mockedExperienceResponse)
+
+        let seeded = expectation(description: "Seeded cache after 1s")
+        _ = XCTWaiter.wait(for: [seeded], timeout: 1)
+
+        XCTAssertTrue(ExperienceCacheTests.experienceCachePluginViewStateFileExists(
+            pluginId: mockedPluginId, viewName: mockedViewName, attributes: mockedAttributes
+        ))
+
+        ExperienceCacheManager.cacheExperienceResponse(viewName: mockedViewName,
+                                                       attributes: mockedAttributes,
+                                                       experienceResponse: mockedExperienceResponse)
+
+        let cached = expectation(description: "Cached response after 1s")
+        _ = XCTWaiter.wait(for: [cached], timeout: 1)
+
+        // The new response is cached and the superseded one is gone.
+        XCTAssertTrue(ExperienceCacheTests.experienceCacheFileExists(
+            viewName: mockedViewName, attributes: mockedAttributes
+        ))
+        XCTAssertFalse(ExperienceCacheTests.experienceCacheFileExists(
+            viewName: mockedViewName, attributes: mockedNonMatchingAttributes
+        ))
+
+        // The view state survived, contents intact.
+        XCTAssertTrue(ExperienceCacheTests.experienceCachePluginViewStateFileExists(
+            pluginId: mockedPluginId, viewName: mockedViewName, attributes: mockedAttributes
+        ))
+        XCTAssertTrue(ExperienceCacheTests.experienceCacheExperiencesViewStateFileExists(
+            viewName: mockedViewName, attributes: mockedAttributes
+        ))
+        XCTAssertEqual(
+            ExperienceCacheManager.getOrCreateCachedPluginViewState(
+                pluginId: mockedPluginId, viewName: mockedViewName, attributes: mockedAttributes
+            ),
+            RoktPluginViewState(pluginId: mockedPluginId, offerIndex: 4, isPluginDismissed: false)
+        )
+        XCTAssertEqual(
+            ExperienceCacheManager.getCachedExperiencesViewState(
+                viewName: mockedViewName, attributes: mockedAttributes
+            )?.sentEventHashes,
+            mockedEventHash1
+        )
+    }
+
     func test_getCachedExperienceResponse_onEmptyCache_returnsNil() {
         let waitExp = expectation(description: "wait for clear to complete")
         _ = XCTWaiter.wait(for: [waitExp], timeout: 1)

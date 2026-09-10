@@ -35,7 +35,7 @@ internal class ExperienceCacheManager {
     }
 
     /**
-     Clear existing cache and save new experience response in cache
+     Evict superseded experience responses and save new experience response in cache
 
      - Parameters:
       - viewName: A string representing the targetted view name received in execute.
@@ -51,30 +51,52 @@ internal class ExperienceCacheManager {
         success: (() -> Void)? = nil,
         failure: (() -> Void)? = nil
     ) {
-        clearCache(
-            success: {
-                let fileName = ExperienceCacheUtils.getExperienceResponseCacheFileName(
-                    viewName: viewName,
-                    attributes: attributes)
-                guard let fileURL = getFileUrl(name: fileName) else {
-                    failure?()
-                    return
-                }
+        let fileName = ExperienceCacheUtils.getExperienceResponseCacheFileName(
+            viewName: viewName,
+            attributes: attributes)
+        guard let fileURL = getFileUrl(name: fileName) else {
+            failure?()
+            return
+        }
 
-                guard let fileContents = ExperienceCacheUtils.generateExperienceResponseCacheFileContent(
-                    experienceResponse: experienceResponse) else {
-                    failure?()
-                    return
-                }
+        guard let fileContents = ExperienceCacheUtils.generateExperienceResponseCacheFileContent(
+            experienceResponse: experienceResponse) else {
+            failure?()
+            return
+        }
 
-                saveToFile(
-                    data: fileContents,
-                    to: fileURL,
-                    success: success,
-                    failure: failure)
-            }, failure: {
-                failure?()
-            })
+        // Enqueued before the write rather than nested in its completion: both are barriers on the
+        // same queue, which runs barriers in submission order, so the new response still lands last.
+        clearCachedExperienceResponses()
+
+        saveToFile(
+            data: fileContents,
+            to: fileURL,
+            success: success,
+            failure: failure)
+    }
+
+    /// Evicts every cached experience response, leaving the view state that shares the directory.
+    ///
+    /// The response cache holds one entry at a time, but `clearCache` enforces that by deleting the
+    /// whole directory — which also destroys the plugin view states and sent-event hashes the next
+    /// execute is meant to restore. Those reads are direct synchronous file reads while the delete
+    /// is an async barrier, so it landed at a nondeterministic point: the same execute that cached a
+    /// response could wipe the view state it had just persisted, before or after the next read.
+    private static func clearCachedExperienceResponses() {
+        // Enumerated off the barrier queue, so a response write still in flight is not swept. Only
+        // overlapping executes could do that, which `isExecuting` already rejects; if that guard
+        // ever goes away, move the enumeration onto the queue.
+        guard let cacheDirectoryUrl = getCacheDirectoryUrl(),
+              let cachedFileUrls = try? FileManager.default.contentsOfDirectory(
+                  at: cacheDirectoryUrl,
+                  includingPropertiesForKeys: nil)
+        else { return }
+
+        for fileUrl in cachedFileUrls
+        where ExperienceCacheUtils.isExperienceResponseFileName(fileUrl.lastPathComponent) {
+            backingStore.deleteFileAtUrl(at: fileUrl, completion: nil)
+        }
     }
 
     static func getCachedExperienceResponseFileData(viewName: String?,
