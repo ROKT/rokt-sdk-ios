@@ -141,17 +141,18 @@ class RoktInternalImplementation {
     // work: clearSession's own reset, a placement's admission (admitPlacement), the commit of a prepared response
     // (commitIfCurrent around commitLayoutPageExecutePayload: the legacy session id, the sent-event hashes, the timings
     // bookkeeping, and the queuing of the echoed events' write, of any new plugin view-state file and of the experience
-    // cache's write), the synchronous hand-off of one offers request to the network stack (handOffIfCurrent), the
-    // check-and-queue of a response's echoed events (captureUntriggeredEvents), the claim of a render's inputs
-    // (claimRenderIfCurrent) and the compare-and-clear of the shared callbacks (clearCallBacks(ownedBy:)) — never a
-    // callback into the host, never across the network, never a file read or write, never a parse or decode, never a
-    // wait on another thread. Everything proportional to a response's size — its parse, the decode of its echoed
-    // events on the helper thread, the direct reads of the cached view-state files — runs before the lock is taken
-    // (prepareLayoutPageExecutePayload), so a clearSession on another thread waits for none of it. Every file write
-    // made under the lock is queued on the real-time event store's or the experience cache's own serial queue and runs
-    // there, after the lock is released. Queuing under the lock is what orders those writes against clearSession, which
-    // queues the store's clear and the cache's clear under the same lock: an accepted write always lands before a later
-    // clear, and a commit the lock refuses queues nothing.
+    // cache's write), the build of a placement's offers service before its request is sent (commitIfCurrent in execute:
+    // in-memory construction, plus the session manager's read of the session store's epoch), the synchronous hand-off of
+    // one offers request to the network stack (handOffIfCurrent), the check-and-queue of a response's echoed events
+    // (captureUntriggeredEvents), the claim of a render's inputs (claimRenderIfCurrent) and the compare-and-clear of the
+    // shared callbacks (clearCallBacks(ownedBy:)) — never a callback into the host, never across the network, never a
+    // file read or write, never a parse or decode, never a wait on another thread. Everything proportional to a
+    // response's size — its parse, the decode of its echoed events on the helper thread, the direct reads of the cached
+    // view-state files — runs before the lock is taken (prepareLayoutPageExecutePayload), so a clearSession on another
+    // thread waits for none of it. Every file write made under the lock is queued on the real-time event store's or the
+    // experience cache's own serial queue and runs there, after the lock is released. Queuing under the lock is what
+    // orders those writes against clearSession, which queues the store's clear and the cache's clear under the same
+    // lock: an accepted write always lands before a later clear, and a commit the lock refuses queues nothing.
     private let sessionGenerationLock = NSRecursiveLock()
 
     // Caching is disabled by default when no CacheConfig is provided to the Builder.
@@ -1332,7 +1333,10 @@ class RoktInternalImplementation {
     /// where they run after the lock is released. It reads and writes no file itself and never waits on another
     /// thread, on the network or on another queue's file work, so a clearSession's wait is bounded by a handful of
     /// memory writes and enqueues. Keep it that way: anything that grows with the response belongs in the prepare, and
-    /// a longer hold here is a longer stall for the host's clearSession call, often on the main thread.
+    /// a longer hold here is a longer stall for the host's clearSession call, often on the main thread. The same guard
+    /// also holds two other short steps of a placement: the build of its offers service before the request is sent (an
+    /// in-memory construction and the session store's epoch read, in execute) and the hand-off of that request to the
+    /// network stack (handOffIfCurrent, a synchronous enqueue); neither waits on anything either.
     func commitIfCurrent(generation: Int, _ commit: () -> Void) -> Bool {
         sessionGenerationLock.lock()
         defer { sessionGenerationLock.unlock() }
@@ -1845,13 +1849,14 @@ class RoktInternalImplementation {
     /// The second half of handling an experience response, run UNDER the generation lock — always inside
     /// commitIfCurrent, so only while the placement's generation is still current. Writes the session-owned state in
     /// memory and queues the file writes; every step is a memory write or an enqueue, none parses, decodes, reads a file
-    /// or waits, so the hold is short whatever the response's size. In order: the legacy session id (which, when it
-    /// changes, queues the real-time event store's clear), the parse timings; then, when the experience has a page, the
-    /// echoed events' add queued on the store's serial queue behind that clear, the page timings, and the view state the
-    /// render is handed — the sent-event hashes, and for each plugin the state read in the prepare or, where there was
-    /// none, a new one whose file write is queued on the cache's own queue. Queued under the lock, each write is ordered
-    /// before the clears a later clearSession queues under the same lock, so that clear removes them. Returns nil when
-    /// the experience decoded to no page; the session id is still committed, as the server rolled it forward.
+    /// or waits, so the hold is short whatever the response's size. In order: the legacy session id (a UserDefaults
+    /// write, persisted by the system off this thread, which, when the id changes, queues the real-time event store's
+    /// clear), the parse timings; then, when the experience has a page, the echoed events' add queued on the store's
+    /// serial queue behind that clear, the page timings, and the view state the render is handed — the sent-event
+    /// hashes, and for each plugin the state read in the prepare or, where there was none, a new one whose file write is
+    /// queued on the cache's own queue. Queued under the lock, each write is ordered before the clears a later
+    /// clearSession queues under the same lock, so that clear removes them. Returns nil when the experience decoded to
+    /// no page; the session id is still committed, as the server rolled it forward.
     func commitLayoutPageExecutePayload(_ prepared: PreparedLayoutPage, selectionId: String) -> LayoutPageExecutePayload? {
         sessionManager.updateSessionId(newSessionId: prepared.sessionId)
 

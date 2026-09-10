@@ -493,6 +493,10 @@ final class TestOffersExecuteWiring: XCTestCase {
         XCTAssertNil(impl.getSessionId(), "the session id the cached experience carries must not come back")
         XCTAssertNil(RoktLogger.shared.sessionId)
         assertEchoedEventWasDropped()
+        // The clear runs on the cache's own queue after clearSession returns: wait for the directory to empty, then check
+        // that nothing was written after it. A file written by the refused placement would keep the directory from ever
+        // emptying, and the wait would time out.
+        waitUntil({ self.experienceCacheFileNames().isEmpty }, timeout: 10)
         XCTAssertTrue(experienceCacheFileNames().isEmpty,
                       "the refused commit wrote no view-state file; the clear left nothing on disk for the next customer")
     }
@@ -846,6 +850,10 @@ final class TestOffersExecuteWiring: XCTestCase {
         XCTAssertNil(impl.getSessionId(), "the session id the cached experience carries must not come back")
         XCTAssertNil(RoktLogger.shared.sessionId)
         assertEchoedEventWasDropped()
+        // The clear runs on the cache's own queue after clearSession returns: wait for the directory to empty, then check
+        // that nothing was written after it. A view-state file created by the refused commit would have been queued
+        // behind that clear and would keep the directory from ever emptying, so the wait would time out.
+        waitUntil({ self.experienceCacheFileNames().isEmpty }, timeout: 10)
         XCTAssertTrue(experienceCacheFileNames().isEmpty,
                       "the refused commit wrote no view-state file; the clear left nothing on disk for the next customer")
     }
