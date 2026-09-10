@@ -881,6 +881,13 @@ class RoktInternalImplementation {
 
     func handleForwardPayment(executeId: String,
                               event: RoktUXEvent.CartItemForwardPayment) {
+        // The one-approval gate reads whether an approval sheet's view is in a window, a UIKit read for the main thread.
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in
+                self?.handleForwardPayment(executeId: executeId, event: event)
+            }
+            return
+        }
         // Only this item's own pending Step-1 may be resumed; anything else runs the event's own cart purchase.
         let key = BuiltInTwoStepCheckoutKey(executeId: executeId, forwardPayment: event)
         let presentedPayPal = paymentOrchestrator.presentPendingBuiltInPayPalForForwardPayment(for: key) { [weak self] result in

@@ -483,6 +483,62 @@ final class TestBuiltInTwoStepCheckoutBinding: XCTestCase {
         )
         XCTAssertNil(impl.stateManager.getState(id: executeId), "Once item B has finished, nothing holds the state")
     }
+
+    // MARK: - A confirm delivered off the main thread is handled on it
+
+    /// Seeds a pending PayPal Step-1 whose confirm presents its approval sheet, so its completion may run later.
+    private func seedPayPalForPresentation(_ orch: PaymentOrchestrator, for key: BuiltInTwoStepCheckoutKey) {
+        orch.unitTest_seedDeferredBuiltInPayPalForwardPayment(
+            for: key,
+            approvalURL: URL(string: "https://www.paypal.com/checkoutnow?token=MOCK")!,
+            returnURLString: "myapp://paypal/success",
+            orderId: "ORDER_MOCK"
+        ) { _ in }
+    }
+
+    /// The one-approval gate reads whether an approval sheet's view is in a window, so a confirm that reaches the
+    /// implementation off the main thread is handled on it, with the same outcome as one that arrived there. A confirm
+    /// already on the main thread is handled before the call returns, which the tests above rely on.
+    func test_handleForwardPayment_offTheMainThread_isHandledOnTheMainThreadWithTheSameOutcome() {
+        let itemKey = key(cartItemId: "cart-a", catalogItemId: "catalog-a")
+        let event = makeForwardPaymentEvent(cartItemId: "cart-a", catalogItemId: "catalog-a")
+
+        // On the main thread the pending checkout is taken before the call returns.
+        let onMainImpl = RoktInternalImplementation()
+        let onMainPresenter = HoldingPayPalApprovalPresenter()
+        onMainImpl.paymentOrchestratorForTesting = PaymentOrchestrator(payPalApprovalPresenter: onMainPresenter)
+        let onMainOrch = onMainImpl.paymentOrchestratorForTesting
+        seedPayPalForPresentation(onMainOrch, for: itemKey)
+        onMainImpl.handleForwardPayment(executeId: executeId, event: event)
+        XCTAssertFalse(onMainOrch.unitTest_hasPendingBuiltInTwoStep(for: itemKey), "Handled before the call returned")
+        drainMainQueue()
+        let presentedFromTheMainThread = onMainPresenter.presentCallCount
+
+        // Off the main thread nothing is read until the main thread runs. The main thread is held here until the call
+        // has returned, so the hop cannot run first.
+        PaymentOrchestrator.resetBuiltInTwoStepDeferredStateForTesting()
+        let offMainImpl = RoktInternalImplementation()
+        let offMainPresenter = HoldingPayPalApprovalPresenter()
+        offMainImpl.paymentOrchestratorForTesting = PaymentOrchestrator(payPalApprovalPresenter: offMainPresenter)
+        let offMainOrch = offMainImpl.paymentOrchestratorForTesting
+        seedPayPalForPresentation(offMainOrch, for: itemKey)
+        let returned = DispatchSemaphore(value: 0)
+        var pendingWhenTheCallReturned = false
+        var approvalsStartedWhenTheCallReturned = -1
+        DispatchQueue.global(qos: .userInitiated).async {
+            offMainImpl.handleForwardPayment(executeId: self.executeId, event: event)
+            pendingWhenTheCallReturned = offMainOrch.unitTest_hasPendingBuiltInTwoStep(for: itemKey)
+            approvalsStartedWhenTheCallReturned = offMainOrch.unitTest_presentedBuiltInPayPalCount()
+            returned.signal()
+        }
+        XCTAssertEqual(returned.wait(timeout: .now() + 3), .success, "The call returns without waiting on the main thread")
+        XCTAssertTrue(pendingWhenTheCallReturned, "The pending checkout is not read off the main thread")
+        XCTAssertEqual(approvalsStartedWhenTheCallReturned, 0, "No approval is started off the main thread")
+
+        drainMainQueue()
+        XCTAssertFalse(offMainOrch.unitTest_hasPendingBuiltInTwoStep(for: itemKey), "Handled once the main thread ran")
+        XCTAssertEqual(offMainPresenter.presentCallCount, presentedFromTheMainThread, "Same outcome as on the main thread")
+    }
 }
 
 /// Records the layout finalize calls: the device-pay ones a Step-1 completion makes, and the forward-payment ones a
