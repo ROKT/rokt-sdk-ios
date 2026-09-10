@@ -190,6 +190,12 @@ final class TestOffersExecuteWiring: XCTestCase {
         config.environment = originalEnvironment
         window?.isHidden = true
         window = nil
+        // A test that waits only for the page to be captured ends while its render is still in flight. The renderer keeps
+        // reporting into this implementation's event processor (the placement's state bag holds the event handler, which
+        // holds the implementation, so releasing `impl` does not free it), and that processor sends and de-duplicates
+        // through the shared `Rokt.shared.roktImplementation` - whichever implementation a later test has installed there.
+        // Disconnecting the processor here makes any late report a no-op instead of a stray request in another test.
+        impl?.processedEvents = nil
         impl = nil
         super.tearDown()
     }
