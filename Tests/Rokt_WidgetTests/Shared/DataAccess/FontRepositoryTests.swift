@@ -449,6 +449,70 @@ class FontRepositoryTests: XCTestCase {
                       "unrelated Documents fonts must not be moved")
     }
 
+    func test_migrateLegacyFontStorage_skipsMetadataNamesWithPathSeparators() throws {
+        let fileManager = FileManager.default
+        let destination = try XCTUnwrap(FontRepository.getFontDirectoryUrl())
+        FontRepository.resetMigrationMarkerForTests()
+        try? fileManager.removeItem(at: destination)
+
+        let documentsRoot = try XCTUnwrap(fileManager.urls(for: .documentDirectory, in: .userDomainMask).first)
+        let detailURL = documentsRoot.appendingPathComponent("RoktFontDownloadedDetail.json")
+        let plainFontURL = documentsRoot.appendingPathComponent("PlainFont.ttf")
+        // A stored name with a separator points one level above Documents. The file it names
+        // must stay where it is and nothing may appear beside RoktFonts.
+        let traversingName = "../rokt-migration-probe"
+        let referencedFile = documentsRoot.deletingLastPathComponent().appendingPathComponent("rokt-migration-probe.ttf")
+        let escapedTarget = destination.appendingPathComponent("\(traversingName).ttf").standardizedFileURL
+        XCTAssertFalse(escapedTarget.isContained(in: destination), "the probe must target a path outside RoktFonts")
+
+        let details: [String: [String: String]] = [
+            "https://font.test/plain.ttf": ["name": "PlainFont", "timestamp": "1"],
+            "https://font.test/traversing.ttf": ["name": traversingName, "timestamp": "1"]
+        ]
+        try JSONEncoder().encode(details).write(to: detailURL)
+        try Data([0x0A]).write(to: plainFontURL)
+        try Data([0x0B]).write(to: referencedFile)
+
+        addTeardownBlock {
+            try? fileManager.removeItem(at: detailURL)
+            try? fileManager.removeItem(at: plainFontURL)
+            try? fileManager.removeItem(at: referencedFile)
+            try? fileManager.removeItem(at: escapedTarget)
+            FontRepository.resetMigrationMarkerForTests()
+        }
+
+        FontRepository.migrateLegacyFontStorageIfNeeded()
+
+        XCTAssertTrue(fileManager.fileExists(atPath: destination.appendingPathComponent("PlainFont.ttf").path),
+                      "a sibling entry with a plain name must still migrate")
+        XCTAssertTrue(fileManager.fileExists(atPath: referencedFile.path),
+                      "the file a traversing name points at must be left where it is")
+        XCTAssertFalse(fileManager.fileExists(atPath: escapedTarget.path),
+                       "a name with a separator must not place a file outside RoktFonts")
+    }
+
+    func test_isSafeFontFileName_rejectsSeparatorsAndDotSegments() {
+        for name in ["a/b", "../x", "\\x", "..", ".", "", " \n", "nul\u{0}"] {
+            XCTAssertFalse(FontRepository.isSafeFontFileName(name), name.debugDescription)
+        }
+        for name in ["Roboto-Regular", "Roboto-Regular.v2", "Font Name", "Schrift"] {
+            XCTAssertTrue(FontRepository.isSafeFontFileName(name), name.debugDescription)
+        }
+    }
+
+    func test_isContained_rejectsDotDotEscape() throws {
+        let root = try XCTUnwrap(FontRepository.getFontDirectoryUrl())
+        let prefixSibling = root.deletingLastPathComponent().appendingPathComponent("RoktFontsSibling/a.ttf")
+
+        XCTAssertTrue(root.appendingPathComponent("a.ttf").isContained(in: root))
+        XCTAssertTrue(root.appendingPathComponent("sub/a.ttf").isContained(in: root))
+        XCTAssertFalse(root.appendingPathComponent("../a.ttf").isContained(in: root))
+        XCTAssertFalse(root.appendingPathComponent("sub/../../a.ttf").isContained(in: root))
+        XCTAssertFalse(root.isContained(in: root), "the directory itself is not inside itself")
+        XCTAssertFalse(prefixSibling.isContained(in: root),
+                       "a sibling that merely shares the directory name as a prefix must not pass")
+    }
+
     func test_migrateLegacyFontStorage_isIdempotent() throws {
         FontRepository.resetMigrationMarkerForTests()
         FontRepository.migrateLegacyFontStorageIfNeeded()
