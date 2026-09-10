@@ -224,6 +224,7 @@ final class MockRoktInternalImplementation: RoktInternalImplementation {
         viewName: String?,
         attributes: [String: String],
         placements: [String: RoktEmbeddedView]?,
+        swiftUiLayout: LayoutLoader?,
         config: RoktConfig?,
         placementOptions: RoktPlacementOptions?,
         onRoktEvent: ((RoktEvent) -> Void)?
