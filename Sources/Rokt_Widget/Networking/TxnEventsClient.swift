@@ -107,8 +107,9 @@ internal struct TxnEvent: Codable, Equatable {
     // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
     let data: [String: TxnEventDataValue]?
     // periphery:ignore - encode-only; read by the synthesized Encodable, not by code
-    // Replay only: the gateway accepts `single_session` + a shared `session_id` in place of a JWT.
-    // Must be sent instead of an Authorization header — a disagreeing pair is rejected.
+    // Set only on a batch sent without an Authorization header: a replay, or a batch bound to a
+    // session that is no longer the stored one or whose token has expired. The gateway accepts
+    // `single_session` + a shared `session_id` in place of a JWT; a disagreeing pair is rejected.
     var sessionId: String?
 
     enum CodingKeys: String, CodingKey {
