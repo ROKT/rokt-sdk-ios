@@ -80,7 +80,7 @@ final class TestURLExtension: XCTestCase {
 
     // MARK: - hasLoopbackHost
 
-    func test_hasLoopbackHost_trueForLoopbackHosts() {
+    func test_hasLoopbackHost_withLoopbackHost_returnsTrue() {
         for urlString in [
             "http://localhost:9011/approve",
             "http://127.0.0.1:9011/approve",
@@ -92,7 +92,7 @@ final class TestURLExtension: XCTestCase {
     }
 
     /// The match is on the whole host: a name that merely starts with a loopback address is not one.
-    func test_hasLoopbackHost_falseForOtherHosts() {
+    func test_hasLoopbackHost_withOtherHost_returnsFalse() {
         for urlString in [
             "http://www.example.com/x",
             "http://localhost.example.com/x",
