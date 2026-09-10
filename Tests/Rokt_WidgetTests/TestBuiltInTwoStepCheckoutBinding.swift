@@ -289,6 +289,7 @@ final class TestBuiltInTwoStepCheckoutBinding: XCTestCase {
         XCTAssertFalse(orch.unitTest_hasPendingBuiltInTwoStep(for: closingKey))
         XCTAssertFalse(orch.presentPendingBuiltInPayPalForForwardPayment(for: closingKey) { _ in })
         XCTAssertTrue(orch.unitTest_hasPendingBuiltInTwoStep(for: openKey), "The other open layout keeps its checkout")
+        XCTAssertNotNil(impl.stateManager.getState(id: executeId), "The other open layout's checkout keeps the state")
 
         registerPurchaseMock(body: #"{"success":true}"#) { _ in }
         installMockingHTTPClient()
@@ -583,6 +584,192 @@ final class TestBuiltInTwoStepCheckoutBinding: XCTestCase {
             "The layout hears item B's result from its Step-2 return"
         )
         XCTAssertNil(impl.stateManager.getState(id: executeId), "Once item B has finished, nothing holds the state")
+    }
+
+    // MARK: - A checkout dropped by a fence releases the execute's state, which no finish will ever release
+
+    /// One PayPal checkout waits for its confirm when its placement closes. The close drops the checkout, and the
+    /// execute's state, which the tap's instant-purchase flag would otherwise keep for the life of the state keeper,
+    /// goes with it once the placement has unloaded.
+    func test_layoutClosed_droppingTheOnlyCheckoutOfTheExecute_releasesTheExecutesState() {
+        let (impl, bag) = makeImplementationAfterStepTwoTap()
+        let orch = impl.paymentOrchestratorForTesting
+        let itemKey = key(cartItemId: "cart-a", catalogItemId: "catalog-a")
+        seedPayPal(orch, for: itemKey)
+
+        impl.callOnRoktUXEvent(executeId, uxEvent: RoktUXEvent.LayoutClosed(layoutId: "layout-1"))
+        XCTAssertEqual(bag.loadedPlacements, 0)
+        drainMainQueue()
+
+        XCTAssertFalse(orch.unitTest_hasPendingBuiltInTwoStep(for: itemKey))
+        XCTAssertFalse(bag.instantPurchaseInitiated, "A dropped checkout can never finish, so its flag is cleared")
+        XCTAssertNil(impl.stateManager.getState(id: executeId), "Nothing holds the state once its checkout is dropped")
+    }
+
+    /// A session clear drops a checkout waiting for its confirm. With every placement already unloaded, the execute's
+    /// state goes at once; with a placement still up, the state stays until that placement unloads.
+    func test_clearSession_droppingTheOnlyCheckoutOfAnExecute_releasesItsStateOnceNothingElseHoldsIt() {
+        let userDefaults = UserDefaults(suiteName: #file)!
+        userDefaults.removePersistentDomain(forName: #file)
+        defer { userDefaults.removePersistentDomain(forName: #file) }
+        let impl = RoktInternalImplementation(
+            sessionManager: SessionManager(managedSessions: [], userDefaults: userDefaults)
+        )
+        impl.txnSessionStore = ScratchTxnStore()
+        let orch = impl.paymentOrchestratorForTesting
+        let unloadedBag = ExecuteStateBag(uxHelper: nil, onRoktEvent: nil)
+        unloadedBag.instantPurchaseInitiated = true
+        impl.stateManager.addState(id: executeId, state: unloadedBag)
+        let showingBag = ExecuteStateBag(uxHelper: nil, onRoktEvent: nil)
+        showingBag.loadedPlacements = 1
+        showingBag.instantPurchaseInitiated = true
+        impl.stateManager.addState(id: "showing-execute", state: showingBag)
+        seedPayPal(orch, for: key(cartItemId: "cart-a", catalogItemId: "catalog-a"))
+        seedPayPal(orch, for: key(executeId: "showing-execute", cartItemId: "cart-b", catalogItemId: "catalog-b"))
+
+        impl.clearSession()
+        drainMainQueue()
+
+        XCTAssertNil(impl.stateManager.getState(id: executeId), "The dropped checkout was all that held the unloaded state")
+        XCTAssertNotNil(impl.stateManager.getState(id: "showing-execute"), "A placement still up keeps its state")
+        XCTAssertFalse(showingBag.instantPurchaseInitiated, "The dropped checkout no longer holds it")
+
+        impl.callOnRoktUXEvent("showing-execute", uxEvent: RoktUXEvent.LayoutClosed(layoutId: "layout-1"))
+        drainMainQueue()
+        XCTAssertNil(impl.stateManager.getState(id: "showing-execute"), "The state goes with its last placement")
+    }
+
+    /// A PayPal approval sheet is up when its placement closes, and the buyer then cancels. The checkout is dropped
+    /// rather than re-queued, nothing is owed to the partner or the layout for it, and the execute's state goes with it.
+    func test_layoutClosed_whileItsPayPalSheetIsUp_thenCancelled_releasesTheExecutesState() {
+        let impl = RoktInternalImplementation()
+        let presenter = HoldingPayPalApprovalPresenter()
+        impl.paymentOrchestratorForTesting = PaymentOrchestrator(
+            apiHelper: PaymentOrchestratorAPIHelperSpy.self,
+            payPalApprovalPresenter: presenter
+        )
+        defer { PaymentOrchestratorAPIHelperSpy.reset() }
+        let orch = impl.paymentOrchestratorForTesting
+        var partnerEvents: [RoktEvent] = []
+        let bag = ExecuteStateBag(uxHelper: nil) { partnerEvents.append($0) }
+        bag.loadedPlacements = 1
+        impl.stateManager.addState(id: executeId, state: bag)
+        impl.stateManager.initiateInstantPurchase(id: executeId)
+        Rokt.shared.roktImplementation.roktTagId = forwardPaymentTestTagId
+
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = payPalInitializePurchaseResponse(orderId: "ORDER_A")
+        // Held strongly: the pending checkout only keeps a weak reference to the screen it presents from.
+        let presentingViewController = UIViewController()
+        orch.processPayment(
+            method: .paypal,
+            item: PaymentItem(id: "catalog-a", name: "Test item", amount: 1, currency: "USD"),
+            context: PaymentContext(
+                billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                returnURL: "myapp://paypal/success",
+                cancelURL: "myapp://paypal/cancel"
+            ),
+            cartItemId: "cart-a",
+            from: presentingViewController,
+            builtInPayPalDevicePaySession: BuiltInTwoStepDevicePaySession(
+                executeId: executeId,
+                layoutId: "layout-1",
+                catalogItemId: "catalog-a"
+            ) { _, _, _ in }
+        ) { result in
+            XCTFail("A checkout dropped after its placement closed reports nothing, got \(result.outcome)")
+        }
+        impl.handleForwardPayment(
+            executeId: executeId,
+            event: makeForwardPaymentEvent(cartItemId: "cart-a", catalogItemId: "catalog-a")
+        )
+        drainMainQueue()
+        XCTAssertEqual(presenter.presentCallCount, 1, "The approval sheet is up")
+
+        // The placement closes while the sheet is up; the state stays until the sheet reports back.
+        impl.callOnRoktUXEvent(executeId, uxEvent: RoktUXEvent.LayoutClosed(layoutId: "layout-1"))
+        drainMainQueue()
+        XCTAssertEqual(bag.loadedPlacements, 0)
+        XCTAssertNotNil(impl.stateManager.getState(id: executeId), "The state is kept while the sheet can still report back")
+
+        // The buyer cancels: with the placement gone, the checkout is dropped and nothing is left to hold the state.
+        XCTAssertTrue(orch.handleURLCallback(with: URL(string: "myapp://paypal/cancel?token=ORDER_A")!))
+        drainMainQueue()
+
+        XCTAssertFalse(orch.unitTest_hasPendingBuiltInTwoStep(for: key(cartItemId: "cart-a", catalogItemId: "catalog-a")))
+        XCTAssertTrue(partnerEvents.isEmpty, "Nothing is owed to the partner for a placement that is gone")
+        XCTAssertNil(impl.stateManager.getState(id: executeId), "Nothing holds the state once its checkout is dropped")
+    }
+
+    // MARK: - A confirm during a repeated Step-1 for the item belongs to PayPal and starts nothing
+
+    /// Step-1 runs again for an item whose PayPal checkout is already on offer. Until the new request answers, a
+    /// confirm for the item neither presents the superseded order nor falls through to a card purchase; once it has
+    /// answered, exactly one checkout is on offer and the next confirm presents it.
+    func test_handleForwardPayment_whileAPayPalStepOneIsOutForTheItem_startsNoPurchaseAndWaitsForTheNewCheckout() {
+        let impl = RoktInternalImplementation()
+        let presenter = HoldingPayPalApprovalPresenter()
+        impl.paymentOrchestratorForTesting = PaymentOrchestrator(
+            apiHelper: PaymentOrchestratorAPIHelperSpy.self,
+            payPalApprovalPresenter: presenter
+        )
+        defer { PaymentOrchestratorAPIHelperSpy.reset() }
+        let orch = impl.paymentOrchestratorForTesting
+        let bag = ExecuteStateBag(uxHelper: nil, onRoktEvent: nil)
+        bag.loadedPlacements = 1
+        bag.instantPurchaseInitiated = true
+        impl.stateManager.addState(id: executeId, state: bag)
+        registerPurchaseMock(body: #"{"success":true}"#) { _ in
+            XCTFail("A confirm for an item whose PayPal checkout is being prepared must not run a cart purchase")
+        }
+        installMockingHTTPClient()
+        Rokt.shared.roktImplementation.roktTagId = forwardPaymentTestTagId
+        // Held strongly: the pending checkout only keeps a weak reference to the screen it presents from.
+        let presentingViewController = UIViewController()
+        var confirmationCount = 0
+        func startStepOne(orderId: String) {
+            PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = payPalInitializePurchaseResponse(orderId: orderId)
+            orch.processPayment(
+                method: .paypal,
+                item: PaymentItem(id: "catalog-a", name: "Test item", amount: 1, currency: "USD"),
+                context: PaymentContext(
+                    billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                    returnURL: "myapp://paypal/success",
+                    cancelURL: nil
+                ),
+                cartItemId: "cart-a",
+                from: presentingViewController,
+                builtInPayPalDevicePaySession: BuiltInTwoStepDevicePaySession(
+                    executeId: executeId,
+                    layoutId: "layout-1",
+                    catalogItemId: "catalog-a"
+                ) { _, _, _ in confirmationCount += 1 }
+            ) { _ in }
+        }
+        let itemKey = key(cartItemId: "cart-a", catalogItemId: "catalog-a")
+        let confirm = makeForwardPaymentEvent(cartItemId: "cart-a", catalogItemId: "catalog-a")
+        startStepOne(orderId: "ORDER_1")
+        XCTAssertEqual(confirmationCount, 1)
+        XCTAssertTrue(orch.unitTest_hasPendingBuiltInTwoStep(for: itemKey))
+
+        // Step-1 runs again for the item and its response is held back; a confirm arrives in the meantime.
+        PaymentOrchestratorAPIHelperSpy.holdInitializePurchaseResponse = true
+        startStepOne(orderId: "ORDER_2")
+        XCTAssertFalse(orch.unitTest_hasPendingBuiltInTwoStep(for: itemKey), "The superseded checkout is off offer at once")
+        impl.handleForwardPayment(executeId: executeId, event: confirm)
+        let settled = expectation(description: "a cart purchase would have been sent by now")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { settled.fulfill() }
+        wait(for: [settled], timeout: 2.0)
+        XCTAssertEqual(presenter.presentCallCount, 0, "The superseded order is never presented")
+        XCTAssertTrue(bag.instantPurchaseInitiated, "No purchase ran, so nothing finalized the item")
+
+        // The new request answers: one checkout is on offer, and the next confirm presents it.
+        PaymentOrchestratorAPIHelperSpy.releaseHeldInitializePurchase()
+        XCTAssertEqual(confirmationCount, 2, "The confirm button is shown again for the new checkout")
+        XCTAssertTrue(orch.unitTest_hasPendingBuiltInTwoStep(for: itemKey))
+        impl.handleForwardPayment(executeId: executeId, event: confirm)
+        drainMainQueue()
+        XCTAssertEqual(presenter.presentCallCount, 1)
+        XCTAssertFalse(orch.unitTest_hasPendingBuiltInTwoStep(for: itemKey), "The one checkout was taken for its approval")
     }
 
     // MARK: - A confirm delivered off the main thread is handled on it

@@ -50,9 +50,18 @@ class StateBagManager: StateBagManaging {
     }
 
     /// Drops the state for `id` once nothing holds it: no placement loaded, no instant purchase initiated and no
-    /// purchase of the execute outstanding. Called when the last outstanding purchase of an execute ends without a
-    /// finish of its own, so state kept for that purchase does not outlive it.
+    /// purchase of the execute outstanding. Called when the last outstanding purchase of an execute ended without a
+    /// finish of its own (it was dropped: its placement closed, its session was cleared, or it was cancelled or failed
+    /// after that), so state kept for that purchase does not outlive it. A dropped purchase can never finish, so the
+    /// instant-purchase flag its tap set is cleared here first: nothing else would clear it, and while it stays set
+    /// the state can never go and `find(where:)` could still pick this execute for a later `purchaseFinalized`. The
+    /// flag is left alone while a purchase of the execute is still outstanding, since that one may yet finish and
+    /// clear it itself. A state whose placements are still loaded is kept, with the flag cleared, until the last of
+    /// them unloads.
     func removeStateIfUnused(id: String) {
+        if !hasOutstandingPurchase(id) {
+            stateMap[id]?.instantPurchaseInitiated = false
+        }
         checkRemoveState(id: id)
     }
 
