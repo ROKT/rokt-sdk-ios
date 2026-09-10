@@ -60,6 +60,8 @@ class RealTimeEventStoreFile: RealTimeEventStore {
     private let eventProcessingQueue = DispatchQueue(label: "com.rokt.RealTimeEventManager.eventProcessingQueue")
     // Test-only hook, run on the processing queue just before a queued clear removes the files; nil in production.
     var unitTest_beforeClearLands: (() -> Void)?
+    // Test-only hook, run on the processing queue just before a queued add reads and rewrites the file; nil in production.
+    var unitTest_beforeAddLands: (() -> Void)?
 
     static let storageDirectoryName = "RoktRealTimeEvents"
     static let triggeredEventsFileName = "triggered_events.json"
@@ -123,18 +125,24 @@ class RealTimeEventStoreFile: RealTimeEventStore {
 
     func addUntriggeredEvents(_ events: [UntriggeredRealTimeEvent]) {
         guard let untriggeredEventsFilePath else { return }
-        // Serialize on the same queue as markAsTriggered's processing: this is a
-        // read-modify-write, so concurrent captures (or a capture racing a trigger-mark)
-        // would otherwise lose updates when the second save overwrites the first.
-        eventProcessingQueue.sync {
-            var all = getUntriggeredEvents()
+        // Queued on the same serial queue as markAsTriggered's processing and as clear(), not waited for. The
+        // read-modify-write still cannot lose an update to a concurrent capture or a trigger-mark, because the queue
+        // runs one block at a time in submission order; a clear queued after this add removes what it wrote, and a
+        // read that follows (getTriggeredEvents takes the same queue) observes it. The caller — a placement's
+        // capture, which may hold the session lock — returns as soon as the block is queued, so the file work never
+        // runs on its thread. The hook is captured so a test can observe the block from the calling thread.
+        let beforeAddLands = unitTest_beforeAddLands
+        eventProcessingQueue.async { [weak self] in
+            guard let self else { return }
+            beforeAddLands?()
+            var all = self.getUntriggeredEvents()
             appendDeduped(events, to: &all)
             // Bound the untriggered file the way triggered events are capped: a long-lived
             // session whose responses echo distinct event_data must not grow without limit.
             if all.count > maximumRealTimeEventsToStore {
                 all = Array(all.suffix(maximumRealTimeEventsToStore))
             }
-            save(all, to: untriggeredEventsFilePath)
+            self.save(all, to: untriggeredEventsFilePath)
         }
     }
 

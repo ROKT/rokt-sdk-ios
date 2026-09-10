@@ -682,6 +682,89 @@ final class TestOffersExecuteWiring: XCTestCase {
         XCTAssertNil(cached, "the cached experience goes with the session it was fetched in")
     }
 
+    /// The check that a response's echoed events still belong to the current session and the queuing of their write are
+    /// one step under the generation lock: a `clearSession()` that arrives while a capture is in progress waits for it,
+    /// then queues the store's clear behind the write the capture accepted. The store ends empty — the departing
+    /// session's events are written and then removed, never re-seeded after the clear.
+    func test_captureUntriggeredEvents_clearSessionDuringTheCapture_waitsForItThenEmptiesTheStore() {
+        impl.txnSessionStore = InMemoryTxnStore()
+        let generation = impl.currentSessionGeneration()
+
+        let clearSessionReturned = expectation(description: "clearSession returned")
+        var clearSessionReturnedDuringCapture = true
+        impl.unitTest_duringEventCapture = { [weak impl] in
+            // clearSession from another queue while the capture holds the lock: it has to wait.
+            let entered = DispatchSemaphore(value: 0)
+            let returned = DispatchSemaphore(value: 0)
+            DispatchQueue.global().async {
+                entered.signal()
+                impl?.clearSession()
+                returned.signal()
+                clearSessionReturned.fulfill()
+            }
+            entered.wait()
+            clearSessionReturnedDuringCapture = returned.wait(timeout: .now() + 0.3) == .success
+        }
+        impl.captureUntriggeredEvents([echoedEvent], generation: generation)
+        wait(for: [clearSessionReturned], timeout: 10)
+
+        XCTAssertFalse(clearSessionReturnedDuringCapture, "clearSession waits for a capture in progress")
+        XCTAssertEqual(impl.currentSessionGeneration(), generation + 1, "the clear landed once the capture returned")
+        assertEchoedEventWasDropped()
+    }
+
+    /// The commit queues the cache write and moves on: the scan that evicts the superseded responses, their deletes and
+    /// the write run inside one barrier on the cache's own queue, off the main thread and outside the generation lock.
+    /// A `clearSession()` that arrives while that barrier is running does not wait for it — the lock is free — and its
+    /// own clear is queued behind the write, so once both have landed nothing stays cached. Whether the placement is
+    /// rendered or discarded depends on which lands first, the clear or the render claim, and is not asserted here.
+    func test_execute_theCacheWriteAfterACommit_holdsNeitherTheSessionLockNorTheMainThread() throws {
+        impl.txnSessionStore = InMemoryTxnStore()
+        initialize(cacheEnabled: true)
+        let viewName = "checkout"
+        let attributes = ["email": "eviction@example.com"]
+        let cacheDuration = TimeInterval(300)
+        let cacheConfig = RoktConfig.Builder()
+            .cacheConfig(RoktConfig.CacheConfig(cacheDuration: cacheDuration))
+            .build()
+        impl.makeOffersServiceOverride = offersOverride(data: try renderFixture(), status: 200)
+
+        let clearSessionReturned = expectation(description: "clearSession returned")
+        var clearSessionReturnedDuringEviction = false
+        var evictionRanOnMainThread = true
+        var evictionQueueLabel: String?
+        var evictionStarted = false
+        ExperienceCacheManager.unitTest_duringResponseEviction = { [weak impl] in
+            guard !evictionStarted else { return }
+            evictionStarted = true
+            evictionRanOnMainThread = Thread.isMainThread
+            evictionQueueLabel = String(cString: __dispatch_queue_get_label(nil))
+            // clearSession from another queue while the eviction runs: the lock is not held here, so it returns.
+            let returned = DispatchSemaphore(value: 0)
+            DispatchQueue.global().async {
+                impl?.clearSession()
+                returned.signal()
+                clearSessionReturned.fulfill()
+            }
+            clearSessionReturnedDuringEviction = returned.wait(timeout: .now() + 1) == .success
+        }
+        addTeardownBlock { ExperienceCacheManager.unitTest_duringResponseEviction = nil }
+        impl.execute(viewName: viewName, attributes: attributes, config: cacheConfig)
+        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
+        wait(for: [clearSessionReturned], timeout: 10)
+        settle()
+        settle()
+
+        XCTAssertTrue(evictionStarted, "the response was committed and its cache write queued")
+        XCTAssertFalse(evictionRanOnMainThread, "the eviction scan and the write run off the main thread")
+        XCTAssertEqual(evictionQueueLabel, ExperienceCacheManager.experienceCacheStorageQueueName)
+        XCTAssertTrue(clearSessionReturnedDuringEviction, "clearSession does not wait for the cache write")
+        let cached = ExperienceCacheManager.getCachedExperienceResponse(
+            viewName: viewName, attributes: attributes, cacheDuration: cacheDuration
+        )
+        XCTAssertNil(cached, "the clear queued during the write lands behind it and removes it")
+    }
+
     /// The generation a placement is checked against and whether it may read the cache are one reading under the
     /// generation lock: a `clearSession()` on another queue waits for that reading to finish, so it can never hand a
     /// placement the new generation while leaving the departing customer's cached experience readable. Once the

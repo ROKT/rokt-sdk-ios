@@ -43,6 +43,17 @@ class ConcurrentQueueFileStorageDecorator: FileStorage {
         }
     }
 
+    /// Runs `work` as one asynchronous barrier: exclusive of every read, write and delete on this queue, and ordered
+    /// with the other barriers in submission order. `work` is handed the underlying store, whose operations are
+    /// synchronous, so several of them — a directory scan, deletes, a write — land as a single step, and the caller
+    /// returns as soon as the barrier is queued.
+    func performExclusively(_ work: @escaping (FileStorage) -> Void) {
+        concurrentQueue.async(flags: .barrier) { [weak self] in
+            guard let self else { return }
+            work(self.decoratee)
+        }
+    }
+
     /// Performs an atomic read-modify-write operation using a barrier.
     /// The entire operation (read, transform, write) happens within a single barrier block,
     /// preventing race conditions between concurrent saves.

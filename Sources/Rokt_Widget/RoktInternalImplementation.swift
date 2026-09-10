@@ -110,6 +110,9 @@ class RoktInternalImplementation {
     // Test-only hook, run while a placement's shared callbacks are cleared under the generation lock, after the
     // ownership comparison has passed and before the clear; nil in production.
     var unitTest_duringCallbackClear: (() -> Void)?
+    // Test-only hook, run while a response's echoed events are captured under the generation lock, after the generation
+    // check has passed and before the store's write is queued; nil in production.
+    var unitTest_duringEventCapture: (() -> Void)?
     private var pendingPayload: ExecutePayload?
     private var clientTimeoutMilliseconds: Double = RoktInternalImplementation.defaultTimeoutMilliseconds
     private var defaultLaunchDelayMilliseconds: Double = RoktInternalImplementation.defaultDelay
@@ -126,10 +129,16 @@ class RoktInternalImplementation {
     // the real-time event store, the experience cache and the render itself.
     private var sessionGeneration = 0
     // Recursive so a managed session invalidated under the lock may read the generation. Held only for bounded local
-    // work: clearSession's own reset, a placement's admission (admitPlacement), a commit's parse (commitIfCurrent), the
-    // synchronous hand-off of one offers request to the network stack (handOffIfCurrent), the capture of a response's
-    // echoed events, the claim of a render's inputs (claimRenderIfCurrent) and the compare-and-clear of the shared
-    // callbacks (clearCallBacks(ownedBy:)) — never a callback into the host, never across a wait.
+    // work: clearSession's own reset, a placement's admission (admitPlacement), a commit's parse and decode
+    // (commitIfCurrent), the synchronous hand-off of one offers request to the network stack (handOffIfCurrent), the
+    // check-and-queue of a response's echoed events (captureUntriggeredEvents), the claim of a render's inputs
+    // (claimRenderIfCurrent) and the compare-and-clear of the shared callbacks (clearCallBacks(ownedBy:)) — never a
+    // callback into the host, never across the network, never a disk write. Every file write made under it is queued
+    // on the real-time event store's or the experience cache's own serial queue and runs there, after the lock is
+    // released; the only synchronous file access under it is a commit's direct read of the small view-state files,
+    // and the only waits under it are a commit's parse of one experience and its one decode of the echoed events on
+    // a helper thread. Queuing under the lock is what orders those writes against clearSession, which queues the
+    // store's clear and the cache's clear under the same lock: an accepted write always lands before a later clear.
     private let sessionGenerationLock = NSRecursiveLock()
 
     // Caching is disabled by default when no CacheConfig is provided to the Builder.
@@ -1300,10 +1309,12 @@ class RoktInternalImplementation {
     /// Runs `commit` under the generation lock while `generation` is still current and returns true; returns
     /// false, running nothing, once clearSession has moved the generation. A clearSession arriving on another
     /// queue waits for a commit in progress, so a response is committed whole or not at all — never half of it.
-    /// The commit parses the experience and reads the plugin view-state files under the lock, so that wait is
-    /// bounded by one experience's parse — tens of milliseconds on a device — and never by network: nothing
-    /// under this lock waits on a request. Keep it that way; a longer hold here is a longer stall for the host's
-    /// clearSession call.
+    /// Under the lock the commit parses the experience, decodes its echoed events on a helper thread and waits for
+    /// that decode, reads the plugin view-state files directly, and QUEUES its writes — the real-time event store's
+    /// add, the view-state writes and the experience cache's eviction-and-write — on those stores' own serial queues,
+    /// where they run after the lock is released. It performs no disk write itself and never waits on the network or
+    /// on another queue's file work, so a clearSession's wait is bounded by one experience's parse and decode. Keep
+    /// it that way; a longer hold here is a longer stall for the host's clearSession call.
     func commitIfCurrent(generation: Int, _ commit: () -> Void) -> Bool {
         sessionGenerationLock.lock()
         defer { sessionGenerationLock.unlock() }
@@ -1353,10 +1364,15 @@ class RoktInternalImplementation {
     // The offers response echoes events for the next placement to forward. Captured after a
     // clearSession, they would re-seed the store that call just emptied.
     func captureUntriggeredEvents(_ events: [UntriggeredRealTimeEvent], generation: Int) {
-        // Checked and written under the generation lock, so a clearSession cannot slip between them.
+        // Checked and QUEUED under the generation lock, as one step: the store's add is queued on its own serial
+        // queue and runs there, so the hold is bounded by the enqueue and the file write never runs on this thread —
+        // the offers request's own task — nor under this lock. clearSession queues the store's clear under the same
+        // lock, so on the store's queue an accepted capture's write lands before a later clear and never after it,
+        // and a capture that finds the generation moved queues nothing. Nothing on the store's queue takes this lock.
         sessionGenerationLock.lock()
         defer { sessionGenerationLock.unlock() }
         guard sessionGeneration == generation else { return }
+        unitTest_duringEventCapture?()
         RealTimeEventManager.shared.addUntriggeredEvents(events)
     }
 
@@ -1549,7 +1565,12 @@ class RoktInternalImplementation {
                             let committed = self.commitIfCurrent(generation: generation) {
                                 guard let page else { return }
                                 self.mustBypassCacheOnNextExecute = false
-                                // cache experience if applicable
+                                // Cache the experience if applicable. The call queues one barrier on the cache's own
+                                // queue — the directory scan that evicts the superseded responses, their deletes and
+                                // the write all run there — and returns as soon as it is queued: no file access on
+                                // this thread (the offers completion queue, the main queue by default) and none
+                                // under the lock. Queued under the lock, the write is ordered before the clear a
+                                // later clearSession queues under the same lock, so that clear removes it.
                                 if self.isCacheEnabledAndConfigured() {
                                     let cacheAttributes = self.roktConfig.cacheConfig.getCacheAttributesOrFallback(attributes)
                                     ExperienceCacheManager.cacheExperienceResponse(
@@ -1557,12 +1578,14 @@ class RoktInternalImplementation {
                                         attributes: cacheAttributes,
                                         experienceResponse: page,
                                         success: {
-                                            // The store writes on its own queue, so a clearSession that ran after
-                                            // this commit may have cleared before the write landed: clear again.
-                                            // The whole cache goes, not one entry: every write is already preceded
-                                            // by a full clear (the cache holds one experience), the next session's
-                                            // own write would share this key, and a fresh experience cleared this
-                                            // way costs the new session one refetch — never a wrong experience.
+                                            // Runs on the cache's queue once the write has landed. A clearSession
+                                            // since this commit has already queued its clear behind that write; this
+                                            // re-check is a second line behind that ordering, and clearing an empty
+                                            // cache again is harmless. The whole cache goes, not one entry: every
+                                            // write is already preceded by a full eviction (the cache holds one
+                                            // experience), the next session's own write would share this key, and a
+                                            // fresh experience cleared this way costs the new session one refetch —
+                                            // never a wrong experience.
                                             if self.currentSessionGeneration() != generation {
                                                 ExperienceCacheManager.clearCache()
                                             }

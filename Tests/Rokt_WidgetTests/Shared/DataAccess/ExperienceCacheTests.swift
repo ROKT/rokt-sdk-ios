@@ -168,6 +168,38 @@ class ExperienceCacheTests: XCTestCase {
         )
     }
 
+    /// The eviction scan and the write run inside one barrier on the cache's own queue: the call returns as soon as the
+    /// barrier is queued, before the scan runs, and the scan runs off the calling thread.
+    func test_cacheExperienceResponse_evictsAndWritesOnItsOwnQueue_notOnTheCaller() {
+        let callReturned = DispatchSemaphore(value: 0)
+        var evictionRanAfterCallReturned = false
+        var evictionRanOnMainThread = true
+        var evictionQueueLabel: String?
+        ExperienceCacheManager.unitTest_duringResponseEviction = {
+            evictionRanOnMainThread = Thread.isMainThread
+            evictionQueueLabel = String(cString: __dispatch_queue_get_label(nil))
+            // Holds the eviction until this thread has seen the call return: a call that ran the scan itself could
+            // only return after this hold had timed out, and the flag would stay false.
+            evictionRanAfterCallReturned = callReturned.wait(timeout: .now() + 1) == .success
+        }
+        addTeardownBlock { ExperienceCacheManager.unitTest_duringResponseEviction = nil }
+
+        let written = expectation(description: "the response is written")
+        ExperienceCacheManager.cacheExperienceResponse(viewName: mockedViewName,
+                                                       attributes: mockedAttributes,
+                                                       experienceResponse: mockedExperienceResponse,
+                                                       success: { written.fulfill() })
+        callReturned.signal()
+        wait(for: [written], timeout: 5)
+
+        XCTAssertTrue(evictionRanAfterCallReturned, "cacheExperienceResponse returns before the eviction scan runs")
+        XCTAssertFalse(evictionRanOnMainThread, "the eviction scan does not run on the calling thread")
+        XCTAssertEqual(evictionQueueLabel, ExperienceCacheManager.experienceCacheStorageQueueName)
+        XCTAssertTrue(ExperienceCacheTests.experienceCacheFileExists(
+            viewName: mockedViewName, attributes: mockedAttributes
+        ))
+    }
+
     func test_getCachedExperienceResponse_onEmptyCache_returnsNil() {
         let waitExp = expectation(description: "wait for clear to complete")
         _ = XCTWaiter.wait(for: [waitExp], timeout: 1)

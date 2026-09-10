@@ -108,7 +108,8 @@ class RealTimeEventStoreFileTest: XCTestCase {
         addTeardownBlock { try? FileManager.default.removeItem(at: untriggeredFile) }
         try? FileManager.default.removeItem(at: untriggeredFile)
 
-        RealTimeEventStoreFile().addUntriggeredEvents([
+        let store = RealTimeEventStoreFile()
+        store.addUntriggeredEvents([
             createRoktUXRealTimeEventResponse(
                 triggerGuid: guid1,
                 triggerEvent: signalImpressionRawValue,
@@ -116,6 +117,8 @@ class RealTimeEventStoreFileTest: XCTestCase {
                 payload: payload1
             )
         ])
+        // The add is queued, not waited for; this read orders the test thread behind it before the file is inspected.
+        _ = store.getTriggeredEvents()
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: untriggeredFile.path))
     }
@@ -554,6 +557,8 @@ class RealTimeEventStoreFileTest: XCTestCase {
             payload: payload1
         )
         sut.addUntriggeredEvents([untriggeredEvent])
+        // The add is queued, not waited for; this read orders the test thread behind it before the file is inspected.
+        _ = sut.getTriggeredEvents()
 
         let attributes = try FileManager.default.attributesOfItem(atPath: untriggeredFileURL.path)
         let protection = attributes[.protectionKey] as? FileProtectionType
@@ -658,5 +663,37 @@ class RealTimeEventStoreFileTest: XCTestCase {
         XCTAssertTrue(sut.getTriggeredEvents().isEmpty, "A read that follows clear() does not see what it removed.")
         XCTAssertTrue(deletionRanAfterClearReturned, "clear() returns without waiting for the deletion it queued.")
         sut.unitTest_beforeClearLands = nil
+    }
+
+    /// `addUntriggeredEvents()` is queued on the processing queue rather than waited for, so a caller — a placement's
+    /// capture, which holds the session lock while it queues — never blocks behind the file's read and rewrite; a read
+    /// that follows it still sees the event, because reads take the same queue.
+    func test_addUntriggeredEvents_returnsBeforeItsWriteRuns_andTheReadThatFollowsSeesIt() {
+        let untriggeredEvent = createRoktUXRealTimeEventResponse(
+            triggerGuid: guid1,
+            triggerEvent: signalImpressionRawValue,
+            eventType: finalType1,
+            payload: payload1
+        )
+        XCTAssertFalse(FileManager.default.fileExists(atPath: untriggeredFileURL.path), "Pre-condition: nothing stored")
+
+        // The queued write holds until this thread has seen addUntriggeredEvents() return: an add that waited for its
+        // own write could only return after that hold had timed out, and the flag would stay false.
+        let addReturned = DispatchSemaphore(value: 0)
+        var writeRanAfterAddReturned = false
+        sut.unitTest_beforeAddLands = {
+            writeRanAfterAddReturned = addReturned.wait(timeout: .now() + 1) == .success
+        }
+        sut.addUntriggeredEvents([untriggeredEvent])
+        addReturned.signal()
+
+        // No wait between the add and the read: the read is ordered behind the add, not timed after it.
+        _ = sut.getTriggeredEvents()
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: untriggeredFileURL.path),
+            "A read that follows addUntriggeredEvents() is ordered behind the write it queued."
+        )
+        XCTAssertTrue(writeRanAfterAddReturned, "addUntriggeredEvents() returns without waiting for the write it queued.")
+        sut.unitTest_beforeAddLands = nil
     }
 }

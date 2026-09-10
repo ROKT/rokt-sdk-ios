@@ -6,8 +6,11 @@ internal class ExperienceCacheManager {
     static let shared = ExperienceCacheManager()
     static let experienceCacheStorageQueueName = "com.rokt.experiencecachestorage.queue"
     private(set) static var cacheDirectory = "RoktExperienceCache"
-    private let fileStorage: FileStorage
-    private static var backingStore: FileStorage { ExperienceCacheManager.shared.fileStorage }
+    private let fileStorage: ConcurrentQueueFileStorageDecorator
+    private static var backingStore: ConcurrentQueueFileStorageDecorator { ExperienceCacheManager.shared.fileStorage }
+    // Test-only hook, run on the storage queue inside the barrier that evicts the superseded responses and writes the
+    // new one, before the eviction; nil in production.
+    static var unitTest_duringResponseEviction: (() -> Void)?
 
     private init() {
         fileStorage = ConcurrentQueueFileStorageDecorator(
@@ -37,12 +40,19 @@ internal class ExperienceCacheManager {
     /**
      Evict superseded experience responses and save new experience response in cache
 
+     The caller computes the file name, its URL and the file's contents — no file access — and queues one barrier on
+     the storage queue that scans the cache directory, deletes the superseded responses and writes the new one. The
+     call returns as soon as that barrier is queued, so the scan and the writes never run on the caller's thread;
+     the barrier is exclusive of every other operation on the queue and ordered with the other barriers in submission
+     order, so a `clearCache` queued after this call removes what it wrote, never the other way round.
+
      - Parameters:
       - viewName: A string representing the targetted view name received in execute.
       - attributes: A string dictionary containing the custom attributes received in execute.
       - experienceResponse: String representation of entire experience response to be cached.
-      - success: Callback on success of saving new experience response in cache.
-      - failure: Callback on any failure on attempt to save new experience response in cache.
+      - success: Callback on success of saving new experience response in cache; runs on the storage queue.
+      - failure: Callback on any failure on attempt to save new experience response in cache; runs on the caller's
+        thread when the file cannot be named, on the storage queue when the write fails.
      */
     static func cacheExperienceResponse(
         viewName: String?,
@@ -54,7 +64,7 @@ internal class ExperienceCacheManager {
         let fileName = ExperienceCacheUtils.getExperienceResponseCacheFileName(
             viewName: viewName,
             attributes: attributes)
-        guard let fileURL = getFileUrl(name: fileName) else {
+        guard let cacheDirectoryUrl = getCacheDirectoryUrl(), let fileURL = getFileUrl(name: fileName) else {
             failure?()
             return
         }
@@ -65,37 +75,39 @@ internal class ExperienceCacheManager {
             return
         }
 
-        // Enqueued before the write rather than nested in its completion: both are barriers on the
-        // same queue, which runs barriers in submission order, so the new response still lands last.
-        clearCachedExperienceResponses()
-
-        saveToFile(
-            data: fileContents,
-            to: fileURL,
-            success: success,
-            failure: failure)
+        let duringResponseEviction = unitTest_duringResponseEviction
+        backingStore.performExclusively { store in
+            duringResponseEviction?()
+            evictCachedExperienceResponses(in: cacheDirectoryUrl, using: store)
+            store.write(payload: fileContents, to: fileURL, options: [.createIntermediateDirectories]) { result in
+                switch result {
+                case .success:
+                    success?()
+                case .failure:
+                    failure?()
+                }
+            }
+        }
     }
 
-    /// Evicts every cached experience response, leaving the view state that shares the directory.
+    /// Evicts every cached experience response, leaving the view state that shares the directory. Runs inside the
+    /// storage queue's barrier, on the underlying store, whose delete is synchronous: the scan sees every write that
+    /// was queued before it, and the new response is written after the last delete, in the same barrier.
     ///
     /// The response cache holds one entry at a time, but `clearCache` enforces that by deleting the
     /// whole directory — which also destroys the plugin view states and sent-event hashes the next
     /// execute is meant to restore. Those reads are direct synchronous file reads while the delete
     /// is an async barrier, so it landed at a nondeterministic point: the same execute that cached a
     /// response could wipe the view state it had just persisted, before or after the next read.
-    private static func clearCachedExperienceResponses() {
-        // Enumerated off the barrier queue, so a response write still in flight is not swept. Only
-        // overlapping executes could do that, which `isExecuting` already rejects; if that guard
-        // ever goes away, move the enumeration onto the queue.
-        guard let cacheDirectoryUrl = getCacheDirectoryUrl(),
-              let cachedFileUrls = try? FileManager.default.contentsOfDirectory(
-                  at: cacheDirectoryUrl,
-                  includingPropertiesForKeys: nil)
+    private static func evictCachedExperienceResponses(in cacheDirectoryUrl: URL, using store: FileStorage) {
+        guard let cachedFileUrls = try? FileManager.default.contentsOfDirectory(
+            at: cacheDirectoryUrl,
+            includingPropertiesForKeys: nil)
         else { return }
 
         for fileUrl in cachedFileUrls
         where ExperienceCacheUtils.isExperienceResponseFileName(fileUrl.lastPathComponent) {
-            backingStore.deleteFileAtUrl(at: fileUrl, completion: nil)
+            store.deleteFileAtUrl(at: fileUrl, completion: nil)
         }
     }
 
