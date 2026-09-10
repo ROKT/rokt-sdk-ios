@@ -91,7 +91,7 @@ internal struct OffersClient {
     }
 }
 
-internal enum OffersClientError: Error {
+internal enum OffersClientError: Error, Equatable {
     case bodyEncodingFailed
     /// The hand-off returned without running `start` and without throwing, so no request was sent and no response
     /// will ever arrive for it.

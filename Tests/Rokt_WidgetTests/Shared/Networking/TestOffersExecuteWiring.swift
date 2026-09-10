@@ -15,6 +15,9 @@ final class TestOffersExecuteWiring: XCTestCase {
         var capturedPage: String?
         /// Runs inside the response commit, before the page is processed — a seam for racing it.
         var onCommit: (() -> Void)?
+        /// When set, the page is captured and then decodes to nothing, as an experience the renderer cannot turn into
+        /// a page does. The renderer's parser lives in the UX helper, so a test of that outcome need not depend on it.
+        var pageDecodesToNothing = false
         override func processLayoutPageExecutePayload(
             _ page: String,
             selectionId: String,
@@ -23,6 +26,7 @@ final class TestOffersExecuteWiring: XCTestCase {
         ) -> LayoutPageExecutePayload? {
             capturedPage = page
             onCommit?()
+            if pageDecodesToNothing { return nil }
             return super.processLayoutPageExecutePayload(
                 page, selectionId: selectionId, viewName: viewName, attributes: attributes
             )
@@ -985,6 +989,149 @@ final class TestOffersExecuteWiring: XCTestCase {
         impl.capturedPage = nil
         secondResponseReleased = true
         client.release()
+        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
+        settle()
+
+        XCTAssertNotNil(impl.capturedPage, "the second placement renders")
+        XCTAssertTrue(secondHidLoadingAfterItsResponse,
+                      "the second placement's render dismisses its own loading indicator, so its handler survived")
+    }
+
+    /// A cached experience that decodes to nothing fails the placement it was read for. `isExecuting` is released
+    /// before what the experience decoded to is checked, so a second placement can start in the same session inside
+    /// that window and take over the shared event handler and embedded views. The failure must reach the caller that
+    /// started the first placement, not the second placement's caller, and must leave the second placement's handler
+    /// in place so it renders.
+    func test_execute_cachedExperienceDecodesToNothing_failsToItsOwnCallerAndLeavesTheNextPlacementIntact() throws {
+        impl.txnSessionStore = InMemoryTxnStore()
+        initialize(cacheEnabled: true)
+        let viewName = "checkout"
+        let firstAttributes = ["email": "unreadable@example.com"]
+        let secondAttributes = ["email": "next@example.com"]
+        let cacheDuration = TimeInterval(300)
+        let cacheConfig = RoktConfig.Builder()
+            .cacheConfig(RoktConfig.CacheConfig(cacheDuration: cacheDuration))
+            .build()
+        // What is cached for the first placement is not an experience response, so it decodes to nothing.
+        ExperienceCacheManager.cacheExperienceResponse(
+            viewName: viewName, attributes: firstAttributes, experienceResponse: "not an experience response"
+        )
+        waitUntil({
+            ExperienceCacheManager.getCachedExperienceResponse(
+                viewName: viewName, attributes: firstAttributes, cacheDuration: cacheDuration
+            ) != nil
+        }, timeout: 10)
+        // Nothing is cached for the second placement's attributes, so it fetches; its response is held, so the first
+        // placement's failure is dealt with while the second is in flight.
+        let client = DeferredHTTPClient(data: try renderFixture(), status: 200)
+        impl.makeOffersServiceOverride = offersOverride(httpClient: client)
+
+        var firstEvents: [RoktEvent] = []
+        var secondEvents: [RoktEvent] = []
+        var secondResponseReleased = false
+        var secondHidLoadingAfterItsResponse = false
+        var secondStarted = false
+        impl.unitTest_afterCommitBeforePayloadCheck = { [weak impl] in
+            // The first placement has released `isExecuting` and committed its cached experience, and has not yet
+            // checked what it decoded to. Start the second placement, in the same session, inside that window.
+            guard !secondStarted, let impl else { return }
+            secondStarted = true
+            impl.execute(viewName: viewName, attributes: secondAttributes, config: cacheConfig) { event in
+                secondEvents.append(event)
+                if event is RoktEvent.HideLoadingIndicator, secondResponseReleased {
+                    secondHidLoadingAfterItsResponse = true
+                }
+            }
+        }
+        impl.execute(viewName: viewName, attributes: firstAttributes, config: cacheConfig) { event in
+            firstEvents.append(event)
+        }
+        // The cached path runs synchronously: by here the first placement has failed.
+        XCTAssertTrue(secondStarted, "the second placement started inside the first placement's window")
+        XCTAssertTrue(firstEvents.contains(where: { $0 is RoktEvent.HideLoadingIndicator }),
+                      "the failed placement dismisses the loading indicator of the caller that started it")
+        XCTAssertTrue(firstEvents.contains(where: { $0 is RoktEvent.PlacementFailure }),
+                      "the failed placement reports its failure to the caller that started it")
+        XCTAssertFalse(secondEvents.contains(where: { $0 is RoktEvent.PlacementFailure }),
+                       "the second placement's caller never hears the first placement's failure")
+        waitUntil({ client.requestCount == 1 }, timeout: 10)
+
+        impl.capturedPage = nil
+        secondResponseReleased = true
+        client.release()
+        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
+        settle()
+
+        XCTAssertNotNil(impl.capturedPage, "the second placement renders")
+        XCTAssertTrue(secondHidLoadingAfterItsResponse,
+                      "the second placement's render dismisses its own loading indicator, so its handler survived")
+    }
+
+    /// The network sibling of the test above. An offers response the offers service accepts but that decodes to
+    /// nothing renderable fails the placement it was fetched for; a second placement started in the same session
+    /// inside the window between the commit and that check must neither hear the failure nor lose its handler.
+    func test_execute_offersResponseDecodesToNothing_failsToItsOwnCallerAndLeavesTheNextPlacementIntact() throws {
+        impl.txnSessionStore = InMemoryTxnStore()
+        initialize()
+        let viewName = "checkout"
+        // A well-formed offers response with no plugins: the offers service accepts it and rolls the session forward.
+        // How the renderer's parser treats it is the UX helper's; the capturing implementation returns no page for it,
+        // so the test pins the failure handling and not the parser.
+        let noPlugins = Data(
+            """
+            {
+              "session_id": "no-plugins-session",
+              "session_token": { "token": "no-plugins-token", "expires_at": 32503680000000 },
+              "page_instance_guid": "no-plugins-guid",
+              "page_context": { "page_id": "checkout", "token": "no-plugins-page-token" },
+              "plugins": []
+            }
+            """.utf8
+        )
+        let firstClient = DeferredHTTPClient(data: noPlugins, status: 200)
+        let secondClient = DeferredHTTPClient(data: try renderFixture(), status: 200)
+        let secondOffersOverride = offersOverride(httpClient: secondClient)
+        impl.makeOffersServiceOverride = offersOverride(httpClient: firstClient)
+        impl.pageDecodesToNothing = true
+
+        var firstEvents: [RoktEvent] = []
+        var secondEvents: [RoktEvent] = []
+        var secondResponseReleased = false
+        var secondHidLoadingAfterItsResponse = false
+        var secondStarted = false
+        impl.unitTest_afterCommitBeforePayloadCheck = { [weak impl] in
+            // The first placement has released `isExecuting` and committed its response, and has not yet checked what
+            // it decoded to. Start the second placement, in the same session, inside that window; its response decodes.
+            guard !secondStarted, let impl else { return }
+            secondStarted = true
+            impl.pageDecodesToNothing = false
+            impl.makeOffersServiceOverride = secondOffersOverride
+            impl.execute(viewName: viewName, attributes: ["email": "next@example.com"], config: nil) { event in
+                secondEvents.append(event)
+                if event is RoktEvent.HideLoadingIndicator, secondResponseReleased {
+                    secondHidLoadingAfterItsResponse = true
+                }
+            }
+        }
+        let firstFailed = expectation(description: "the first placement reports failure to the caller that started it")
+        impl.execute(viewName: viewName, attributes: ["email": "no-plugins@example.com"], config: nil) { event in
+            firstEvents.append(event)
+            if event is RoktEvent.PlacementFailure { firstFailed.fulfill() }
+        }
+        waitUntil({ firstClient.requestCount == 1 }, timeout: 10)
+        firstClient.release()
+        wait(for: [firstFailed], timeout: 10)
+
+        XCTAssertTrue(secondStarted, "the second placement started inside the first placement's window")
+        XCTAssertTrue(firstEvents.contains(where: { $0 is RoktEvent.HideLoadingIndicator }),
+                      "the failed placement dismisses the loading indicator of the caller that started it")
+        XCTAssertFalse(secondEvents.contains(where: { $0 is RoktEvent.PlacementFailure }),
+                       "the second placement's caller never hears the first placement's failure")
+        waitUntil({ secondClient.requestCount == 1 }, timeout: 10)
+
+        impl.capturedPage = nil
+        secondResponseReleased = true
+        secondClient.release()
         waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
         settle()
 
