@@ -1,4 +1,5 @@
 import RoktContracts
+import RoktUXHelper
 import UIKit
 import XCTest
 @testable import Rokt_Widget
