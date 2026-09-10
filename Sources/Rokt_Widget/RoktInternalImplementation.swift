@@ -1642,12 +1642,11 @@ class RoktInternalImplementation {
             return nil
         }
 
-        let snapshot = TxnSessionPersistence.readRaw(store: store)
+        var snapshot = TxnSessionPersistence.readRaw(store: store)
         guard let sessionId = snapshot.sessionId,
               !sessionId.isEmpty,
               let token = snapshot.token,
-              !token.isEmpty,
-              let expiresAt = snapshot.expiresAt
+              !token.isEmpty
         else {
             RoktLogger.shared.warning(
                 "Rokt.getSession returned nil: no session is present."
@@ -1655,14 +1654,37 @@ class RoktInternalImplementation {
             return nil
         }
 
-        if TxnSessionPersistence.clearIfExpired(expiresAt: expiresAt, store: store, clock: Date.init) {
+        // An absent expiry key is not a verdict on the session: the store writes its keys one at a time,
+        // so a read between the token write and the expiry write must return nil without touching it.
+        guard let rawExpiry = store.string(forKey: TxnSessionStoreKeys.expiresAt), !rawExpiry.isEmpty else {
+            RoktLogger.shared.warning(
+                "Rokt.getSession returned nil: no session is present."
+            )
+            return nil
+        }
+        // The expiry landed after the snapshot was taken: a write was in progress. Read the session again so
+        // the expiry decision below sees the same write the expiry came from, not a half-written session.
+        if snapshot.expiresAt == nil {
+            snapshot = TxnSessionPersistence.readRaw(store: store)
+        }
+
+        // A present but unreadable or out-of-range expiry counts as expired, matching restore.
+        if TxnSessionPersistence.clearIfExpired(expiresAt: snapshot.expiresAt, store: store, clock: Date.init) {
             RoktLogger.shared.warning(
                 "Rokt.getSession returned nil: session token is expired."
             )
             return nil
         }
 
-        let expiresAtMs = Int64((expiresAt.timeIntervalSince1970 * 1000).rounded(.down))
+        guard let expiresAt = snapshot.expiresAt,
+              let expiresAtMs = TxnSessionPersistence.epochMilliseconds(expiresAt)
+        else {
+            TxnSessionPersistence.clear(store: store)
+            RoktLogger.shared.warning(
+                "Rokt.getSession returned nil: persisted session expiry is invalid."
+            )
+            return nil
+        }
         return RoktSession(
             sessionId: sessionId,
             sessionToken: token,
@@ -1670,8 +1692,22 @@ class RoktInternalImplementation {
         )
     }
 
+    /// Session id for the diagnostics/timings header, or nil when no unexpired session is bound.
+    ///
+    /// Deliberately not used by ``getSessionId()``: that reports whatever the partner last set,
+    /// which carries no expiry to gate on.
+    func currentValidSessionId(clock: () -> Date = Date.init) -> String? {
+        guard let roktTagId else { return nil }
+        return TxnSessionManager.currentValidSessionId(
+            roktTagId: roktTagId,
+            store: txnSessionStore,
+            clock: clock
+        )
+    }
+
     /// Uses a future partner-supplied expiry when present; otherwise (or when already past)
-    /// falls back to now + ``partnerSessionTokenDefaultTTL``.
+    /// falls back to now + ``partnerSessionTokenDefaultTTL``. An expiry further out than
+    /// `TxnSessionPersistence.maxTokenTTL` is capped when the session is seeded.
     private static func resolvedPartnerExpiresAtMilliseconds(
         _ expiresAtMilliseconds: Int64?,
         now: Date = Date()

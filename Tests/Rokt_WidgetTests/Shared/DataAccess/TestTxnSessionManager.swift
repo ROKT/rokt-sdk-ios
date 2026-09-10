@@ -224,6 +224,107 @@ final class TestTxnSessionManager: XCTestCase {
         XCTAssertNil(sessionId)
     }
 
+    // MARK: - Expiry bounds
+
+    private var nowMs: Int64 { Int64(now.timeIntervalSince1970 * 1000) }
+
+    private var capMs: Int64 {
+        Int64(now.addingTimeInterval(TxnSessionPersistence.maxTokenTTL).timeIntervalSince1970 * 1000)
+    }
+
+    private func persistedExpiryMs(_ store: TxnSessionStore, _ label: String) -> Int64? {
+        let raw = store.string(forKey: TxnSessionStoreKeys.expiresAt)
+        guard let milliseconds = raw.flatMap(Int64.init) else {
+            XCTFail("expected an integer epoch-ms string for \(label), got \(raw ?? "nil")")
+            return nil
+        }
+        return milliseconds
+    }
+
+    /// Wire values at the top of the Int64 range, which do not survive a round trip through Double.
+    private static let farFutureWireValues: [Int64] = [Int64.max - 511, Int64.max - 256, Int64.max]
+
+    func test_update_farFutureExpiry_isBoundedBeforePersist() async {
+        for wireValue in Self.farFutureWireValues {
+            let store = InMemoryStore()
+            await persistentManager(tagId: "tag-1", store: store)
+                .update(sessionId: "sid", sessionToken: TxnSessionToken(token: "jwt", expiresAt: wireValue))
+
+            guard let persisted = persistedExpiryMs(store, "\(wireValue)") else { continue }
+            XCTAssertLessThanOrEqual(persisted, capMs, "\(wireValue)")
+            XCTAssertGreaterThan(persisted, nowMs, "\(wireValue)")
+        }
+    }
+
+    func test_tokenOnlyUpdate_farFutureExpiry_isBoundedBeforePersist() async {
+        for wireValue in Self.farFutureWireValues {
+            let store = InMemoryStore()
+            let manager = persistentManager(tagId: "tag-1", store: store)
+            await manager.update(sessionId: "sid", sessionToken: token("old", expiresInSeconds: 60))
+            await manager.update(sessionToken: TxnSessionToken(token: "new", expiresAt: wireValue))
+
+            guard let persisted = persistedExpiryMs(store, "\(wireValue)") else { continue }
+            XCTAssertLessThanOrEqual(persisted, capMs, "\(wireValue)")
+            let header = await manager.authorizationHeader
+            XCTAssertEqual(header, "Bearer new", "\(wireValue)")
+        }
+    }
+
+    func test_update_plausibleExpiry_persistsExactIntegerMilliseconds() async {
+        let store = InMemoryStore()
+        let expiresAtMs = nowMs + 1_800_000
+        await persistentManager(tagId: "tag-1", store: store)
+            .update(sessionId: "sid", sessionToken: TxnSessionToken(token: "jwt", expiresAt: expiresAtMs))
+
+        XCTAssertEqual(store.string(forKey: TxnSessionStoreKeys.expiresAt), String(expiresAtMs))
+    }
+
+    /// Anything `Double.init` parses that Int64 cannot hold, or that lies past the accepted lifetime,
+    /// reads as expired so restore starts clean.
+    func test_restore_unparseableOrImplausibleExpiry_startsClean() async {
+        for raw in [
+            "9.223372036854776e+18", "9223372036854775807", "9223372036854774784", "32503680000000",
+            "inf", "-inf", "nan", "1e400", "-1"
+        ] {
+            let store = InMemoryStore()
+            store.setString("tag-1", forKey: TxnSessionStoreKeys.tagId)
+            store.setString("sid", forKey: TxnSessionStoreKeys.sessionId)
+            store.setString("jwt", forKey: TxnSessionStoreKeys.token)
+            store.setString(raw, forKey: TxnSessionStoreKeys.expiresAt)
+
+            let restored = persistentManager(tagId: "tag-1", store: store)
+
+            let header = await restored.authorizationHeader
+            let sessionId = await restored.currentSessionId
+            XCTAssertNil(header, raw)
+            XCTAssertNil(sessionId, raw)
+            XCTAssertNil(store.string(forKey: TxnSessionStoreKeys.token), raw)
+            XCTAssertNil(store.string(forKey: TxnSessionStoreKeys.expiresAt), raw)
+        }
+    }
+
+    func test_readRaw_acceptsLegacyDoubleFormattedExpiry() {
+        let store = InMemoryStore()
+        store.setString("1001800000.0", forKey: TxnSessionStoreKeys.expiresAt)
+
+        let snapshot = TxnSessionPersistence.readRaw(store: store)
+
+        XCTAssertEqual(snapshot.expiresAt, Date(timeIntervalSince1970: 1_001_800))
+    }
+
+    func test_seed_farFutureExpiry_isBounded() {
+        let store = InMemoryStore()
+        TxnSessionPersistence.seed(
+            roktTagId: "tag-1",
+            sessionId: "sid",
+            sessionToken: TxnSessionToken(token: "jwt", expiresAt: Int64.max),
+            store: store,
+            now: now
+        )
+
+        XCTAssertEqual(persistedExpiryMs(store, "seed"), capMs)
+    }
+
     // MARK: - TxnSessionPersistence (sync seed/read)
 
     func test_persistence_seed_isVisibleToTxnSessionManager() async {

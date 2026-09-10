@@ -47,8 +47,8 @@ final class TestTxnEventService: XCTestCase {
         await sessionManager.update(sessionId: "session-1", sessionToken: TxnSessionToken(token: token, expiresAt: expiryMs))
     }
 
-    private func rotatedResponse(token: String = "rotated-jwt") -> Data {
-        let expiryMs = Int64(now.addingTimeInterval(3600).timeIntervalSince1970 * 1000)
+    private func rotatedResponse(token: String = "rotated-jwt", expiresAtMs: Int64? = nil) -> Data {
+        let expiryMs = expiresAtMs ?? Int64(now.addingTimeInterval(3600).timeIntervalSince1970 * 1000)
         return Data(
             """
             {
@@ -124,6 +124,25 @@ final class TestTxnEventService: XCTestCase {
         try? await makeService(pendingStore: store).replay(events: sampleEvents(), sessionId: "session-old")
 
         XCTAssertEqual(store.persistedSessionIds, ["session-old"])
+    }
+
+    /// A rotated token with a far-future expiry is adopted, and the persisted expiry is bounded.
+    func test_send_rotatedTokenWithFarFutureExpiry_isAdoptedAndBounded() async throws {
+        let store = InMemoryTxnSessionStore()
+        sessionManager = TxnSessionManager(roktTagId: "tag-1", store: store, clock: { self.now })
+        await storeValidToken()
+        httpClient.results = [.success(status: 202, data: rotatedResponse(expiresAtMs: Int64.max))]
+
+        try await makeService().send(events: sampleEvents())
+
+        let header = await sessionManager.authorizationHeader
+        XCTAssertEqual(header, "Bearer rotated-jwt")
+        guard let persisted = store.string(forKey: TxnSessionStoreKeys.expiresAt).flatMap(Int64.init) else {
+            XCTFail("expected an integer epoch-ms expiry in the store")
+            return
+        }
+        let capMs = Int64(now.addingTimeInterval(TxnSessionPersistence.maxTokenTTL).timeIntervalSince1970 * 1000)
+        XCTAssertLessThanOrEqual(persisted, capMs)
     }
 
     func test_send_success_rotatesSessionToken() async throws {
@@ -215,6 +234,61 @@ final class TestTxnEventService: XCTestCase {
         // Non-numeric (HTTP-date) Retry-After is not honored; backoff is used instead.
         // baseBackoff is 0 in tests, so the fallback delay is 0 rather than the header value.
         httpClient.results = [.statusWithHeaders(503, ["Retry-After": "Wed, 21 Oct 2025 07:28:00 GMT"]),
+                              .success(status: 202, data: rotatedResponse())]
+
+        try await service.send(events: sampleEvents())
+
+        XCTAssertEqual(httpClient.callCount, 2)
+        XCTAssertEqual(recordedDelays, [0.0])
+    }
+
+    /// `Double.init` parses these; a non-finite delay falls back to backoff like the malformed case.
+    func test_send_retryAfterNonFinite_fallsBackToBackoff() async throws {
+        for raw in ["inf", "infinity", "Infinity", "nan", "-inf"] {
+            var recordedDelays: [TimeInterval] = []
+            httpClient = MockTxnEventsHTTPClient()
+            let service = makeService(sleep: { recordedDelays.append($0) })
+            httpClient.results = [.statusWithHeaders(429, ["Retry-After": raw]),
+                                  .success(status: 202, data: rotatedResponse())]
+
+            try await service.send(events: sampleEvents())
+
+            XCTAssertEqual(httpClient.callCount, 2, raw)
+            XCTAssertEqual(recordedDelays, [0.0], raw)
+        }
+    }
+
+    /// A delay past the ceiling is clamped rather than dropped, so a rate-limiting gateway is still paced.
+    func test_send_retryAfterAboveCeiling_isClamped() async throws {
+        for raw in ["20000000000", "1e300", "999999", "60.5"] {
+            var recordedDelays: [TimeInterval] = []
+            httpClient = MockTxnEventsHTTPClient()
+            let service = makeService(sleep: { recordedDelays.append($0) })
+            httpClient.results = [.statusWithHeaders(503, ["Retry-After": raw]),
+                                  .success(status: 202, data: rotatedResponse())]
+
+            try await service.send(events: sampleEvents())
+
+            XCTAssertEqual(httpClient.callCount, 2, raw)
+            XCTAssertEqual(recordedDelays, [TxnEventService.maxRetryAfterDelay], raw)
+        }
+    }
+
+    func test_send_retryAfterWithinCeiling_isHonoredUnchanged() async throws {
+        var recordedDelays: [TimeInterval] = []
+        let service = makeService(sleep: { recordedDelays.append($0) })
+        httpClient.results = [.statusWithHeaders(429, ["Retry-After": "2.5"]),
+                              .success(status: 202, data: rotatedResponse())]
+
+        try await service.send(events: sampleEvents())
+
+        XCTAssertEqual(recordedDelays, [2.5])
+    }
+
+    func test_send_retryAfterNegative_fallsBackToBackoff() async throws {
+        var recordedDelays: [TimeInterval] = []
+        let service = makeService(sleep: { recordedDelays.append($0) })
+        httpClient.results = [.statusWithHeaders(429, ["Retry-After": "-1"]),
                               .success(status: 202, data: rotatedResponse())]
 
         try await service.send(events: sampleEvents())
