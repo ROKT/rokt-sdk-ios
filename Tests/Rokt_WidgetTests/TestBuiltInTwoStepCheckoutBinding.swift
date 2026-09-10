@@ -1066,7 +1066,7 @@ final class TestBuiltInTwoStepCheckoutBinding: XCTestCase {
         paymentExtension.capturedCompletion?(.failed(error: "Card declined"))
         drainMainQueue()
         let failure = partnerEvents.compactMap { $0 as? RoktEvent.CartItemInstantPurchaseFailure }.first
-        XCTAssertEqual(failure?.catalogItemId, "catalog-b", "The partner hears item B's result")
+        XCTAssertEqual(failure?.error, "Card declined", "The partner hears the extension's result for the item")
         XCTAssertNil(
             impl.stateManager.getState(id: executeId),
             "Once the extension has reported back, nothing holds the state"

@@ -72,7 +72,9 @@ class StateBagManager: StateBagManaging {
     /// delivered. The SDK holds the purchase's terminal outcome at this point, so the instant-purchase flag the tap
     /// set is finished here, the way a built-in Step-2 finishes it, and the state goes once nothing else holds it. A
     /// token not held for `id` (a purchase already finished, or one of another execute) changes nothing, so a
-    /// completion delivered twice cannot finish a later tap.
+    /// completion delivered twice cannot finish a later tap. An outcome the extension reports as cancelled ends the
+    /// hand-off the same way: the flag is finished and a later tap is a new hand-off (a built-in PayPal cancel, by
+    /// contrast, puts its order back on offer for the confirm button and leaves the flag alone).
     func finishExtensionPurchase(id: String, token: UUID) {
         guard extensionPurchases[id]?.remove(token) != nil else { return }
         if extensionPurchases[id]?.isEmpty == true {
