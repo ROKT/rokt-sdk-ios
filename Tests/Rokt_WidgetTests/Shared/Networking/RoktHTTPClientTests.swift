@@ -2,6 +2,26 @@ import XCTest
 @testable import Rokt_Widget
 
 final class RoktHTTPClientTests: XCTestCase {
+    /// What the transport saw of one request, read as the request was handed to it. The body stream is read there,
+    /// once, because the session owns it afterwards; header names are lowercased, since HTTP compares them that way.
+    private struct SeenRequest {
+        let url: URL?
+        let method: String?
+        let headers: [String: String]?
+        let handlesCookies: Bool
+        let body: NSDictionary?
+
+        init(_ request: URLRequest) {
+            url = request.url
+            method = request.httpMethod
+            headers = request.allHTTPHeaderFields.map { fields in
+                Dictionary(uniqueKeysWithValues: fields.map { ($0.key.lowercased(), $0.value) })
+            }
+            handlesCookies = request.httpShouldHandleCookies
+            body = request.bodyStreamAsJSON() as? NSDictionary
+        }
+    }
+
     override func setUp() {
         super.setUp()
 
@@ -407,6 +427,99 @@ final class RoktHTTPClientTests: XCTestCase {
         )
 
         wait(for: [exp], timeout: 0.1)
+    }
+
+    // MARK: - Preparing a request apart from sending it
+
+    /// `prepareRequest` builds the request and returns the send. Nothing reaches the transport, and `onRequestStart`
+    /// does not run, until the returned send runs; then exactly one request is sent.
+    func test_prepareRequest_sendsNothingUntilTheReturnedSendRuns_thenSendsOnce() {
+        RoktHTTPUrlProtocolStub.stub(data: anyData(), response: anyHTTPURLResponse(), error: nil)
+        let sut = makeSUT()
+        var requestStartFired = false
+
+        // A request the transport were given would be observed on the session's queue, so the check that none was is
+        // an inverted expectation over a bounded window.
+        let sentBeforeSend = expectation(description: "nothing reaches the transport before the returned send runs")
+        sentBeforeSend.isInverted = true
+        RoktHTTPUrlProtocolStub.observeRequests { _ in sentBeforeSend.fulfill() }
+        let send = sut.prepareRequest(
+            urlAddress: anyURLString(),
+            method: .post,
+            parameters: ["key": "value"],
+            parameterArray: nil,
+            headers: nil,
+            onRequestStart: { requestStartFired = true },
+            requestTimeout: nil,
+            completionQueue: .main,
+            completionHandler: nil
+        )
+        wait(for: [sentBeforeSend], timeout: 0.5)
+        XCTAssertFalse(requestStartFired, "onRequestStart belongs to the send, not to the build")
+
+        let sent = expectation(description: "the returned send gives the request to the transport")
+        var requestsSeen = 0
+        RoktHTTPUrlProtocolStub.observeRequests { _ in
+            requestsSeen += 1
+            if requestsSeen == 1 { sent.fulfill() }
+        }
+        send()
+        wait(for: [sent], timeout: 5.0)
+        XCTAssertTrue(requestStartFired, "onRequestStart runs as part of the send")
+        XCTAssertEqual(requestsSeen, 1, "one prepared request is one send")
+    }
+
+    /// Both entries build the same request for the same inputs: what `startRequestWith` sends and what the send
+    /// returned by `prepareRequest` sends have the same URL, method, headers, cookie setting and body.
+    func test_prepareRequest_thenSend_buildsTheSameRequestAsStartRequestWith() throws {
+        RoktHTTPUrlProtocolStub.stub(data: anyData(), response: anyHTTPURLResponse(), error: nil)
+        let sut = makeSUT()
+        let parameters: RoktHTTPParameters = ["email": "some@rokt.com", "count": 3, "nested": ["flag": true]]
+        let headers = ["rokt-account-id": "account-1", "Content-Type": "application/json", "x-request-id": "request-1"]
+
+        var seen: [SeenRequest] = []
+        let sentByStart = expectation(description: "startRequestWith sends")
+        RoktHTTPUrlProtocolStub.observeRequests { request in
+            seen.append(SeenRequest(request))
+            sentByStart.fulfill()
+        }
+        sut.startRequestWith(urlAddress: anyURLString(), method: .post, parameters: parameters, headers: headers)
+        wait(for: [sentByStart], timeout: 5.0)
+
+        let sentByPrepared = expectation(description: "the send returned by prepareRequest sends")
+        RoktHTTPUrlProtocolStub.observeRequests { request in
+            seen.append(SeenRequest(request))
+            sentByPrepared.fulfill()
+        }
+        sut.prepareRequest(
+            urlAddress: anyURLString(),
+            method: .post,
+            parameters: parameters,
+            parameterArray: nil,
+            headers: headers,
+            onRequestStart: nil,
+            requestTimeout: nil,
+            completionQueue: .main,
+            completionHandler: nil
+        )()
+        wait(for: [sentByPrepared], timeout: 5.0)
+
+        XCTAssertEqual(seen.count, 2)
+        let byStart = try XCTUnwrap(seen.first)
+        let byPrepared = try XCTUnwrap(seen.last)
+        XCTAssertEqual(byStart.url, anyURL())
+        XCTAssertEqual(byPrepared.url, byStart.url)
+        XCTAssertEqual(byStart.method, "POST")
+        XCTAssertEqual(byPrepared.method, byStart.method)
+        XCTAssertEqual(
+            byStart.headers,
+            ["rokt-account-id": "account-1", "content-type": "application/json", "x-request-id": "request-1"]
+        )
+        XCTAssertEqual(byPrepared.headers, byStart.headers)
+        XCTAssertFalse(byStart.handlesCookies)
+        XCTAssertFalse(byPrepared.handlesCookies)
+        XCTAssertNotNil(byStart.body, "the body was encoded")
+        XCTAssertEqual(byPrepared.body, byStart.body, "both entries encode the same body")
     }
 
     private func assertRequestFailsOnInvalidStatusCode(invalidStatusCode: Int) throws {

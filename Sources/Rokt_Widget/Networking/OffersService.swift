@@ -85,9 +85,12 @@ internal struct OffersService {
     /// started in is still the current one, and says whether it ran. It is asked on the task that sends, for the
     /// first attempt and again for each retry, and each time it encloses exactly the call that gives the request to
     /// the transport: a session reset then lands wholly before the hand-off, and nothing is sent, or wholly after it,
-    /// when the request is already with the network stack and the caller's fences discard its response. The service
-    /// is built while the session is current, but the send runs on its own task, and a reset can land in between or
-    /// during a backoff. When the gate declines, nothing further is sent and `failure` receives
+    /// when the request is already with the network stack and the caller's fences discard its response. The request
+    /// itself — its URL, its headers and the JSON encoding of its body, which grows with the attributes — is built by
+    /// the client before the gate is asked, so what the gate encloses is the send alone, the network task's creation
+    /// and resume, and a caller that holds a lock across it holds it for nothing that grows with the request. The
+    /// service is built while the session is current, but the send runs on its own task, and a reset can land in
+    /// between or during a backoff. When the gate declines, nothing further is sent and `failure` receives
     /// ``OffersError/discardedBeforeSend`` with no status code.
     func getExperienceData(
         viewName: String?,
@@ -164,8 +167,10 @@ internal struct OffersService {
             do {
                 // The gate encloses exactly the hand-off to the network stack, for the first attempt and every retry:
                 // a session reset lands wholly before it, and this request (the departing customer's attributes and
-                // token) is never sent, or wholly after it, and the caller discards the response. A declined
-                // hand-off throws discardedBeforeSend, which is not a transport failure and so is not retried below.
+                // token) is never sent, or wholly after it, and the caller discards the response. The client builds
+                // the request — URL, headers, the JSON encoding of the body — before it asks the gate, so `start` is
+                // the network task's creation and resume and nothing more. A declined hand-off throws
+                // discardedBeforeSend, which is not a transport failure and so is not retried below.
                 let (data, response) = try await client.fetchOffers(input: input) { start in
                     // `start` is a non-escaping parameter and so is the gate's; the compiler will not pass one
                     // straight to the other, so the send is lent to the gate for the duration of the call only.

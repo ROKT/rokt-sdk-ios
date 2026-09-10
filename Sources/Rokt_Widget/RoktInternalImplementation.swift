@@ -143,16 +143,19 @@ class RoktInternalImplementation {
     // bookkeeping, and the queuing of the echoed events' write, of any new plugin view-state file and of the experience
     // cache's write), the build of a placement's offers service before its request is sent (commitIfCurrent in execute:
     // in-memory construction, plus the session manager's read of the session store's epoch), the synchronous hand-off of
-    // one offers request to the network stack (handOffIfCurrent), the check-and-queue of a response's echoed events
-    // (captureUntriggeredEvents), the claim of a render's inputs (claimRenderIfCurrent) and the compare-and-clear of the
-    // shared callbacks (clearCallBacks(ownedBy:)) — never a callback into the host, never across the network, never a
-    // file read or write, never a parse or decode, never a wait on another thread. Everything proportional to a
-    // response's size — its parse, the decode of its echoed events on the helper thread, the direct reads of the cached
-    // view-state files — runs before the lock is taken (prepareLayoutPageExecutePayload), so a clearSession on another
-    // thread waits for none of it. Every file write made under the lock is queued on the real-time event store's or the
-    // experience cache's own serial queue and runs there, after the lock is released. Queuing under the lock is what
-    // orders those writes against clearSession, which queues the store's clear and the cache's clear under the same
-    // lock: an accepted write always lands before a later clear, and a commit the lock refuses queues nothing.
+    // one offers request, already built, to the network stack (handOffIfCurrent: the task's creation and resume), the
+    // check-and-queue of a response's echoed events (captureUntriggeredEvents), the claim of a render's inputs
+    // (claimRenderIfCurrent) and the compare-and-clear of the shared callbacks (clearCallBacks(ownedBy:)) — never a
+    // callback into the host, never across the network, never a file read or write, never a parse, decode or encode,
+    // never a wait on another thread. Everything proportional to a response's size — its parse, the decode of its echoed
+    // events on the helper thread, the direct reads of the cached view-state files — runs before the lock is taken
+    // (prepareLayoutPageExecutePayload), and so does everything proportional to a request's — its URL, its headers and
+    // the JSON encoding of its body, which grows with the partner's attributes (OffersClient.fetchOffers) — so a
+    // clearSession on another thread waits for none of it. Every file write made under the lock is queued on the
+    // real-time event store's or the experience cache's own serial queue and runs there, after the lock is released.
+    // Queuing under the lock is what orders those writes against clearSession, which queues the store's clear and the
+    // cache's clear under the same lock: an accepted write always lands before a later clear, and a commit the lock
+    // refuses queues nothing.
     private let sessionGenerationLock = NSRecursiveLock()
 
     // Caching is disabled by default when no CacheConfig is provided to the Builder.
@@ -1277,8 +1280,9 @@ class RoktInternalImplementation {
         sessionGeneration &+= 1
         // The persisted session and its epoch go under the same lock as the generation. A placement builds its
         // offers service under this lock too, so the session manager it carries can never read the old epoch
-        // against a new generation, or the new epoch against an old one; and it hands its request to the network
-        // stack under this lock (handOffIfCurrent), so no request leaves for a session this call has ended.
+        // against a new generation, or the new epoch against an old one; and it hands its request — built before
+        // this lock is taken — to the network stack under this lock (handOffIfCurrent: the task's creation and
+        // resume), so no request leaves for a session this call has ended.
         TxnSessionManager.clearPersistedSession(store: txnSessionStore)
         // Also clears the legacy session id and, via ManagedSession, the real-time event store.
         sessionManager.invalidateSession()
@@ -1337,7 +1341,8 @@ class RoktInternalImplementation {
     /// a longer hold here is a longer stall for the host's clearSession call, often on the main thread. The same guard
     /// also holds two other short steps of a placement: the build of its offers service before the request is sent (an
     /// in-memory construction and the session store's epoch read, in execute) and the hand-off of that request to the
-    /// network stack (handOffIfCurrent, a synchronous enqueue); neither waits on anything either.
+    /// network stack (handOffIfCurrent: the creation and resume of the task for a request already built); neither waits
+    /// on anything either.
     func commitIfCurrent(generation: Int, _ commit: () -> Void) -> Bool {
         sessionGenerationLock.lock()
         defer { sessionGenerationLock.unlock() }
@@ -1348,14 +1353,16 @@ class RoktInternalImplementation {
 
     /// Runs `handOff` under the generation lock while `generation` is still current and returns true; returns false,
     /// running nothing, once clearSession has moved the generation. The hand-off is the one call that gives a
-    /// placement's offers request to the network stack: a synchronous enqueue (the URLRequest is built and a
-    /// URLSession task is resumed) that returns as soon as the request is queued and never waits on its response.
-    /// Held there, the lock makes the decision to send and the send itself one step: a clearSession on another queue
-    /// lands wholly before it, and nothing is sent for the departing customer, or wholly after it, when the request is
-    /// already queued and cannot be recalled. Its response is then fenced out: commitIfCurrent refuses the render and
-    /// the cache write, the store's epoch refuses the session it carries (TxnSessionManager.update), and
-    /// captureUntriggeredEvents drops its echoed events, so nothing from it is shown or persisted. The hold is bounded
-    /// by that enqueue, never by the network; keep it that way.
+    /// placement's offers request to the network stack. The URLRequest — its URL, its headers and the JSON encoding of
+    /// its body, which grows with the partner's attributes — is built by OffersClient before this lock is taken; what
+    /// runs here creates the URLSession task from it and resumes it, a synchronous enqueue that returns as soon as the
+    /// request is queued and never waits on its response. Held there, the lock makes the decision to send and the send
+    /// itself one step: a clearSession on another queue lands wholly before it, and nothing is sent for the departing
+    /// customer, or wholly after it, when the request is already queued and cannot be recalled. Its response is then
+    /// fenced out: commitIfCurrent refuses the render and the cache write, the store's epoch refuses the session it
+    /// carries (TxnSessionManager.update), and captureUntriggeredEvents drops its echoed events, so nothing from it is
+    /// shown or persisted. The hold is bounded by that task creation and resume — never by the request's encoding,
+    /// never by the network; keep it that way.
     func handOffIfCurrent(generation: Int, _ handOff: () -> Void) -> Bool {
         commitIfCurrent(generation: generation, handOff)
     }

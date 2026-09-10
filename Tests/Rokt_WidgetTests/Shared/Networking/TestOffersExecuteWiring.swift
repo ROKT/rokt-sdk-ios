@@ -165,6 +165,40 @@ final class TestOffersExecuteWiring: XCTestCase {
         ) {}
     }
 
+    /// Stands in for the JSON body encoder inside a real `RoktHTTPClient`: it holds the request's build on the sending
+    /// task until the test releases it, then forwards to the real encoder. The hold has a deadline, so a test that
+    /// never releases it still ends.
+    private final class BlockingBodyEncoder: RoktHTTPParameterEncoder {
+        // The client picks its body encoder by this id.
+        let id = String(describing: RoktHTTPBodyEncoder.self)
+        private let wrapped = RoktHTTPBodyEncoder()
+        private let release = DispatchSemaphore(value: 0)
+        /// Runs on the building thread as the hold begins.
+        var onEnter: (() -> Void)?
+        /// False once a hold ended on its deadline rather than on `releaseBuild()`.
+        private(set) var releasedInTime = true
+
+        func releaseBuild() {
+            release.signal()
+        }
+
+        func encode(
+            parameterEncodable: RoktHTTPParameterEncodable,
+            parameters: RoktHTTPParameters?,
+            parameterArray: RoktHTTPParameterArray?,
+            httpMethod: RoktHTTPMethod
+        ) -> RoktHTTPParameterEncodable {
+            onEnter?()
+            releasedInTime = release.wait(timeout: .now() + 5) == .success
+            return wrapped.encode(
+                parameterEncodable: parameterEncodable,
+                parameters: parameters,
+                parameterArray: parameterArray,
+                httpMethod: httpMethod
+            )
+        }
+    }
+
     /// Scratch store so `clearSession()` never touches `UserDefaults.standard`.
     private final class InMemoryTxnStore: TxnSessionStore {
         private var values: [String: String] = [:]
@@ -1205,6 +1239,87 @@ final class TestOffersExecuteWiring: XCTestCase {
         XCTAssertEqual(generationDuringHandOff, generationBefore, "the generation does not move during the hand-off")
         XCTAssertEqual(impl.currentSessionGeneration(), generationBefore + 1, "the clear landed once the hand-off returned")
         XCTAssertNil(impl.committedPage, "a response that arrives after the clear is not rendered")
+        XCTAssertNil(store.string(forKey: TxnSessionStoreKeys.sessionId), "no session is left for the next customer")
+        XCTAssertNil(store.string(forKey: TxnSessionStoreKeys.token))
+        XCTAssertNil(impl.getSessionId(), "the cleared session id must not come back")
+
+        // The fence released `isExecuting`: the next placement is accepted and renders.
+        impl.makeOffersServiceOverride = offersOverride(data: try renderFixture(), status: 200)
+        impl.execute(viewName: "checkout", attributes: ["email": "arriving@example.com"], config: nil)
+        waitUntil({ self.impl.committedPage != nil }, timeout: 10)
+    }
+
+    /// The offers request — its URL, its headers and the JSON encoding of its body, which grows with the attributes —
+    /// is built before the hand-off, outside the generation lock, so a `clearSession()` on another queue never waits
+    /// for it. This pins that through the real client: the build is held on the sending task; `clearSession()` returns
+    /// and moves the generation while it is held; and once the build is released the hand-off is refused — nothing
+    /// reaches the transport, no session is persisted, and the placement fails to its own caller. Were the build under
+    /// the lock, `clearSession()` would wait here for as long as the encoding takes.
+    func test_execute_clearSessionWhileTheOffersRequestIsBeingBuilt_returnsAtOnce_andTheHandOffIsThenRefused() throws {
+        let store = InMemoryTxnStore()
+        impl.txnSessionStore = store
+        initialize()
+        // The URL protocol stub's observer and canned response are static; leave none behind for the next test.
+        addTeardownBlock { RoktHTTPUrlProtocolStub.stopInterceptingRequests() }
+        RoktHTTPUrlProtocolStub.stub(data: try renderFixture(), response: anyHTTPURLResponse(), error: nil)
+        let sentLock = NSLock()
+        var sent = 0
+        RoktHTTPUrlProtocolStub.observeRequests { _ in
+            sentLock.lock()
+            sent += 1
+            sentLock.unlock()
+        }
+        let encoder = BlockingBodyEncoder()
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [RoktHTTPUrlProtocolStub.self]
+        let client = RoktHTTPClient(sessionConfiguration: configuration, encoders: [RoktHTTPURLEncoder(), encoder])
+        // A store-backed session manager, built with the request as in production, so a session the response
+        // carries would be persisted where the next placement restores from.
+        impl.makeOffersServiceOverride = { tagId in
+            OffersService(
+                environment: .Prod,
+                accountId: tagId,
+                sdkVersion: "5.2.2",
+                layoutSchemaVersion: "2.8",
+                sessionManager: TxnSessionManager(roktTagId: tagId, store: store),
+                httpClient: client,
+                maxRetries: 0,
+                sleep: { _ in }
+            )
+        }
+        let buildEntered = expectation(description: "the request's build began on the sending task")
+        encoder.onEnter = { buildEntered.fulfill() }
+        let generationBefore = impl.currentSessionGeneration()
+
+        var events: [RoktEvent] = []
+        let discarded = expectation(description: "the placement reports failure")
+        impl.execute(viewName: "checkout", attributes: ["email": "leaving@example.com"], config: nil) { event in
+            events.append(event)
+            if event is RoktEvent.PlacementFailure { discarded.fulfill() }
+        }
+        wait(for: [buildEntered], timeout: 10)
+
+        // clearSession from another queue while the build is held: the lock is free, so it returns. Were the build
+        // under the lock, this wait would time out while the build's own deadline ran, and the test would still end.
+        let clearSessionReturned = expectation(description: "clearSession returned while the request was being built")
+        DispatchQueue.global().async { [weak impl] in
+            impl?.clearSession()
+            clearSessionReturned.fulfill()
+        }
+        wait(for: [clearSessionReturned], timeout: 2)
+        XCTAssertEqual(impl.currentSessionGeneration(), generationBefore + 1, "the clear landed while the build was held")
+
+        encoder.releaseBuild()
+        wait(for: [discarded], timeout: 10)
+        settle()
+
+        XCTAssertTrue(encoder.releasedInTime, "the build was released by the test, not by its deadline")
+        sentLock.lock()
+        let sentCount = sent
+        sentLock.unlock()
+        XCTAssertEqual(sentCount, 0, "the hand-off was refused: the departing customer's attributes never left the device")
+        XCTAssertTrue(events.contains(where: { $0 is RoktEvent.HideLoadingIndicator }), "the loading indicator is dismissed")
+        XCTAssertNil(impl.committedPage)
         XCTAssertNil(store.string(forKey: TxnSessionStoreKeys.sessionId), "no session is left for the next customer")
         XCTAssertNil(store.string(forKey: TxnSessionStoreKeys.token))
         XCTAssertNil(impl.getSessionId(), "the cleared session id must not come back")

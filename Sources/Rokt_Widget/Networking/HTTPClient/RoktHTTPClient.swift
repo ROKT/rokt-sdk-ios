@@ -24,6 +24,23 @@ protocol HTTPClientAdapter {
         completionHandler: ((RoktHTTPRequestResult) -> Void)?
     ) -> URLRequest?
 
+    /// Builds the request now and returns the one call that sends it. The returned call creates the network task and
+    /// resumes it; nothing is sent until it runs, and a caller that drops it sends nothing. A caller uses it to do the
+    /// work that grows with the request — its URL, its headers and the encoding of its body — before a step it must
+    /// keep short, such as a hand-off under a lock. A conformer that does not build a request ahead of time keeps the
+    /// default, which defers its whole `startRequestWith` into the returned call.
+    func prepareRequest(
+        urlAddress: String,
+        method: RoktHTTPMethod,
+        parameters: RoktHTTPParameters?,
+        parameterArray: RoktHTTPParameterArray?,
+        headers: RoktHTTPHeaders?,
+        onRequestStart: (() -> Void)?,
+        requestTimeout: TimeInterval?,
+        completionQueue: DispatchQueue,
+        completionHandler: ((RoktHTTPRequestResult) -> Void)?
+    ) -> () -> Void
+
     func downloadFile(
         source urlAddress: String,
         destinationURL: URL,
@@ -34,6 +51,34 @@ protocol HTTPClientAdapter {
         completionQueue: DispatchQueue,
         completionHandler: ((RoktDownloadResult) -> Void)?
     )
+}
+
+extension HTTPClientAdapter {
+    func prepareRequest(
+        urlAddress: String,
+        method: RoktHTTPMethod,
+        parameters: RoktHTTPParameters?,
+        parameterArray: RoktHTTPParameterArray?,
+        headers: RoktHTTPHeaders?,
+        onRequestStart: (() -> Void)?,
+        requestTimeout: TimeInterval?,
+        completionQueue: DispatchQueue,
+        completionHandler: ((RoktHTTPRequestResult) -> Void)?
+    ) -> () -> Void {
+        return {
+            _ = self.startRequestWith(
+                urlAddress: urlAddress,
+                method: method,
+                parameters: parameters,
+                parameterArray: parameterArray,
+                headers: headers,
+                onRequestStart: onRequestStart,
+                requestTimeout: requestTimeout,
+                completionQueue: completionQueue,
+                completionHandler: completionHandler
+            )
+        }
+    }
 }
 
 internal final class RoktHTTPClient: HTTPClientAdapter {
@@ -161,14 +206,66 @@ internal final class RoktHTTPClient: HTTPClientAdapter {
         completionQueue: DispatchQueue = .main,
         completionHandler: ((RoktHTTPRequestResult) -> Void)? = nil
     ) -> URLRequest? {
-        guard let request = createURLRequestWith(
+        let request = createURLRequestWith(
             urlAddress: urlAddress,
             method: method,
             parameters: parameters,
             parameterArray: parameterArray,
             headers: headers,
             requestTimeout: requestTimeout
-        ) else {
+        )
+        makeSend(
+            request: request,
+            onRequestStart: onRequestStart,
+            completionQueue: completionQueue,
+            completionHandler: completionHandler
+        )()
+
+        return request
+    }
+
+    /// Builds the request now — its URL, its query, its headers and the JSON encoding of its body — and returns the
+    /// one call that sends it. The returned call runs `onRequestStart`, then creates the URLSession task and resumes
+    /// it under the session lock; nothing is sent until it runs. A request that could not be built sends nothing and
+    /// reports `requestInvalid` on the completion queue when the returned call runs. `startRequestWith` is this
+    /// followed at once by the returned call, so both entries send the same bytes for the same inputs.
+    func prepareRequest(
+        urlAddress: String,
+        method: RoktHTTPMethod,
+        parameters: RoktHTTPParameters?,
+        parameterArray: RoktHTTPParameterArray?,
+        headers: RoktHTTPHeaders?,
+        onRequestStart: (() -> Void)?,
+        requestTimeout: TimeInterval?,
+        completionQueue: DispatchQueue,
+        completionHandler: ((RoktHTTPRequestResult) -> Void)?
+    ) -> () -> Void {
+        makeSend(
+            request: createURLRequestWith(
+                urlAddress: urlAddress,
+                method: method,
+                parameters: parameters,
+                parameterArray: parameterArray,
+                headers: headers,
+                requestTimeout: requestTimeout
+            ),
+            onRequestStart: onRequestStart,
+            completionQueue: completionQueue,
+            completionHandler: completionHandler
+        )
+    }
+
+    // The send for a request that is already built: `onRequestStart`, then the task's creation and resume under
+    // `sessionLock`, so the task binds to the live session. Everything proportional to the request's size has already
+    // run in `createURLRequestWith`; a caller that must keep a step short — a hand-off under a lock — runs only this
+    // there. A request that could not be built reports `requestInvalid` on the completion queue instead of sending.
+    private func makeSend(
+        request: URLRequest?,
+        onRequestStart: (() -> Void)?,
+        completionQueue: DispatchQueue,
+        completionHandler: ((RoktHTTPRequestResult) -> Void)?
+    ) -> () -> Void {
+        guard let request else {
             let requestResult = RoktHTTPRequestResult(
                 httpURLResponse: nil,
                 responseData: nil,
@@ -176,34 +273,32 @@ internal final class RoktHTTPClient: HTTPClientAdapter {
                 jsonSerialisedResponseData: .failure(RoktHTTPClientError.requestInvalid)
             )
 
-            completionQueue.async { completionHandler?(requestResult) }
-
-            return nil
+            return { completionQueue.async { completionHandler?(requestResult) } }
         }
 
-        onRequestStart?()
-        withSession { session in
-            session.dataTask(with: request) { [weak self] (data, response, error) in
-                guard let self else { return }
+        return {
+            onRequestStart?()
+            self.withSession { session in
+                session.dataTask(with: request) { [weak self] (data, response, error) in
+                    guard let self else { return }
 
-                let anyJSONSerialisationResult = self.serializeAsJSON(
-                    data: data,
-                    response: response,
-                    error: error
-                )
+                    let anyJSONSerialisationResult = self.serializeAsJSON(
+                        data: data,
+                        response: response,
+                        error: error
+                    )
 
-                let requestResult = RoktHTTPRequestResult(
-                    httpURLResponse: response as? HTTPURLResponse,
-                    responseData: data,
-                    responseError: error,
-                    jsonSerialisedResponseData: anyJSONSerialisationResult
-                )
+                    let requestResult = RoktHTTPRequestResult(
+                        httpURLResponse: response as? HTTPURLResponse,
+                        responseData: data,
+                        responseError: error,
+                        jsonSerialisedResponseData: anyJSONSerialisationResult
+                    )
 
-                completionQueue.async { completionHandler?(requestResult) }
-            }.resume()
+                    completionQueue.async { completionHandler?(requestResult) }
+                }.resume()
+            }
         }
-
-        return request
     }
 
     private func createURLRequestWith(

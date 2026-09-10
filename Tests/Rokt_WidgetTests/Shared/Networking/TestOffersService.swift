@@ -79,6 +79,56 @@ final class TestOffersService: XCTestCase {
         ) {}
     }
 
+    /// Stands in for the JSON body encoder inside a real `RoktHTTPClient`: it reports when the body is encoded, then
+    /// forwards to the real encoder, so the bytes are the production bytes.
+    private final class RecordingBodyEncoder: RoktHTTPParameterEncoder {
+        // The client picks its body encoder by this id.
+        let id = String(describing: RoktHTTPBodyEncoder.self)
+        private let wrapped = RoktHTTPBodyEncoder()
+        /// Runs on the building thread as the body is encoded.
+        var onEncode: (() -> Void)?
+
+        func encode(
+            parameterEncodable: RoktHTTPParameterEncodable,
+            parameters: RoktHTTPParameters?,
+            parameterArray: RoktHTTPParameterArray?,
+            httpMethod: RoktHTTPMethod
+        ) -> RoktHTTPParameterEncodable {
+            onEncode?()
+            return wrapped.encode(
+                parameterEncodable: parameterEncodable,
+                parameters: parameters,
+                parameterArray: parameterArray,
+                httpMethod: httpMethod
+            )
+        }
+    }
+
+    /// What the transport saw of one request, read as the request was handed to it. The body stream is read there,
+    /// once, because the session owns it afterwards; header names are lowercased, since HTTP compares them that way.
+    private struct SentRequest {
+        let url: URL?
+        let method: String?
+        let headers: [String: String]?
+        let body: NSDictionary?
+
+        init(_ request: URLRequest) {
+            url = request.url
+            method = request.httpMethod
+            headers = request.allHTTPHeaderFields.map { fields in
+                Dictionary(uniqueKeysWithValues: fields.map { ($0.key.lowercased(), $0.value) })
+            }
+            body = request.bodyStreamAsJSON() as? NSDictionary
+        }
+    }
+
+    override func tearDown() {
+        // The URL protocol stub's observer and canned response are static: a test that installed them leaves none
+        // behind for the next.
+        RoktHTTPUrlProtocolStub.stopInterceptingRequests()
+        super.tearDown()
+    }
+
     private let offersResponse = """
     {
       "session_id": "session-1",
@@ -550,6 +600,10 @@ final class TestOffersService: XCTestCase {
     }
 
     private func makeOffersClient(_ stub: StubHTTPClient) -> OffersClient {
+        makeOffersClient(httpClient: stub)
+    }
+
+    private func makeOffersClient(httpClient: HTTPClientAdapter) -> OffersClient {
         OffersClient(
             baseURL: URL(string: Environment.Prod.gatewayBaseURL)!,
             accountId: "account-1",
@@ -557,8 +611,16 @@ final class TestOffersService: XCTestCase {
             sdkVersion: "1.0.0",
             layoutSchemaVersion: "1",
             pageInstanceGuid: "page-instance-guid",
-            httpClient: stub
+            httpClient: httpClient
         )
+    }
+
+    /// A real `RoktHTTPClient` whose transport is the URL protocol stub and whose body encoder is `bodyEncoder`, so a
+    /// test drives the production build of the request and reads what the transport was given.
+    private func makeRealClient(bodyEncoder: RoktHTTPParameterEncoder) -> RoktHTTPClient {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [RoktHTTPUrlProtocolStub.self]
+        return RoktHTTPClient(sessionConfiguration: configuration, encoders: [RoktHTTPURLEncoder(), bodyEncoder])
     }
 
     /// A hand-off that returns without running the send, and without throwing, fails the request itself: nothing
@@ -596,6 +658,116 @@ final class TestOffersService: XCTestCase {
 
         XCTAssertEqual(response?.statusCode, 200)
         XCTAssertEqual(stub.requestCount, 1, "running the send a second time sends nothing more")
+    }
+
+    // MARK: - The request is built before the hand-off, through the real client
+
+    /// The request — its URL, its headers and the JSON encoding of its body — is built before the hand-off is asked,
+    /// and never inside it, so a caller that holds a lock across the hand-off holds it only for the send.
+    func test_fetchOffers_encodesTheBodyBeforeTheHandOffIsEntered_neverInsideIt() async throws {
+        RoktHTTPUrlProtocolStub.stub(data: Data(offersResponse.utf8), response: anyHTTPURLResponse(), error: nil)
+        let encoder = RecordingBodyEncoder()
+        let client = makeOffersClient(httpClient: makeRealClient(bodyEncoder: encoder))
+        let input = OffersInput(requestId: "request-1", pageIdentifier: "checkout", attributes: ["email": "a@b.com"])
+
+        let lock = NSLock()
+        var order: [String] = []
+        var insideHandOff = false
+        var encodedInsideHandOff = false
+        encoder.onEncode = {
+            lock.lock()
+            defer { lock.unlock() }
+            order.append("encode")
+            if insideHandOff { encodedInsideHandOff = true }
+        }
+
+        let (_, response) = try await client.fetchOffers(input: input) { start in
+            lock.lock()
+            insideHandOff = true
+            order.append("hand-off")
+            lock.unlock()
+            start()
+            lock.lock()
+            insideHandOff = false
+            lock.unlock()
+        }
+
+        XCTAssertEqual(response?.statusCode, 200)
+        lock.lock()
+        defer { lock.unlock() }
+        XCTAssertEqual(order, ["encode", "hand-off"], "the body is encoded before the hand-off is entered")
+        XCTAssertFalse(encodedInsideHandOff, "nothing is encoded inside the hand-off")
+    }
+
+    /// The default hand-off sends exactly one request, and it is the offers request as the real client and its real
+    /// body encoder build it: the URL, the method, the exact header set and a body carrying the attributes.
+    func test_fetchOffers_defaultHandOff_sendsOneRequestWithTheExpectedURLHeadersAndBody() async throws {
+        RoktHTTPUrlProtocolStub.stub(data: Data(offersResponse.utf8), response: anyHTTPURLResponse(), error: nil)
+        var client = makeOffersClient(httpClient: makeRealClient(bodyEncoder: RoktHTTPBodyEncoder()))
+        client.deviceHeaders = ["rokt-os-type": "iOS"]
+        let input = OffersInput(requestId: "request-1", pageIdentifier: "checkout", attributes: ["email": "a@b.com"])
+
+        let lock = NSLock()
+        var sent: [SentRequest] = []
+        RoktHTTPUrlProtocolStub.observeRequests { request in
+            lock.lock()
+            defer { lock.unlock() }
+            sent.append(SentRequest(request))
+        }
+
+        let (_, response) = try await client.fetchOffers(input: input)
+
+        XCTAssertEqual(response?.statusCode, 200)
+        lock.lock()
+        defer { lock.unlock() }
+        XCTAssertEqual(sent.count, 1, "the default hand-off sends once")
+        let request = try XCTUnwrap(sent.first)
+        XCTAssertEqual(request.url, URL(string: "https://apps.rokt.com/v2/sessions/offers"))
+        XCTAssertEqual(request.method, "POST")
+        // No Authorization without a token, and no Accept: the body encoder adds none when Content-Type is set.
+        XCTAssertEqual(request.headers, [
+            "rokt-account-id": "account-1",
+            "content-type": "application/json",
+            "x-request-id": "request-1",
+            "rokt-page-instance-guid": "page-instance-guid",
+            "rokt-layout-schema-version": "1",
+            "rokt-os-type": "iOS"
+        ], "the header set is exactly the offers request's")
+        let expectedBody = try JSONSerialization.jsonObject(with: JSONEncoder().encode(SelectRequest(
+            page: SelectPage(pageIdentifier: "checkout"),
+            channel: SelectChannel(sdkVersion: "1.0.0"),
+            attributes: ["email": "a@b.com"]
+        ))) as? NSDictionary
+        XCTAssertNotNil(expectedBody)
+        XCTAssertEqual(request.body, expectedBody, "the body is the encoded offers request")
+        XCTAssertEqual((request.body?["attributes"] as? [String: String])?["email"], "a@b.com")
+    }
+
+    /// A hand-off that declines after the request was built sends nothing: the built request is dropped with the
+    /// refusal and the caller receives the hand-off's error, never a response.
+    func test_fetchOffers_handOffDeclinesAfterTheRequestWasBuilt_sendsNothing() async {
+        RoktHTTPUrlProtocolStub.stub(data: Data(offersResponse.utf8), response: anyHTTPURLResponse(), error: nil)
+        let encoder = RecordingBodyEncoder()
+        let client = makeOffersClient(httpClient: makeRealClient(bodyEncoder: encoder))
+        let input = OffersInput(requestId: "request-1", pageIdentifier: "checkout", attributes: ["email": "a@b.com"])
+
+        var encoded = false
+        encoder.onEncode = { encoded = true }
+        // A request the transport were given would be observed on the session's queue, so the check that none was is
+        // an inverted expectation over a bounded window.
+        let nothingSent = expectation(description: "nothing reaches the transport when the hand-off declines")
+        nothingSent.isInverted = true
+        RoktHTTPUrlProtocolStub.observeRequests { _ in nothingSent.fulfill() }
+
+        do {
+            _ = try await client.fetchOffers(input: input) { _ in throw OffersService.OffersError.discardedBeforeSend }
+            XCTFail("a declined hand-off must fail the request")
+        } catch {
+            XCTAssertEqual(error as? OffersService.OffersError, .discardedBeforeSend)
+        }
+
+        XCTAssertTrue(encoded, "the request was built before the hand-off was asked")
+        await fulfillment(of: [nothingSent], timeout: 0.5)
     }
 
     func test_getExperienceData_doesNotRetryNonTransportError() {

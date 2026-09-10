@@ -12,11 +12,14 @@ internal struct OffersClient {
     var deviceHeaders: [String: String] = [:]
     var httpClient: HTTPClientAdapter = RoktHTTPClient()
 
-    /// `handOff` encloses the one call that gives the request to the network stack. It either runs `start`, which
-    /// sends, or throws without running it, in which case nothing is sent and the caller receives that error. The
-    /// default sends unconditionally. A caller uses it to make its decision to send atomic with the send itself.
-    /// `start` sends at most once however many times it is called, and a hand-off that returns without running it
-    /// fails the request with ``OffersClientError/handOffDidNotStart`` rather than leaving the caller waiting.
+    /// The request — its URL, its headers and the JSON encoding of its body, which grows with the attributes — is built
+    /// before `handOff` is asked, so `start` is the send alone: the network task's creation and resume. `handOff`
+    /// encloses that one call, which gives the request to the network stack. It either runs `start`, which sends, or
+    /// throws without running it, in which case nothing is sent and the caller receives that error. The default sends
+    /// unconditionally. A caller uses it to make its decision to send atomic with the send itself, and holding a lock
+    /// across it holds it for nothing that grows with the request. `start` sends at most once however many times it is
+    /// called, and a hand-off that returns without running it fails the request with
+    /// ``OffersClientError/handOffDidNotStart`` rather than leaving the caller waiting.
     func fetchOffers(
         input: OffersInput,
         handOff: (_ start: () -> Void) throws -> Void = { start in start() }
@@ -54,6 +57,26 @@ internal struct OffersClient {
         }
 
         return try await withCheckedThrowingContinuation { continuation in
+            // The request is built here, before the hand-off is asked: its URL, its headers and the JSON encoding of
+            // its body, the one step that grows with the attributes. `send` is only the network task's creation and
+            // resume, so a hand-off that holds a lock holds it for that alone. Nothing is sent unless `send` runs.
+            let send = httpClient.prepareRequest(
+                urlAddress: url.absoluteString,
+                method: .post,
+                parameters: bodyParameters,
+                parameterArray: nil,
+                headers: headers,
+                onRequestStart: nil,
+                requestTimeout: nil,
+                completionQueue: .main,
+                completionHandler: { result in
+                    if let error = result.responseError {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume(returning: (result.responseData, result.httpURLResponse))
+                    }
+                }
+            )
             // The continuation is resumed exactly once: `start` is the only call that arms the completion handler
             // and arms it at most once, so a hand-off that ran `start` leaves the resume to the completion handler,
             // whatever it does afterwards; a hand-off that threw without running it is failed with its error; and a
@@ -64,23 +87,7 @@ internal struct OffersClient {
                     // A second call sends nothing more, so the completion handler stays the one resume.
                     guard !started else { return }
                     started = true
-                    httpClient.startRequestWith(
-                        urlAddress: url.absoluteString,
-                        method: .post,
-                        parameters: bodyParameters,
-                        parameterArray: nil,
-                        headers: headers,
-                        onRequestStart: nil,
-                        requestTimeout: nil,
-                        completionQueue: .main,
-                        completionHandler: { result in
-                            if let error = result.responseError {
-                                continuation.resume(throwing: error)
-                            } else {
-                                continuation.resume(returning: (result.responseData, result.httpURLResponse))
-                            }
-                        }
-                    )
+                    send()
                 }
             } catch {
                 if !started { continuation.resume(throwing: error) }
