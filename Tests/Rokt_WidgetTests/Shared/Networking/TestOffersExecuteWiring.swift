@@ -1242,6 +1242,11 @@ final class TestOffersExecuteWiring: XCTestCase {
     /// while the claim is in progress waits for it, so a reset lands wholly before the claim (the placement is discarded
     /// and reports failure) or wholly after it (the placement is already the renderer's and stays on screen). This pins
     /// the second case: the clear waits, the render runs on the claimed handler, then the clear lands.
+    ///
+    /// "Not discarded" is read from the session fence's own failure path, not from the events the caller hears: this
+    /// host hands `execute` no embedded views and the fixture's only plugin targets one, so the renderer may report that
+    /// layout's failure through the claimed handler once the render has begun. That failure is the renderer's, arrives
+    /// after the loading indicator is dismissed, and is not what this test pins.
     func test_execute_clearSessionDuringTheRenderClaim_waitsForItThenTheRenderedPlacementStaysUp() throws {
         impl.txnSessionStore = InMemoryTxnStore()
         initialize()
@@ -1266,6 +1271,9 @@ final class TestOffersExecuteWiring: XCTestCase {
             // Read on the claiming thread, which holds the recursive lock: the clear has not landed yet.
             generationDuringClaim = impl?.currentSessionGeneration()
         }
+        // The discard path: a placement failed by the fence, not by the renderer.
+        var discardedByTheFence = false
+        impl.unitTest_duringPlacementFailure = { discardedByTheFence = true }
         var events: [RoktEvent] = []
         impl.execute(viewName: "checkout", attributes: ["email": "staying@example.com"], config: nil) { event in
             events.append(event)
@@ -1278,8 +1286,10 @@ final class TestOffersExecuteWiring: XCTestCase {
         XCTAssertEqual(generationDuringClaim, generationBefore, "the generation does not move during the claim")
         XCTAssertEqual(impl.currentSessionGeneration(), generationBefore + 1, "the clear landed once the claim returned")
         XCTAssertNotNil(impl.capturedPage, "the placement was committed and rendered")
-        XCTAssertFalse(events.contains(where: { $0 is RoktEvent.PlacementFailure }),
-                       "a placement claimed for the render before the clear is not discarded")
+        XCTAssertFalse(discardedByTheFence,
+                       "a placement claimed for the render before the clear is handed to the renderer, not discarded")
+        XCTAssertEqual(events.filter { $0 is RoktEvent.HideLoadingIndicator }.count, 1,
+                       "the loading indicator is dismissed once, by the render")
         XCTAssertNil(impl.getSessionId(), "the clear that landed after the claim still ends the session")
     }
 

@@ -113,6 +113,11 @@ class RoktInternalImplementation {
     // Test-only hook, run while a response's echoed events are captured under the generation lock, after the generation
     // check has passed and before the store's write is queued; nil in production.
     var unitTest_duringEventCapture: (() -> Void)?
+    // Test-only hook, run when a placement is ended with a failure through its own handler (concludeFailed): its result
+    // discarded after clearSession, its experience decoded to nothing, or its offers request failed. A layout the
+    // renderer fails does not run it; that failure reaches the host through the renderer's own event path. Nil in
+    // production.
+    var unitTest_duringPlacementFailure: (() -> Void)?
     private var pendingPayload: ExecutePayload?
     private var clientTimeoutMilliseconds: Double = RoktInternalImplementation.defaultTimeoutMilliseconds
     private var defaultLaunchDelayMilliseconds: Double = RoktInternalImplementation.defaultDelay
@@ -981,6 +986,7 @@ class RoktInternalImplementation {
     /// so a placement admitted on another queue in that window is never cleared by this one. The two callbacks to the
     /// host run before it, outside the lock.
     private func concludeFailed(selectionId: String, onRoktEvent: (RoktEvent) -> Void) {
+        unitTest_duringPlacementFailure?()
         onRoktEvent(RoktEvent.HideLoadingIndicator())
         onRoktEvent(RoktEvent.PlacementFailure(identifier: nil))
         clearCallBacks(ownedBy: selectionId)
