@@ -205,19 +205,14 @@ final class PaymentOrchestrator {
     /// state nothing can resume, so fenced entries cannot pile up for the life of the process.
     private static var fencedInFlightBuiltInCardCheckouts: Set<BuiltInTwoStepCheckoutKey> = []
 
-    /// One Step-1 `initialize-purchase` request still waiting on its response: which request it is, and which method
-    /// it prepares, so a confirm that arrives while it is out can tell a PayPal checkout being prepared from a card one.
-    private struct PreparingBuiltInTwoStepCheckout {
-        let token: UUID
-        let method: PaymentMethodType
-    }
-
-    /// Step-1 `initialize-purchase` requests still waiting on their response, by key. A lifecycle fence removes the
-    /// key, so a response that lands after its layout closed or failed, or the session was cleared, shows no confirm
-    /// button and stores nothing for a placement that is gone. A Step-1 started again for the same key supersedes the
-    /// earlier request, whose response is dropped the same way, and takes the earlier PayPal checkout off offer the
-    /// moment it starts (``beginPreparingBuiltInTwoStep(for:method:)``), not when its response lands.
-    private static var preparingBuiltInTwoStepCheckouts: [BuiltInTwoStepCheckoutKey: PreparingBuiltInTwoStepCheckout] = [:]
+    /// Step-1 `initialize-purchase` requests still waiting on their response, by key; the value identifies the
+    /// request. A lifecycle fence removes the key, so a response that lands after its layout closed or failed, or the
+    /// session was cleared, shows no confirm button and stores nothing for a placement that is gone. A Step-1 started
+    /// again for the same key supersedes the earlier request, whose response is dropped the same way, and takes the
+    /// earlier PayPal checkout off offer the moment it starts (``beginPreparingBuiltInTwoStep(for:)``), not when its
+    /// response lands. A confirm that arrives while a request is out, whichever method it prepares, starts nothing
+    /// (``presentPendingBuiltInPayPalForForwardPayment(for:onCompletion:)``).
+    private static var preparingBuiltInTwoStepCheckouts: [BuiltInTwoStepCheckoutKey: UUID] = [:]
 
     static let builtInPayPalMissingDeferredSessionMessage =
         "Built-in PayPal device pay requires a layout session for confirmation (device pay hook)."
@@ -444,7 +439,7 @@ final class PaymentOrchestrator {
     ) {
         let contactAddress = Self.contactAddressForInitializePurchase(context: context)
         let preparingKey = devicePaySession?.checkoutKey(cartItemId: cartItemId)
-        let preparingToken = preparingKey.map { Self.beginPreparingBuiltInTwoStep(for: $0, method: .paypal) }
+        let preparingToken = preparingKey.map { Self.beginPreparingBuiltInTwoStep(for: $0) }
         // `.superseded` when the placement or session went away, or Step-1 was started again for this item, while
         // the request was out: its response then shows nothing, stores nothing and reports nothing.
         // `.keptPurchaseInFlight` when the item's card purchase is already out, `.keptApprovalInProgress` when its
@@ -577,12 +572,13 @@ final class PaymentOrchestrator {
     /// - Parameters:
     ///   - key: item and placement of the Step-2 confirm; only that item's pending PayPal checkout is consumed.
     ///   - onCompletion: called on the main queue with the coordinator outcome.
-    /// - Returns: `true` when the confirm belongs to the built-in PayPal path: a pending PayPal checkout existed for
-    ///   `key` and was presented; or was left pending because a PayPal approval sheet is already up (one hosted
-    ///   approval at a time); or a PayPal Step-1 for `key` is still out with nothing stored for it yet, so there is
-    ///   nothing to start until its response stores the new checkout and shows the confirm button again.
-    ///   `onCompletion` is not called in the last two cases. `false` when the caller should fall through to the
-    ///   non-PayPal `/v1/cart/purchase` flow.
+    /// - Returns: `true` when the confirm belongs to the built-in path and nothing else may run for it: a pending
+    ///   PayPal checkout existed for `key` and was presented; or was left pending because a PayPal approval sheet is
+    ///   already up (one hosted approval at a time); or a Step-1 for `key` is still out with nothing stored for it yet,
+    ///   whichever method it prepares, so there is nothing to start until its response stores the new checkout and
+    ///   shows the confirm button again. `onCompletion` is not called in the last two cases. `false` when the caller
+    ///   should fall through to the `/v1/cart/purchase` flow: a built-in card checkout is stored for `key`, or nothing
+    ///   built-in is on offer or being prepared for it.
     @discardableResult
     func presentPendingBuiltInPayPalForForwardPayment(
         for key: BuiltInTwoStepCheckoutKey,
@@ -599,18 +595,19 @@ final class PaymentOrchestrator {
         guard case let .paypal(snapshot)? = Self.pendingBuiltInTwoStepCheckouts[key],
               snapshot.owner === self
         else {
-            // A PayPal Step-1 started again for this item took the earlier checkout off offer and has not answered
-            // yet: the confirm is PayPal's, but there is nothing to start until the response stores the new checkout
-            // and shows the confirm button again. It must not run a card purchase for the item in the meantime.
-            let isPayPalStepOneOut = Self.preparingBuiltInTwoStepCheckouts[key]?.method == .paypal
+            // A Step-1 started again for this item took the earlier PayPal checkout off offer and has not answered
+            // yet: whether it prepares PayPal or card, the confirm belongs to the built-in flow, and there is nothing
+            // to start until the response stores the new checkout and shows the confirm button again. It must not
+            // fall through to a cart purchase for the item in the meantime.
+            let isStepOneOut = Self.preparingBuiltInTwoStepCheckouts[key] != nil
                 && Self.pendingBuiltInTwoStepCheckouts[key] == nil
             Self.pendingBuiltInTwoStepLock.unlock()
-            if isPayPalStepOneOut {
+            if isStepOneOut {
                 RoktLogger.shared.warning(
-                    "PayPal approval not started: this item's PayPal checkout is still being prepared."
+                    "Forward payment not started: this item's checkout is still being prepared."
                 )
             }
-            return isPayPalStepOneOut
+            return isStepOneOut
         }
         // One hosted approval at a time. A second item's confirm while a sheet is up would present over it and
         // take over the return-link routing (``activePayPalCheckout`` is one coordinator), so its entry stays
@@ -766,7 +763,7 @@ final class PaymentOrchestrator {
     ) {
         let contactAddress = Self.contactAddressForInitializePurchase(context: context)
         let key = devicePaySession.checkoutKey(cartItemId: cartItemId)
-        let preparingToken = Self.beginPreparingBuiltInTwoStep(for: key, method: .card)
+        let preparingToken = Self.beginPreparingBuiltInTwoStep(for: key)
         preparePaymentForItem(
             item: item,
             cartItemId: cartItemId,
@@ -1062,16 +1059,16 @@ final class PaymentOrchestrator {
         return Self.pendingBuiltInTwoStepCheckouts[key] != nil
     }
 
-    /// Records that a Step-1 request for `key` is about to be sent, preparing `method`; the returned value identifies
-    /// that request. A PayPal checkout already on offer for the item is taken off offer here, not when the response
-    /// lands: a confirm in between must not present an order this request supersedes. It goes without its completion
-    /// running, since the new request's outcome reports for the item, the same way a response that stores nothing
-    /// drops it. A card entry stays: it holds no server-side order, and a card purchase already sent keeps its place
-    /// whatever the new request brings (``finishPreparingBuiltInTwoStep``).
-    private static func beginPreparingBuiltInTwoStep(for key: BuiltInTwoStepCheckoutKey, method: PaymentMethodType) -> UUID {
+    /// Records that a Step-1 request for `key` is about to be sent; the returned value identifies that request. A
+    /// PayPal checkout already on offer for the item is taken off offer here, not when the response lands: a confirm
+    /// in between must not present an order this request supersedes. It goes without its completion running, since
+    /// the new request's outcome reports for the item, the same way a response that stores nothing drops it. A card
+    /// entry stays: it holds no server-side order, and a card purchase already sent keeps its place whatever the new
+    /// request brings (``finishPreparingBuiltInTwoStep``).
+    private static func beginPreparingBuiltInTwoStep(for key: BuiltInTwoStepCheckoutKey) -> UUID {
         let token = UUID()
         pendingBuiltInTwoStepLock.lock()
-        preparingBuiltInTwoStepCheckouts[key] = PreparingBuiltInTwoStepCheckout(token: token, method: method)
+        preparingBuiltInTwoStepCheckouts[key] = token
         if case .paypal? = pendingBuiltInTwoStepCheckouts[key] {
             pendingBuiltInTwoStepCheckouts.removeValue(forKey: key)
         }
@@ -1107,7 +1104,7 @@ final class PaymentOrchestrator {
     ) -> FinishedPreparing {
         pendingBuiltInTwoStepLock.lock()
         defer { pendingBuiltInTwoStepLock.unlock() }
-        guard preparingBuiltInTwoStepCheckouts[key]?.token == token else { return .superseded }
+        guard preparingBuiltInTwoStepCheckouts[key] == token else { return .superseded }
         preparingBuiltInTwoStepCheckouts.removeValue(forKey: key)
         if pendingBuiltInTwoStepCheckouts[key]?.isCardPurchaseInFlight == true {
             return entry == nil ? .stored : .keptPurchaseInFlight

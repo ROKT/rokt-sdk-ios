@@ -696,7 +696,12 @@ final class TestBuiltInTwoStepCheckoutBinding: XCTestCase {
         drainMainQueue()
 
         XCTAssertFalse(orch.unitTest_hasPendingBuiltInTwoStep(for: key(cartItemId: "cart-a", catalogItemId: "catalog-a")))
-        XCTAssertTrue(partnerEvents.isEmpty, "Nothing is owed to the partner for a placement that is gone")
+        // The close itself reached the partner while the state was still there; the dropped checkout adds nothing.
+        XCTAssertEqual(partnerEvents.count, 1, "The partner hears the close, and nothing else")
+        XCTAssertTrue(
+            partnerEvents.allSatisfy { $0 is RoktEvent.PlacementClosed },
+            "Beyond the close itself, nothing is owed to the partner for a placement that is gone"
+        )
         XCTAssertNil(impl.stateManager.getState(id: executeId), "Nothing holds the state once its checkout is dropped")
     }
 

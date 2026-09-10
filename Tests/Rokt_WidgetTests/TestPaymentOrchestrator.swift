@@ -1575,6 +1575,77 @@ class TestPaymentOrchestrator: XCTestCase {
         XCTAssertNil(firstResult)
     }
 
+    /// A card Step-1 replaces an item's PayPal checkout. Until it answers, a confirm for the item is held: it neither
+    /// presents the superseded order nor falls through to a cart purchase with no card checkout behind it. Once it has
+    /// answered, exactly one card checkout is stored and the next confirm starts its purchase.
+    func test_stepOne_card_confirmWhileItReplacesThePayPalCheckout_startsNoPurchaseAndStoresOneCardCheckout() {
+        let payPalPresenter = HoldingPayPalApprovalPresenter()
+        sut = PaymentOrchestrator(apiHelper: PaymentOrchestratorAPIHelperSpy.self, payPalApprovalPresenter: payPalPresenter)
+        // Held strongly: the pending PayPal checkout only keeps a weak reference to the screen it presents from.
+        let presentingViewController = UIViewController()
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse =
+            Self.validPayPalInitializePurchaseResponse(orderId: "ORDER_1")
+        var payPalResult: PaymentSheetResult?
+        var payPalConfirmationCount = 0
+        sut.processPayment(
+            method: .paypal,
+            item: PaymentItem(id: "p1", name: "P", amount: 1, currency: "USD"),
+            context: PaymentContext(
+                billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                returnURL: "myapp://paypal/success",
+                cancelURL: nil
+            ),
+            cartItemId: "v1:cart:1",
+            from: presentingViewController,
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests { _, _, _ in payPalConfirmationCount += 1 }
+        ) { payPalResult = $0 }
+        XCTAssertEqual(payPalConfirmationCount, 1)
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()))
+
+        // Card Step-1 starts for the same item; its response is still out when the confirm arrives.
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = Self.validInitializePurchaseResponse()
+        PaymentOrchestratorAPIHelperSpy.holdInitializePurchaseResponse = true
+        var cardResult: PaymentSheetResult?
+        var cardConfirmationCount = 0
+        sut.processPayment(
+            method: .card,
+            item: PaymentItem(id: "item-card", name: "Widget", amount: 9.99, currency: "USD"),
+            context: PaymentContext(),
+            cartItemId: "v1:cart:1",
+            from: UIViewController(),
+            builtInCardDevicePaySession: BuiltInTwoStepDevicePaySession(
+                executeId: Self.testExecuteId,
+                layoutId: "test_layout",
+                catalogItemId: "test_catalog"
+            ) { _, _, _ in cardConfirmationCount += 1 }
+        ) { cardResult = $0 }
+        XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()), "The PayPal checkout is off offer at once")
+        XCTAssertTrue(
+            sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in
+                XCTFail("Nothing is presented while the card request is out")
+            },
+            "The confirm is held instead of falling through to a cart purchase for the item"
+        )
+        XCTAssertNil(sut.beginBuiltInCardForwardPaymentIfReady(for: testKey()), "No card checkout is stored yet")
+        drainMainQueue()
+        XCTAssertEqual(payPalPresenter.presentCallCount, 0, "The superseded order's approval sheet is never presented")
+        XCTAssertNil(payPalResult, "The superseded checkout is dropped without a report, like any other discarded one")
+        XCTAssertNil(cardResult)
+
+        // The card request answers: it is the one checkout on offer, and the next confirm starts its purchase.
+        PaymentOrchestratorAPIHelperSpy.releaseHeldInitializePurchase()
+        XCTAssertEqual(cardConfirmationCount, 1, "The confirm button is shown again, for the card checkout")
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()))
+        XCTAssertFalse(
+            sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in },
+            "With the card checkout stored, the confirm falls through to its cart purchase"
+        )
+        XCTAssertNotNil(sut.beginBuiltInCardForwardPaymentIfReady(for: testKey()), "One card checkout is stored for the item")
+        XCTAssertNil(sut.beginBuiltInCardForwardPaymentIfReady(for: testKey()), "It was the only one, and is now in flight")
+        XCTAssertNil(payPalResult)
+        XCTAssertNil(cardResult, "The card checkout reports once its purchase has an outcome")
+    }
+
     func test_stepOne_payPal_replacementThatSucceeds_whileItsApprovalSheetIsUp_keepsTheSheetAndReportsTheNewAttemptFailed() {
         let payPalPresenter = HoldingPayPalApprovalPresenter()
         var firstResult: PaymentSheetResult?
