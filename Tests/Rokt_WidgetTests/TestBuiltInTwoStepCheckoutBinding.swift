@@ -868,6 +868,211 @@ final class TestBuiltInTwoStepCheckoutBinding: XCTestCase {
         XCTAssertFalse(orch.unitTest_hasPendingBuiltInTwoStep(for: itemKey), "The one checkout was taken for its approval")
     }
 
+    /// A PayPal Step-1 runs for an item whose card checkout is already prepared. Until the new request answers, a
+    /// confirm for the item sends no cart purchase and presents nothing; once it has answered, the PayPal checkout is
+    /// the one on offer and the next confirm presents its approval sheet.
+    func test_handleForwardPayment_whileAPayPalStepOneReplacesTheCardCheckout_startsNoPurchaseAndWaitsForTheNewCheckout() {
+        let impl = RoktInternalImplementation()
+        let presenter = HoldingPayPalApprovalPresenter()
+        impl.paymentOrchestratorForTesting = PaymentOrchestrator(
+            apiHelper: PaymentOrchestratorAPIHelperSpy.self,
+            payPalApprovalPresenter: presenter
+        )
+        defer { PaymentOrchestratorAPIHelperSpy.reset() }
+        let orch = impl.paymentOrchestratorForTesting
+        let bag = ExecuteStateBag(uxHelper: nil, onRoktEvent: nil)
+        bag.loadedPlacements = 1
+        bag.instantPurchaseInitiated = true
+        impl.stateManager.addState(id: executeId, state: bag)
+        registerPurchaseMock(body: #"{"success":true}"#) { _ in
+            XCTFail("A confirm while the item's PayPal checkout is being prepared must not send the superseded card purchase")
+        }
+        installMockingHTTPClient()
+        Rokt.shared.roktImplementation.roktTagId = forwardPaymentTestTagId
+        let itemKey = key(cartItemId: "cart-a", catalogItemId: "catalog-a")
+        let confirm = makeForwardPaymentEvent(cartItemId: "cart-a", catalogItemId: "catalog-a")
+        orch.unitTest_seedDeferredBuiltInCardForwardPayment(for: itemKey) { _ in
+            XCTFail("The superseded card checkout is dropped without a report")
+        }
+        XCTAssertTrue(orch.unitTest_hasPendingBuiltInTwoStep(for: itemKey))
+
+        // PayPal Step-1 runs for the item and its response is held back; a confirm arrives in the meantime.
+        // Held strongly: the pending checkout only keeps a weak reference to the screen it presents from.
+        let presentingViewController = UIViewController()
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = payPalInitializePurchaseResponse(orderId: "ORDER_2")
+        PaymentOrchestratorAPIHelperSpy.holdInitializePurchaseResponse = true
+        var confirmationCount = 0
+        orch.processPayment(
+            method: .paypal,
+            item: PaymentItem(id: "catalog-a", name: "Test item", amount: 1, currency: "USD"),
+            context: PaymentContext(
+                billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                returnURL: "myapp://paypal/success",
+                cancelURL: nil
+            ),
+            cartItemId: "cart-a",
+            from: presentingViewController,
+            builtInPayPalDevicePaySession: BuiltInTwoStepDevicePaySession(
+                executeId: executeId,
+                layoutId: "layout-1",
+                catalogItemId: "catalog-a"
+            ) { _, _, _ in confirmationCount += 1 }
+        ) { _ in }
+        XCTAssertFalse(orch.unitTest_hasPendingBuiltInTwoStep(for: itemKey), "The prepared card checkout is off offer at once")
+        impl.handleForwardPayment(executeId: executeId, event: confirm)
+        let settled = expectation(description: "a cart purchase would have been sent by now")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { settled.fulfill() }
+        wait(for: [settled], timeout: 2.0)
+        XCTAssertEqual(presenter.presentCallCount, 0, "Nothing is presented while the new request is out")
+        XCTAssertFalse(orch.isBuiltInCardForwardPaymentInFlight(), "No card purchase was started")
+        XCTAssertTrue(bag.instantPurchaseInitiated, "No purchase ran, so nothing finalized the item")
+
+        // The new request answers: the PayPal checkout is the one on offer, and the next confirm presents it.
+        PaymentOrchestratorAPIHelperSpy.releaseHeldInitializePurchase()
+        XCTAssertEqual(confirmationCount, 1, "The confirm button is shown again, for the PayPal checkout")
+        XCTAssertTrue(orch.unitTest_hasPendingBuiltInTwoStep(for: itemKey))
+        impl.handleForwardPayment(executeId: executeId, event: confirm)
+        drainMainQueue()
+        XCTAssertEqual(presenter.presentCallCount, 1, "The PayPal approval sheet is presented")
+        XCTAssertFalse(orch.unitTest_hasPendingBuiltInTwoStep(for: itemKey), "The one checkout was taken for its approval")
+    }
+
+    // MARK: - A purchase handed to a payment extension holds the execute's state until the extension reports back
+
+    /// A device-pay event for a method the built-in flows do not handle, so the purchase is routed to a registered
+    /// payment extension.
+    private func makeExtensionDevicePayEvent(
+        layoutId: String,
+        cartItemId: String,
+        catalogItemId: String
+    ) -> RoktUXEvent.CartItemDevicePay {
+        RoktUXEvent.CartItemDevicePay(
+            layoutId: layoutId,
+            name: "Test item",
+            cartItemId: cartItemId,
+            catalogItemId: catalogItemId,
+            currency: "USD",
+            description: "desc",
+            linkedProductId: nil,
+            providerData: "provider",
+            quantity: 1,
+            totalPrice: 9.99,
+            unitPrice: 9.99,
+            paymentProvider: .applePay,
+            transactionData: nil
+        )
+    }
+
+    /// Gives `impl` an orchestrator that answers the API through the spy, registers a payment extension for Apple Pay
+    /// that keeps its completion for the test to run, and has device-pay sheets presented from a screen the test
+    /// supplies. The caller resets the spy when it is done.
+    private func registerHeldPaymentExtension(on impl: RoktInternalImplementation) -> MockPaymentExtension {
+        impl.paymentOrchestratorForTesting = PaymentOrchestrator(apiHelper: PaymentOrchestratorAPIHelperSpy.self)
+        let paymentExtension = MockPaymentExtension(supportedMethods: [.applePay])
+        paymentExtension.shouldAutomaticallyCompletePayment = false
+        XCTAssertTrue(impl.paymentOrchestratorForTesting.register(paymentExtension, config: [:]))
+        impl.devicePayPresentingViewControllerOverride = { UIViewController() }
+        return paymentExtension
+    }
+
+    /// Item A's built-in checkout waits for its confirm while item B's purchase is with a payment extension. Both
+    /// placements close, which drops item A's checkout; the orchestrator then sees nothing outstanding, but item B's
+    /// extension has yet to report back. The state must stay until it does, so item B's purchase event reaches the
+    /// partner and its result reaches the layout, and must go once it has.
+    func test_layoutClosed_droppingABuiltInCheckout_whileAnExtensionPurchaseIsOut_keepsTheStateUntilItReportsBack() {
+        let impl = RoktInternalImplementation()
+        let paymentExtension = registerHeldPaymentExtension(on: impl)
+        defer { PaymentOrchestratorAPIHelperSpy.reset() }
+        let orch = impl.paymentOrchestratorForTesting
+        let uxHelper = FinalizeRecordingRoktUX()
+        var partnerEvents: [RoktEvent] = []
+        let bag = ExecuteStateBag(uxHelper: uxHelper) { partnerEvents.append($0) }
+        bag.loadedPlacements = 2
+        impl.stateManager.addState(id: executeId, state: bag)
+        seedPayPal(orch, for: key(cartItemId: "cart-a", catalogItemId: "catalog-a"))
+        // Item B is tapped: the renderer reports the tap, and the purchase goes to the extension, which holds it.
+        impl.stateManager.initiateInstantPurchase(id: executeId)
+        impl.callOnRoktUXEvent(
+            executeId,
+            uxEvent: makeExtensionDevicePayEvent(layoutId: "layout-2", cartItemId: "cart-b", catalogItemId: "catalog-b")
+        )
+        XCTAssertEqual(paymentExtension.presentPaymentSheetCallCount, 1, "Item B's purchase is with the extension")
+
+        // Both placements close: item A's checkout is dropped, and the orchestrator sees nothing of the execute.
+        impl.callOnRoktUXEvent(executeId, uxEvent: RoktUXEvent.LayoutClosed(layoutId: "layout-1"))
+        impl.callOnRoktUXEvent(executeId, uxEvent: RoktUXEvent.LayoutClosed(layoutId: "layout-2"))
+        drainMainQueue()
+        XCTAssertEqual(bag.loadedPlacements, 0)
+        XCTAssertFalse(orch.hasOutstandingBuiltInTwoStepCheckout(forExecuteId: executeId), "Nothing built-in is outstanding")
+        XCTAssertTrue(bag.instantPurchaseInitiated, "The extension purchase may yet finish, so the tap's flag is left alone")
+        XCTAssertNotNil(
+            impl.stateManager.getState(id: executeId),
+            "The state is kept while the extension can still report back"
+        )
+
+        // The extension reports success: the partner and the layout hear item B's result, then nothing holds the state.
+        paymentExtension.capturedCompletion?(.succeeded(transactionId: "txn_b"))
+        drainMainQueue()
+        let itemBPurchase = partnerEvents.compactMap { $0 as? RoktEvent.CartItemInstantPurchase }.first
+        XCTAssertEqual(itemBPurchase?.catalogItemId, "catalog-b", "The partner hears item B's result")
+        XCTAssertTrue(
+            uxHelper.finalizedCalls.contains { $0.layoutId == "layout-2" && $0.catalogItemId == "catalog-b" && $0.success },
+            "The layout hears item B's result"
+        )
+        XCTAssertFalse(bag.instantPurchaseInitiated, "The report-back finishes the tap")
+        XCTAssertNil(
+            impl.stateManager.getState(id: executeId),
+            "Once the extension has reported back, nothing holds the state"
+        )
+    }
+
+    /// A session clear drops item A's checkout while item B's purchase is with a payment extension. Nothing built-in is
+    /// outstanding after the clear, but the extension purchase may have gone through and its result is still owed, so
+    /// the hold is kept the way a card purchase already sent is kept; the state goes when the extension reports back.
+    func test_clearSession_whileAnExtensionPurchaseIsOut_keepsTheStateUntilTheExtensionReportsBack() {
+        let suiteName = "\(#file).extension-purchase"
+        let userDefaults = UserDefaults(suiteName: suiteName)!
+        userDefaults.removePersistentDomain(forName: suiteName)
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+        let impl = RoktInternalImplementation(
+            sessionManager: SessionManager(managedSessions: [], userDefaults: userDefaults)
+        )
+        impl.txnSessionStore = ScratchTxnStore()
+        let paymentExtension = registerHeldPaymentExtension(on: impl)
+        defer { PaymentOrchestratorAPIHelperSpy.reset() }
+        let orch = impl.paymentOrchestratorForTesting
+        var partnerEvents: [RoktEvent] = []
+        let bag = ExecuteStateBag(uxHelper: nil) { partnerEvents.append($0) }
+        bag.loadedPlacements = 1
+        impl.stateManager.addState(id: executeId, state: bag)
+        // Item A's checkout waits for its confirm on a placement that stays open until the session is cleared.
+        seedPayPal(orch, for: key(layoutId: "layout-2", cartItemId: "cart-a", catalogItemId: "catalog-a"))
+        impl.stateManager.initiateInstantPurchase(id: executeId)
+        impl.callOnRoktUXEvent(
+            executeId,
+            uxEvent: makeExtensionDevicePayEvent(layoutId: "layout-1", cartItemId: "cart-b", catalogItemId: "catalog-b")
+        )
+        XCTAssertEqual(paymentExtension.presentPaymentSheetCallCount, 1, "Item B's purchase is with the extension")
+
+        // Item B's placement closes, then the session is cleared, which drops item A's checkout.
+        impl.callOnRoktUXEvent(executeId, uxEvent: RoktUXEvent.LayoutClosed(layoutId: "layout-1"))
+        XCTAssertEqual(bag.loadedPlacements, 0)
+        impl.clearSession()
+        drainMainQueue()
+        XCTAssertFalse(orch.hasOutstandingBuiltInTwoStepCheckout(forExecuteId: executeId), "Nothing built-in is outstanding")
+        XCTAssertNotNil(impl.stateManager.getState(id: executeId), "The extension purchase's result is still owed")
+
+        // The extension reports a failure: the partner hears it, and then nothing holds the state.
+        paymentExtension.capturedCompletion?(.failed(error: "Card declined"))
+        drainMainQueue()
+        let failure = partnerEvents.compactMap { $0 as? RoktEvent.CartItemInstantPurchaseFailure }.first
+        XCTAssertEqual(failure?.catalogItemId, "catalog-b", "The partner hears item B's result")
+        XCTAssertNil(
+            impl.stateManager.getState(id: executeId),
+            "Once the extension has reported back, nothing holds the state"
+        )
+    }
+
     // MARK: - A confirm delivered off the main thread is handled on it
 
     /// Seeds a pending PayPal Step-1 whose confirm presents its approval sheet, so its completion may run later.

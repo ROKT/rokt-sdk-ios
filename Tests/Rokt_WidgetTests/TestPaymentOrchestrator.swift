@@ -23,6 +23,8 @@ final class MockPaymentExtension: PaymentExtension {
     private(set) var presentPaymentSheetLastMethod: PaymentMethodType?
     private(set) var presentPaymentSheetLastItem: PaymentItem?
     private(set) var capturedPreparePayment: ((ContactAddress, @escaping (PaymentPreparation?, Error?) -> Void) -> Void)?
+    /// The completion of the last sheet presented, for a test that reports back after acting while the sheet is up.
+    private(set) var capturedCompletion: ((PaymentSheetResult) -> Void)?
     private(set) var handleURLCallbackCallCount = 0
     private(set) var handleURLCallbackLastURL: URL?
 
@@ -58,6 +60,7 @@ final class MockPaymentExtension: PaymentExtension {
         presentPaymentSheetLastMethod = method
         presentPaymentSheetLastItem = item
         capturedPreparePayment = preparePayment
+        capturedCompletion = completion
         if shouldAutomaticallyCompletePayment {
             completion(paymentResultToReturn)
         }
@@ -1646,6 +1649,143 @@ class TestPaymentOrchestrator: XCTestCase {
         XCTAssertNil(cardResult, "The card checkout reports once its purchase has an outcome")
     }
 
+    /// A PayPal Step-1 replaces an item's prepared card checkout. Until it answers, a confirm for the item is held: it
+    /// neither sends the card purchase the request supersedes nor presents anything. Once it has answered, exactly one
+    /// PayPal checkout is stored and the next confirm presents its approval sheet; the card checkout never reports.
+    func test_stepOne_payPal_confirmWhileItReplacesTheCardCheckout_startsNoPurchaseAndStoresOnePayPalCheckout() {
+        let payPalPresenter = HoldingPayPalApprovalPresenter()
+        sut = PaymentOrchestrator(apiHelper: PaymentOrchestratorAPIHelperSpy.self, payPalApprovalPresenter: payPalPresenter)
+        // Held strongly: the pending PayPal checkout only keeps a weak reference to the screen it presents from.
+        let presentingViewController = UIViewController()
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = Self.validInitializePurchaseResponse()
+        var cardResult: PaymentSheetResult?
+        var cardConfirmationCount = 0
+        sut.processPayment(
+            method: .card,
+            item: PaymentItem(id: "item-card", name: "Widget", amount: 9.99, currency: "USD"),
+            context: PaymentContext(),
+            cartItemId: "v1:cart:1",
+            from: UIViewController(),
+            builtInCardDevicePaySession: BuiltInTwoStepDevicePaySession(
+                executeId: Self.testExecuteId,
+                layoutId: "test_layout",
+                catalogItemId: "test_catalog"
+            ) { _, _, _ in cardConfirmationCount += 1 }
+        ) { cardResult = $0 }
+        XCTAssertEqual(cardConfirmationCount, 1)
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()))
+
+        // PayPal Step-1 starts for the same item; its response is still out when the confirm arrives.
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse =
+            Self.validPayPalInitializePurchaseResponse(orderId: "ORDER_2")
+        PaymentOrchestratorAPIHelperSpy.holdInitializePurchaseResponse = true
+        var payPalResult: PaymentSheetResult?
+        var payPalConfirmationCount = 0
+        sut.processPayment(
+            method: .paypal,
+            item: PaymentItem(id: "p1", name: "P", amount: 1, currency: "USD"),
+            context: PaymentContext(
+                billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                returnURL: "myapp://paypal/success",
+                cancelURL: nil
+            ),
+            cartItemId: "v1:cart:1",
+            from: presentingViewController,
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests { _, _, _ in payPalConfirmationCount += 1 }
+        ) { payPalResult = $0 }
+        XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()), "The prepared card checkout is off offer at once")
+        XCTAssertTrue(
+            sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in
+                XCTFail("Nothing is presented while the PayPal request is out")
+            },
+            "The confirm is held instead of falling through to a cart purchase for the item"
+        )
+        XCTAssertNil(
+            sut.beginBuiltInCardForwardPaymentIfReady(for: testKey()),
+            "No card purchase is sent for the superseded checkout"
+        )
+        drainMainQueue()
+        XCTAssertEqual(payPalPresenter.presentCallCount, 0)
+        XCTAssertNil(cardResult, "The superseded checkout is dropped without a report, like any other discarded one")
+        XCTAssertNil(payPalResult)
+
+        // The PayPal request answers: it is the one checkout on offer, and the next confirm presents its approval sheet.
+        PaymentOrchestratorAPIHelperSpy.releaseHeldInitializePurchase()
+        XCTAssertEqual(payPalConfirmationCount, 1, "The confirm button is shown again, for the PayPal checkout")
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()))
+        XCTAssertNil(sut.beginBuiltInCardForwardPaymentIfReady(for: testKey()), "No card checkout is stored for the item")
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in })
+        drainMainQueue()
+        XCTAssertEqual(payPalPresenter.presentCallCount, 1)
+
+        // The new order's return link completes the PayPal checkout; the card checkout still reports nothing.
+        XCTAssertTrue(sut.handleURLCallback(with: URL(string: "myapp://paypal/success?token=ORDER_2")!))
+        drainMainQueue()
+        XCTAssertEqual(payPalResult?.outcome, .succeeded)
+        XCTAssertEqual(payPalResult?.transactionId, "ORDER_2")
+        XCTAssertNil(cardResult)
+    }
+
+    /// A card Step-1 starts again for an item whose card checkout is already prepared. Until it answers, a confirm for
+    /// the item is held and sends no purchase for the superseded checkout; once it has answered, exactly one card
+    /// checkout is stored and the next confirm starts its purchase. The superseded checkout never reports.
+    func test_stepOne_card_confirmWhileItReplacesTheCardCheckout_startsNoPurchaseAndStoresOneCardCheckout() {
+        sut = PaymentOrchestrator(apiHelper: PaymentOrchestratorAPIHelperSpy.self)
+        var confirmationCount = 0
+        func startStepOne(completion: @escaping (PaymentSheetResult) -> Void) {
+            PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = Self.validInitializePurchaseResponse()
+            sut.processPayment(
+                method: .card,
+                item: PaymentItem(id: "item-card", name: "Widget", amount: 9.99, currency: "USD"),
+                context: PaymentContext(),
+                cartItemId: "v1:cart:1",
+                from: UIViewController(),
+                builtInCardDevicePaySession: BuiltInTwoStepDevicePaySession(
+                    executeId: Self.testExecuteId,
+                    layoutId: "test_layout",
+                    catalogItemId: "test_catalog"
+                ) { _, _, _ in confirmationCount += 1 },
+                completion: completion
+            )
+        }
+        var firstResult: PaymentSheetResult?
+        startStepOne { firstResult = $0 }
+        XCTAssertEqual(confirmationCount, 1)
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()))
+
+        // Step-1 runs again for the same item; its response is still out when the confirm arrives.
+        PaymentOrchestratorAPIHelperSpy.holdInitializePurchaseResponse = true
+        var secondResult: PaymentSheetResult?
+        startStepOne { secondResult = $0 }
+        XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()), "The superseded card checkout is off offer")
+        XCTAssertTrue(
+            sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in
+                XCTFail("Nothing is presented while the new request is out")
+            },
+            "The confirm is held instead of falling through to a cart purchase for the item"
+        )
+        XCTAssertNil(
+            sut.beginBuiltInCardForwardPaymentIfReady(for: testKey()),
+            "No purchase is sent for the superseded checkout"
+        )
+        drainMainQueue()
+        XCTAssertNil(firstResult, "The superseded checkout is dropped without a report, like any other discarded one")
+        XCTAssertNil(secondResult)
+
+        // The new request answers: it is the one checkout on offer, and the next confirm starts its purchase.
+        PaymentOrchestratorAPIHelperSpy.releaseHeldInitializePurchase()
+        XCTAssertEqual(confirmationCount, 2, "The confirm button is shown again, for the new card checkout")
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()))
+        XCTAssertFalse(
+            sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in },
+            "With the card checkout stored, the confirm falls through to its cart purchase"
+        )
+        XCTAssertNotNil(sut.beginBuiltInCardForwardPaymentIfReady(for: testKey()), "One card checkout is stored for the item")
+        XCTAssertNil(sut.beginBuiltInCardForwardPaymentIfReady(for: testKey()), "It was the only one, and is now in flight")
+        XCTAssertNil(firstResult)
+        XCTAssertNil(secondResult, "The new card checkout reports once its purchase has an outcome")
+    }
+
     func test_stepOne_payPal_replacementThatSucceeds_whileItsApprovalSheetIsUp_keepsTheSheetAndReportsTheNewAttemptFailed() {
         let payPalPresenter = HoldingPayPalApprovalPresenter()
         var firstResult: PaymentSheetResult?
@@ -1837,6 +1977,56 @@ class TestPaymentOrchestrator: XCTestCase {
 
         sut.finishBuiltInCardForwardPaymentAttempt(for: testKey(), result: .succeeded(transactionId: "card_txn"))
         wait(for: [purchaseResultDelivered], timeout: 1.0)
+    }
+
+    /// A card purchase fails retryably while a newer Step-1 for its item is out. The failed purchase is dropped rather
+    /// than put back on offer, since the item's confirm button now belongs to the new request, whose response then
+    /// stores the one card checkout on offer. Nothing is reported for the execute while that request is out.
+    func test_restoreAfterRetryableFailure_dropsACardPurchaseWhoseItemHasANewerStepOneOut() {
+        sut = PaymentOrchestrator(apiHelper: PaymentOrchestratorAPIHelperSpy.self)
+        var reported: [String] = []
+        sut.onExecuteHasNoOutstandingCheckout = { reported.append($0) }
+        sut.unitTest_seedDeferredBuiltInCardForwardPayment(for: testKey()) { _ in XCTFail("A dropped entry reports nothing") }
+        XCTAssertNotNil(sut.beginBuiltInCardForwardPaymentIfReady(for: testKey()))
+        XCTAssertTrue(sut.isBuiltInCardForwardPaymentInFlight())
+
+        // Step-1 runs again for the item while its purchase is out; its response is held back.
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = Self.validInitializePurchaseResponse()
+        PaymentOrchestratorAPIHelperSpy.holdInitializePurchaseResponse = true
+        var confirmationCount = 0
+        var replacementResult: PaymentSheetResult?
+        sut.processPayment(
+            method: .card,
+            item: PaymentItem(id: "item-card", name: "Widget", amount: 9.99, currency: "USD"),
+            context: PaymentContext(),
+            cartItemId: "v1:cart:1",
+            from: UIViewController(),
+            builtInCardDevicePaySession: BuiltInTwoStepDevicePaySession(
+                executeId: Self.testExecuteId,
+                layoutId: "test_layout",
+                catalogItemId: "test_catalog"
+            ) { _, _, _ in confirmationCount += 1 }
+        ) { replacementResult = $0 }
+        XCTAssertTrue(sut.isBuiltInCardForwardPaymentInFlight(), "The purchase already sent keeps its place")
+
+        // The purchase fails retryably: its item's confirm button belongs to the new request, so it is dropped.
+        sut.restoreBuiltInCardForwardPaymentAfterRetryableFailure(for: testKey())
+        drainMainQueue()
+        XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()), "The failed purchase is not put back on offer")
+        XCTAssertNil(sut.beginBuiltInCardForwardPaymentIfReady(for: testKey()), "A confirm in the window sends nothing")
+        XCTAssertTrue(
+            sut.hasOutstandingBuiltInTwoStepCheckout(forExecuteId: Self.testExecuteId),
+            "The request still out keeps the execute outstanding"
+        )
+        XCTAssertTrue(reported.isEmpty, "Not reported while the new request is out")
+
+        // The new request answers: its card checkout is the one on offer.
+        PaymentOrchestratorAPIHelperSpy.releaseHeldInitializePurchase()
+        XCTAssertEqual(confirmationCount, 1, "The confirm button is shown for the new card checkout")
+        XCTAssertNotNil(sut.beginBuiltInCardForwardPaymentIfReady(for: testKey()), "One card checkout is stored for the item")
+        XCTAssertNil(sut.beginBuiltInCardForwardPaymentIfReady(for: testKey()), "It was the only one, and is now in flight")
+        XCTAssertNil(replacementResult, "The new checkout reports once its purchase has an outcome")
+        XCTAssertTrue(reported.isEmpty)
     }
 
     func test_stepOne_card_responseAfterTheSessionCleared_showsNoConfirmationAndStoresNothing() {
@@ -2263,6 +2453,7 @@ class TestPaymentOrchestrator: XCTestCase {
     private func startHeldPayPalCheckout(
         cancelURL: String? = nil,
         presenter: HoldingPayPalApprovalPresenter = HoldingPayPalApprovalPresenter(),
+        from presentingViewController: UIViewController = UIViewController(),
         onStepOneResult: @escaping (PaymentSheetResult) -> Void
     ) {
         sut = PaymentOrchestrator(
@@ -2271,8 +2462,8 @@ class TestPaymentOrchestrator: XCTestCase {
         )
         PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = Self.validPayPalInitializePurchaseResponse()
 
-        // Held strongly until the deferred present has run; the pending checkout only keeps a weak reference.
-        let presentingViewController = UIViewController()
+        // The screen is held at least until the deferred present has run; the pending checkout only keeps a weak
+        // reference. A test that presents the same order again after a cancel passes a screen it holds itself.
         sut.processPayment(
             method: .paypal,
             item: PaymentItem(id: "p1", name: "P", amount: 1, currency: "USD"),
@@ -2414,6 +2605,133 @@ class TestPaymentOrchestrator: XCTestCase {
         XCTAssertNil(stepOneResult, "Cancel defers the Step-1 completion")
         XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()), "The confirm button can start the checkout again")
         XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in })
+    }
+
+    // MARK: - A cancel while a Step-1 started again for the item is out drops the cancelled order
+
+    /// Step-1 runs again for an item while its PayPal approval sheet is up, and the buyer cancels before the new
+    /// response lands. The cancelled order is dropped rather than put back on offer: a confirm in the window starts
+    /// nothing, the new response is stored as the item's one checkout instead of being rejected as an approval already
+    /// in progress, and the next confirm presents the new order. Nothing of the dropped order is reported.
+    func test_handleURLCallback_payPalCancel_whileAStepOneStartedAgainForTheItemIsOut_dropsTheOldOrderAndStoresTheNew() {
+        let payPalPresenter = HoldingPayPalApprovalPresenter()
+        var stepOneResult: PaymentSheetResult?
+        startHeldPayPalCheckout(cancelURL: "myapp://paypal/cancel", presenter: payPalPresenter) { stepOneResult = $0 }
+        var reported: [String] = []
+        sut.onExecuteHasNoOutstandingCheckout = { reported.append($0) }
+        // Held strongly: the new pending checkout only keeps a weak reference to the screen it presents from.
+        let presentingViewController = UIViewController()
+
+        // Step-1 runs again for the item while its approval sheet is up; its response is held back.
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse =
+            Self.validPayPalInitializePurchaseResponse(orderId: "ORDER_2")
+        PaymentOrchestratorAPIHelperSpy.holdInitializePurchaseResponse = true
+        var confirmationCount = 0
+        var secondResult: PaymentSheetResult?
+        sut.processPayment(
+            method: .paypal,
+            item: PaymentItem(id: "p1", name: "P", amount: 1, currency: "USD"),
+            context: PaymentContext(
+                billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                returnURL: "myapp://paypal/success",
+                cancelURL: "myapp://paypal/cancel"
+            ),
+            cartItemId: "v1:cart:1",
+            from: presentingViewController,
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests { _, _, _ in confirmationCount += 1 }
+        ) { secondResult = $0 }
+        XCTAssertEqual(sut.unitTest_presentedBuiltInPayPalCount(), 1, "The first order's sheet is still up")
+
+        // The buyer cancels before the new response: the cancelled order is dropped, and the request out keeps the execute.
+        XCTAssertTrue(sut.handleURLCallback(with: URL(string: "myapp://paypal/cancel?token=ORDER_MOCK")!))
+        drainMainQueue()
+        XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()), "The cancelled order is not put back on offer")
+        XCTAssertEqual(sut.unitTest_presentedBuiltInPayPalCount(), 0)
+        XCTAssertNil(stepOneResult, "Nothing of the dropped order is reported; the new request's outcome reports for the item")
+        XCTAssertTrue(sut.hasOutstandingBuiltInTwoStepCheckout(forExecuteId: Self.testExecuteId), "The request is still out")
+        XCTAssertTrue(reported.isEmpty, "No execute is reported as having nothing outstanding while the new request is out")
+
+        // A confirm in the window starts nothing.
+        XCTAssertTrue(
+            sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in
+                XCTFail("Nothing is presented while the new request is out")
+            },
+            "The confirm stays on the PayPal path with nothing to start"
+        )
+        drainMainQueue()
+        XCTAssertEqual(payPalPresenter.presentCallCount, 1, "The cancelled order is never presented again")
+
+        // The new response is stored, not rejected as an approval already in progress, and the next confirm presents it.
+        PaymentOrchestratorAPIHelperSpy.releaseHeldInitializePurchase()
+        XCTAssertEqual(confirmationCount, 1, "The confirm button is shown for the new checkout")
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()))
+        XCTAssertNil(secondResult, "The new attempt is not reported as failed")
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in })
+        drainMainQueue()
+        XCTAssertEqual(payPalPresenter.presentCallCount, 2, "The new order's approval sheet is presented")
+
+        // A return link for the dropped order completes nothing; the new order's completes the checkout.
+        XCTAssertTrue(sut.handleURLCallback(with: URL(string: "myapp://paypal/success?token=ORDER_MOCK")!))
+        drainMainQueue()
+        XCTAssertEqual(
+            PaymentOrchestratorAPIHelperSpy.lastDiagnosticsCallStack,
+            PaymentOrchestrator.payPalReturnLinkOrderMismatchMessage
+        )
+        XCTAssertNil(secondResult)
+        XCTAssertTrue(sut.handleURLCallback(with: URL(string: "myapp://paypal/success?token=ORDER_2")!))
+        drainMainQueue()
+        XCTAssertEqual(secondResult?.outcome, .succeeded)
+        XCTAssertEqual(secondResult?.transactionId, "ORDER_2")
+        XCTAssertNil(stepOneResult)
+        XCTAssertTrue(reported.isEmpty)
+    }
+
+    /// Step-1 runs again for an item while its PayPal approval sheet is up and answers at once: the approval on screen
+    /// keeps its place and the new attempt is reported as failed. When the buyer then cancels, the order on screen is
+    /// the right one to keep on offer, and it comes back for the confirm button to start again.
+    func test_stepOne_payPal_replacementRejectedWhileTheSheetIsUp_thenCancel_putsTheOrderOnScreenBackOnOffer() {
+        let payPalPresenter = HoldingPayPalApprovalPresenter()
+        // Held strongly for the whole test: the re-queued order presents from it again after the cancel.
+        let presentingViewController = UIViewController()
+        var stepOneResult: PaymentSheetResult?
+        startHeldPayPalCheckout(cancelURL: "myapp://paypal/cancel", presenter: payPalPresenter, from: presentingViewController) {
+            stepOneResult = $0
+        }
+
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse =
+            Self.validPayPalInitializePurchaseResponse(orderId: "ORDER_2")
+        var replacementResult: PaymentSheetResult?
+        sut.processPayment(
+            method: .paypal,
+            item: PaymentItem(id: "p1", name: "P", amount: 1, currency: "USD"),
+            context: PaymentContext(
+                billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                returnURL: "myapp://paypal/success",
+                cancelURL: "myapp://paypal/cancel"
+            ),
+            cartItemId: "v1:cart:1",
+            from: presentingViewController,
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests { _, _, _ in
+                XCTFail("A replacement for an approval already on screen shows no confirm button")
+            }
+        ) { replacementResult = $0 }
+        drainMainQueue()
+        XCTAssertEqual(replacementResult?.outcome, .failed)
+        XCTAssertEqual(replacementResult?.errorMessage, PaymentOrchestrator.builtInPayPalApprovalInProgressMessage)
+
+        // The buyer cancels: no request is out for the item any more, so the order on screen is put back on offer.
+        XCTAssertTrue(sut.handleURLCallback(with: URL(string: "myapp://paypal/cancel?token=ORDER_MOCK")!))
+        drainMainQueue()
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: testKey()), "The order on screen is back on offer")
+        XCTAssertNil(stepOneResult, "Cancel defers the Step-1 completion")
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: testKey()) { _ in })
+        drainMainQueue()
+        XCTAssertEqual(payPalPresenter.presentCallCount, 2, "The same order's approval sheet is presented again")
+
+        XCTAssertTrue(sut.handleURLCallback(with: URL(string: "myapp://paypal/success?token=ORDER_MOCK")!))
+        drainMainQueue()
+        XCTAssertEqual(stepOneResult?.outcome, .succeeded)
+        XCTAssertEqual(stepOneResult?.transactionId, "ORDER_MOCK")
     }
 
     // MARK: - One PayPal approval at a time

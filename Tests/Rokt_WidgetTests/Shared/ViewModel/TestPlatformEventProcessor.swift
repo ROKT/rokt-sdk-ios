@@ -473,4 +473,7 @@ private class MockStateManager: StateBagManaging {
         stateIdRetrieved = id
         finishInstantPurchaseCalled = true
     }
+
+    func beginExtensionPurchase(id: String) -> UUID { UUID() }
+    func finishExtensionPurchase(id: String, token: UUID) {}
 }

@@ -167,7 +167,8 @@ final class PaymentOrchestrator {
     /// sheet (``PresentedBuiltInPayPalCheckout/holdsBackOtherApprovals``), the same way in both phases.
     private enum PresentedBuiltInPayPalCheckoutPhase {
         /// The approval sheet is being put up or is up, and its layout is still open; a cancel re-queues the entry
-        /// for the confirm button to start again.
+        /// for the confirm button to start again, unless a Step-1 started again for the item owns the key by then
+        /// (``requeuePendingBuiltInPayPalAfterForwardPaymentCancel(key:snapshot:owner:)``).
         case presenting
         /// Its layout closed or failed, or the session was cleared, while the sheet was up; a cancel drops the
         /// entry, since nothing is left to resume.
@@ -209,9 +210,12 @@ final class PaymentOrchestrator {
     /// request. A lifecycle fence removes the key, so a response that lands after its layout closed or failed, or the
     /// session was cleared, shows no confirm button and stores nothing for a placement that is gone. A Step-1 started
     /// again for the same key supersedes the earlier request, whose response is dropped the same way, and takes the
-    /// earlier PayPal checkout off offer the moment it starts (``beginPreparingBuiltInTwoStep(for:)``), not when its
-    /// response lands. A confirm that arrives while a request is out, whichever method it prepares, starts nothing
-    /// (``presentPendingBuiltInPayPalForForwardPayment(for:onCompletion:)``).
+    /// earlier checkout, PayPal or card, off offer the moment it starts (``beginPreparingBuiltInTwoStep(for:)``), not
+    /// when its response lands; only a card purchase already sent keeps its place. While a key is held here, the
+    /// pending table holds nothing for it, or a card purchase already sent: a cancel of the item's approval while the
+    /// request is out drops the cancelled order rather than putting it back on offer, and a retryable failure of the
+    /// item's card purchase drops that purchase rather than putting it back. A confirm that arrives while a request is
+    /// out, whichever method it prepares, starts nothing (``presentPendingBuiltInPayPalForForwardPayment(for:onCompletion:)``).
     private static var preparingBuiltInTwoStepCheckouts: [BuiltInTwoStepCheckoutKey: UUID] = [:]
 
     static let builtInPayPalMissingDeferredSessionMessage =
@@ -568,7 +572,9 @@ final class PaymentOrchestrator {
     /// If the buyer cancels the hosted step (Safari dismissed or cancel deep link), the SDK
     /// does **not** invoke `onCompletion` or the deferred Step-1 `completion`; it re-queues the
     /// same pending checkout so the confirmation UI can stay up and ``presentPendingBuiltInPayPalForForwardPayment``
-    /// can run again.
+    /// can run again. The entry is dropped instead when a fence ran while the sheet was up, or when a Step-1 for the
+    /// item started again while it was up: that request's confirm button is not for this order
+    /// (``requeuePendingBuiltInPayPalAfterForwardPaymentCancel(key:snapshot:owner:)``).
     ///
     /// A mark left by an approval whose checkout is gone (a sheet the host tore down without a cancel or a return,
     /// whose checkout a later presentation then released) is pruned on the way in and reported the way a fence reports
@@ -704,7 +710,10 @@ final class PaymentOrchestrator {
     }
 
     /// Puts a cancelled PayPal entry back for the confirm button to start again, unless a fence ran while its sheet
-    /// was up, in which case the entry is dropped.
+    /// was up, or a Step-1 for the item started again while it was up and is still out, in which case the entry is
+    /// dropped: that request's confirm button is not for this order, and its outcome reports for the item. A Step-1
+    /// that answered while the sheet was up has already been reported as failed and released the key, so the order on
+    /// screen is put back as usual. The mark, the request and the entry are read and written under one hold of the lock.
     ///
     /// - Returns: `true` when the entry was dropped, so nothing of it is left to report back; `false` when it was
     ///   re-queued.
@@ -724,9 +733,12 @@ final class PaymentOrchestrator {
         )
         pendingBuiltInTwoStepLock.lock()
         defer { pendingBuiltInTwoStepLock.unlock() }
+        let mark = presentedBuiltInPayPalCheckouts.removeValue(forKey: key)
         // A fence that ran while the sheet was up means the placement or session is gone; re-queueing would
-        // leave state nothing can resume, so the entry is dropped like any other discarded one.
-        guard presentedBuiltInPayPalCheckouts.removeValue(forKey: key)?.phase != .fenced else { return true }
+        // leave state nothing can resume. A Step-1 still out for the item owns its confirm button; re-queueing would
+        // put an order that request supersedes back where a confirm could start it. In both cases the entry is
+        // dropped like any other discarded one.
+        guard mark?.phase != .fenced, preparingBuiltInTwoStepCheckouts[key] == nil else { return true }
         pendingBuiltInTwoStepCheckouts[key] = .paypal(restored)
         return false
     }
@@ -853,7 +865,9 @@ final class PaymentOrchestrator {
     /// After a retryable card forwarding `/v1/cart/purchase` failure, move `key` from ``cardInFlight`` back to
     /// ``card`` so the buyer can tap confirm again without re-running Step-1 ``initializePurchase``. An entry whose
     /// placement or session went away while the request was out is dropped instead, and when it was the last
-    /// checkout of its execute the execute is reported through ``onExecuteHasNoOutstandingCheckout``.
+    /// checkout of its execute the execute is reported through ``onExecuteHasNoOutstandingCheckout``. An entry whose
+    /// item has a Step-1 started again and still out is dropped too, without a report: that request owns the item's
+    /// confirm button and keeps the execute outstanding, and its outcome reports for the item.
     func restoreBuiltInCardForwardPaymentAfterRetryableFailure(for key: BuiltInTwoStepCheckoutKey) {
         Self.pendingBuiltInTwoStepLock.lock()
         guard case let .cardInFlight(snapshot)? = Self.pendingBuiltInTwoStepCheckouts[key],
@@ -868,6 +882,14 @@ final class PaymentOrchestrator {
             Self.pendingBuiltInTwoStepCheckouts.removeValue(forKey: key)
             Self.pendingBuiltInTwoStepLock.unlock()
             reportIfNoOutstandingCheckout(forExecuteId: key.executeId)
+            return
+        }
+        // A Step-1 since started again for the item owns its confirm button, so the entry is dropped like the one that
+        // request superseded when it started (its completion is not invoked; the new request's outcome reports for the
+        // item). The request still out keeps the execute outstanding, so there is nothing to report.
+        if Self.preparingBuiltInTwoStepCheckouts[key] != nil {
+            Self.pendingBuiltInTwoStepCheckouts.removeValue(forKey: key)
+            Self.pendingBuiltInTwoStepLock.unlock()
             return
         }
         Self.pendingBuiltInTwoStepCheckouts[key] = .card(snapshot)
@@ -1074,16 +1096,16 @@ final class PaymentOrchestrator {
     }
 
     /// Records that a Step-1 request for `key` is about to be sent; the returned value identifies that request. A
-    /// PayPal checkout already on offer for the item is taken off offer here, not when the response lands: a confirm
-    /// in between must not present an order this request supersedes. It goes without its completion running, since
-    /// the new request's outcome reports for the item, the same way a response that stores nothing drops it. A card
-    /// entry stays: it holds no server-side order, and a card purchase already sent keeps its place whatever the new
-    /// request brings (``finishPreparingBuiltInTwoStep``).
+    /// checkout already on offer for the item, PayPal or card, is taken off offer here, not when the response lands: a
+    /// confirm in between must neither present an order nor send a card purchase this request supersedes. It goes
+    /// without its completion running, since the new request's outcome reports for the item, the same way a response
+    /// that stores nothing drops it. Only a card purchase already sent keeps its place whatever the new request brings
+    /// (``finishPreparingBuiltInTwoStep``): its result is still owed.
     private static func beginPreparingBuiltInTwoStep(for key: BuiltInTwoStepCheckoutKey) -> UUID {
         let token = UUID()
         pendingBuiltInTwoStepLock.lock()
         preparingBuiltInTwoStepCheckouts[key] = token
-        if case .paypal? = pendingBuiltInTwoStepCheckouts[key] {
+        if pendingBuiltInTwoStepCheckouts[key]?.isCardPurchaseInFlight == false {
             pendingBuiltInTwoStepCheckouts.removeValue(forKey: key)
         }
         pendingBuiltInTwoStepLock.unlock()
@@ -1106,14 +1128,16 @@ final class PaymentOrchestrator {
     }
 
     /// Ends the Step-1 request `token` for `key`, storing `entry` as its deferred state when one is given; the check
-    /// and the store happen under one lock so a fence cannot slip between them. A request that ends with nothing to
-    /// store drops a checkout still on offer for the item (a card entry, or a PayPal entry a cancel re-queued while
-    /// the request was out): its layout is told this attempt failed, so a later confirm must not start the superseded
-    /// one. A card purchase already sent, or a PayPal approval sheet already up, keeps its place whatever the new
-    /// request brings, because its result still has to reach its completion; the new state is not stored. A mark of an
-    /// abandoned approval pruned on the way is reported the way a fence reports the marks it prunes: once the lock is
-    /// released, every execute so affected that is left with no checkout outstanding is reported through
-    /// ``onExecuteHasNoOutstandingCheckout``; an execute whose new state was just stored is still outstanding, and is not.
+    /// and the store happen under one lock so a fence cannot slip between them. Nothing of the superseded checkout is
+    /// on offer by now: it went when this request started (``beginPreparingBuiltInTwoStep(for:)``), a cancel of the
+    /// item's approval while the request was out dropped the cancelled order rather than re-queueing it, and a
+    /// retryable failure of the item's card purchase dropped that purchase rather than restoring it. A request that
+    /// ends with nothing to store still clears the key, so no entry can be left under it. A card purchase already sent,
+    /// or a PayPal approval sheet already up, keeps its place whatever the new request brings, because its result still
+    /// has to reach its completion; the new state is not stored. A mark of an abandoned approval pruned on the way is
+    /// reported the way a fence reports the marks it prunes: once the lock is released, every execute so affected that
+    /// is left with no checkout outstanding is reported through ``onExecuteHasNoOutstandingCheckout``; an execute whose
+    /// new state was just stored is still outstanding, and is not.
     private func finishPreparingBuiltInTwoStep(
         for key: BuiltInTwoStepCheckoutKey,
         token: UUID,

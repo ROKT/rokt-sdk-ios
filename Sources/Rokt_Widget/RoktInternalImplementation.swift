@@ -92,6 +92,8 @@ class RoktInternalImplementation {
 
     // Test-only override for the events service factory; nil uses the real builder.
     var makeTxnEventServiceOverride: ((String) -> TxnEventService)?
+    // Test-only override for the screen a device-pay sheet is presented from; nil uses the top view controller.
+    var devicePayPresentingViewControllerOverride: (() -> UIViewController?)?
     private var pendingPayload: ExecutePayload?
     private var clientTimeoutMilliseconds: Double = RoktInternalImplementation.defaultTimeoutMilliseconds
     private var defaultLaunchDelayMilliseconds: Double = RoktInternalImplementation.defaultDelay
@@ -192,8 +194,10 @@ class RoktInternalImplementation {
         stateManager = makeStateBagManager()
     }
 
-    /// The state keeper asks the payment orchestrator whether a checkout of an execute is still outstanding before it
-    /// drops that execute's state, so a result that arrives after every placement closed still finds the state.
+    /// The state keeper asks the payment orchestrator whether a built-in checkout of an execute is still outstanding
+    /// before it drops that execute's state, so a result that arrives after every placement closed still finds the
+    /// state. Purchases handed to a payment extension, which the orchestrator's tables cannot see, it holds itself
+    /// from the moment the device-pay handler hands them over until the extension reports back.
     private func makeStateBagManager() -> StateBagManager {
         let manager = StateBagManager()
         manager.hasOutstandingPurchase = { [weak self] executeId in
@@ -694,7 +698,7 @@ class RoktInternalImplementation {
             }
 
             // Find the topmost view controller for presenting the payment sheet
-            guard let viewController = UIApplication.topViewController() else {
+            guard let viewController = devicePayPresentingViewControllerOverride?() ?? UIApplication.topViewController() else {
                 RoktLogger.shared.error("No view controller available to present payment sheet")
                 devicePayFinalized(executeId: executeId, layoutId: event.layoutId,
                                    catalogItemId: event.catalogItemId, success: false)
@@ -724,6 +728,12 @@ class RoktInternalImplementation {
             let cardSession: BuiltInTwoStepDevicePaySession? = isBuiltInCardForwarding
                 ? twoStepSessionFactory()
                 : nil
+            // `processPayment` routes to a registered payment extension exactly when neither built-in session is set.
+            // The orchestrator's tables cannot see a purchase handed to an extension, so the execute's state keeper
+            // holds it from here until the extension reports back: a built-in checkout of the execute dropped in the
+            // meantime must not release the state the extension's result still needs.
+            let isRoutedToAPaymentExtension = paypalSession == nil && cardSession == nil
+            let extensionPurchase = isRoutedToAPaymentExtension ? stateManager.beginExtensionPurchase(id: executeId) : nil
 
             // Process the payment via the registered extension or built-in two-step flow
             paymentOrchestrator.processPayment(
@@ -736,7 +746,11 @@ class RoktInternalImplementation {
                 builtInPayPalDevicePaySession: paypalSession,
                 builtInCardDevicePaySession: cardSession
             ) { [weak self] result in
+                // Delivered first and released second, so the state is still there for the delivery.
                 self?.handleDevicePayPaymentCompletion(executeId: executeId, event: event, result: result)
+                if let extensionPurchase {
+                    self?.stateManager.finishExtensionPurchase(id: executeId, token: extensionPurchase)
+                }
             }
         } else if let event = uxEvent as? RoktUXEvent.CartItemForwardPayment {
             handleForwardPayment(executeId: executeId, event: event)
@@ -1028,6 +1042,7 @@ class RoktInternalImplementation {
         FontManager.resetDiskPressureState()
         // A new state keeper starts here, so a checkout begun under the previous one has nowhere left to report: it is
         // dropped, or fenced when its purchase is already in flight, the same way a session clear drops or fences it.
+        // The holds the previous keeper took for purchases handed to a payment extension go with it.
         paymentOrchestrator.discardAllPendingBuiltInTwoStep()
         stateManager = makeStateBagManager()
 
@@ -1226,7 +1241,9 @@ class RoktInternalImplementation {
         // The cached experience was fetched inside the dropped session, so it goes with it.
         ExperienceCacheManager.clearCache()
         mustBypassCacheOnNextExecute = true
-        // A checkout started under the dropped session must not be resumable by whoever comes next.
+        // A checkout started under the dropped session must not be resumable by whoever comes next. A purchase handed to
+        // a payment extension keeps its hold on the execute's state, as a card purchase already sent keeps its place:
+        // it may have gone through, and its result is still owed to the partner and the layout.
         paymentOrchestrator.discardAllPendingBuiltInTwoStep()
         RoktLogger.shared.info("Session cleared; the next placement will start a new session")
     }

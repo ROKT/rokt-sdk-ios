@@ -146,6 +146,74 @@ class TestStateBagManager: XCTestCase {
         XCTAssertTrue(bag.instantPurchaseInitiated, "A purchase still outstanding may yet finish and clear the flag itself")
         XCTAssertNotNil(sut.getState(id: "1"))
     }
+
+    func testGivenAnExtensionPurchaseInFlight_ThenRemoveStateIfUnusedKeepsTheFlagAndTheState() {
+        var bag: MockBag? = MockBag()
+        bag?.uxHelper = MockUXHelper()
+        weak var uxHelper: AnyObject? = bag?.uxHelper
+        sut.addState(id: "1", state: bag!)
+        bag = nil
+
+        // The tap set the flag and the purchase went to a payment extension; the orchestrator sees nothing outstanding.
+        sut.increasePlacements(id: "1")
+        sut.initiateInstantPurchase(id: "1")
+        let purchase = sut.beginExtensionPurchase(id: "1")
+        sut.decreasePlacements(id: "1")
+        XCTAssertNotNil(sut.getState(id: "1"), "The extension purchase keeps the state after the last placement unloads")
+
+        // A built-in checkout of the execute is dropped, so the state is checked again with nothing built-in outstanding.
+        sut.removeStateIfUnused(id: "1")
+        XCTAssertNotNil(sut.getState(id: "1"), "The extension purchase still holds the state")
+        XCTAssertEqual(sut.getState(id: "1")?.instantPurchaseInitiated, true, "The extension may yet finish the tap itself")
+
+        sut.finishExtensionPurchase(id: "1", token: purchase)
+        XCTAssertNil(sut.getState(id: "1"), "Once the extension has reported back, nothing holds the state")
+        XCTAssertNil(uxHelper)
+    }
+
+    func testGivenAnExtensionPurchaseFinishedWhileAPlacementIsLoaded_ThenTheStateStaysUntilItUnloads() {
+        var bag: MockBag? = MockBag()
+        bag?.uxHelper = MockUXHelper()
+        weak var uxHelper: AnyObject? = bag?.uxHelper
+        sut.addState(id: "1", state: bag!)
+        bag = nil
+
+        sut.increasePlacements(id: "1")
+        sut.initiateInstantPurchase(id: "1")
+        let purchase = sut.beginExtensionPurchase(id: "1")
+        sut.finishExtensionPurchase(id: "1", token: purchase)
+        XCTAssertNotNil(sut.getState(id: "1"), "A loaded placement keeps the state")
+        XCTAssertEqual(sut.getState(id: "1")?.instantPurchaseInitiated, false, "The report-back finished the tap")
+
+        sut.decreasePlacements(id: "1")
+        XCTAssertNil(sut.getState(id: "1"), "The state goes with its last placement")
+        XCTAssertNil(uxHelper)
+    }
+
+    func testGivenAnUnknownExtensionPurchaseToken_ThenFinishChangesNothing() {
+        let bag = MockBag()
+        sut.addState(id: "1", state: bag)
+        sut.initiateInstantPurchase(id: "1")
+        let purchase = sut.beginExtensionPurchase(id: "1")
+
+        // A token held for another execute, and a token never minted, are not this purchase's report-back.
+        sut.finishExtensionPurchase(id: "other", token: purchase)
+        sut.finishExtensionPurchase(id: "1", token: UUID())
+        XCTAssertTrue(bag.instantPurchaseInitiated, "Only the purchase's own report-back finishes the tap")
+        XCTAssertNotNil(sut.getState(id: "1"))
+
+        sut.finishExtensionPurchase(id: "1", token: purchase)
+        XCTAssertFalse(bag.instantPurchaseInitiated)
+        XCTAssertNil(sut.getState(id: "1"), "Nothing holds the state once its only purchase has reported back")
+
+        // The same completion delivered a second time, after a new tap on a new state of the execute, finishes nothing.
+        let laterBag = MockBag()
+        sut.addState(id: "1", state: laterBag)
+        sut.initiateInstantPurchase(id: "1")
+        sut.finishExtensionPurchase(id: "1", token: purchase)
+        XCTAssertTrue(laterBag.instantPurchaseInitiated, "A report-back already counted does not finish a later tap")
+        XCTAssertNotNil(sut.getState(id: "1"))
+    }
 }
 
 private class MockUXHelper {
