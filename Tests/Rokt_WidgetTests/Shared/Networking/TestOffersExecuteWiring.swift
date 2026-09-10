@@ -535,7 +535,7 @@ final class TestOffersExecuteWiring: XCTestCase {
         RealTimeTrigger(
             parentGuid: "parent-1",
             eventTypeKey: "SignalResponse",
-            eventTime: EventDateFormatter.getDateString(Date())
+            eventTime: Rokt_Widget.EventDateFormatter.getDateString(Date())
         )
     }
 
@@ -547,7 +547,7 @@ final class TestOffersExecuteWiring: XCTestCase {
         RealTimeTrigger(
             parentGuid: "control-1",
             eventTypeKey: "SignalResponse",
-            eventTime: EventDateFormatter.getDateString(Date())
+            eventTime: Rokt_Widget.EventDateFormatter.getDateString(Date())
         )
     }
 
