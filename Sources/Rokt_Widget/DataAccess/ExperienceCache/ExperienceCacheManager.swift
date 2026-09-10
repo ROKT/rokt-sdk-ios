@@ -138,29 +138,48 @@ internal class ExperienceCacheManager {
     static func getOrCreateCachedPluginViewState(pluginId: String,
                                                  viewName: String?,
                                                  attributes: [String: String]) -> RoktPluginViewState {
-        if let fileData = getCachedPluginViewStateFileData(pluginId: pluginId, viewName: viewName, attributes: attributes),
-           let validPluginViewState = ExperienceCacheUtils.getValidPluginViewState(pluginId: pluginId, data: fileData) {
-            return validPluginViewState
-        } else {
-            return createPluginViewStateCache(pluginId: pluginId, viewName: viewName, attributes: attributes)
-        }
+        getCachedPluginViewState(pluginId: pluginId, viewName: viewName, attributes: attributes)
+            ?? createPluginViewStateCache(pluginId: pluginId, viewName: viewName, attributes: attributes)
+    }
 
+    /**
+     Retrieve existing cached plugin view state if it exists and is valid; nil otherwise
+
+     The read half of `getOrCreateCachedPluginViewState`: a direct synchronous file read that writes nothing. A caller
+     that may not write until a later check has passed reads here first and creates afterwards, with
+     `createPluginViewStateCache`.
+
+     - Parameters:
+      - pluginId: A string representing the plugin ID
+      - viewName: A string representing the targetted view name received in execute.
+      - attributes: A string dictionary containing the custom attributes received in execute.
+     */
+    static func getCachedPluginViewState(pluginId: String,
+                                         viewName: String?,
+                                         attributes: [String: String]) -> RoktPluginViewState? {
+        guard let fileData = getCachedPluginViewStateFileData(
+            pluginId: pluginId, viewName: viewName, attributes: attributes
+        ) else { return nil }
+        return ExperienceCacheUtils.getValidPluginViewState(pluginId: pluginId, data: fileData)
     }
 
     /**
      Cache new view state for a plugin
+
+     Builds the plugin's initial view state in memory and queues its file write as one barrier on the storage queue,
+     returning as soon as the write is queued: no file access runs on the caller's thread. Barriers run in submission
+     order, so a `clearCache` queued after this call removes what it writes.
 
      - Parameters:
       - viewName: A string representing the targetted view name received in execute.
       - attributes: A string dictionary containing the custom attributes received in execute.
       - pluginId: A string representing the plugin ID
      */
-    private static func createPluginViewStateCache(
+    static func createPluginViewStateCache(
         pluginId: String,
         viewName: String?,
         attributes: [String: String]
     ) -> RoktPluginViewState {
-
         let pluginViewState = RoktPluginViewState(pluginId: pluginId)
         cachePluginViewState(viewName: viewName, attributes: attributes, pluginViewState: pluginViewState)
         return pluginViewState

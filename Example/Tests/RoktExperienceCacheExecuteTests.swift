@@ -21,17 +21,24 @@ class MockRoktInternalImplementation: RoktInternalImplementation {
     var executingPluginIds: [String]? {
         executingLayoutPage?.pageModel.layoutPlugins?.compactMap { $0.pluginId }
     }
-    override func processLayoutPageExecutePayload(_ page: String,
-                                                  selectionId: String,
+    // The response is handled in two halves: prepared outside the session lock (the page string is available here) and
+    // committed under it (the payload is built here). Both are captured so the specs read what they always have.
+    override func prepareLayoutPageExecutePayload(_ page: String,
                                                   viewName: String? = nil,
-                                                  attributes: [String: String]) -> LayoutPageExecutePayload? {
+                                                  attributes: [String: String],
+                                                  readsFromCache: Bool) -> PreparedLayoutPage? {
         executingPageString = page
-        executingLayoutPage = super.processLayoutPageExecutePayload(
+        return super.prepareLayoutPageExecutePayload(
             page,
-            selectionId: selectionId,
             viewName: viewName,
-            attributes: attributes
+            attributes: attributes,
+            readsFromCache: readsFromCache
         )
+    }
+
+    override func commitLayoutPageExecutePayload(_ prepared: PreparedLayoutPage,
+                                                 selectionId: String) -> LayoutPageExecutePayload? {
+        executingLayoutPage = super.commitLayoutPageExecutePayload(prepared, selectionId: selectionId)
         return executingLayoutPage
     }
 }

@@ -113,6 +113,10 @@ class RoktInternalImplementation {
     // Test-only hook, run while a response's echoed events are captured under the generation lock, after the generation
     // check has passed and before the store's write is queued; nil in production.
     var unitTest_duringEventCapture: (() -> Void)?
+    // Test-only hook, run while a response is being prepared OUTSIDE the generation lock (prepareLayoutPageExecutePayload),
+    // once its experience is parsed, its echoed events decoded and its cached view state read, and before any of it is
+    // committed; nil in production.
+    var unitTest_duringPayloadPrepare: (() -> Void)?
     // Test-only hook, run when a placement is ended with a failure through its own handler (concludeFailed): its result
     // discarded after clearSession, its experience decoded to nothing, or its offers request failed. A layout the
     // renderer fails does not run it; that failure reaches the host through the renderer's own event path. Nil in
@@ -134,16 +138,20 @@ class RoktInternalImplementation {
     // the real-time event store, the experience cache and the render itself.
     private var sessionGeneration = 0
     // Recursive so a managed session invalidated under the lock may read the generation. Held only for bounded local
-    // work: clearSession's own reset, a placement's admission (admitPlacement), a commit's parse and decode
-    // (commitIfCurrent), the synchronous hand-off of one offers request to the network stack (handOffIfCurrent), the
+    // work: clearSession's own reset, a placement's admission (admitPlacement), the commit of a prepared response
+    // (commitIfCurrent around commitLayoutPageExecutePayload: the legacy session id, the sent-event hashes, the timings
+    // bookkeeping, and the queuing of the echoed events' write, of any new plugin view-state file and of the experience
+    // cache's write), the synchronous hand-off of one offers request to the network stack (handOffIfCurrent), the
     // check-and-queue of a response's echoed events (captureUntriggeredEvents), the claim of a render's inputs
     // (claimRenderIfCurrent) and the compare-and-clear of the shared callbacks (clearCallBacks(ownedBy:)) — never a
-    // callback into the host, never across the network, never a disk write. Every file write made under it is queued
-    // on the real-time event store's or the experience cache's own serial queue and runs there, after the lock is
-    // released; the only synchronous file access under it is a commit's direct read of the small view-state files,
-    // and the only waits under it are a commit's parse of one experience and its one decode of the echoed events on
-    // a helper thread. Queuing under the lock is what orders those writes against clearSession, which queues the
-    // store's clear and the cache's clear under the same lock: an accepted write always lands before a later clear.
+    // callback into the host, never across the network, never a file read or write, never a parse or decode, never a
+    // wait on another thread. Everything proportional to a response's size — its parse, the decode of its echoed
+    // events on the helper thread, the direct reads of the cached view-state files — runs before the lock is taken
+    // (prepareLayoutPageExecutePayload), so a clearSession on another thread waits for none of it. Every file write
+    // made under the lock is queued on the real-time event store's or the experience cache's own serial queue and runs
+    // there, after the lock is released. Queuing under the lock is what orders those writes against clearSession, which
+    // queues the store's clear and the cache's clear under the same lock: an accepted write always lands before a later
+    // clear, and a commit the lock refuses queues nothing.
     private let sessionGenerationLock = NSRecursiveLock()
 
     // Caching is disabled by default when no CacheConfig is provided to the Builder.
@@ -1315,12 +1323,16 @@ class RoktInternalImplementation {
     /// Runs `commit` under the generation lock while `generation` is still current and returns true; returns
     /// false, running nothing, once clearSession has moved the generation. A clearSession arriving on another
     /// queue waits for a commit in progress, so a response is committed whole or not at all — never half of it.
-    /// Under the lock the commit parses the experience, decodes its echoed events on a helper thread and waits for
-    /// that decode, reads the plugin view-state files directly, and QUEUES its writes — the real-time event store's
-    /// add, the view-state writes and the experience cache's eviction-and-write — on those stores' own serial queues,
-    /// where they run after the lock is released. It performs no disk write itself and never waits on the network or
-    /// on another queue's file work, so a clearSession's wait is bounded by one experience's parse and decode. Keep
-    /// it that way; a longer hold here is a longer stall for the host's clearSession call.
+    /// The commit is the short half of handling a response: everything proportional to the response's size — its
+    /// parse, the decode of its echoed events on the helper thread, the direct reads of the cached view-state files —
+    /// has already run outside this lock (prepareLayoutPageExecutePayload), and a commit that is refused drops all of
+    /// it, writing and queuing nothing. Under the lock the commit writes the session-owned state in memory (the legacy
+    /// session id, the sent-event hashes, the timings) and QUEUES its writes — the real-time event store's add, any
+    /// new plugin view-state file and the experience cache's eviction-and-write — on those stores' own serial queues,
+    /// where they run after the lock is released. It reads and writes no file itself and never waits on another
+    /// thread, on the network or on another queue's file work, so a clearSession's wait is bounded by a handful of
+    /// memory writes and enqueues. Keep it that way: anything that grows with the response belongs in the prepare, and
+    /// a longer hold here is a longer stall for the host's clearSession call, often on the main thread.
     func commitIfCurrent(generation: Int, _ commit: () -> Void) -> Bool {
         sessionGenerationLock.lock()
         defer { sessionGenerationLock.unlock() }
@@ -1481,8 +1493,8 @@ class RoktInternalImplementation {
         // placement's start, and the placement is stamped as the owner of the shared render state in the same hold, so
         // a failure concluding on another queue can never compare against the previous owner and then clear this one.
         // The bypass is latched once per execute: both cache reads in it — the experience response and the view state
-        // read later in processLayoutPageExecutePayload — must see the same answer. Disarmed only when an execute
-        // fetches a fresh experience, so a failed placement keeps the next one off the cache.
+        // read later in prepareLayoutPageExecutePayload — see one answer, read once below (readsFromCache). Disarmed only
+        // when an execute fetches a fresh experience, so a failed placement keeps the next one off the cache.
         let start = admitPlacement(
             selectionId: selectionId, placements: placements, swiftUiLayout: swiftUiLayout, onRoktEvent: composedEventHandler
         )
@@ -1499,8 +1511,12 @@ class RoktInternalImplementation {
                 FontManager.reRegisterFonts {
                     // use the available cached experience
                     let cacheAttributes = self.roktConfig.cacheConfig.getCacheAttributesOrFallback(attributes)
+                    // Whether this execute reads the cache — the experience response here and, in the prepare, the view
+                    // state that goes with it — is decided once, from the bypass admitted with the generation, so both
+                    // reads see the same answer whatever another placement does meanwhile.
+                    let readsFromCache = self.shouldReadFromCache()
 
-                    if self.shouldReadFromCache(),
+                    if readsFromCache,
                        let cachedExperience = ExperienceCacheManager.getCachedExperienceResponse(
                            viewName: viewName,
                            attributes: cacheAttributes,
@@ -1510,14 +1526,19 @@ class RoktInternalImplementation {
                         onExperiencesRequestEnd()
                         self.isExecuting = false
 
-                        // A cached experience is committed — legacy session id, echoed events — under the same fence
-                        // as a network response, and re-checked before the render: a clearSession since the
-                        // placement started discards it whole.
+                        // A cached experience is prepared outside the generation lock — parsed, its echoed events decoded,
+                        // its cached view state read — on the thread the host called from, and then committed under the
+                        // lock (legacy session id, echoed events, view state) behind the same fence as a network response,
+                        // and re-checked before the render: a clearSession since the placement started discards it whole,
+                        // and a clearSession on another thread — the host's main thread, for a placement started from a
+                        // background queue — never waits for the parse.
+                        let prepared = self.prepareLayoutPageExecutePayload(
+                            cachedExperience, viewName: viewName, attributes: attributes, readsFromCache: readsFromCache
+                        )
                         var layoutPageExecutePayload: LayoutPageExecutePayload?
                         let committed = self.commitIfCurrent(generation: generation) {
-                            layoutPageExecutePayload = self.processLayoutPageExecutePayload(
-                                cachedExperience, selectionId: selectionId, viewName: viewName, attributes: attributes
-                            )
+                            guard let prepared else { return }
+                            layoutPageExecutePayload = self.commitLayoutPageExecutePayload(prepared, selectionId: selectionId)
                         }
                         guard committed else {
                             RoktLogger.shared.info("Discarding a cached placement that resolved after clearSession")
@@ -1564,9 +1585,21 @@ class RoktInternalImplementation {
                             // Released before the fence so a discarded completion cannot wedge execute.
                             self.isExecuting = false
 
-                            // The response is committed — cache write, legacy session id, echoed events — only while
-                            // the placement's generation is current, and under the generation lock: a clearSession on
-                            // another queue either waits for the whole commit or fences it out, never half of it.
+                            // The response is prepared outside the generation lock — parsed, its echoed events decoded,
+                            // its cached view state read; everything proportional to its size — on this thread (the
+                            // offers completion queue, the main queue by default), and then committed under the lock,
+                            // only while the placement's generation is current: the cache write, the legacy session id,
+                            // the echoed events, the view state. A clearSession on another queue never waits for the
+                            // prepare, and either waits for the short commit or fences it out, never half of it; a
+                            // commit fenced out drops everything prepared, writing and queuing nothing.
+                            // Use cacheAttributes for plugin view states if cache is enabled for consistency
+                            let attributesForPluginStates = self.roktConfig.cacheConfig
+                                .getCacheAttributesOrFallback(attributes)
+                            let prepared = page.flatMap {
+                                self.prepareLayoutPageExecutePayload(
+                                    $0, viewName: viewName, attributes: attributesForPluginStates, readsFromCache: readsFromCache
+                                )
+                            }
                             var layoutPageExecutePayload: LayoutPageExecutePayload?
                             let committed = self.commitIfCurrent(generation: generation) {
                                 guard let page else { return }
@@ -1599,12 +1632,8 @@ class RoktInternalImplementation {
                                     )
                                 }
 
-                                // Use cacheAttributes for plugin view states if cache is enabled for consistency
-                                let attributesForPluginStates = self.roktConfig.cacheConfig
-                                    .getCacheAttributesOrFallback(attributes)
-                                layoutPageExecutePayload = self.processLayoutPageExecutePayload(
-                                    page, selectionId: selectionId, viewName: viewName, attributes: attributesForPluginStates
-                                )
+                                guard let prepared else { return }
+                                layoutPageExecutePayload = self.commitLayoutPageExecutePayload(prepared, selectionId: selectionId)
                             }
                             guard committed else {
                                 RoktLogger.shared.info("Discarding a placement that completed after clearSession")
@@ -1740,10 +1769,20 @@ class RoktInternalImplementation {
         !cacheSuppressedForCurrentExecute && isCacheEnabledAndConfigured()
     }
 
-    func processLayoutPageExecutePayload(_ page: String,
-                                         selectionId: String,
+    /// The first half of handling an experience response, run OUTSIDE the generation lock on the caller's thread: the
+    /// parse of the experience, the decode of the events it echoes for the next placement (on the helper thread, see
+    /// decodeOnSeparateThread) and, when `readsFromCache`, the direct file reads of the cached view state that goes with
+    /// it — the view's sent-event hashes and each plugin's existing view state. All of it grows with the response and
+    /// none of it touches session-owned state or writes anything, so a clearSession on another thread never waits for
+    /// it. Returns nil when the page is not UTF-8 or the experience does not parse; the placement is then failed by its
+    /// caller. What is returned goes to commitLayoutPageExecutePayload under the lock, which runs only if the generation
+    /// is still current: a clearSession that lands in between refuses the commit and everything prepared here is dropped.
+    /// `readsFromCache` is the answer read once per execute from the bypass admitted with the generation, never re-read
+    /// here, so the view state is read under the same decision as the experience response.
+    func prepareLayoutPageExecutePayload(_ page: String,
                                          viewName: String? = nil,
-                                         attributes: [String: String]) -> LayoutPageExecutePayload? {
+                                         attributes: [String: String],
+                                         readsFromCache: Bool) -> PreparedLayoutPage? {
         guard let pageData = page.data(using: .utf8) else {
             return nil
         }
@@ -1753,59 +1792,91 @@ class RoktInternalImplementation {
         guard let parseResult = RoktUX.parseExperience(page) else {
             return nil
         }
-        sessionManager.updateSessionId(newSessionId: parseResult.sessionId)
+
+        var echoedEvents: [UntriggeredRealTimeEvent]?
+        var cachedViewState: PreparedCachedViewState?
+        if let pageModel = parseResult.pageModel {
+            // The second decode of the response, for the events it echoes; nil when they do not decode.
+            echoedEvents = (try? decodeOnSeparateThread(UntriggeredEventsContainer.self, pageData))?.untriggeredEvents
+            if readsFromCache {
+                cachedViewState = readCachedViewState(for: pageModel, viewName: viewName, attributes: attributes)
+            }
+        }
+        unitTest_duringPayloadPrepare?()
+
+        return PreparedLayoutPage(
+            sessionId: parseResult.sessionId,
+            parseStart: parseResult.parseStart,
+            parseEnd: parseResult.parseEnd,
+            pageModel: parseResult.pageModel,
+            echoedEvents: echoedEvents,
+            cachedViewState: cachedViewState
+        )
+    }
+
+    /// Reads the cached view state an experience is rendered with, outside the generation lock: the sent-event hashes
+    /// for the view, and for each plugin of the experience the view state on disk — nil where there is none yet. Direct
+    /// synchronous file reads; nothing is created or written here. A plugin whose state is missing gets one in the
+    /// commit, so a placement whose commit is refused leaves no file behind for the next session.
+    private func readCachedViewState(for pageModel: RoktUXPageModel,
+                                     viewName: String?,
+                                     attributes: [String: String]) -> PreparedCachedViewState {
+        // For cached experiences, use cacheAttributes for consistency
+        let cacheAttributes = roktConfig.cacheConfig.getCacheAttributesOrFallback(attributes)
+        let experiencesViewState = ExperienceCacheManager.getCachedExperiencesViewState(
+            viewName: viewName, attributes: cacheAttributes
+        )
+        let pluginViewStates = pageModel.layoutPlugins?.map { plugin in
+            PreparedPluginViewState(
+                pluginId: plugin.pluginId,
+                cached: ExperienceCacheManager.getCachedPluginViewState(
+                    pluginId: plugin.pluginId, viewName: viewName, attributes: cacheAttributes
+                )
+            )
+        }
+        return PreparedCachedViewState(
+            viewName: viewName,
+            cacheAttributes: cacheAttributes,
+            sentEventHashes: Array(experiencesViewState?.sentEventHashes ?? .init()),
+            pluginViewStates: pluginViewStates
+        )
+    }
+
+    /// The second half of handling an experience response, run UNDER the generation lock — always inside
+    /// commitIfCurrent, so only while the placement's generation is still current. Writes the session-owned state in
+    /// memory and queues the file writes; every step is a memory write or an enqueue, none parses, decodes, reads a file
+    /// or waits, so the hold is short whatever the response's size. In order: the legacy session id (which, when it
+    /// changes, queues the real-time event store's clear), the parse timings; then, when the experience has a page, the
+    /// echoed events' add queued on the store's serial queue behind that clear, the page timings, and the view state the
+    /// render is handed — the sent-event hashes, and for each plugin the state read in the prepare or, where there was
+    /// none, a new one whose file write is queued on the cache's own queue. Queued under the lock, each write is ordered
+    /// before the clears a later clearSession queues under the same lock, so that clear removes them. Returns nil when
+    /// the experience decoded to no page; the session id is still committed, as the server rolled it forward.
+    func commitLayoutPageExecutePayload(_ prepared: PreparedLayoutPage, selectionId: String) -> LayoutPageExecutePayload? {
+        sessionManager.updateSessionId(newSessionId: prepared.sessionId)
 
         processedTimingsRequests?.setExperienceJsonParseTimes(
             selectionId: selectionId,
-            start: parseResult.parseStart,
-            end: parseResult.parseEnd
+            start: prepared.parseStart,
+            end: prepared.parseEnd
         )
 
-        guard let pageModel = parseResult.pageModel else {
+        guard let pageModel = prepared.pageModel else {
             return nil
         }
-        let events = try? decodeOnSeparateThread(UntriggeredEventsContainer.self, pageData)
-        if let events = events {
-            RealTimeEventManager.shared.addUntriggeredEvents(events.untriggeredEvents)
+        if let echoedEvents = prepared.echoedEvents {
+            RealTimeEventManager.shared.addUntriggeredEvents(echoedEvents)
         }
 
         processedTimingsRequests?.setPageProperties(
             selectionId: selectionId,
-            sessionId: parseResult.sessionId,
+            sessionId: prepared.sessionId,
             pageId: pageModel.pageId,
             pageInstanceGuid: pageModel.pageInstanceGuid
         )
 
-        if shouldReadFromCache() {
-            // For cached experiences, use cacheAttributes for consistency
-            let cacheAttributes = roktConfig.cacheConfig.getCacheAttributesOrFallback(attributes)
-            let experiencesViewState = ExperienceCacheManager.getCachedExperiencesViewState(
-                viewName: viewName, attributes: cacheAttributes
-            )
-            sentEventHashes = ThreadSafeSet(Array(experiencesViewState?.sentEventHashes ?? .init()))
-
-            let pluginViewStates = getLayoutPluginViewStates(pageModel: pageModel,
-                                                             viewName: viewName,
-                                                             attributes: cacheAttributes)
-
-            func onPluginViewStateChange(_ pluginViewStateUpdates: RoktPluginViewState) {
-                ExperienceCacheManager.updatePluginViewStateCache(
-                    viewName: viewName,
-                    attributes: cacheAttributes,
-                    updateStates: pluginViewStateUpdates
-                )
-            }
-
-            let cacheProperties = LayoutPageCacheProperties(
-                viewName: viewName,
-                experienceCacheAttributes: cacheAttributes,
-                pluginViewStates: pluginViewStates,
-                onPluginViewStateChange: onPluginViewStateChange
-            )
-            return LayoutPageExecutePayload(pageModel: pageModel,
-                                            cacheProperties: cacheProperties)
-        } else {
-            // No cache: scope event de-duplication to this execute. The cache branch above
+        guard let cachedViewState = prepared.cachedViewState else {
+            // No cache: scope event de-duplication to this execute. The cache branch below
             // seeds `sentEventHashes` per view; without a reset here the set is only ever
             // (re)initialised on the cache path, so for non-cached executes it accumulates
             // hashes for the whole process lifetime — growing unbounded and, when an event
@@ -1815,17 +1886,34 @@ class RoktInternalImplementation {
             return LayoutPageExecutePayload(pageModel: pageModel,
                                             cacheProperties: nil)
         }
-    }
 
-    private func getLayoutPluginViewStates(pageModel: RoktUXPageModel,
-                                           viewName: String?,
-                                           attributes: [String: String]) -> [RoktPluginViewState]? {
-        guard let layoutPlugins = pageModel.layoutPlugins else { return nil }
-        return layoutPlugins.compactMap { (plugin) -> RoktPluginViewState? in
-            return ExperienceCacheManager.getOrCreateCachedPluginViewState(
-                pluginId: plugin.pluginId, viewName: viewName, attributes: attributes
+        sentEventHashes = ThreadSafeSet(cachedViewState.sentEventHashes)
+        let viewName = cachedViewState.viewName
+        let cacheAttributes = cachedViewState.cacheAttributes
+        // A plugin with no view state on disk gets its initial one here: built in memory, its file write queued on the
+        // cache's queue under this lock, so it lands before — and is removed by — the clear a later clearSession queues.
+        let pluginViewStates = cachedViewState.pluginViewStates?.map { pluginViewState in
+            pluginViewState.cached ?? ExperienceCacheManager.createPluginViewStateCache(
+                pluginId: pluginViewState.pluginId, viewName: viewName, attributes: cacheAttributes
             )
         }
+
+        func onPluginViewStateChange(_ pluginViewStateUpdates: RoktPluginViewState) {
+            ExperienceCacheManager.updatePluginViewStateCache(
+                viewName: viewName,
+                attributes: cacheAttributes,
+                updateStates: pluginViewStateUpdates
+            )
+        }
+
+        let cacheProperties = LayoutPageCacheProperties(
+            viewName: viewName,
+            experienceCacheAttributes: cacheAttributes,
+            pluginViewStates: pluginViewStates,
+            onPluginViewStateChange: onPluginViewStateChange
+        )
+        return LayoutPageExecutePayload(pageModel: pageModel,
+                                        cacheProperties: cacheProperties)
     }
 
     func swiftUiExecute(
@@ -2103,6 +2191,10 @@ class RoktInternalImplementation {
         return true
     }
 
+    /// Decodes on a thread given a larger stack than a dispatch worker's (8 MB at least): the decoder recurses once per
+    /// level of the JSON, and a deeply nested response would otherwise overflow the caller's stack. The caller waits for
+    /// that thread here, so this is called from the prepare of a response (prepareLayoutPageExecutePayload), never
+    /// under the generation lock: a wait held under the lock would be a wait imposed on every clearSession.
     private func decodeOnSeparateThread<T: Decodable>(_ type: T.Type, _ data: Data) throws -> T {
         var result: Result<T, Error>?
         let semaphore = DispatchSemaphore(value: 0)
@@ -2149,6 +2241,36 @@ struct RenderClaim {
     let handler: ((RoktEvent) -> Void)?
     let layoutLoaders: [String: RoktEmbeddedView]?
     let defaultLayoutLoader: LayoutLoader?
+}
+
+/// An experience response between its prepare and its commit (see prepareLayoutPageExecutePayload): what the parse and
+/// the decodes produced and the cached view state read for it, none of it written anywhere yet. Handed to
+/// commitLayoutPageExecutePayload under the generation lock, or dropped whole when the commit is refused.
+struct PreparedLayoutPage {
+    let sessionId: String
+    let parseStart: Date
+    let parseEnd: Date
+    /// Nil when the experience decoded to no page: the commit still records the session id and the placement fails.
+    let pageModel: RoktUXPageModel?
+    /// The events the response echoes for the next placement; nil when there is no page or they did not decode.
+    let echoedEvents: [UntriggeredRealTimeEvent]?
+    /// Nil when this execute does not read the cache (cache off, or bypassed after clearSession) or there is no page.
+    let cachedViewState: PreparedCachedViewState?
+}
+
+/// The cached view state read for an experience outside the generation lock: the sent-event hashes for the view and,
+/// for each plugin of the experience, the state on disk — nil where there is none yet, which the commit creates.
+struct PreparedCachedViewState {
+    let viewName: String?
+    let cacheAttributes: [String: String]
+    let sentEventHashes: [String]
+    let pluginViewStates: [PreparedPluginViewState]?
+}
+
+/// One plugin's view state as read in the prepare: nil where no valid state is on disk.
+struct PreparedPluginViewState {
+    let pluginId: String
+    let cached: RoktPluginViewState?
 }
 
 struct LayoutPageExecutePayload {

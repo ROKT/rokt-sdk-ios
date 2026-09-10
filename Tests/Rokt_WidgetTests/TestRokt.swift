@@ -119,7 +119,7 @@ class TestRokt: XCTestCase {
         XCTAssertTrue(initStatus)
     }
 
-    func testProcessLayoutPageExecutePayload_noPlugins_sessionIdIsSaved() {
+    func testCommitLayoutPageExecutePayload_noPlugins_sessionIdIsSaved() throws {
         // Arrange
         let roktInternalImplementation = RoktInternalImplementation()
         let sessionId = "test-session-id"
@@ -133,10 +133,11 @@ class TestRokt: XCTestCase {
             }
             """
 
-        // Act
-        _ = roktInternalImplementation.processLayoutPageExecutePayload(
-            response, selectionId: "12345", viewName: "test", attributes: [:]
-        )
+        // Act - the response is prepared (parsed) and then committed, as execute does around the session lock
+        let prepared = try XCTUnwrap(roktInternalImplementation.prepareLayoutPageExecutePayload(
+            response, viewName: "test", attributes: [:], readsFromCache: false
+        ))
+        _ = roktInternalImplementation.commitLayoutPageExecutePayload(prepared, selectionId: "12345")
 
         // Assert
         XCTAssertEqual(
@@ -145,7 +146,7 @@ class TestRokt: XCTestCase {
         )
     }
 
-    func testProcessLayoutPageExecutePayload_recordsExperienceJsonParseTimes() {
+    func testCommitLayoutPageExecutePayload_recordsExperienceJsonParseTimes() throws {
         // Arrange
         let roktInternalImplementation = RoktInternalImplementation()
         let timingsProcessor = TimingsRequestProcessor(apiHelper: RoktAPIHelperSpy.self)
@@ -163,9 +164,10 @@ class TestRokt: XCTestCase {
             """
 
         // Act - parse times are recorded even when the response has no renderable layouts
-        _ = roktInternalImplementation.processLayoutPageExecutePayload(
-            response, selectionId: selectionId, viewName: "test", attributes: [:]
-        )
+        let prepared = try XCTUnwrap(roktInternalImplementation.prepareLayoutPageExecutePayload(
+            response, viewName: "test", attributes: [:], readsFromCache: false
+        ))
+        _ = roktInternalImplementation.commitLayoutPageExecutePayload(prepared, selectionId: selectionId)
 
         // Assert - the parse window flows into the timing events request
         timingsProcessor.setExperiencesRequestStartTime(selectionId: selectionId)

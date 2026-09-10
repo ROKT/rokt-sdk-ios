@@ -10,27 +10,25 @@ import XCTest
 /// this covers the glue that joins it to `execute`.
 final class TestOffersExecuteWiring: XCTestCase {
 
-    /// Captures the experience string handed to the renderer so the success path is
-    /// observable without depending on the on-screen render completing.
+    /// Captures the prepared response the commit accepted — the page on its way to the renderer — so the success path
+    /// is observable without depending on the on-screen render completing. Set only inside the commit, under the
+    /// generation lock: a response that was prepared and then refused by the fence leaves it nil.
     private final class CapturingImplementation: RoktInternalImplementation {
-        var capturedPage: String?
-        /// Runs inside the response commit, before the page is processed — a seam for racing it.
+        var committedPage: PreparedLayoutPage?
+        /// Runs inside the response commit, under the generation lock, before the prepared page is committed — a seam
+        /// for racing it.
         var onCommit: (() -> Void)?
         /// When set, the page is captured and then decodes to nothing, as an experience the renderer cannot turn into
         /// a page does. The renderer's parser lives in the UX helper, so a test of that outcome need not depend on it.
         var pageDecodesToNothing = false
-        override func processLayoutPageExecutePayload(
-            _ page: String,
-            selectionId: String,
-            viewName: String? = nil,
-            attributes: [String: String]
+        override func commitLayoutPageExecutePayload(
+            _ prepared: PreparedLayoutPage,
+            selectionId: String
         ) -> LayoutPageExecutePayload? {
-            capturedPage = page
+            committedPage = prepared
             onCommit?()
             if pageDecodesToNothing { return nil }
-            return super.processLayoutPageExecutePayload(
-                page, selectionId: selectionId, viewName: viewName, attributes: attributes
-            )
+            return super.commitLayoutPageExecutePayload(prepared, selectionId: selectionId)
         }
     }
 
@@ -261,9 +259,9 @@ final class TestOffersExecuteWiring: XCTestCase {
         // `pageinit` is a 13-digit epoch-ms in the past, so the timing parity block records it.
         impl.execute(viewName: "checkout", attributes: ["email": "a@b.com", "pageinit": "1700000000000"], config: nil)
 
-        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
-        let page = try XCTUnwrap(impl.capturedPage)
-        XCTAssertTrue(page.contains("render-session"), "renderer should receive the adapted offers experience")
+        waitUntil({ self.impl.committedPage != nil }, timeout: 10)
+        let committed = try XCTUnwrap(impl.committedPage)
+        XCTAssertEqual(committed.sessionId, "render-session", "renderer should receive the adapted offers experience")
     }
 
     func test_execute_v2Offers_failure_emitsPlacementFailure() {
@@ -286,8 +284,8 @@ final class TestOffersExecuteWiring: XCTestCase {
         impl.execute(viewName: "checkout", attributes: [:], config: nil)
 
         // The offline transport still decodes + adapts, so the success hand-off runs.
-        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
-        XCTAssertNotNil(impl.capturedPage)
+        waitUntil({ self.impl.committedPage != nil }, timeout: 10)
+        XCTAssertNotNil(impl.committedPage)
     }
 
     func test_execute_v2Offers_cacheEnabled_writesThenReusesCachedExperience() throws {
@@ -303,8 +301,8 @@ final class TestOffersExecuteWiring: XCTestCase {
 
         // First execute fetches offers and writes the experience to the cache.
         impl.execute(viewName: viewName, attributes: attributes, config: cacheConfig)
-        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
-        XCTAssertNotNil(impl.capturedPage)
+        waitUntil({ self.impl.committedPage != nil }, timeout: 10)
+        XCTAssertNotNil(impl.committedPage)
 
         // Wait for the background cache write to flush before reusing it.
         waitUntil({
@@ -317,10 +315,10 @@ final class TestOffersExecuteWiring: XCTestCase {
         ))
 
         // Second execute serves the cached experience instead of fetching again.
-        impl.capturedPage = nil
+        impl.committedPage = nil
         impl.execute(viewName: viewName, attributes: attributes, config: cacheConfig)
-        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
-        XCTAssertTrue(try XCTUnwrap(impl.capturedPage).contains("render-session"))
+        waitUntil({ self.impl.committedPage != nil }, timeout: 10)
+        XCTAssertEqual(try XCTUnwrap(impl.committedPage).sessionId, "render-session")
     }
 
     // MARK: - clearSession() while a placement is in flight
@@ -350,7 +348,7 @@ final class TestOffersExecuteWiring: XCTestCase {
         wait(for: [discarded], timeout: 10)
         settle()
 
-        XCTAssertNil(impl.capturedPage, "a placement that completes after clearSession is not rendered")
+        XCTAssertNil(impl.committedPage, "a placement that completes after clearSession is not rendered")
         XCTAssertNil(impl.getSessionId(), "the cleared session id must not come back")
         XCTAssertNil(RoktLogger.shared.sessionId)
         let cached = ExperienceCacheManager.getCachedExperienceResponse(
@@ -361,7 +359,7 @@ final class TestOffersExecuteWiring: XCTestCase {
         // The fence released `isExecuting`: the next placement is accepted and renders.
         impl.makeOffersServiceOverride = offersOverride(data: try renderFixture(), status: 200)
         impl.execute(viewName: viewName, attributes: attributes, config: cacheConfig)
-        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
+        waitUntil({ self.impl.committedPage != nil }, timeout: 10)
     }
 
     /// The offers response echoes events for the next placement to forward. Captured after a
@@ -444,12 +442,15 @@ final class TestOffersExecuteWiring: XCTestCase {
             if event is RoktEvent.PlacementFailure { secondFailure.fulfill() }
         }
         wait(for: [secondFailure], timeout: 10)
-        XCTAssertNil(impl.capturedPage)
+        XCTAssertNil(impl.committedPage)
     }
 
     /// A placement served from the cache is fenced like one served from the network: a `clearSession()` that
     /// lands after the cache read and before the commit means the cached experience is not shown, does not
     /// restore the legacy session id it carries and does not re-seed the real-time event store the clear emptied.
+    /// The response is still parsed and its cached view state read after the clear — that runs outside the lock — but
+    /// the plugin the read found no state for gets none written: created outside the fence, that file would be queued
+    /// behind the clear and left on disk for the next customer.
     func test_execute_clearSessionAfterTheCacheRead_discardsTheCachedPlacement() throws {
         impl.txnSessionStore = InMemoryTxnStore()
         initialize(cacheEnabled: true)
@@ -470,11 +471,15 @@ final class TestOffersExecuteWiring: XCTestCase {
         // The placement must be served from the cache; a fetch here would be the wrong path and fails locally.
         impl.makeOffersServiceOverride = offersOverride(data: nil, status: 500)
 
+        XCTAssertEqual(experienceCacheFileNames().count, 1, "only the experience response is on disk; no view state yet")
+
         var clearedAfterTheCacheRead = false
         impl.unitTest_beforeCacheHitCommit = { [weak impl] in
             impl?.clearSession()
             clearedAfterTheCacheRead = true
         }
+        var preparedAfterTheClear = false
+        impl.unitTest_duringPayloadPrepare = { preparedAfterTheClear = clearedAfterTheCacheRead }
         let discarded = expectation(description: "the cached placement reports failure")
         impl.execute(viewName: viewName, attributes: attributes, config: cacheConfig) { event in
             if event is RoktEvent.PlacementFailure { discarded.fulfill() }
@@ -483,10 +488,13 @@ final class TestOffersExecuteWiring: XCTestCase {
         settle()
 
         XCTAssertTrue(clearedAfterTheCacheRead, "the placement was served from the cache")
-        XCTAssertNil(impl.capturedPage, "a cached placement that resolves after clearSession is not rendered")
+        XCTAssertTrue(preparedAfterTheClear, "the response was still parsed and its view state read, after the clear")
+        XCTAssertNil(impl.committedPage, "a cached placement that resolves after clearSession is not rendered")
         XCTAssertNil(impl.getSessionId(), "the session id the cached experience carries must not come back")
         XCTAssertNil(RoktLogger.shared.sessionId)
         assertEchoedEventWasDropped()
+        XCTAssertTrue(experienceCacheFileNames().isEmpty,
+                      "the refused commit wrote no view-state file; the clear left nothing on disk for the next customer")
     }
 
     // MARK: - Helpers
@@ -519,10 +527,10 @@ final class TestOffersExecuteWiring: XCTestCase {
         impl.makeOffersServiceOverride = offersOverride(data: nil, status: 500)
 
         impl.execute(viewName: viewName, attributes: attributes, config: cacheConfig)
-        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
+        waitUntil({ self.impl.committedPage != nil }, timeout: 10)
         settle()
 
-        XCTAssertNotNil(impl.capturedPage, "a cached placement with no clearSession is rendered")
+        XCTAssertNotNil(impl.committedPage, "a cached placement with no clearSession is rendered")
         assertEchoedEventWasKept()
     }
 
@@ -616,7 +624,7 @@ final class TestOffersExecuteWiring: XCTestCase {
         settle()
 
         XCTAssertFalse(clearSessionReturnedDuringCommit, "clearSession waits for a commit in progress")
-        XCTAssertNotNil(impl.capturedPage, "a commit that started before clearSession runs to its end")
+        XCTAssertNotNil(impl.committedPage, "a commit that started before clearSession runs to its end")
         XCTAssertNil(impl.getSessionId(), "the session id the commit restored does not survive the clear")
         XCTAssertNil(RoktLogger.shared.sessionId)
         let cached = ExperienceCacheManager.getCachedExperienceResponse(
@@ -679,13 +687,167 @@ final class TestOffersExecuteWiring: XCTestCase {
         settle()
 
         XCTAssertFalse(clearSessionReturnedDuringCommit, "clearSession waits for a cached commit in progress")
-        XCTAssertNotNil(impl.capturedPage, "a cached commit that started before clearSession runs to its end")
+        XCTAssertNotNil(impl.committedPage, "a cached commit that started before clearSession runs to its end")
         XCTAssertNil(impl.getSessionId(), "the session id the cached experience restored does not survive the clear")
         XCTAssertNil(RoktLogger.shared.sessionId)
         let cached = ExperienceCacheManager.getCachedExperienceResponse(
             viewName: viewName, attributes: attributes, cacheDuration: cacheDuration
         )
         XCTAssertNil(cached, "the cached experience goes with the session it was fetched in")
+    }
+
+    // MARK: - The prepare of a response runs outside the lock
+
+    /// The parse of an experience, the decode of the events it echoes and the reads of its cached view state run before
+    /// the generation lock is taken, so a `clearSession()` on another thread never waits for them. This pins the case
+    /// the ordering exists for: a cached placement started from a background queue, and the host's main thread calling
+    /// `clearSession()` while that placement is being prepared — the call returns at once, and the placement, prepared
+    /// for a session that has ended, is discarded whole. Were the prepare run under the lock, the main thread would
+    /// wait here for as long as the parse takes.
+    func test_execute_clearSessionOnTheMainThreadDuringACachedPlacementsPrepare_doesNotWaitForIt() throws {
+        impl.txnSessionStore = InMemoryTxnStore()
+        initialize(cacheEnabled: true)
+        let viewName = "checkout"
+        let attributes = ["email": "prepare-cached@example.com"]
+        let cacheDuration = TimeInterval(300)
+        let cacheConfig = RoktConfig.Builder()
+            .cacheConfig(RoktConfig.CacheConfig(cacheDuration: cacheDuration))
+            .build()
+        ExperienceCacheManager.cacheExperienceResponse(
+            viewName: viewName, attributes: attributes, experienceResponse: try renderFixtureWithEchoedEvent()
+        )
+        waitUntil({
+            ExperienceCacheManager.getCachedExperienceResponse(
+                viewName: viewName, attributes: attributes, cacheDuration: cacheDuration
+            ) != nil
+        }, timeout: 10)
+        // The placement must be served from the cache; a fetch here would be the wrong path and fails locally.
+        impl.makeOffersServiceOverride = offersOverride(data: nil, status: 500)
+
+        let clearSessionReturned = expectation(description: "clearSession returned")
+        var clearSessionReturnedDuringPrepare = false
+        var prepareRanOnMainThread = true
+        impl.unitTest_duringPayloadPrepare = { [weak impl] in
+            prepareRanOnMainThread = Thread.isMainThread
+            // clearSession from the main thread while the prepare is in progress on the host's queue: the lock is
+            // free, so it returns. Were the prepare under the lock, this wait would time out and the flag stay false.
+            let returned = DispatchSemaphore(value: 0)
+            DispatchQueue.main.async {
+                impl?.clearSession()
+                returned.signal()
+                clearSessionReturned.fulfill()
+            }
+            clearSessionReturnedDuringPrepare = returned.wait(timeout: .now() + 5) == .success
+        }
+        let discarded = expectation(description: "the placement reports failure")
+        DispatchQueue.global().async { [weak impl] in
+            impl?.execute(viewName: viewName, attributes: attributes, config: cacheConfig) { event in
+                if event is RoktEvent.PlacementFailure { discarded.fulfill() }
+            }
+        }
+        wait(for: [clearSessionReturned, discarded], timeout: 10)
+        settle()
+
+        XCTAssertFalse(prepareRanOnMainThread, "the cached placement was prepared on the queue it was started from")
+        XCTAssertTrue(clearSessionReturnedDuringPrepare, "clearSession does not wait for a response's parse and reads")
+        XCTAssertNil(impl.committedPage, "a placement prepared for a session that has ended is not committed")
+        XCTAssertNil(impl.getSessionId(), "the session id the cached experience carries must not come back")
+        assertEchoedEventWasDropped()
+    }
+
+    /// The network sibling of the test above: an offers response is prepared on the completion queue before the lock
+    /// is taken, so a `clearSession()` from another queue returns while the parse is in progress, and the response —
+    /// prepared for a session that has ended — is neither committed nor cached.
+    func test_execute_clearSessionDuringAResponsesPrepare_doesNotWaitForItAndCachesNothing() throws {
+        impl.txnSessionStore = InMemoryTxnStore()
+        initialize(cacheEnabled: true)
+        let viewName = "checkout"
+        let attributes = ["email": "prepare-network@example.com"]
+        let cacheDuration = TimeInterval(300)
+        let cacheConfig = RoktConfig.Builder()
+            .cacheConfig(RoktConfig.CacheConfig(cacheDuration: cacheDuration))
+            .build()
+        impl.makeOffersServiceOverride = offersOverride(data: try renderFixture(), status: 200)
+
+        let clearSessionReturned = expectation(description: "clearSession returned")
+        var clearSessionReturnedDuringPrepare = false
+        impl.unitTest_duringPayloadPrepare = { [weak impl] in
+            // clearSession from another queue while the response is being prepared: the lock is free, so it returns.
+            let returned = DispatchSemaphore(value: 0)
+            DispatchQueue.global().async {
+                impl?.clearSession()
+                returned.signal()
+                clearSessionReturned.fulfill()
+            }
+            clearSessionReturnedDuringPrepare = returned.wait(timeout: .now() + 5) == .success
+        }
+        let discarded = expectation(description: "the placement reports failure")
+        impl.execute(viewName: viewName, attributes: attributes, config: cacheConfig) { event in
+            if event is RoktEvent.PlacementFailure { discarded.fulfill() }
+        }
+        wait(for: [clearSessionReturned, discarded], timeout: 10)
+        settle()
+
+        XCTAssertTrue(clearSessionReturnedDuringPrepare, "clearSession does not wait for a response's parse and decode")
+        XCTAssertNil(impl.committedPage, "a response prepared for a session that has ended is not committed")
+        XCTAssertNil(impl.getSessionId(), "the session id the response carries must not come back")
+        let cached = ExperienceCacheManager.getCachedExperienceResponse(
+            viewName: viewName, attributes: attributes, cacheDuration: cacheDuration
+        )
+        XCTAssertNil(cached, "a response fenced out after its prepare is not cached for the next session")
+    }
+
+    /// A `clearSession()` that lands after a cached placement's response is prepared and before it is committed makes
+    /// the commit refuse, and nothing prepared survives it: no render, the session id the experience carries is not
+    /// restored, the events it echoes do not reach the real-time event store, and no view-state file is written for
+    /// the plugin the prepare found no state for. Were the commit not fenced, all four would show.
+    func test_execute_clearSessionBetweenPrepareAndCommit_refusesTheCommitAndLeavesNothingBehind() throws {
+        impl.txnSessionStore = InMemoryTxnStore()
+        initialize(cacheEnabled: true)
+        let viewName = "checkout"
+        let attributes = ["email": "prepare-refused@example.com"]
+        let cacheDuration = TimeInterval(300)
+        let cacheConfig = RoktConfig.Builder()
+            .cacheConfig(RoktConfig.CacheConfig(cacheDuration: cacheDuration))
+            .build()
+        // Only the experience response is on disk: the prepare finds no view state for the fixture's plugin, and the
+        // commit, had it run, would have created one and queued its write.
+        ExperienceCacheManager.cacheExperienceResponse(
+            viewName: viewName, attributes: attributes, experienceResponse: try renderFixtureWithEchoedEvent()
+        )
+        waitUntil({
+            ExperienceCacheManager.getCachedExperienceResponse(
+                viewName: viewName, attributes: attributes, cacheDuration: cacheDuration
+            ) != nil
+        }, timeout: 10)
+        XCTAssertEqual(experienceCacheFileNames().count, 1, "only the experience response is on disk; no view state yet")
+        // The placement must be served from the cache; a fetch here would be the wrong path and fails locally.
+        impl.makeOffersServiceOverride = offersOverride(data: nil, status: 500)
+
+        var clearedAfterThePrepare = false
+        impl.unitTest_duringPayloadPrepare = { [weak impl] in
+            // The response is parsed, its events decoded and its view state read; nothing is committed yet.
+            impl?.clearSession()
+            clearedAfterThePrepare = true
+        }
+        var renderClaimed = false
+        impl.unitTest_duringRenderClaim = { renderClaimed = true }
+        var events: [RoktEvent] = []
+        impl.execute(viewName: viewName, attributes: attributes, config: cacheConfig) { event in
+            events.append(event)
+        }
+        // The cached path runs synchronously on the caller: by here the placement has been discarded.
+        settle()
+
+        XCTAssertTrue(clearedAfterThePrepare, "the session was cleared once the response was prepared")
+        XCTAssertNil(impl.committedPage, "the commit was refused")
+        XCTAssertFalse(renderClaimed, "nothing was handed to the renderer")
+        XCTAssertTrue(events.contains(where: { $0 is RoktEvent.PlacementFailure }), "the placement fails to its caller")
+        XCTAssertNil(impl.getSessionId(), "the session id the cached experience carries must not come back")
+        XCTAssertNil(RoktLogger.shared.sessionId)
+        assertEchoedEventWasDropped()
+        XCTAssertTrue(experienceCacheFileNames().isEmpty,
+                      "the refused commit wrote no view-state file; the clear left nothing on disk for the next customer")
     }
 
     /// The check that a response's echoed events still belong to the current session and the queuing of their write are
@@ -738,8 +900,8 @@ final class TestOffersExecuteWiring: XCTestCase {
 
         let clearSessionReturned = expectation(description: "clearSession returned")
         // Signalled once the commit has returned and released the lock. The barrier is queued from inside the commit,
-        // before its parse and decode, so it can start while the commit still holds the lock; the hook below waits for
-        // this signal first, so the clearSession it then spawns can only ever be waiting on the eviction itself.
+        // before the prepared page is committed, so it can start while the commit still holds the lock; the hook below
+        // waits for this signal first, so the clearSession it then spawns can only ever be waiting on the eviction itself.
         let commitReturned = DispatchSemaphore(value: 0)
         impl.unitTest_afterCommitBeforePayloadCheck = { commitReturned.signal() }
         var commitReturnedDuringEviction = false
@@ -766,7 +928,7 @@ final class TestOffersExecuteWiring: XCTestCase {
         }
         addTeardownBlock { ExperienceCacheManager.unitTest_duringResponseEviction = nil }
         impl.execute(viewName: viewName, attributes: attributes, config: cacheConfig)
-        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
+        waitUntil({ self.impl.committedPage != nil }, timeout: 10)
         wait(for: [clearSessionReturned], timeout: 10)
         settle()
         settle()
@@ -837,7 +999,7 @@ final class TestOffersExecuteWiring: XCTestCase {
         settle()
 
         XCTAssertFalse(clearSessionReturnedDuringStart, "clearSession waits for a placement's start to be read")
-        XCTAssertNil(impl.capturedPage, "the departing customer's cached experience is not shown to the next one")
+        XCTAssertNil(impl.committedPage, "the departing customer's cached experience is not shown to the next one")
         XCTAssertNil(impl.getSessionId(), "the cleared session id must not come back")
     }
 
@@ -892,14 +1054,14 @@ final class TestOffersExecuteWiring: XCTestCase {
         XCTAssertEqual(client.requestCount, 0, "the departing customer's attributes are not sent to start a new session")
         XCTAssertNil(store.string(forKey: TxnSessionStoreKeys.sessionId), "no session is left for the next customer")
         XCTAssertNil(store.string(forKey: TxnSessionStoreKeys.token))
-        XCTAssertNil(impl.capturedPage)
+        XCTAssertNil(impl.committedPage)
 
         // The fence released `isExecuting`: the next placement is accepted and renders.
         impl.unitTest_duringPlacementStart = nil
         impl.unitTest_beforeOffersServiceBuilt = nil
         impl.makeOffersServiceOverride = offersOverride(data: try renderFixture(), status: 200)
         impl.execute(viewName: "checkout", attributes: ["email": "arriving@example.com"], config: nil)
-        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
+        waitUntil({ self.impl.committedPage != nil }, timeout: 10)
     }
 
     /// The offers service is built while the placement's session is still current, but the request is sent on its
@@ -954,13 +1116,13 @@ final class TestOffersExecuteWiring: XCTestCase {
         XCTAssertNil(store.string(forKey: TxnSessionStoreKeys.token))
         XCTAssertTrue(events.contains(where: { $0 is RoktEvent.HideLoadingIndicator }), "the loading indicator is dismissed")
         XCTAssertTrue(events.contains(where: { $0 is RoktEvent.PlacementFailure }), "the failure reaches the caller")
-        XCTAssertNil(impl.capturedPage)
+        XCTAssertNil(impl.committedPage)
         XCTAssertNil(impl.getSessionId(), "the cleared session id must not come back")
 
         // The fence released `isExecuting`: the next placement is accepted and renders.
         impl.makeOffersServiceOverride = offersOverride(data: try renderFixture(), status: 200)
         impl.execute(viewName: "checkout", attributes: ["email": "arriving@example.com"], config: nil)
-        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
+        waitUntil({ self.impl.committedPage != nil }, timeout: 10)
     }
 
     /// The check that the session is still current and the hand-off of the request to the network stack are one step
@@ -1019,7 +1181,7 @@ final class TestOffersExecuteWiring: XCTestCase {
         XCTAssertFalse(clearSessionReturnedDuringHandOff, "clearSession waits for a hand-off in progress")
         XCTAssertEqual(generationDuringHandOff, generationBefore, "the generation does not move during the hand-off")
         XCTAssertEqual(impl.currentSessionGeneration(), generationBefore + 1, "the clear landed once the hand-off returned")
-        XCTAssertNil(impl.capturedPage, "a response that arrives after the clear is not rendered")
+        XCTAssertNil(impl.committedPage, "a response that arrives after the clear is not rendered")
         XCTAssertNil(store.string(forKey: TxnSessionStoreKeys.sessionId), "no session is left for the next customer")
         XCTAssertNil(store.string(forKey: TxnSessionStoreKeys.token))
         XCTAssertNil(impl.getSessionId(), "the cleared session id must not come back")
@@ -1027,7 +1189,7 @@ final class TestOffersExecuteWiring: XCTestCase {
         // The fence released `isExecuting`: the next placement is accepted and renders.
         impl.makeOffersServiceOverride = offersOverride(data: try renderFixture(), status: 200)
         impl.execute(viewName: "checkout", attributes: ["email": "arriving@example.com"], config: nil)
-        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
+        waitUntil({ self.impl.committedPage != nil }, timeout: 10)
     }
 
     /// A placement releases `isExecuting` before its result is checked against the session fence, so a second
@@ -1087,13 +1249,13 @@ final class TestOffersExecuteWiring: XCTestCase {
                        "the second placement's caller never hears the first placement's failure")
         waitUntil({ client.requestCount == 1 }, timeout: 10)
 
-        impl.capturedPage = nil
+        impl.committedPage = nil
         secondResponseReleased = true
         client.release()
-        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
+        waitUntil({ self.impl.committedPage != nil }, timeout: 10)
         settle()
 
-        XCTAssertNotNil(impl.capturedPage, "the second placement renders")
+        XCTAssertNotNil(impl.committedPage, "the second placement renders")
         XCTAssertTrue(secondHidLoadingAfterItsResponse,
                       "the second placement's render dismisses its own loading indicator, so its handler survived")
     }
@@ -1157,13 +1319,13 @@ final class TestOffersExecuteWiring: XCTestCase {
                        "the second placement's caller never hears the first placement's failure")
         waitUntil({ client.requestCount == 1 }, timeout: 10)
 
-        impl.capturedPage = nil
+        impl.committedPage = nil
         secondResponseReleased = true
         client.release()
-        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
+        waitUntil({ self.impl.committedPage != nil }, timeout: 10)
         settle()
 
-        XCTAssertNotNil(impl.capturedPage, "the second placement renders")
+        XCTAssertNotNil(impl.committedPage, "the second placement renders")
         XCTAssertTrue(secondHidLoadingAfterItsResponse,
                       "the second placement's render dismisses its own loading indicator, so its handler survived")
     }
@@ -1230,13 +1392,13 @@ final class TestOffersExecuteWiring: XCTestCase {
                        "the second placement's caller never hears the first placement's failure")
         waitUntil({ secondClient.requestCount == 1 }, timeout: 10)
 
-        impl.capturedPage = nil
+        impl.committedPage = nil
         secondResponseReleased = true
         secondClient.release()
-        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
+        waitUntil({ self.impl.committedPage != nil }, timeout: 10)
         settle()
 
-        XCTAssertNotNil(impl.capturedPage, "the second placement renders")
+        XCTAssertNotNil(impl.committedPage, "the second placement renders")
         XCTAssertTrue(secondHidLoadingAfterItsResponse,
                       "the second placement's render dismisses its own loading indicator, so its handler survived")
     }
@@ -1291,7 +1453,7 @@ final class TestOffersExecuteWiring: XCTestCase {
         XCTAssertFalse(clearSessionReturnedDuringClaim, "clearSession waits for a render claim in progress")
         XCTAssertEqual(generationDuringClaim, generationBefore, "the generation does not move during the claim")
         XCTAssertEqual(impl.currentSessionGeneration(), generationBefore + 1, "the clear landed once the claim returned")
-        XCTAssertNotNil(impl.capturedPage, "the placement was committed and rendered")
+        XCTAssertNotNil(impl.committedPage, "the placement was committed and rendered")
         XCTAssertFalse(discardedByTheFence,
                        "a placement claimed for the render before the clear is handed to the renderer, not discarded")
         XCTAssertEqual(events.filter { $0 is RoktEvent.HideLoadingIndicator }.count, 1,
@@ -1324,7 +1486,7 @@ final class TestOffersExecuteWiring: XCTestCase {
         settle()
 
         XCTAssertTrue(cleared, "the session was cleared after the commit and before the claim")
-        XCTAssertNotNil(impl.capturedPage, "the response was committed before the clear")
+        XCTAssertNotNil(impl.committedPage, "the response was committed before the clear")
         XCTAssertNil(impl.getSessionId(), "the session id the commit restored does not survive the clear")
         XCTAssertNil(RoktLogger.shared.sessionId)
         XCTAssertEqual((impl.stateManager as? StateBagManager)?.stateMap.count, 0, "nothing was handed to the renderer")
@@ -1379,7 +1541,7 @@ final class TestOffersExecuteWiring: XCTestCase {
         settle()
 
         XCTAssertTrue(secondStarted, "the second placement started inside the first placement's window")
-        XCTAssertNotNil(impl.capturedPage, "the first placement's response was committed")
+        XCTAssertNotNil(impl.committedPage, "the first placement's response was committed")
         XCTAssertTrue(firstEvents.contains(where: { $0 is RoktEvent.HideLoadingIndicator }),
                       "the first placement dismisses the loading indicator of the caller that started it")
         XCTAssertFalse(secondEvents.contains(where: { $0 is RoktEvent.PlacementFailure }),
@@ -1388,13 +1550,13 @@ final class TestOffersExecuteWiring: XCTestCase {
                        "the first placement's experience is not rendered through the second placement's handler")
         waitUntil({ secondClient.requestCount == 1 }, timeout: 10)
 
-        impl.capturedPage = nil
+        impl.committedPage = nil
         secondResponseReleased = true
         secondClient.release()
-        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
+        waitUntil({ self.impl.committedPage != nil }, timeout: 10)
         settle()
 
-        XCTAssertNotNil(impl.capturedPage, "the second placement renders")
+        XCTAssertNotNil(impl.committedPage, "the second placement renders")
         XCTAssertTrue(secondHidLoadingAfterItsResponse,
                       "the second placement's render dismisses its own loading indicator, so its handler survived")
     }
@@ -1465,12 +1627,12 @@ final class TestOffersExecuteWiring: XCTestCase {
         secondEventsLock.unlock()
         XCTAssertFalse(secondHeardTheStaleFailure, "the second placement's caller never hears the stale failure")
 
-        impl.capturedPage = nil
+        impl.committedPage = nil
         secondClient.release()
-        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
+        waitUntil({ self.impl.committedPage != nil }, timeout: 10)
         settle()
 
-        XCTAssertNotNil(impl.capturedPage, "the second placement renders")
+        XCTAssertNotNil(impl.committedPage, "the second placement renders")
         secondEventsLock.lock()
         let secondHandlerSurvived = secondHidLoadingAfterItsResponse
         secondEventsLock.unlock()
@@ -1505,11 +1667,19 @@ final class TestOffersExecuteWiring: XCTestCase {
 
         responseReleased = true
         client.release()
-        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
+        waitUntil({ self.impl.committedPage != nil }, timeout: 10)
         settle()
 
         XCTAssertTrue(hidLoadingAfterItsResponse,
                       "the loading placement's render dismisses its own loading indicator, so its handler survived")
+    }
+
+    /// Every file in the experience cache directory, by name; empty once `clearSession()` has removed the directory.
+    private func experienceCacheFileNames() -> [String] {
+        guard let directory = ExperienceCacheManager.getCacheDirectoryUrl(),
+              let urls = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+        else { return [] }
+        return urls.map(\.lastPathComponent)
     }
 
     /// Lets asynchronous work that follows an observed event run to completion.
