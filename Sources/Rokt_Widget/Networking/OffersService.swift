@@ -6,6 +6,9 @@ internal struct OffersService {
         case invalidBaseURL
         case missingResponseData
         case unexpectedStatusCode(Int)
+        /// The session was reset after the placement started and before its request was sent.
+        /// Nothing went to the network; there is no status code and no response.
+        case discardedBeforeSend
     }
 
     let environment: Environment
@@ -26,6 +29,8 @@ internal struct OffersService {
     // Real-time event store seams (injected for tests).
     let triggeredEvents: () -> [TriggeredRealTimeEvent]
     let captureEvents: ([UntriggeredRealTimeEvent]) -> Void
+    // Test-only hook, run on the sending task just before `shouldSend` is checked; nil in production.
+    var unitTest_beforeSend: (() -> Void)?
 
     init(
         environment: Environment,
@@ -73,11 +78,18 @@ internal struct OffersService {
 
     /// Builds the request from the partner inputs, fetches the experience, and reports
     /// the experience string (or failure) on ``completionQueue``.
+    ///
+    /// `shouldSend` is asked once, on the task that sends, just before the session token is read and the
+    /// request is built. When it answers false the request is not sent and `failure` receives
+    /// ``OffersError/discardedBeforeSend`` with no status code. The caller uses it to check that the session
+    /// the placement started in is still the current one: the service is built while that is true, but the
+    /// send runs on its own task, and a reset can land in between.
     func getExperienceData(
         viewName: String?,
         attributes: [String: String],
         config: RoktConfig?,
         onRequestStart: (() -> Void)? = nil,
+        shouldSend: @escaping () -> Bool = { true },
         successLayout: ((String?) -> Void)? = nil,
         failure: ((Error, Int?, String) -> Void)? = nil
     ) {
@@ -93,6 +105,11 @@ internal struct OffersService {
 
         Task {
             do {
+                unitTest_beforeSend?()
+                // Checked here, on the sending task, and not only when the service was built: a session reset
+                // that landed in between means these attributes belong to the customer who left, and the token
+                // this service restored is theirs too. Neither goes on the wire.
+                guard shouldSend() else { throw OffersError.discardedBeforeSend }
                 let experience = try await fetchExperienceString(
                     pageIdentifier: viewName ?? "",
                     attributes: enrichedAttributes,

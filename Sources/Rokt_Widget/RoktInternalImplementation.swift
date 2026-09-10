@@ -1528,7 +1528,13 @@ class RoktInternalImplementation {
                                         sessionId: departingSessionId
                                     )
                                 }
-                                RoktLogger.shared.info("Discarding a placement that failed after clearSession")
+                                if case OffersService.OffersError.discardedBeforeSend = error {
+                                    RoktLogger.shared.info(
+                                        "Discarding a placement that was reset before its offers request was sent"
+                                    )
+                                } else {
+                                    RoktLogger.shared.info("Discarding a placement that failed after clearSession")
+                                }
                                 self.concludeDiscarded(selectionId: selectionId, onRoktEvent: composedEventHandler)
                                 return
                             }
@@ -1564,11 +1570,16 @@ class RoktInternalImplementation {
                             self.concludeDiscarded(selectionId: selectionId, onRoktEvent: composedEventHandler)
                             return
                         }
+                        // The send runs on its own task after the lock above is released, so the generation is checked
+                        // once more there, just before the token is read and the request is built. A clearSession that
+                        // lands between the build and that check means nothing is sent; the failure comes back as
+                        // `discardedBeforeSend` and takes the discard branch of `onFailure`.
                         offersService.getExperienceData(
                             viewName: viewName,
                             attributes: attributes,
                             config: self.roktConfig,
                             onRequestStart: onExperiencesRequestStart,
+                            shouldSend: { [weak self] in self?.currentSessionGeneration() == generation },
                             successLayout: onSuccess,
                             failure: onFailure
                         )

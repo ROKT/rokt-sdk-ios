@@ -794,6 +794,66 @@ final class TestOffersExecuteWiring: XCTestCase {
         waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
     }
 
+    /// The offers service is built while the placement's session is still current, but the request is sent on its
+    /// own task afterwards. A `clearSession()` that lands in that gap belongs to the customer leaving: neither their
+    /// attributes nor the token the service restored are sent, no session is written for the next customer, the
+    /// placement reports failure to its caller, and `execute` is free again.
+    func test_execute_clearSessionAfterTheOffersServiceIsBuilt_sendsNothingAndPersistsNoSession() throws {
+        let store = InMemoryTxnStore()
+        impl.txnSessionStore = store
+        initialize()
+        let client = DeferredHTTPClient(data: try renderFixture(), status: 200)
+        let clearSessionReturned = expectation(description: "clearSession returned")
+        // A store-backed session manager, built with the request as in production, so a session the response
+        // carries would be persisted where the next placement restores from. The session is cleared on the sending
+        // task, after the service was built and just before it checks whether it may still send.
+        impl.makeOffersServiceOverride = { [weak impl] tagId in
+            var service = OffersService(
+                environment: .Prod,
+                accountId: tagId,
+                sdkVersion: "5.2.2",
+                layoutSchemaVersion: "2.8",
+                sessionManager: TxnSessionManager(roktTagId: tagId, store: store),
+                httpClient: client,
+                maxRetries: 0,
+                sleep: { _ in }
+            )
+            service.unitTest_beforeSend = {
+                impl?.clearSession()
+                clearSessionReturned.fulfill()
+            }
+            return service
+        }
+        let generationBefore = impl.currentSessionGeneration()
+        var events: [RoktEvent] = []
+        let discarded = expectation(description: "the placement reports failure")
+        impl.execute(viewName: "checkout", attributes: ["email": "leaving@example.com"], config: nil) { event in
+            events.append(event)
+            if event is RoktEvent.PlacementFailure { discarded.fulfill() }
+        }
+        wait(for: [clearSessionReturned], timeout: 10)
+        // Were a request sent regardless, let it reach the transport and be answered, so whatever its response
+        // persisted is visible below.
+        settle()
+        client.release()
+        wait(for: [discarded], timeout: 10)
+        settle()
+
+        XCTAssertEqual(impl.currentSessionGeneration(), generationBefore + 1, "the clear landed")
+        XCTAssertEqual(client.requestCount, 0, "neither the departing customer's attributes nor their token are sent")
+        XCTAssertNil(store.string(forKey: TxnSessionStoreKeys.sessionId), "no session is left for the next customer")
+        XCTAssertNil(store.string(forKey: TxnSessionStoreKeys.token))
+        XCTAssertTrue(events.contains(where: { $0 is RoktEvent.HideLoadingIndicator }), "the loading indicator is dismissed")
+        XCTAssertTrue(events.contains(where: { $0 is RoktEvent.PlacementFailure }), "the failure reaches the caller")
+        XCTAssertNil(impl.capturedPage)
+        XCTAssertNil(impl.getSessionId(), "the cleared session id must not come back")
+
+        // The fence released `isExecuting`: the next placement is accepted and renders.
+        impl.makeOffersServiceOverride = offersOverride(data: try renderFixture(), status: 200)
+        impl.execute(viewName: "checkout", attributes: ["email": "arriving@example.com"], config: nil)
+        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
+    }
+
     /// A placement releases `isExecuting` before its result is checked against the session fence, so a second
     /// placement can start inside that window — after a `clearSession()` — and take over the shared event handler
     /// and embedded views. The first placement's discarded result must then fail to the caller that started it, not
