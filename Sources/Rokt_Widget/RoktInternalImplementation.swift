@@ -96,20 +96,29 @@ class RoktInternalImplementation {
     var unitTest_beforeCacheHitCommit: (() -> Void)?
     // Test-only hook, run once a cached experience is committed and before the render is re-checked; nil in production.
     var unitTest_afterCacheHitCommit: (() -> Void)?
-    // Test-only hook, run while a placement's starting state is being read under the generation lock; nil in production.
+    // Test-only hook, run while a placement is being admitted under the generation lock, after its starting state is
+    // read and before it is stamped as the owner of the shared render state; nil in production.
     var unitTest_duringPlacementStart: (() -> Void)?
     // Test-only hook, run before a placement's offers service is built and its generation re-checked; nil in production.
     var unitTest_beforeOffersServiceBuilt: (() -> Void)?
     // Test-only hook, run once a placement's experience is committed and before what it decoded to is checked; nil in
     // production.
     var unitTest_afterCommitBeforePayloadCheck: (() -> Void)?
+    // Test-only hook, run while a placement's render is being claimed under the generation lock, after the check has
+    // passed and before the render's inputs are taken; nil in production.
+    var unitTest_duringRenderClaim: (() -> Void)?
+    // Test-only hook, run while a placement's shared callbacks are cleared under the generation lock, after the
+    // ownership comparison has passed and before the clear; nil in production.
+    var unitTest_duringCallbackClear: (() -> Void)?
     private var pendingPayload: ExecutePayload?
     private var clientTimeoutMilliseconds: Double = RoktInternalImplementation.defaultTimeoutMilliseconds
     private var defaultLaunchDelayMilliseconds: Double = RoktInternalImplementation.defaultDelay
     private var isExecuting = false
     private var placements: [String: RoktEmbeddedView]?
-    // The selection id of the placement that currently owns `roktEvent` and `placements`. A placement whose result
-    // is discarded after clearSession clears them only while they are still its own (see concludeFailed).
+    // The selection id of the placement that currently owns the shared render state: `roktEvent`, `placements` and
+    // `_swiftUiExecuteLayout`. Stamped in admitPlacement and compared in claimRenderIfCurrent and clearCallBacks(ownedBy:),
+    // always under the generation lock: a render is handed only the placement's own inputs, and a placement whose result
+    // is discarded clears that state only while it is still its own.
     private var executingSelectionId: String?
 
     // Bumped by clearSession and captured when an execute starts; a completion from an earlier
@@ -117,8 +126,10 @@ class RoktInternalImplementation {
     // the real-time event store, the experience cache and the render itself.
     private var sessionGeneration = 0
     // Recursive so a managed session invalidated under the lock may read the generation. Held only for bounded local
-    // work (a commit's parse, a placement's start, and the synchronous hand-off of one offers request to the network
-    // stack in handOffIfCurrent) and never across a wait on a response.
+    // work: clearSession's own reset, a placement's admission (admitPlacement), a commit's parse (commitIfCurrent), the
+    // synchronous hand-off of one offers request to the network stack (handOffIfCurrent), the capture of a response's
+    // echoed events, the claim of a render's inputs (claimRenderIfCurrent) and the compare-and-clear of the shared
+    // callbacks (clearCallBacks(ownedBy:)) — never a callback into the host, never across a wait.
     private let sessionGenerationLock = NSRecursiveLock()
 
     // Caching is disabled by default when no CacheConfig is provided to the Builder.
@@ -399,24 +410,29 @@ class RoktInternalImplementation {
         if let layoutPage = payload.layoutPage, #available(iOS 15, *) {
             showNow(layoutPage: layoutPage,
                     startDate: payload.startDate,
-                    selectionId: payload.selectionId)
+                    selectionId: payload.selectionId,
+                    claim: payload.claim)
         }
     }
 
+    // Renders on the inputs claimed for this placement under the generation lock (claimRenderIfCurrent) and reads no
+    // shared render state: the handler, the embedded views and the SwiftUI layout are the claim's. Runs outside the
+    // lock — it calls back into the host and into the UX helper's layout load.
     private func showNow(layoutPage: LayoutPageExecutePayload,
                          startDate: Date,
-                         selectionId: String) {
+                         selectionId: String,
+                         claim: RenderClaim) {
         pendingPayload = nil
-        roktEvent?(RoktEvent.HideLoadingIndicator())
+        claim.handler?(RoktEvent.HideLoadingIndicator())
         let uxHelper = RoktUX()
-        initialStateBag(uxHelper: uxHelper, selectionId: selectionId)
+        initialStateBag(uxHelper: uxHelper, selectionId: selectionId, onRoktEvent: claim.handler)
 
-        if let swiftUiExecuteLayout {
+        if let defaultLayoutLoader = claim.defaultLayoutLoader {
             uxHelper.loadLayout(
                 startDate: startDate,
                 pageModel: layoutPage.pageModel,
                 layoutPluginViewStates: layoutPage.cacheProperties?.pluginViewStates,
-                defaultLayoutLoader: swiftUiExecuteLayout,
+                defaultLayoutLoader: defaultLayoutLoader,
                 config: roktConfig.getUXConfig(),
                 onEmbeddedSizeChange: {[weak self] selectedPlacementName, widgetHeight in
                     self?.callOnEmbeddedSizeChange(selectionId,
@@ -439,7 +455,7 @@ class RoktInternalImplementation {
                 startDate: startDate,
                 pageModel: layoutPage.pageModel,
                 layoutPluginViewStates: layoutPage.cacheProperties?.pluginViewStates,
-                layoutLoaders: placements,
+                layoutLoaders: claim.layoutLoaders,
                 config: roktConfig.getUXConfig(),
                 onEmbeddedSizeChange: {[weak self] selectedPlacementName, widgetHeight in
                     self?.callOnEmbeddedSizeChange(selectionId,
@@ -458,9 +474,6 @@ class RoktInternalImplementation {
                 }
             )
         }
-
-        placements = nil
-        _swiftUiExecuteLayout = nil
     }
 
     // Determines and schedules the appropriate time to show the widget
@@ -468,10 +481,10 @@ class RoktInternalImplementation {
         showNow(payload: payload)
     }
 
+    // The event handler is not set here: it is stamped with the placement's other shared render state in admitPlacement,
+    // under the generation lock.
     private func setSharedItems(attributes: [String: String],
-                                onRoktEvent: ((RoktEvent) -> Void)?,
                                 config: RoktConfig?) {
-        self.roktEvent = onRoktEvent
         self.attributes = attributes
         processedEvents = PlatformEventProcessor(stateBagManager: stateManager)
         fontDiagnostics = FontDiagnosticsViewModel()
@@ -489,13 +502,17 @@ class RoktInternalImplementation {
         RoktLogger.shared.verbose(callStack)
     }
 
-    private func initialStateBag(uxHelper: AnyObject? = nil, selectionId: String? = nil) {
+    // `onRoktEvent` is the handler claimed for the placement's render, not the shared `roktEvent`, which a later
+    // placement may own by now.
+    private func initialStateBag(uxHelper: AnyObject? = nil,
+                                 selectionId: String? = nil,
+                                 onRoktEvent: ((RoktEvent) -> Void)?) {
         let executeId = selectionId ?? UUID().uuidString
         stateManager.addState(
             id: executeId,
             state: ExecuteStateBag(
                 uxHelper: uxHelper,
-                onRoktEvent: roktEvent
+                onRoktEvent: onRoktEvent
             )
         )
     }
@@ -508,7 +525,8 @@ class RoktInternalImplementation {
         guard let stateBag = stateManager.getState(id: executeId) else { return }
         stateManager.decreasePlacements(id: executeId)
         if stateBag.loadedPlacements <= 0 {
-            clearCallBacks()
+            // Only while this placement still owns the shared callbacks: a later placement may be loading on them.
+            clearCallBacks(ownedBy: executeId)
         }
     }
 
@@ -556,9 +574,10 @@ class RoktInternalImplementation {
         } else if (uxEvent as? RoktUXEvent.LayoutFailure) != nil {
 
             callOnRoktEvent(executeId, event: uxEvent.mapToRoktEvent)
+            // This placement's embedded views and SwiftUI layout left the shared slots when its render was claimed, so
+            // there is nothing of its own to clear here; callOnUnLoad releases the shared callbacks only while they are
+            // still this placement's.
             callOnUnLoad(executeId)
-            placements = nil
-            _swiftUiExecuteLayout = nil
         } else if (uxEvent as? RoktUXEvent.LayoutInteractive) != nil {
             // Track placement load (count gates clearCallBacks).
             callOnLoad(executeId)
@@ -949,17 +968,26 @@ class RoktInternalImplementation {
     /// handler that placement started with, never the shared `roktEvent`: `isExecuting` is released before the result
     /// is checked, so a placement started on another queue inside that window — in the same session or after a
     /// `clearSession` — may already own `roktEvent` and `placements`, and it must neither receive this failure nor
-    /// lose its state. Shared state is cleared only while it is still this placement's.
+    /// lose its state. Shared state is compared and cleared in one hold of the generation lock (clearCallBacks(ownedBy:)),
+    /// so a placement admitted on another queue in that window is never cleared by this one. The two callbacks to the
+    /// host run before it, outside the lock.
     private func concludeFailed(selectionId: String, onRoktEvent: (RoktEvent) -> Void) {
         onRoktEvent(RoktEvent.HideLoadingIndicator())
         onRoktEvent(RoktEvent.PlacementFailure(identifier: nil))
-        if executingSelectionId == selectionId {
-            clearCallBacks()
-        }
+        clearCallBacks(ownedBy: selectionId)
     }
 
-    func clearCallBacks() {
+    /// Releases the shared event handler, embedded views and SwiftUI layout, but only while `selectionId` still owns
+    /// them, comparing and clearing in one hold of the generation lock: a placement admitted on another queue
+    /// (admitPlacement stamps its id under the same lock) is never cleared by an earlier placement's failure or by its
+    /// last layout closing. Nothing under the hold waits or calls out.
+    private func clearCallBacks(ownedBy selectionId: String) {
+        sessionGenerationLock.lock()
+        defer { sessionGenerationLock.unlock() }
+        guard executingSelectionId == selectionId else { return }
+        unitTest_duringCallbackClear?()
         placements = nil
+        _swiftUiExecuteLayout = nil
         roktEvent = nil
     }
 
@@ -1243,16 +1271,29 @@ class RoktInternalImplementation {
         return sessionGeneration
     }
 
-    /// The state a placement starts from, read in one hold of the generation lock: the generation its commits
-    /// are checked against, and whether it must bypass the cache. Read as two separate values, a clearSession
-    /// on another queue could land between them and hand the placement the new generation with the bypass
-    /// still off — and the cache read is a direct file read, so the departing customer's experience would be
-    /// served and every later generation check would accept it as current.
-    private func placementStart() -> (generation: Int, bypassCache: Bool) {
+    /// Admits a placement in one hold of the generation lock. It reads the state the placement starts from — the
+    /// generation its results are checked against, and whether it must bypass the cache — and stamps the placement as
+    /// the owner of the shared render state: its selection id, its embedded views, its SwiftUI layout and its event
+    /// handler. Read as two separate values, a clearSession on another queue could land between the generation and the
+    /// bypass and hand the placement the new generation with the bypass still off — and the cache read is a direct file
+    /// read, so the departing customer's experience would be served and every later generation check would accept it
+    /// as current. Stamped outside the hold, an earlier placement's failure concluding on another queue
+    /// (clearCallBacks(ownedBy:)) could compare against the previous owner and then clear this placement's state.
+    /// Nothing under the hold waits or calls out; the ShowLoadingIndicator callback to the host follows it.
+    private func admitPlacement(
+        selectionId: String,
+        placements: [String: RoktEmbeddedView]?,
+        swiftUiLayout: LayoutLoader?,
+        onRoktEvent: ((RoktEvent) -> Void)?
+    ) -> (generation: Int, bypassCache: Bool) {
         sessionGenerationLock.lock()
         defer { sessionGenerationLock.unlock() }
         let generation = sessionGeneration
         unitTest_duringPlacementStart?()
+        executingSelectionId = selectionId
+        self.placements = placements
+        _swiftUiExecuteLayout = swiftUiLayout
+        roktEvent = onRoktEvent
         return (generation, mustBypassCacheOnNextExecute)
     }
 
@@ -1283,6 +1324,30 @@ class RoktInternalImplementation {
     /// by that enqueue, never by the network; keep it that way.
     func handOffIfCurrent(generation: Int, _ handOff: () -> Void) -> Bool {
         commitIfCurrent(generation: generation, handOff)
+    }
+
+    /// Decides, in one hold of the generation lock, whether a placement's experience may be handed to the renderer, and
+    /// takes the inputs the render needs out of the shared slots: the event handler, the embedded views and the SwiftUI
+    /// layout the placement was admitted with. Returns nil, taking nothing, once clearSession has moved the generation
+    /// or a later placement owns the shared state (a second selectPlacements admitted after this one released
+    /// `isExecuting`). The embedded views and SwiftUI layout are consumed here, so a later placement's are never
+    /// rendered into, or cleared, by this one's render; the handler stays in its slot for the ownership-checked release
+    /// when the placement's last layout closes. Nothing under this hold waits or calls out: the render itself — the
+    /// HideLoadingIndicator callback to the host and the UX helper's layout load, which attaches views and may
+    /// synchronise with the main thread — runs after it, outside the lock, on the claimed inputs. Held through the
+    /// render instead, the lock could be waited for by the main thread inside clearSession while the render, on the
+    /// host's calling queue on the cached path, waited for the main thread. A clearSession that lands after the claim
+    /// finds a placement that is already the renderer's: it stays on screen and its events are attributed to the
+    /// session it started in.
+    private func claimRenderIfCurrent(generation: Int, selectionId: String) -> RenderClaim? {
+        sessionGenerationLock.lock()
+        defer { sessionGenerationLock.unlock() }
+        guard sessionGeneration == generation, executingSelectionId == selectionId else { return nil }
+        unitTest_duringRenderClaim?()
+        let claim = RenderClaim(handler: roktEvent, layoutLoaders: placements, defaultLayoutLoader: swiftUiExecuteLayout)
+        placements = nil
+        _swiftUiExecuteLayout = nil
+        return claim
     }
 
     // The offers response echoes events for the next placement to forward. Captured after a
@@ -1317,6 +1382,7 @@ class RoktInternalImplementation {
     ///   - viewName: The name that should be displayed in the widget
     ///   - attributes: A string dictionary containing the parameters that should be displayed in the widget
     ///   - placements: A dictionary of RoktEmbeddedViews with their names
+    ///   - swiftUiLayout: The SwiftUI layout to render into, for the SwiftUI integration
     ///   - config: An object which defines RoktConfig
     ///   - placementOptions: Optional placement options containing timing data from joint SDKs
     ///   Placement and second item is widget height
@@ -1324,6 +1390,7 @@ class RoktInternalImplementation {
         viewName: String? = nil,
         attributes: [String: String],
         placements: [String: RoktEmbeddedView]? = nil,
+        swiftUiLayout: LayoutLoader? = nil,
         config: RoktConfig?,
         placementOptions: RoktPlacementOptions? = nil,
         onRoktEvent: ((RoktEvent) -> Void)? = nil
@@ -1387,24 +1454,24 @@ class RoktInternalImplementation {
         }
 
         isExecuting = true
-        // The generation and the cache bypass are one reading under the generation lock (see placementStart), so
-        // a clearSession on another queue lands wholly before or wholly after this placement's start. The bypass is
-        // latched once per execute: both cache reads in it — the experience response and the view state read later
-        // in processLayoutPageExecutePayload — must see the same answer. Disarmed only when an execute fetches a
-        // fresh experience, so a failed placement keeps the next one off the cache.
-        let start = placementStart()
+        // The placement is admitted in one hold of the generation lock (admitPlacement): the generation and the cache
+        // bypass are read together, so a clearSession on another queue lands wholly before or wholly after this
+        // placement's start, and the placement is stamped as the owner of the shared render state in the same hold, so
+        // a failure concluding on another queue can never compare against the previous owner and then clear this one.
+        // The bypass is latched once per execute: both cache reads in it — the experience response and the view state
+        // read later in processLayoutPageExecutePayload — must see the same answer. Disarmed only when an execute
+        // fetches a fresh experience, so a failed placement keeps the next one off the cache.
+        let start = admitPlacement(
+            selectionId: selectionId, placements: placements, swiftUiLayout: swiftUiLayout, onRoktEvent: composedEventHandler
+        )
         let generation = start.generation
         cacheSuppressedForCurrentExecute = start.bypassCache
         // The session the placement started in — a failure discarded after clearSession is reported against it.
         let departingSessionId = sessionManager.getCurrentSessionIdWithoutExpiring()
-        // Stamped before the state it guards, so a discarded placement that reads this id leaves that state alone.
-        executingSelectionId = selectionId
-        self.placements = placements
         let startDate = Date()
         if let tagId = roktTagId {
             composedEventHandler(RoktEvent.ShowLoadingIndicator())
-            setSharedItems(attributes: attributes,
-                           onRoktEvent: composedEventHandler, config: config)
+            setSharedItems(attributes: attributes, config: config)
 
             if #available(iOS 15, *) {
                 FontManager.reRegisterFonts {
@@ -1452,15 +1519,22 @@ class RoktInternalImplementation {
                                                       ])
 
                         self.unitTest_afterCacheHitCommit?()
-                        guard self.currentSessionGeneration() == generation else {
-                            RoktLogger.shared.info("Discarding a cached placement that resolved after clearSession")
+                        // The check that the session is still current and that this placement still owns the shared
+                        // handler and views, and the claim of those inputs for the render, are one step under the
+                        // generation lock (claimRenderIfCurrent): a clearSession lands wholly before it, and the cached
+                        // placement is discarded, or wholly after it, when the placement is already the renderer's.
+                        guard let claim = self.claimRenderIfCurrent(generation: generation, selectionId: selectionId) else {
+                            RoktLogger.shared.info(
+                                "Discarding a cached placement that resolved after clearSession or a later placement took over"
+                            )
                             self.concludeFailed(selectionId: selectionId, onRoktEvent: composedEventHandler)
                             return
                         }
 
                         let payload = ExecutePayload(layoutPage: layoutPageExecutePayload,
                                                      startDate: startDate,
-                                                     selectionId: selectionId)
+                                                     selectionId: selectionId,
+                                                     claim: claim)
                         self.show(payload)
                     } else {
                         let onSuccess: (String?) -> Void = { page in
@@ -1514,10 +1588,16 @@ class RoktInternalImplementation {
                                 self.concludeFailed(selectionId: selectionId, onRoktEvent: composedEventHandler)
                                 return
                             }
-                            // A clearSession that landed after the commit owns the screen now; the commit's state
-                            // went with it under the lock. (One landing during the render itself is the residual.)
-                            guard self.currentSessionGeneration() == generation else {
-                                RoktLogger.shared.info("Discarding a placement that completed after clearSession")
+                            // The check that the session is still current and that this placement still owns the shared
+                            // handler and views, and the claim of those inputs for the render, are one step under the
+                            // generation lock (claimRenderIfCurrent): a clearSession lands wholly before it, and the
+                            // placement is discarded (the commit's state went with the clear, under the lock), or wholly
+                            // after it, when the placement is already the renderer's — it stays on screen and its events
+                            // are attributed to the session it started in.
+                            guard let claim = self.claimRenderIfCurrent(generation: generation, selectionId: selectionId) else {
+                                RoktLogger.shared.info(
+                                    "Discarding a placement that completed after clearSession or a later placement took over"
+                                )
                                 self.concludeFailed(selectionId: selectionId, onRoktEvent: composedEventHandler)
                                 return
                             }
@@ -1525,7 +1605,8 @@ class RoktInternalImplementation {
                             let payload = ExecutePayload(
                                 layoutPage: layoutPageExecutePayload,
                                 startDate: startDate,
-                                selectionId: selectionId
+                                selectionId: selectionId,
+                                claim: claim
                             )
                             self.show(payload)
                         }
@@ -1610,7 +1691,7 @@ class RoktInternalImplementation {
             isExecuting = false
             RoktLogger.shared.error("SDK is not initialized - cannot execute")
             composedEventHandler(RoktEvent.PlacementFailure(identifier: nil))
-            clearCallBacks()
+            clearCallBacks(ownedBy: selectionId)
             RoktAPIHelper.sendDiagnostics(message: Self.notInitializedDiagnosticCode,
                                           callStack: isInitFailedForFont ? Self.fontFailedError : Self.initFailedError,
                                           severity: .info)
@@ -1732,10 +1813,12 @@ class RoktInternalImplementation {
             "cacheEnabled": "\(config?.cacheConfig.isCacheEnabled() == true)",
             "attributeCount": "\(attributes.count)"
         ])
-        _swiftUiExecuteLayout = layout
+        // The layout is stamped with the placement's other shared render state in admitPlacement, under the generation
+        // lock, so a render claimed for an earlier placement cannot take it.
         execute(
             viewName: viewName,
             attributes: attributes,
+            swiftUiLayout: layout,
             config: config,
             placementOptions: placementOptions,
             onRoktEvent: {roktEvent in
@@ -2026,6 +2109,17 @@ struct ExecutePayload {
     let layoutPage: LayoutPageExecutePayload?
     let startDate: Date
     let selectionId: String
+    let claim: RenderClaim
+}
+
+/// What a placement's render is given once its experience has been claimed for it under the generation lock (see
+/// claimRenderIfCurrent): the event handler and the embedded views it was admitted with, and the SwiftUI layout set for
+/// it. Taken out of the shared slots in the same hold as the check, so the render reads nothing shared afterwards and a
+/// later placement's handler and views are never rendered into, or cleared, by this one's render.
+struct RenderClaim {
+    let handler: ((RoktEvent) -> Void)?
+    let layoutLoaders: [String: RoktEmbeddedView]?
+    let defaultLayoutLoader: LayoutLoader?
 }
 
 struct LayoutPageExecutePayload {

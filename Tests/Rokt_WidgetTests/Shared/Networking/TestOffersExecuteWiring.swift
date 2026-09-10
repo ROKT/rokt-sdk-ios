@@ -1,6 +1,7 @@
 import UIKit
 import XCTest
 @testable import Rokt_Widget
+@testable internal import RoktUXHelper
 
 /// Drives `RoktInternalImplementation.execute(...)` through the v2 offers path so the
 /// call-site wiring is exercised end to end: the offers service factory, the success
@@ -1138,6 +1139,267 @@ final class TestOffersExecuteWiring: XCTestCase {
         XCTAssertNotNil(impl.capturedPage, "the second placement renders")
         XCTAssertTrue(secondHidLoadingAfterItsResponse,
                       "the second placement's render dismisses its own loading indicator, so its handler survived")
+    }
+
+    // MARK: - The render claim and the shared render state's ownership
+
+    /// The check that the session is still current and that the placement still owns the shared handler and views, and
+    /// the claim of those inputs for the render, are one step under the generation lock: a `clearSession()` that arrives
+    /// while the claim is in progress waits for it, so a reset lands wholly before the claim (the placement is discarded
+    /// and reports failure) or wholly after it (the placement is already the renderer's and stays on screen). This pins
+    /// the second case: the clear waits, the render runs on the claimed handler, then the clear lands.
+    func test_execute_clearSessionDuringTheRenderClaim_waitsForItThenTheRenderedPlacementStaysUp() throws {
+        impl.txnSessionStore = InMemoryTxnStore()
+        initialize()
+        impl.makeOffersServiceOverride = offersOverride(data: try renderFixture(), status: 200)
+
+        let generationBefore = impl.currentSessionGeneration()
+        let clearSessionReturned = expectation(description: "clearSession returned")
+        var clearSessionReturnedDuringClaim = true
+        var generationDuringClaim: Int?
+        impl.unitTest_duringRenderClaim = { [weak impl] in
+            // clearSession from another queue while the claim holds the lock: it has to wait.
+            let entered = DispatchSemaphore(value: 0)
+            let returned = DispatchSemaphore(value: 0)
+            DispatchQueue.global().async {
+                entered.signal()
+                impl?.clearSession()
+                returned.signal()
+                clearSessionReturned.fulfill()
+            }
+            entered.wait()
+            clearSessionReturnedDuringClaim = returned.wait(timeout: .now() + 0.3) == .success
+            // Read on the claiming thread, which holds the recursive lock: the clear has not landed yet.
+            generationDuringClaim = impl?.currentSessionGeneration()
+        }
+        var events: [RoktEvent] = []
+        impl.execute(viewName: "checkout", attributes: ["email": "staying@example.com"], config: nil) { event in
+            events.append(event)
+        }
+        wait(for: [clearSessionReturned], timeout: 10)
+        waitUntil({ events.contains(where: { $0 is RoktEvent.HideLoadingIndicator }) }, timeout: 10)
+        settle()
+
+        XCTAssertFalse(clearSessionReturnedDuringClaim, "clearSession waits for a render claim in progress")
+        XCTAssertEqual(generationDuringClaim, generationBefore, "the generation does not move during the claim")
+        XCTAssertEqual(impl.currentSessionGeneration(), generationBefore + 1, "the clear landed once the claim returned")
+        XCTAssertNotNil(impl.capturedPage, "the placement was committed and rendered")
+        XCTAssertFalse(events.contains(where: { $0 is RoktEvent.PlacementFailure }),
+                       "a placement claimed for the render before the clear is not discarded")
+        XCTAssertNil(impl.getSessionId(), "the clear that landed after the claim still ends the session")
+    }
+
+    /// The first case of the test above: a `clearSession()` that lands after the response is committed and before the
+    /// render is claimed makes the claim refuse. Nothing is handed to the renderer — no state is registered for the
+    /// placement — the placement reports failure to its own caller, and the session id the commit restored is gone.
+    func test_execute_clearSessionBeforeTheRenderClaim_refusesTheRender() throws {
+        impl.txnSessionStore = InMemoryTxnStore()
+        initialize()
+        impl.makeOffersServiceOverride = offersOverride(data: try renderFixture(), status: 200)
+
+        var cleared = false
+        impl.unitTest_afterCommitBeforePayloadCheck = { [weak impl] in
+            // The response is committed and decodes; the render has not been claimed yet.
+            guard !cleared else { return }
+            cleared = true
+            impl?.clearSession()
+        }
+        var events: [RoktEvent] = []
+        let discarded = expectation(description: "the placement reports failure")
+        impl.execute(viewName: "checkout", attributes: ["email": "leaving@example.com"], config: nil) { event in
+            events.append(event)
+            if event is RoktEvent.PlacementFailure { discarded.fulfill() }
+        }
+        wait(for: [discarded], timeout: 10)
+        settle()
+
+        XCTAssertTrue(cleared, "the session was cleared after the commit and before the claim")
+        XCTAssertNotNil(impl.capturedPage, "the response was committed before the clear")
+        XCTAssertNil(impl.getSessionId(), "the session id the commit restored does not survive the clear")
+        XCTAssertNil(RoktLogger.shared.sessionId)
+        XCTAssertEqual((impl.stateManager as? StateBagManager)?.stateMap.count, 0, "nothing was handed to the renderer")
+        XCTAssertEqual(events.filter { $0 is RoktEvent.HideLoadingIndicator }.count, 1,
+                       "the loading indicator is dismissed once, by the failure and not by a render")
+    }
+
+    /// `isExecuting` is released before a placement's result is checked, so a second placement can be admitted in the
+    /// same session after the first's response is committed and before its render is claimed; the second then owns the
+    /// shared handler and embedded views. The claim checks ownership as well as the session: the first placement is not
+    /// rendered through the second's handler or into its views, it fails to its own caller, and the second renders with
+    /// its handler intact once its own response arrives.
+    func test_execute_secondPlacementAdmittedBeforeTheRender_keepsItsHandlerAndTheFirstFailsToItsOwnCaller() throws {
+        impl.txnSessionStore = InMemoryTxnStore()
+        initialize()
+        let viewName = "checkout"
+        let firstClient = DeferredHTTPClient(data: try renderFixture(), status: 200)
+        let secondClient = DeferredHTTPClient(data: try renderFixture(), status: 200)
+        let secondOffersOverride = offersOverride(httpClient: secondClient)
+        impl.makeOffersServiceOverride = offersOverride(httpClient: firstClient)
+
+        var firstEvents: [RoktEvent] = []
+        var secondEvents: [RoktEvent] = []
+        var secondResponseReleased = false
+        var secondHidLoadingBeforeItsResponse = false
+        var secondHidLoadingAfterItsResponse = false
+        var secondStarted = false
+        impl.unitTest_afterCommitBeforePayloadCheck = { [weak impl] in
+            // The first placement has released `isExecuting` and committed a response that decodes, and has not yet
+            // claimed its render. Start the second placement, in the same session, inside that window.
+            guard !secondStarted, let impl else { return }
+            secondStarted = true
+            impl.makeOffersServiceOverride = secondOffersOverride
+            impl.execute(viewName: viewName, attributes: ["email": "next@example.com"], config: nil) { event in
+                secondEvents.append(event)
+                guard event is RoktEvent.HideLoadingIndicator else { return }
+                if secondResponseReleased {
+                    secondHidLoadingAfterItsResponse = true
+                } else {
+                    secondHidLoadingBeforeItsResponse = true
+                }
+            }
+        }
+        let firstFailed = expectation(description: "the first placement reports failure to the caller that started it")
+        impl.execute(viewName: viewName, attributes: ["email": "first@example.com"], config: nil) { event in
+            firstEvents.append(event)
+            if event is RoktEvent.PlacementFailure { firstFailed.fulfill() }
+        }
+        waitUntil({ firstClient.requestCount == 1 }, timeout: 10)
+        firstClient.release()
+        wait(for: [firstFailed], timeout: 10)
+        settle()
+
+        XCTAssertTrue(secondStarted, "the second placement started inside the first placement's window")
+        XCTAssertNotNil(impl.capturedPage, "the first placement's response was committed")
+        XCTAssertTrue(firstEvents.contains(where: { $0 is RoktEvent.HideLoadingIndicator }),
+                      "the first placement dismisses the loading indicator of the caller that started it")
+        XCTAssertFalse(secondEvents.contains(where: { $0 is RoktEvent.PlacementFailure }),
+                       "the second placement's caller never hears the first placement's failure")
+        XCTAssertFalse(secondHidLoadingBeforeItsResponse,
+                       "the first placement's experience is not rendered through the second placement's handler")
+        waitUntil({ secondClient.requestCount == 1 }, timeout: 10)
+
+        impl.capturedPage = nil
+        secondResponseReleased = true
+        secondClient.release()
+        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
+        settle()
+
+        XCTAssertNotNil(impl.capturedPage, "the second placement renders")
+        XCTAssertTrue(secondHidLoadingAfterItsResponse,
+                      "the second placement's render dismisses its own loading indicator, so its handler survived")
+    }
+
+    /// A placement's admission — its selection id, embedded views and event handler stamped as the owner of the shared
+    /// render state — and a failed placement's compare-and-clear of that state are each one step under the generation
+    /// lock. A second placement started on another queue while a stale failure is clearing waits for the clear, is
+    /// admitted after it with its own state, and renders with its handler intact. Were the compare and the clear two
+    /// steps, the second placement could be admitted between them and the clear would erase its handler and views.
+    func test_execute_secondPlacementAdmittedDuringAStaleFailuresClear_isAdmittedAfterItAndKeepsItsHandler() throws {
+        impl.txnSessionStore = InMemoryTxnStore()
+        initialize()
+        let viewName = "checkout"
+        let firstClient = DeferredHTTPClient(data: try renderFixture(), status: 200)
+        let secondClient = DeferredHTTPClient(data: try renderFixture(), status: 200)
+        let secondOffersOverride = offersOverride(httpClient: secondClient)
+        impl.makeOffersServiceOverride = offersOverride(httpClient: firstClient)
+
+        // The second placement's events arrive on two queues: its loading indicator from the queue it started on, its
+        // render from the main queue.
+        let secondEventsLock = NSLock()
+        var secondEvents: [RoktEvent] = []
+        var secondResponseReleased = false
+        var secondHidLoadingAfterItsResponse = false
+        var secondAdmittedDuringClear = true
+        var secondStarted = false
+        let secondExecuteReturned = expectation(description: "the second placement's execute returned")
+        impl.unitTest_duringCallbackClear = { [weak impl] in
+            // The stale completion has compared the owner and is about to clear, under the lock. Start the second
+            // placement from another queue: its admission has to wait for the clear.
+            guard !secondStarted, let impl else { return }
+            secondStarted = true
+            impl.makeOffersServiceOverride = secondOffersOverride
+            let entered = DispatchSemaphore(value: 0)
+            let admitted = DispatchSemaphore(value: 0)
+            DispatchQueue.global().async {
+                entered.signal()
+                impl.execute(viewName: viewName, attributes: ["email": "next@example.com"], config: nil) { event in
+                    secondEventsLock.lock()
+                    defer { secondEventsLock.unlock() }
+                    secondEvents.append(event)
+                    if event is RoktEvent.HideLoadingIndicator, secondResponseReleased {
+                        secondHidLoadingAfterItsResponse = true
+                    }
+                }
+                admitted.signal()
+                secondExecuteReturned.fulfill()
+            }
+            entered.wait()
+            secondAdmittedDuringClear = admitted.wait(timeout: .now() + 0.3) == .success
+        }
+        let firstFailed = expectation(description: "the stale placement reports failure to the caller that started it")
+        impl.execute(viewName: viewName, attributes: ["email": "leaving@example.com"], config: nil) { event in
+            if event is RoktEvent.PlacementFailure { firstFailed.fulfill() }
+        }
+        waitUntil({ firstClient.requestCount == 1 }, timeout: 10)
+        // The clear lands while the first placement's request is in flight, so its completion is stale and fails.
+        impl.clearSession()
+        firstClient.release()
+        wait(for: [firstFailed, secondExecuteReturned], timeout: 10)
+        waitUntil({ secondClient.requestCount == 1 }, timeout: 10)
+
+        XCTAssertTrue(secondStarted, "the second placement started inside the stale failure's clear")
+        XCTAssertFalse(secondAdmittedDuringClear, "a placement started during the clear is admitted only after it")
+        secondEventsLock.lock()
+        let secondHeardTheStaleFailure = secondEvents.contains(where: { $0 is RoktEvent.PlacementFailure })
+        secondResponseReleased = true
+        secondEventsLock.unlock()
+        XCTAssertFalse(secondHeardTheStaleFailure, "the second placement's caller never hears the stale failure")
+
+        impl.capturedPage = nil
+        secondClient.release()
+        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
+        settle()
+
+        XCTAssertNotNil(impl.capturedPage, "the second placement renders")
+        secondEventsLock.lock()
+        let secondHandlerSurvived = secondHidLoadingAfterItsResponse
+        secondEventsLock.unlock()
+        XCTAssertTrue(secondHandlerSurvived,
+                      "the second placement's render dismisses its own loading indicator, so its handler survived")
+    }
+
+    /// When a rendered placement's last layout closes, the shared callbacks are released only while that placement
+    /// still owns them. The earlier placement is represented by the state its render registers; the next placement is
+    /// admitted while the earlier one is on screen and is still loading when the earlier one closes. That close must not
+    /// wipe the loading placement's handler, so its render still dismisses its own loading indicator.
+    func test_execute_closingAnEarlierPlacement_keepsALoadingPlacementsHandler() throws {
+        impl.txnSessionStore = InMemoryTxnStore()
+        initialize()
+        let earlierPlacementId = "earlier-placement"
+        impl.stateManager.addState(id: earlierPlacementId, state: ExecuteStateBag(uxHelper: nil, onRoktEvent: nil))
+        let client = DeferredHTTPClient(data: try renderFixture(), status: 200)
+        impl.makeOffersServiceOverride = offersOverride(httpClient: client)
+
+        var responseReleased = false
+        var hidLoadingAfterItsResponse = false
+        impl.execute(viewName: "checkout", attributes: ["email": "loading@example.com"], config: nil) { event in
+            if event is RoktEvent.HideLoadingIndicator, responseReleased {
+                hidLoadingAfterItsResponse = true
+            }
+        }
+        waitUntil({ client.requestCount == 1 }, timeout: 10)
+        // The earlier placement's only layout becomes interactive and closes while the next placement is in flight.
+        impl.callOnRoktUXEvent(earlierPlacementId, uxEvent: RoktUXEvent.LayoutInteractive(layoutId: "layout-1"))
+        impl.callOnRoktUXEvent(earlierPlacementId, uxEvent: RoktUXEvent.LayoutClosed(layoutId: "layout-1"))
+        XCTAssertNil(impl.stateManager.getState(id: earlierPlacementId), "the earlier placement's state is released")
+
+        responseReleased = true
+        client.release()
+        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
+        settle()
+
+        XCTAssertTrue(hidLoadingAfterItsResponse,
+                      "the loading placement's render dismisses its own loading indicator, so its handler survived")
     }
 
     /// Lets asynchronous work that follows an observed event run to completion.
