@@ -343,6 +343,104 @@ final class TestBuiltInTwoStepCheckoutBinding: XCTestCase {
         XCTAssertNil(orch.beginBuiltInCardForwardPaymentIfReady(for: keyB))
     }
 
+    // MARK: - Initialising again starts a new state keeper; checkouts of the previous one are dropped or fenced
+
+    /// An implementation a test can initialise again without reaching the network or the shared user defaults: the
+    /// session and pending-event stores are scratch, and the init request is answered locally with a success.
+    private func makeImplementationForReinitialisation(userDefaults: UserDefaults) -> RoktInternalImplementation {
+        let impl = RoktInternalImplementation(
+            sessionManager: SessionManager(managedSessions: [], userDefaults: userDefaults)
+        )
+        impl.txnSessionStore = ScratchTxnStore()
+        impl.txnPendingEventStore = ScratchPendingEventStore()
+        let initHTTPClient = SucceedingInitHTTPClient()
+        impl.makeTxnInitServiceOverride = { tagId in
+            TxnInitService(
+                environment: .Prod,
+                accountId: tagId,
+                sdkVersion: "5.3.2",
+                layoutSchemaVersion: "1.0",
+                httpClient: initHTTPClient,
+                maxRetries: 0,
+                baseBackoff: 0,
+                sleep: { _ in }
+            )
+        }
+        return impl
+    }
+
+    /// Initialising the SDK again replaces the execute state keeper, so a checkout begun before it has nowhere left to
+    /// report. Checkouts not yet in flight are dropped without their completion running, as a session clear drops them.
+    func test_initWith_dropsEveryPendingTwoStepNotInFlight() {
+        let userDefaults = UserDefaults(suiteName: #file)!
+        userDefaults.removePersistentDomain(forName: #file)
+        defer { userDefaults.removePersistentDomain(forName: #file) }
+        let impl = makeImplementationForReinitialisation(userDefaults: userDefaults)
+        let orch = impl.paymentOrchestratorForTesting
+        let keyA = key(cartItemId: "cart-a", catalogItemId: "catalog-a")
+        let keyB = key(executeId: "other-execute", cartItemId: "cart-b", catalogItemId: "catalog-b")
+        seedPayPal(orch, for: keyA)
+        seedCard(orch, for: keyB)
+        impl.stateManager.addState(id: executeId, state: ExecuteStateBag(uxHelper: nil, onRoktEvent: nil))
+
+        impl.initWith(roktTagId: forwardPaymentTestTagId, mParticleKitDetails: nil)
+        drainMainQueue()
+
+        XCTAssertNil(impl.stateManager.getState(id: executeId), "Initialising again starts a new state keeper")
+        XCTAssertFalse(orch.unitTest_hasPendingBuiltInTwoStep(for: keyA))
+        XCTAssertFalse(orch.unitTest_hasPendingBuiltInTwoStep(for: keyB))
+        XCTAssertFalse(orch.presentPendingBuiltInPayPalForForwardPayment(for: keyA) { _ in })
+        XCTAssertNil(orch.beginBuiltInCardForwardPaymentIfReady(for: keyB))
+        waitUntil { impl.isInitialized }
+    }
+
+    /// A card purchase already sent when the SDK is initialised again is fenced, not dropped: its result still reaches
+    /// its Step-1 completion, and once it has, nothing of it is left. A PayPal checkout still waiting for its confirm is
+    /// dropped, so a later confirm or return link for it finds nothing to resume and its completion never runs.
+    func test_initWith_whileCardPurchaseIsInFlight_stillDeliversTheStepOneResult_andDropsAPendingPayPalCheckout() {
+        let userDefaults = UserDefaults(suiteName: #file)!
+        userDefaults.removePersistentDomain(forName: #file)
+        defer { userDefaults.removePersistentDomain(forName: #file) }
+        let impl = makeImplementationForReinitialisation(userDefaults: userDefaults)
+        let bag = ExecuteStateBag(uxHelper: nil, onRoktEvent: nil)
+        bag.loadedPlacements = 1
+        bag.instantPurchaseInitiated = true
+        impl.stateManager.addState(id: executeId, state: bag)
+        let orch = impl.paymentOrchestratorForTesting
+        let cardKey = key(cartItemId: "cart-a", catalogItemId: "catalog-a")
+        let payPalKey = key(cartItemId: "cart-b", catalogItemId: "catalog-b")
+        let stepOneResult = expectation(description: "Step-1 completion receives the purchase result")
+        orch.unitTest_seedDeferredBuiltInCardForwardPayment(for: cardKey) { result in
+            XCTAssertEqual(result.outcome, .succeeded)
+            stepOneResult.fulfill()
+        }
+        seedPayPal(orch, for: payPalKey)
+        registerPurchaseMock(body: #"{"success":true}"#) { _ in }
+        installMockingHTTPClient()
+
+        Rokt.shared.roktImplementation.roktTagId = forwardPaymentTestTagId
+        impl.handleForwardPayment(
+            executeId: executeId,
+            event: makeForwardPaymentEvent(cartItemId: "cart-a", catalogItemId: "catalog-a")
+        )
+        // The purchase response is delivered on the main queue, so it cannot land before this initialisation runs.
+        impl.initWith(roktTagId: forwardPaymentTestTagId, mParticleKitDetails: nil)
+
+        XCTAssertTrue(orch.isBuiltInCardForwardPaymentInFlight(), "Initialising again keeps a purchase already sent")
+        XCTAssertTrue(orch.unitTest_hasPendingBuiltInTwoStep(for: cardKey))
+        XCTAssertFalse(orch.unitTest_hasPendingBuiltInTwoStep(for: payPalKey), "A checkout not yet in flight is dropped")
+        wait(for: [stepOneResult], timeout: 3.0)
+        XCTAssertFalse(orch.unitTest_hasPendingBuiltInTwoStep(for: cardKey))
+        XCTAssertFalse(orch.isBuiltInCardForwardPaymentInFlight())
+
+        // A confirm or a return link for the dropped PayPal checkout finds nothing to resume.
+        XCTAssertFalse(orch.presentPendingBuiltInPayPalForForwardPayment(for: payPalKey) { _ in })
+        XCTAssertFalse(orch.handleURLCallback(with: URL(string: "myapp://paypal/success?token=ORDER_MOCK")!))
+        drainMainQueue()
+        XCTAssertNil(impl.stateManager.getState(id: executeId), "The new state keeper holds nothing of the previous execute")
+        waitUntil { impl.isInitialized }
+    }
+
     // MARK: - An execute's state outlives its placements while a checkout of that execute is still outstanding
 
     private func makeDevicePayEvent(
@@ -581,4 +679,60 @@ private final class FinalizeRecordingRoktUX: RoktUX {
             failureReason: failureReason
         ))
     }
+}
+
+/// Answers every request with a successful init response, so a test can initialise the SDK without a network.
+private final class SucceedingInitHTTPClient: HTTPClientAdapter {
+    private static let initResponseBody = Data(
+        """
+        {
+          "session_id": "sess-1",
+          "session_token": { "token": "jwt", "expires_at": 32503680000000 },
+          "feature_flags": {},
+          "fonts": []
+        }
+        """.utf8
+    )
+
+    func updateTimeout(timeout: Double) {}
+
+    @discardableResult
+    func startRequestWith(
+        urlAddress: String,
+        method: RoktHTTPMethod,
+        parameters: RoktHTTPParameters?,
+        parameterArray: RoktHTTPParameterArray?,
+        headers: RoktHTTPHeaders?,
+        onRequestStart: (() -> Void)?,
+        requestTimeout: TimeInterval?,
+        completionQueue: DispatchQueue,
+        completionHandler: ((RoktHTTPRequestResult) -> Void)?
+    ) -> URLRequest? {
+        let url = URL(string: urlAddress) ?? URL(string: "https://apps.rokt.com")!
+        let result = RoktHTTPRequestResult(
+            httpURLResponse: HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil),
+            responseData: Self.initResponseBody,
+            responseError: nil,
+            jsonSerialisedResponseData: .success(NSNull())
+        )
+        completionQueue.async { completionHandler?(result) }
+        return nil
+    }
+
+    func downloadFile(
+        source urlAddress: String,
+        destinationURL: URL,
+        options: [RoktDownloadOptions],
+        parameters: RoktHTTPParameters?,
+        headers: RoktHTTPHeaders?,
+        requestTimeout: TimeInterval?,
+        completionQueue: DispatchQueue,
+        completionHandler: ((RoktDownloadResult) -> Void)?
+    ) {}
+}
+
+/// Holds no pending event batches, so initialising again in a test replays nothing.
+private final class ScratchPendingEventStore: TxnPendingEventStoring {
+    func persist(events: [TxnEvent], sessionId: String?) {}
+    func drainValid() -> [TxnPendingEventBatch] { [] }
 }

@@ -1026,6 +1026,9 @@ class RoktInternalImplementation {
         isInitFailedForFont = false
         FontManager.resetFontRecoveryState()
         FontManager.resetDiskPressureState()
+        // A new state keeper starts here, so a checkout begun under the previous one has nowhere left to report: it is
+        // dropped, or fenced when its purchase is already in flight, the same way a session clear drops or fences it.
+        paymentOrchestrator.discardAllPendingBuiltInTwoStep()
         stateManager = makeStateBagManager()
 
         RoktLogger.shared.debug("Starting API initialization request")
