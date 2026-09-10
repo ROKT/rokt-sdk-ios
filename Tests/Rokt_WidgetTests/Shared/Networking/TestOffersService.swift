@@ -524,6 +524,55 @@ final class TestOffersService: XCTestCase {
         XCTAssertEqual(stub.requestCount, 1)
     }
 
+    private func makeOffersClient(_ stub: StubHTTPClient) -> OffersClient {
+        OffersClient(
+            baseURL: URL(string: Environment.Prod.gatewayBaseURL)!,
+            accountId: "account-1",
+            authToken: nil,
+            sdkVersion: "1.0.0",
+            layoutSchemaVersion: "1",
+            pageInstanceGuid: "page-instance-guid",
+            httpClient: stub
+        )
+    }
+
+    /// A hand-off that returns without running the send, and without throwing, fails the request itself: nothing
+    /// reaches the transport, and the caller is not left waiting for a response that can never arrive.
+    func test_fetchOffers_handOffReturnsWithoutRunningTheSend_failsInsteadOfWaiting() async {
+        let stub = StubHTTPClient(responseData: Data(offersResponse.utf8), statusCode: 200)
+        let client = makeOffersClient(stub)
+        let input = OffersInput(requestId: "request-1", pageIdentifier: "checkout", attributes: [:])
+
+        // Bounded by the expectation's timeout, so a request left waiting fails this test instead of hanging it.
+        let failed = expectation(description: "a hand-off that did not run the send fails the request")
+        Task {
+            do {
+                _ = try await client.fetchOffers(input: input) { _ in }
+                XCTFail("a hand-off that did not run the send must fail the request")
+            } catch {
+                XCTAssertEqual(error as? OffersClientError, .handOffDidNotStart)
+            }
+            failed.fulfill()
+        }
+        await fulfillment(of: [failed], timeout: 5)
+        XCTAssertEqual(stub.requestCount, 0, "nothing reaches the transport when the hand-off does not run the send")
+    }
+
+    /// A hand-off that runs the send more than once sends one request, and the request completes once.
+    func test_fetchOffers_handOffRunsTheSendTwice_sendsOnceAndCompletesOnce() async throws {
+        let stub = StubHTTPClient(responseData: Data(offersResponse.utf8), statusCode: 200)
+        let client = makeOffersClient(stub)
+        let input = OffersInput(requestId: "request-1", pageIdentifier: "checkout", attributes: [:])
+
+        let (_, response) = try await client.fetchOffers(input: input) { start in
+            start()
+            start()
+        }
+
+        XCTAssertEqual(response?.statusCode, 200)
+        XCTAssertEqual(stub.requestCount, 1, "running the send a second time sends nothing more")
+    }
+
     func test_getExperienceData_doesNotRetryNonTransportError() {
         let nonTransport = NSError(domain: "Custom", code: 1)
         let stub = StubHTTPClient(sequence: [StubResponse(data: nil, status: 0, error: nonTransport)])

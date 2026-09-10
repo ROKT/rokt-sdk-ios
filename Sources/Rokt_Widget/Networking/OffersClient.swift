@@ -15,6 +15,8 @@ internal struct OffersClient {
     /// `handOff` encloses the one call that gives the request to the network stack. It either runs `start`, which
     /// sends, or throws without running it, in which case nothing is sent and the caller receives that error. The
     /// default sends unconditionally. A caller uses it to make its decision to send atomic with the send itself.
+    /// `start` sends at most once however many times it is called, and a hand-off that returns without running it
+    /// fails the request with ``OffersClientError/handOffDidNotStart`` rather than leaving the caller waiting.
     func fetchOffers(
         input: OffersInput,
         handOff: (_ start: () -> Void) throws -> Void = { start in start() }
@@ -52,12 +54,15 @@ internal struct OffersClient {
         }
 
         return try await withCheckedThrowingContinuation { continuation in
-            // The continuation is resumed exactly once: `start` is the only call that arms the completion handler,
-            // so a hand-off that declined never fires it and the catch below is the one resume; a hand-off that ran
-            // `start` leaves the resume to the completion handler, whatever it does afterwards.
+            // The continuation is resumed exactly once: `start` is the only call that arms the completion handler
+            // and arms it at most once, so a hand-off that ran `start` leaves the resume to the completion handler,
+            // whatever it does afterwards; a hand-off that threw without running it is failed with its error; and a
+            // hand-off that returned without running it, which nothing else could ever resume, is failed below.
             var started = false
             do {
                 try handOff {
+                    // A second call sends nothing more, so the completion handler stays the one resume.
+                    guard !started else { return }
                     started = true
                     httpClient.startRequestWith(
                         urlAddress: url.absoluteString,
@@ -78,15 +83,19 @@ internal struct OffersClient {
                     )
                 }
             } catch {
-                guard !started else { return }
-                continuation.resume(throwing: error)
+                if !started { continuation.resume(throwing: error) }
+                return
             }
+            if !started { continuation.resume(throwing: OffersClientError.handOffDidNotStart) }
         }
     }
 }
 
 internal enum OffersClientError: Error {
     case bodyEncodingFailed
+    /// The hand-off returned without running `start` and without throwing, so no request was sent and no response
+    /// will ever arrive for it.
+    case handOffDidNotStart
 }
 
 internal struct OffersInput {
