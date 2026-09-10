@@ -2355,7 +2355,37 @@ class TestPaymentOrchestrator: XCTestCase {
         }
     }
 
-    func test_processPayment_payPal_acceptsHttpApprovalUrl() {
+    /// A cleartext approval URL is accepted only on a loopback host, where a local development backend serves it. On
+    /// any other host it is rejected before the confirm button, and the diagnostic names the scheme, never the URL.
+    func test_processPayment_payPal_failsWhenApprovalUrlIsCleartextOnNonLoopbackHost() {
+        for approvalUrl in [
+            "http://www.example.com/checkoutnow?token=ORDER",
+            "http://localhost.example.com/approve",
+            "http://192.168.1.10:9011/approve"
+        ] {
+            let result = runPayPalStepOneExpectingRejection(approvalUrl: approvalUrl)
+
+            XCTAssertEqual(result?.outcome, .failed, approvalUrl)
+            XCTAssertEqual(result?.errorMessage, PaymentOrchestrator.payPalApprovalURLInvalidMessage, approvalUrl)
+            XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.sendDiagnosticsCallCount, 1, approvalUrl)
+            XCTAssertEqual(
+                PaymentOrchestratorAPIHelperSpy.lastDiagnosticsMessage,
+                PaymentOrchestrator.devicePayErrorCode,
+                approvalUrl
+            )
+            XCTAssertEqual(PaymentOrchestratorAPIHelperSpy.lastDiagnosticsSeverity, .warning, approvalUrl)
+            let additionalInfo = PaymentOrchestratorAPIHelperSpy.lastDiagnosticsAdditionalInfo ?? [:]
+            XCTAssertEqual(additionalInfo["scheme"] as? String, "http", approvalUrl)
+            XCTAssertEqual(additionalInfo["hostPresent"] as? Bool, true, approvalUrl)
+            let loggedStrings = additionalInfo.values.compactMap { $0 as? String }
+            XCTAssertFalse(
+                loggedStrings.contains { $0.contains(approvalUrl) },
+                "Diagnostics must not carry the approval URL: \(approvalUrl)"
+            )
+        }
+    }
+
+    func test_processPayment_payPal_acceptsHttpApprovalUrlOnLoopbackHost() {
         let payPalPresenter = MockPayPalApprovalPresenter()
         sut = PaymentOrchestrator(
             apiHelper: PaymentOrchestratorAPIHelperSpy.self,

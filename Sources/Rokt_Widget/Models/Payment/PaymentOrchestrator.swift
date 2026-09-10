@@ -46,9 +46,11 @@ final class PaymentOrchestrator {
     /// Cart prepare succeeded but the response did not include a PayPal approval URL (`paypalData.approvalUrl`).
     static let payPalApprovalURLMissingMessage =
         "PayPal approval URL was not returned; cannot start checkout."
-    /// Cart prepare returned a PayPal approval URL that is not an `http`/`https` URL with a host.
+    /// Cart prepare returned a PayPal approval URL that is not an `https` URL with a host; `http` is accepted only for
+    /// a loopback host, so a local development backend can still serve the approval page.
     static let payPalApprovalURLInvalidMessage =
-        "PayPal approval URL must be an http or https URL with a host; cannot start checkout."
+        "PayPal approval URL must be an https URL with a host (http is accepted only for a loopback host); "
+            + "cannot start checkout."
     /// Cart prepare returned PayPal data without an order id, so a return link could not be tied to this checkout.
     static let payPalOrderIdMissingMessage =
         "PayPal order id was not returned; cannot start checkout."
@@ -430,6 +432,14 @@ final class PaymentOrchestrator {
 
     // MARK: - Built-in PayPal (no PaymentExtension)
 
+    /// Whether `url` may be loaded as the hosted PayPal approval page: an `http`/`https` URL with a host, and `https`
+    /// unless the host is a loopback address, so the approval page and the order token in its query never travel in
+    /// the clear beyond a local development backend. Read before any sheet exists, by the Step-1 response check and
+    /// again by ``PayPalApprovalWebPresenter``.
+    static func isAcceptableBuiltInPayPalApprovalURL(_ url: URL) -> Bool {
+        url.isWebURLWithHost() && (url.scheme?.lowercased() == "https" || url.hasLoopbackHost)
+    }
+
     /// Entry point for PayPal device pay. Does not consult ``registeredExtensions``.
     ///
     /// Runs the same cart ``initializePurchase`` preparation as extension-based flows, passing
@@ -481,8 +491,9 @@ final class PaymentOrchestrator {
                     }
                     return
                 }
-                // Only the scheme and whether a host is present are logged; the URL itself carries the order token.
-                guard approvalURL.isWebURLWithHost() else {
+                // Only https, or http on a loopback host, may be loaded. Only the scheme and whether a host is present
+                // are logged; the URL itself carries the order token.
+                guard Self.isAcceptableBuiltInPayPalApprovalURL(approvalURL) else {
                     self.apiHelper.sendDiagnostics(
                         message: Self.devicePayErrorCode,
                         callStack: Self.payPalApprovalURLInvalidMessage,

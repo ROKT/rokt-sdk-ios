@@ -17,6 +17,13 @@ internal extension URL {
         return isWebURL() && !(host ?? "").isEmpty
     }
 
+    /// `true` when the host is a loopback address: `localhost`, `127.0.0.1` or `::1`. The IPv6 form is matched with
+    /// and without its brackets, since Foundation has returned it both ways.
+    var hasLoopbackHost: Bool {
+        guard let host = host?.lowercased() else { return false }
+        return ["localhost", "127.0.0.1", "::1", "[::1]"].contains(host)
+    }
+
     /// Whether this file URL resolves to a location strictly inside `directory`.
     ///
     /// The comparison is purely lexical: `.` and `..` segments are collapsed and the

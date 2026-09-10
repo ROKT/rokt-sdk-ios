@@ -212,8 +212,9 @@ final class PayPalApprovalWebPresenter: PayPalApprovalPresenting {
         from viewController: UIViewController,
         checkoutCoordinator: PayPalCheckoutCoordinator
     ) {
-        // `SFSafariViewController` only accepts http/https URLs; anything else ends the checkout instead.
-        guard approvalURL.isWebURLWithHost() else {
+        // `SFSafariViewController` only accepts http/https URLs, and a cleartext approval page is refused unless its
+        // host is a loopback address; anything else ends the checkout instead of being presented.
+        guard PaymentOrchestrator.isAcceptableBuiltInPayPalApprovalURL(approvalURL) else {
             RoktLogger.shared.warning(
                 "\(PaymentOrchestrator.devicePayErrorCode) \(PaymentOrchestrator.payPalApprovalURLInvalidMessage)"
             )

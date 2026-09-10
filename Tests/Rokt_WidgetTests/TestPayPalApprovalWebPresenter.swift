@@ -26,8 +26,9 @@ final class DismissingViewController: UIViewController {
 
 /// ``PayPalApprovalWebPresenter`` loads the approval URL in `SFSafariViewController`, which accepts only
 /// http/https URLs. Any other URL must end the checkout with a failure instead of being presented, and so must a
-/// screen that cannot show the sheet: one already presenting another view, one whose view is in no window, or one
-/// being dismissed. UIKit drops the present in each of those states without calling the completion or the delegate.
+/// cleartext (http) URL whose host is not a loopback address, and a screen that cannot show the sheet: one already
+/// presenting another view, one whose view is in no window, or one being dismissed. UIKit drops the present in each
+/// of those states without calling the completion or the delegate.
 final class TestPayPalApprovalWebPresenter: XCTestCase {
 
     private func makeCoordinator(onResult: @escaping (PaymentSheetResult) -> Void) -> PayPalCheckoutCoordinator {
@@ -70,15 +71,20 @@ final class TestPayPalApprovalWebPresenter: XCTestCase {
         assertPresenterRejects("https:///x")
     }
 
+    func test_presentPayPalApproval_cleartextNonLoopbackApprovalURL_failsCheckoutWithoutPresenting() {
+        assertPresenterRejects("http://www.example.com/checkoutnow")
+    }
+
     /// The URL is fine; the screen is not. The checkout must end with `message` through the ordinary completion, which
     /// a present UIKit dropped would never reach.
     private func assertPresenterFailsCheckout(
+        approvalURLString: String = "https://www.paypal.com/checkoutnow?token=MOCK",
         from viewController: UIViewController,
         expecting message: String,
         file: StaticString = #filePath,
         line: UInt = #line
     ) throws {
-        let approvalURL = try XCTUnwrap(URL(string: "https://www.paypal.com/checkoutnow?token=MOCK"), file: file, line: line)
+        let approvalURL = try XCTUnwrap(URL(string: approvalURLString), file: file, line: line)
         let failed = expectation(description: "checkout fails for a screen that cannot show the sheet")
         let coordinator = makeCoordinator { result in
             XCTAssertEqual(result.outcome, .failed, file: file, line: line)
@@ -105,6 +111,16 @@ final class TestPayPalApprovalWebPresenter: XCTestCase {
     func test_presentPayPalApproval_whenTheScreenIsNotInAWindow_failsCheckoutWithoutPresenting() throws {
         // A plain view controller never shown: its view is in no window.
         try assertPresenterFailsCheckout(
+            from: UIViewController(),
+            expecting: PaymentOrchestrator.payPalApprovalPresenterOffScreenMessage
+        )
+    }
+
+    /// A cleartext URL on a loopback host gets past the URL check: the checkout then fails only on the screen, which is
+    /// in no window, so the failure names the screen and not the URL, and nothing is presented.
+    func test_presentPayPalApproval_cleartextLoopbackApprovalURL_passesURLGuard() throws {
+        try assertPresenterFailsCheckout(
+            approvalURLString: "http://localhost:9011/approve",
             from: UIViewController(),
             expecting: PaymentOrchestrator.payPalApprovalPresenterOffScreenMessage
         )
