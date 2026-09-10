@@ -11,6 +11,7 @@ final class TestForwardPaymentPurchaseCoordinator: XCTestCase {
     private let executeId = "forward-payment-purchase-coordinator-test"
 
     private var originalTagId: String?
+    private var originalHTTPClient: HTTPClientAdapter?
 
     private let forwardPaymentTestTagId = "test-tag-id"
 
@@ -18,12 +19,14 @@ final class TestForwardPaymentPurchaseCoordinator: XCTestCase {
         super.setUp()
         Rokt.setEnvironment(environment: .Prod)
         originalTagId = Rokt.shared.roktImplementation.roktTagId
+        originalHTTPClient = NetworkingHelper.shared.httpClient
         Rokt.shared.roktImplementation.roktTagId = forwardPaymentTestTagId
         PaymentOrchestrator.resetBuiltInTwoStepDeferredStateForTesting()
     }
 
     override func tearDown() {
         PaymentOrchestrator.resetBuiltInTwoStepDeferredStateForTesting()
+        NetworkingHelper.shared.httpClient = originalHTTPClient
         Rokt.shared.roktImplementation.roktTagId = originalTagId
         super.tearDown()
     }

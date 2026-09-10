@@ -15,6 +15,7 @@ final class TestBuiltInTwoStepCheckoutBinding: XCTestCase {
     private let forwardPaymentTestTagId = "test-tag-id"
 
     private var originalTagId: String?
+    private var originalHTTPClient: HTTPClientAdapter?
 
     /// Scratch session store so `clearSession()` never touches `UserDefaults.standard` in tests.
     private final class ScratchTxnStore: TxnSessionStore {
@@ -28,12 +29,14 @@ final class TestBuiltInTwoStepCheckoutBinding: XCTestCase {
         super.setUp()
         Rokt.setEnvironment(environment: .Prod)
         originalTagId = Rokt.shared.roktImplementation.roktTagId
+        originalHTTPClient = NetworkingHelper.shared.httpClient
         Rokt.shared.roktImplementation.roktTagId = forwardPaymentTestTagId
         PaymentOrchestrator.resetBuiltInTwoStepDeferredStateForTesting()
     }
 
     override func tearDown() {
         PaymentOrchestrator.resetBuiltInTwoStepDeferredStateForTesting()
+        NetworkingHelper.shared.httpClient = originalHTTPClient
         Rokt.shared.roktImplementation.roktTagId = originalTagId
         super.tearDown()
     }

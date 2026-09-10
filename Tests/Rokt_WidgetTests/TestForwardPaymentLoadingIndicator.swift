@@ -13,15 +13,18 @@ final class TestForwardPaymentLoadingIndicator: XCTestCase {
     private let executeId = "test-execute-id"
 
     private var originalTagId: String?
+    private var originalHTTPClient: HTTPClientAdapter?
 
     override func setUp() {
         super.setUp()
         Rokt.setEnvironment(environment: .Prod)
         originalTagId = Rokt.shared.roktImplementation.roktTagId
+        originalHTTPClient = NetworkingHelper.shared.httpClient
         Rokt.shared.roktImplementation.roktTagId = "test-tag-id"
     }
 
     override func tearDown() {
+        NetworkingHelper.shared.httpClient = originalHTTPClient
         Rokt.shared.roktImplementation.roktTagId = originalTagId
         super.tearDown()
     }
