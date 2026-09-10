@@ -184,12 +184,14 @@ final class PaymentOrchestrator {
 
         /// Whether a confirm for another item must leave its checkout pending for now: while this checkout's sheet is
         /// still being put up, or is up and in a window (``PayPalCheckoutCoordinator/isApprovalSheetOnScreen``),
-        /// whatever the phase. The sheet is never interrupted from here, so it holds later confirms back for as long
-        /// as it is on screen. A sheet the host took off screen without a cancel or a return (a screen it replaced, a
-        /// modal it dismissed itself) reports nothing and its checkout never completes, so it lets later confirms
-        /// through: with its layout still open, nothing else would ever run to release them, and PayPal would be
-        /// blocked for the rest of the process. A checkout that is gone can never complete either, and holds nothing
-        /// back. Read on the main thread.
+        /// whatever the phase and whether or not the checkout has finished. The sheet is never interrupted from here,
+        /// so it holds later confirms back for as long as it is on screen: a checkout its return link finished still
+        /// holds them back while its sheet animates away, until the dismissal completes and its callback removes this
+        /// mark. A sheet the host took off screen without a cancel or a return (a screen it replaced, a modal it
+        /// dismissed itself) reports nothing and its checkout never completes, so it lets later confirms through: with
+        /// its layout still open, nothing else would ever run to release them, and PayPal would be blocked for the rest
+        /// of the process. A checkout that is gone can never complete either, and holds nothing back. Read on the main
+        /// thread.
         var holdsBackOtherApprovals: Bool {
             coordinator?.isApprovalSheetOnScreen ?? false
         }
@@ -232,7 +234,8 @@ final class PaymentOrchestrator {
     /// reporting back: its placement closed while it waited for its Step-1 response or for its confirm, a PayPal
     /// approval was cancelled after its placement closed, a card purchase failed retryably after its placement closed,
     /// the session was cleared, or the mark of a PayPal approval the host tore down without a cancel or a return was
-    /// pruned once its checkout was gone. State kept for the execute can then be checked again.
+    /// pruned once its checkout was gone, by the presentation that released that checkout or by a later pass. State
+    /// kept for the execute can then be checked again.
     var onExecuteHasNoOutstandingCheckout: ((String) -> Void)?
 
     init(
@@ -577,9 +580,12 @@ final class PaymentOrchestrator {
     /// (``requeuePendingBuiltInPayPalAfterForwardPaymentCancel(key:snapshot:owner:)``).
     ///
     /// A mark left by an approval whose checkout is gone (a sheet the host tore down without a cancel or a return,
-    /// whose checkout a later presentation then released) is pruned on the way in and reported the way a fence reports
-    /// the marks it prunes: once this confirm has decided what it starts, every execute so affected that is left with
-    /// no checkout outstanding is reported through ``onExecuteHasNoOutstandingCheckout``.
+    /// whose checkout the orchestrator that held it then released) is pruned on the way in and reported the way a fence
+    /// reports the marks it prunes: once this confirm has decided what it starts, every execute so affected that is
+    /// left with no checkout outstanding is reported through ``onExecuteHasNoOutstandingCheckout``. The presentation
+    /// this confirm starts releases the checkout before it when it replaces ``activePayPalCheckout``, on the main queue;
+    /// the mark of a torn-down sheet that release orphans is pruned and its execute reported right there
+    /// (``pruneAbandonedPresentedBuiltInPayPalAndReport()``), not left to a later pass that may never run.
     ///
     /// - Parameters:
     ///   - key: item and placement of the Step-2 confirm; only that item's pending PayPal checkout is consumed.
@@ -597,9 +603,11 @@ final class PaymentOrchestrator {
         onCompletion: @escaping (PaymentSheetResult) -> Void
     ) -> Bool {
         Self.pendingBuiltInTwoStepLock.lock()
-        // Reported on the way out, after every exit below has released the lock and this confirm has decided what it
-        // starts: the report skips an execute that still has a checkout outstanding, the one this confirm presents or
-        // leaves pending included.
+        // The pass on the way in: marks whose checkout was already gone when this confirm arrived (the orchestrator
+        // that held it went away). Reported on the way out, after every exit below has released the lock and this
+        // confirm has decided what it starts: the report skips an execute that still has a checkout outstanding, the
+        // one this confirm presents or leaves pending included. The mark this confirm's own presentation orphans is
+        // pruned and reported by that presentation, on the main queue, once it has released the checkout.
         let prunedExecuteIds = Set(Self.pruneAbandonedPresentedBuiltInPayPal().map(\.executeId))
         defer { prunedExecuteIds.forEach(reportIfNoOutstandingCheckout(forExecuteId:)) }
         // This item's approval sheet is already up: a repeated confirm has nothing to start, and is not a card purchase.
@@ -630,9 +638,10 @@ final class PaymentOrchestrator {
         // pending for a confirm after the current sheet ends. A sheet is not interrupted from here, whether or not its
         // placement has closed, so it holds later confirms back for as long as it is still being put up or is still on
         // screen; once the host has torn it down without reporting back it no longer does, so it cannot block PayPal
-        // for the rest of the process. A checkout also stops holding confirms back the moment it finishes, while its
-        // callback still waits for its sheet to dismiss, which is why that callback clears ``activePayPalCheckout``
-        // only when it still names its own checkout.
+        // for the rest of the process. A checkout that finished still holds confirms back while its sheet animates
+        // away: its callback, which runs when the dismissal completes, removes the mark and clears
+        // ``activePayPalCheckout``, and clears it only when it still names its own checkout, because a checkout whose
+        // sheet the host tore down can report back late, after another sheet has been presented in its place.
         guard !Self.presentedBuiltInPayPalCheckouts.values.contains(where: \.holdsBackOtherApprovals) else {
             Self.pendingBuiltInTwoStepLock.unlock()
             RoktLogger.shared.warning("PayPal approval not started: another PayPal approval is already on screen.")
@@ -700,6 +709,10 @@ final class PaymentOrchestrator {
                 return
             }
             self.activePayPalCheckout = coordinator
+            // That assignment released the checkout before this one, the last thing holding a sheet the host may have
+            // torn down without a cancel or a return; the mark such a sheet leaves is pruned and its execute reported
+            // here, not left to a later pass that may never run.
+            self.pruneAbandonedPresentedBuiltInPayPalAndReport()
             self.payPalApprovalPresenter.presentPayPalApproval(
                 approvalURL: snapshot.approvalURL,
                 from: viewController,
@@ -989,7 +1002,9 @@ final class PaymentOrchestrator {
     /// execute's state keeper before it drops the execute's state, so a result that arrives after every placement
     /// closed still has somewhere to report. A mark whose checkout is gone can never report back and does not count,
     /// but this read leaves it in place: it runs inside the state keeper's own check, so it changes none of the tables
-    /// and reports nothing. The next fence, confirm or Step-1 response prunes the mark and reports its execute.
+    /// and reports nothing. The presentation that releases a checkout prunes the mark it leaves and reports its execute
+    /// (``pruneAbandonedPresentedBuiltInPayPalAndReport()``); a fence, confirm or Step-1 response prunes any mark left
+    /// by an orchestrator that went away.
     func hasOutstandingBuiltInTwoStepCheckout(forExecuteId executeId: String) -> Bool {
         Self.pendingBuiltInTwoStepLock.lock()
         defer { Self.pendingBuiltInTwoStepLock.unlock() }
@@ -1011,6 +1026,19 @@ final class PaymentOrchestrator {
         DispatchQueue.main.async {
             report?(executeId)
         }
+    }
+
+    /// Prunes the marks of approvals whose checkout is gone and, once the lock is released, reports each execute so
+    /// left with nothing outstanding. Run on the main queue right after a presentation has replaced
+    /// ``activePayPalCheckout``: that was the last reference to the checkout before it, so the mark of a sheet the host
+    /// tore down without a cancel or a return becomes prunable at this very step, and nothing else is bound to run
+    /// afterwards. The report's own re-check skips an execute that still has a checkout outstanding, the one just
+    /// presented included.
+    private func pruneAbandonedPresentedBuiltInPayPalAndReport() {
+        Self.pendingBuiltInTwoStepLock.lock()
+        let prunedExecuteIds = Set(Self.pruneAbandonedPresentedBuiltInPayPal().map(\.executeId))
+        Self.pendingBuiltInTwoStepLock.unlock()
+        prunedExecuteIds.forEach(reportIfNoOutstandingCheckout(forExecuteId:))
     }
 
     // Clears static deferred state without invoking a completion (unit tests).
@@ -1062,13 +1090,15 @@ final class PaymentOrchestrator {
     }
 
     /// Drops marks whose checkout is gone, whatever their phase. A sheet the host tore down without a cancel or a
-    /// return never completes, so nothing else would remove its mark; once its checkout has been released (the next
-    /// presentation replaces it, or the orchestrator that held it is gone) the mark can never be read again and is
-    /// pruned here, under the lock, so abandoned approvals do not accumulate for the life of the process. A mark whose
-    /// checkout is still alive is kept even when its sheet is already gone: a late cancel or return may still reach
-    /// that checkout, and the mark is what tells a cancel whether to re-queue the entry or drop it. Such a mark no
-    /// longer holds other approvals back (``PresentedBuiltInPayPalCheckout/holdsBackOtherApprovals``); a repeated
-    /// confirm for its own item does nothing until the mark goes.
+    /// return never completes, so nothing else would remove its mark; once its checkout has been released the mark can
+    /// never be read again and is pruned here, under the lock, so abandoned approvals do not accumulate for the life of
+    /// the process. Two moments release such a checkout, and each runs this pass: the next presentation replaces it
+    /// (``pruneAbandonedPresentedBuiltInPayPalAndReport()``, right after the replacement), or the orchestrator that held
+    /// it goes away (the next fence, confirm or Step-1 response). A mark whose checkout is still alive is kept even
+    /// when its sheet is already gone: a late cancel or return may still reach that checkout, and the mark is what
+    /// tells a cancel whether to re-queue the entry or drop it. Such a mark no longer holds other approvals back
+    /// (``PresentedBuiltInPayPalCheckout/holdsBackOtherApprovals``); a repeated confirm for its own item does nothing
+    /// until the mark goes.
     ///
     /// - Returns: the keys of the marks pruned. Every caller reports each execute a pruned mark left with nothing
     ///   outstanding once it has released the lock (``reportIfNoOutstandingCheckout(forExecuteId:)``), so the result

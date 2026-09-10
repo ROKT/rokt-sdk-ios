@@ -58,19 +58,21 @@ final class PayPalCheckoutCoordinator {
     weak var presentingCheckoutViewController: UIViewController?
 
     /// Whether this checkout's approval sheet still holds the screen, so no other PayPal approval may be presented
-    /// over it. Read on the main thread. `false` once the checkout has finished; `true` while the presenter is still
-    /// putting the sheet up and has not handed it over yet. After the hand-over the sheet counts as on screen while
-    /// its view is in a window: a sheet the host released, or took off screen with the view hierarchy it replaced,
-    /// reads as gone even though no cancel or return will ever report it. The wait for a hand-over ends:
-    /// ``PayPalApprovalWebPresenter`` hands over every sheet UIKit accepts and fails the checkout for one it would
-    /// drop, so a sheet that was never shown does not read as on screen for good.
+    /// over it. Read on the main thread. Before the presenter has handed a sheet over, `true` while the checkout is
+    /// still going (the sheet is being put up) and `false` once it has finished: a checkout that failed before any
+    /// sheet was shown holds nothing. After the hand-over the sheet counts as on screen while its view is in a window,
+    /// whether or not the checkout has finished: a checkout its return link finished is still on screen while its sheet
+    /// animates away, and stops being when the dismissal completes and its callback runs; a sheet the host released, or
+    /// took off screen with the view hierarchy it replaced, reads as gone even though no cancel or return will ever
+    /// report it. The wait for a hand-over ends: ``PayPalApprovalWebPresenter`` hands over every sheet UIKit accepts
+    /// and fails the checkout for one it would drop, so a sheet that was never shown does not read as on screen for
+    /// good.
     var isApprovalSheetOnScreen: Bool {
         lock.lock()
         let isFinished = finished
         let isAttached = sheetAttached
         lock.unlock()
-        if isFinished { return false }
-        guard isAttached else { return true }
+        guard isAttached else { return !isFinished }
         return presentingCheckoutViewController?.viewIfLoaded?.window != nil
     }
 

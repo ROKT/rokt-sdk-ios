@@ -706,9 +706,10 @@ final class TestBuiltInTwoStepCheckoutBinding: XCTestCase {
     }
 
     /// A PayPal approval sheet is up when its placement closes; the host then tears the sheet down without a cancel or
-    /// a return, and a later approval for another execute presents in its place and releases the checkout. The mark
-    /// left behind is pruned by the next confirm, and the execute it belonged to, which nothing else holds, goes with it.
-    func test_layoutClosed_whileItsPayPalSheetIsUp_thenTheSheetIsTornDownAndItsCheckoutReleased_releasesTheExecutesState() {
+    /// a return, and a later approval for another execute presents in its place and releases the checkout. That same
+    /// presentation prunes the mark left behind and reports the execute it belonged to, which nothing else holds, so
+    /// the state kept for it and the tap's flag go at once rather than on some later pass.
+    func test_layoutClosed_whileItsPayPalSheetIsUp_thenTheNextApprovalReleasesItsTornDownCheckout_releasesTheStateAtOnce() {
         let impl = RoktInternalImplementation()
         let presenter = HoldingPayPalApprovalPresenter()
         impl.paymentOrchestratorForTesting = PaymentOrchestrator(
@@ -772,7 +773,8 @@ final class TestBuiltInTwoStepCheckoutBinding: XCTestCase {
         XCTAssertNotNil(impl.stateManager.getState(id: executeId), "The state is kept while the checkout can still report back")
 
         // Another execute's item is confirmed; its approval presents in place of the sheet that is gone, and the first
-        // checkout, held by nothing else, is released. Its mark stays until a later pass prunes it, and so does the state.
+        // checkout, held by nothing else, is released. The presentation that released it prunes its mark and reports the
+        // first execute; nothing else holds that execute's state, so the state goes and the tap's flag with it.
         startPayPalStepOne(
             executeId: "other-execute",
             layoutId: "layout-2",
@@ -784,15 +786,15 @@ final class TestBuiltInTwoStepCheckoutBinding: XCTestCase {
         impl.handleForwardPayment(executeId: "other-execute", event: otherConfirm)
         drainMainQueue()
         XCTAssertEqual(presenter.presentCallCount, 2, "The other execute's approval sheet is presented")
-        XCTAssertNotNil(impl.stateManager.getState(id: executeId), "The mark is pruned only on a later pass")
+        XCTAssertFalse(bag.instantPurchaseInitiated, "An approval that never reports back can never clear the flag itself")
+        XCTAssertNil(impl.stateManager.getState(id: executeId), "Nothing holds the state once the abandoned mark is pruned")
+        XCTAssertNotNil(impl.stateManager.getState(id: "other-execute"), "The approval still up keeps its own execute")
 
-        // A repeated confirm for the other item has nothing to start, but prunes the first mark and reports the first
-        // execute; nothing else holds that execute's state, so the state goes and the tap's flag with it.
+        // A repeated confirm for the other item has nothing to start and changes nothing.
         impl.handleForwardPayment(executeId: "other-execute", event: otherConfirm)
         drainMainQueue()
         XCTAssertEqual(presenter.presentCallCount, 2, "A repeated confirm for an approval already up presents nothing")
-        XCTAssertFalse(bag.instantPurchaseInitiated, "An approval that never reports back can never clear the flag itself")
-        XCTAssertNil(impl.stateManager.getState(id: executeId), "Nothing holds the state once the abandoned mark is pruned")
+        XCTAssertNil(impl.stateManager.getState(id: executeId))
         XCTAssertNotNil(impl.stateManager.getState(id: "other-execute"), "The approval still up keeps its own execute")
     }
 
