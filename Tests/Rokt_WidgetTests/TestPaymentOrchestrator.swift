@@ -2265,6 +2265,74 @@ class TestPaymentOrchestrator: XCTestCase {
         XCTAssertEqual(sut.unitTest_presentedBuiltInPayPalCount(), 0, "No mark is left for an abandoned approval")
     }
 
+    func test_presentPendingBuiltInPayPal_aSheetTheHostTookOffScreenWithoutReporting_holdsALaterItemOnlyUntilItIsGone() {
+        let payPalPresenter = HoldingPayPalApprovalPresenter()
+        sut = PaymentOrchestrator(
+            apiHelper: PaymentOrchestratorAPIHelperSpy.self,
+            payPalApprovalPresenter: payPalPresenter
+        )
+        // Held strongly until the deferred presents have run; the pending checkouts only keep a weak reference.
+        let presentingViewController = UIViewController()
+        var firstResult: PaymentSheetResult?
+        var secondResult: PaymentSheetResult?
+        func startStepOne(cartItemId: String, orderId: String, completion: @escaping (PaymentSheetResult) -> Void) {
+            PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse =
+                Self.validPayPalInitializePurchaseResponse(orderId: orderId)
+            sut.processPayment(
+                method: .paypal,
+                item: PaymentItem(id: "p1", name: "P", amount: 1, currency: "USD"),
+                context: PaymentContext(
+                    billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                    returnURL: "myapp://paypal/success",
+                    cancelURL: nil
+                ),
+                cartItemId: cartItemId,
+                from: presentingViewController,
+                builtInPayPalDevicePaySession: paypalDeviceSessionForTests(),
+                completion: completion
+            )
+        }
+        startStepOne(cartItemId: "v1:cart:1", orderId: "ORDER_1") { firstResult = $0 }
+        startStepOne(cartItemId: "v1:cart:2", orderId: "ORDER_2") { secondResult = $0 }
+        let firstKey = testKey(cartItemId: "v1:cart:1")
+        let secondKey = testKey(cartItemId: "v1:cart:2")
+
+        // The first item's sheet is still being put up when the second confirm arrives: the presenter has not handed
+        // it over yet, so there is no window to read, and the second item must still wait.
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: firstKey) { _ in })
+        XCTAssertTrue(
+            sut.presentPendingBuiltInPayPalForForwardPayment(for: secondKey) { _ in
+                XCTFail("The second item is not presented while the first sheet is being put up")
+            },
+            "The second confirm stays on the PayPal path instead of running a card purchase"
+        )
+        drainMainQueue()
+        XCTAssertEqual(payPalPresenter.presentCallCount, 1, "Only one approval sheet is presented")
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: secondKey), "The second item waits for a later confirm")
+
+        // The host takes the first sheet off screen (for example by dismissing every modal on a deep link) without a
+        // cancel or a return ever reporting back, and without the layout closing: no lifecycle event fences the entry.
+        payPalPresenter.presentedSheets.last?.tearDown()
+
+        // The second item's confirm must not be held back by a sheet that is gone.
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: secondKey) { _ in })
+        drainMainQueue()
+        XCTAssertEqual(payPalPresenter.presentCallCount, 2, "The second item's approval sheet is presented")
+        XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: secondKey), "The second item's checkout was started")
+        XCTAssertNil(firstResult, "The first approval never reported back, so nothing is owed for it")
+
+        // The second order's return link completes the second checkout.
+        XCTAssertTrue(sut.handleURLCallback(with: URL(string: "myapp://paypal/success?token=ORDER_2")!))
+        drainMainQueue()
+        XCTAssertEqual(secondResult?.outcome, .succeeded)
+        XCTAssertEqual(secondResult?.transactionId, "ORDER_2")
+
+        // The first item's mark, whose checkout was released when the second presentation replaced it, is pruned on
+        // the next pass even though its layout never closed; nothing accumulates.
+        XCTAssertFalse(sut.presentPendingBuiltInPayPalForForwardPayment(for: secondKey) { _ in })
+        XCTAssertEqual(sut.unitTest_presentedBuiltInPayPalCount(), 0, "No mark is left for an abandoned approval")
+    }
+
     func test_presentPendingBuiltInPayPal_afterItsLayoutClosedWhileItsSheetIsStillUp_aLaterItemWaitsUntilThatSheetEnds() {
         let payPalPresenter = HoldingPayPalApprovalPresenter()
         var firstResult: PaymentSheetResult?
