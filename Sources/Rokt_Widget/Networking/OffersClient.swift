@@ -12,7 +12,13 @@ internal struct OffersClient {
     var deviceHeaders: [String: String] = [:]
     var httpClient: HTTPClientAdapter = RoktHTTPClient()
 
-    func fetchOffers(input: OffersInput) async throws -> (Data?, HTTPURLResponse?) {
+    /// `handOff` encloses the one call that gives the request to the network stack. It either runs `start`, which
+    /// sends, or throws without running it, in which case nothing is sent and the caller receives that error. The
+    /// default sends unconditionally. A caller uses it to make its decision to send atomic with the send itself.
+    func fetchOffers(
+        input: OffersInput,
+        handOff: (_ start: () -> Void) throws -> Void = { start in start() }
+    ) async throws -> (Data?, HTTPURLResponse?) {
         let url = baseURL
             .appendingPathComponent("v2")
             .appendingPathComponent("sessions")
@@ -46,23 +52,35 @@ internal struct OffersClient {
         }
 
         return try await withCheckedThrowingContinuation { continuation in
-            httpClient.startRequestWith(
-                urlAddress: url.absoluteString,
-                method: .post,
-                parameters: bodyParameters,
-                parameterArray: nil,
-                headers: headers,
-                onRequestStart: nil,
-                requestTimeout: nil,
-                completionQueue: .main,
-                completionHandler: { result in
-                    if let error = result.responseError {
-                        continuation.resume(throwing: error)
-                    } else {
-                        continuation.resume(returning: (result.responseData, result.httpURLResponse))
-                    }
+            // The continuation is resumed exactly once: `start` is the only call that arms the completion handler,
+            // so a hand-off that declined never fires it and the catch below is the one resume; a hand-off that ran
+            // `start` leaves the resume to the completion handler, whatever it does afterwards.
+            var started = false
+            do {
+                try handOff {
+                    started = true
+                    httpClient.startRequestWith(
+                        urlAddress: url.absoluteString,
+                        method: .post,
+                        parameters: bodyParameters,
+                        parameterArray: nil,
+                        headers: headers,
+                        onRequestStart: nil,
+                        requestTimeout: nil,
+                        completionQueue: .main,
+                        completionHandler: { result in
+                            if let error = result.responseError {
+                                continuation.resume(throwing: error)
+                            } else {
+                                continuation.resume(returning: (result.responseData, result.httpURLResponse))
+                            }
+                        }
+                    )
                 }
-            )
+            } catch {
+                guard !started else { return }
+                continuation.resume(throwing: error)
+            }
         }
     }
 }

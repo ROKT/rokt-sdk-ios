@@ -424,7 +424,11 @@ final class TestOffersService: XCTestCase {
             viewName: "checkout",
             attributes: [:],
             config: nil,
-            shouldSend: { !sessionReset },
+            sendGate: { start in
+                guard !sessionReset else { return false }
+                start()
+                return true
+            },
             successLayout: { _ in XCTFail("unexpected success") },
             failure: { error, statusCode, _ in
                 XCTAssertEqual(error as? OffersService.OffersError, .discardedBeforeSend)
@@ -449,7 +453,11 @@ final class TestOffersService: XCTestCase {
             viewName: "checkout",
             attributes: [:],
             config: nil,
-            shouldSend: { !sessionReset },
+            sendGate: { start in
+                guard !sessionReset else { return false }
+                start()
+                return true
+            },
             successLayout: { _ in XCTFail("unexpected success") },
             failure: { error, statusCode, _ in
                 XCTAssertEqual(error as? OffersService.OffersError, .discardedBeforeSend)
@@ -460,6 +468,60 @@ final class TestOffersService: XCTestCase {
 
         wait(for: [discarded], timeout: 5)
         XCTAssertEqual(stub.requestCount, 1, "the departing customer's attributes and token are not sent again")
+    }
+
+    /// The gate is asked at the hand-off, with the send as its action: the request leaves only when the gate runs
+    /// that action, and a gate that declines leaves the transport untouched and fails the placement as a discard.
+    func test_getExperienceData_sendGateEnclosesTheHandOff_sendsOnlyWhenTheGateRunsIt() {
+        let stub = StubHTTPClient(responseData: Data(offersResponse.utf8), statusCode: 200)
+        let service = makeService(stub)
+
+        // Declined: the gate is asked once, does not run the send, and nothing reaches the transport.
+        var declinedGateAsked = 0
+        let discarded = expectation(description: "a declined hand-off fails as a discard")
+        service.getExperienceData(
+            viewName: "checkout",
+            attributes: [:],
+            config: nil,
+            sendGate: { _ in
+                declinedGateAsked += 1
+                return false
+            },
+            successLayout: { _ in XCTFail("unexpected success") },
+            failure: { error, statusCode, _ in
+                XCTAssertEqual(error as? OffersService.OffersError, .discardedBeforeSend)
+                XCTAssertNil(statusCode, "a discard carries no status code")
+                discarded.fulfill()
+            }
+        )
+        wait(for: [discarded], timeout: 5)
+        XCTAssertEqual(declinedGateAsked, 1, "a declined hand-off is not retried")
+        XCTAssertEqual(stub.requestCount, 0, "nothing reaches the transport when the gate does not run the send")
+
+        // Allowed: the send happens inside the gate's action and nowhere else.
+        var requestsBeforeStart: Int?
+        var requestsAfterStart: Int?
+        let completed = expectation(description: "an allowed hand-off sends the request")
+        service.getExperienceData(
+            viewName: "checkout",
+            attributes: [:],
+            config: nil,
+            sendGate: { start in
+                requestsBeforeStart = stub.requestCount
+                start()
+                requestsAfterStart = stub.requestCount
+                return true
+            },
+            successLayout: { page in
+                XCTAssertNotNil(page)
+                completed.fulfill()
+            },
+            failure: { error, _, _ in XCTFail("unexpected failure: \(error)") }
+        )
+        wait(for: [completed], timeout: 5)
+        XCTAssertEqual(requestsBeforeStart, 0, "the request is not sent before the gate runs the hand-off")
+        XCTAssertEqual(requestsAfterStart, 1, "running the hand-off is what sends the request")
+        XCTAssertEqual(stub.requestCount, 1)
     }
 
     func test_getExperienceData_doesNotRetryNonTransportError() {

@@ -29,7 +29,8 @@ internal struct OffersService {
     // Real-time event store seams (injected for tests).
     let triggeredEvents: () -> [TriggeredRealTimeEvent]
     let captureEvents: ([UntriggeredRealTimeEvent]) -> Void
-    // Test-only hook, run on the sending task just before the first `shouldSend` check; nil in production.
+    // Test-only hook, run on the sending task just before the session token is read and the request is built;
+    // nil in production.
     var unitTest_beforeSend: (() -> Void)?
 
     init(
@@ -79,18 +80,20 @@ internal struct OffersService {
     /// Builds the request from the partner inputs, fetches the experience, and reports
     /// the experience string (or failure) on ``completionQueue``.
     ///
-    /// `shouldSend` is asked on the task that sends: once just before the session token is read and the
-    /// request is built, and again after each retry backoff, just before the same request is sent again.
-    /// When it answers false nothing further is sent and `failure` receives
-    /// ``OffersError/discardedBeforeSend`` with no status code. The caller uses it to check that the session
-    /// the placement started in is still the current one: the service is built while that is true, but the
-    /// send runs on its own task, and a reset can land in between or during a backoff.
+    /// `sendGate` runs the hand-off of one request to the network stack only while the session the placement
+    /// started in is still the current one, and says whether it ran. It is asked on the task that sends, for the
+    /// first attempt and again for each retry, and each time it encloses exactly the call that gives the request to
+    /// the transport: a session reset then lands wholly before the hand-off, and nothing is sent, or wholly after it,
+    /// when the request is already with the network stack and the caller's fences discard its response. The service
+    /// is built while the session is current, but the send runs on its own task, and a reset can land in between or
+    /// during a backoff. When the gate declines, nothing further is sent and `failure` receives
+    /// ``OffersError/discardedBeforeSend`` with no status code.
     func getExperienceData(
         viewName: String?,
         attributes: [String: String],
         config: RoktConfig?,
         onRequestStart: (() -> Void)? = nil,
-        shouldSend: @escaping () -> Bool = { true },
+        sendGate: @escaping (_ handOff: () -> Void) -> Bool = { handOff in handOff(); return true },
         successLayout: ((String?) -> Void)? = nil,
         failure: ((Error, Int?, String) -> Void)? = nil
     ) {
@@ -107,16 +110,12 @@ internal struct OffersService {
         Task {
             do {
                 unitTest_beforeSend?()
-                // Checked here, on the sending task, and not only when the service was built: a session reset
-                // that landed in between means these attributes belong to the customer who left, and the token
-                // this service restored is theirs too. Neither goes on the wire.
-                guard shouldSend() else { throw OffersError.discardedBeforeSend }
                 let experience = try await fetchExperienceString(
                     pageIdentifier: viewName ?? "",
                     attributes: enrichedAttributes,
                     privacyControl: privacyControl,
                     privacy: privacy,
-                    shouldSend: shouldSend
+                    sendGate: sendGate
                 )
                 completionQueue.async { successLayout?(experience) }
             } catch {
@@ -131,7 +130,7 @@ internal struct OffersService {
         attributes: [String: String],
         privacyControl: SelectPrivacyControl?,
         privacy: SelectPrivacy?,
-        shouldSend: () -> Bool
+        sendGate: (_ handOff: () -> Void) -> Bool
     ) async throws -> String {
         guard let baseURL = URL(string: environment.gatewayBaseURL) else {
             throw OffersError.invalidBaseURL
@@ -143,6 +142,9 @@ internal struct OffersService {
         let pageInstanceGuid = makePageInstanceGuid()
         let requestId = makeRequestId()
 
+        // The token this service restored when it was built. A session reset after that never changes it, so it
+        // need not be read under the fence: what the fence encloses is the hand-off below, which decides whether this
+        // token and these attributes leave the device at all.
         let authToken = await sessionManager.authorizationHeader
         let client = makeOffersClient(baseURL: baseURL, pageInstanceGuid: pageInstanceGuid, authToken: authToken)
         // Forward events triggered during the previous placement.
@@ -159,7 +161,13 @@ internal struct OffersService {
         var attempt = 0
         while true {
             do {
-                let (data, response) = try await client.fetchOffers(input: input)
+                // The gate encloses exactly the hand-off to the network stack, for the first attempt and every retry:
+                // a session reset lands wholly before it, and this request (the departing customer's attributes and
+                // token) is never sent, or wholly after it, and the caller discards the response. A declined
+                // hand-off throws discardedBeforeSend, which is not a transport failure and so is not retried below.
+                let (data, response) = try await client.fetchOffers(input: input) { start in
+                    guard sendGate(start) else { throw OffersError.discardedBeforeSend }
+                }
                 let statusCode = response?.statusCode ?? 0
 
                 // A 401 from offers is not expected — the gateway mints a fresh session even
@@ -175,9 +183,8 @@ internal struct OffersService {
 
                 if isRetryable(statusCode: statusCode), attempt < maxRetries {
                     try await sleep(backoffDelay(attempt: attempt))
-                    // The retry re-sends the attributes and token captured above. A session reset that landed
-                    // during the backoff means they belong to the customer who left; nothing more goes on the wire.
-                    guard shouldSend() else { throw OffersError.discardedBeforeSend }
+                    // The retry re-sends the attributes and token captured above; the gate on the hand-off decides
+                    // again whether they may go.
                     attempt += 1
                     continue
                 }
@@ -205,9 +212,6 @@ internal struct OffersService {
                 return raw
             } catch let error where isRetryable(error: error) && attempt < maxRetries {
                 try await sleep(backoffDelay(attempt: attempt))
-                // Same check as the status-code retry above; the error is not a transport failure, so it is
-                // not caught here and reaches the caller as a discard.
-                guard shouldSend() else { throw OffersError.discardedBeforeSend }
                 attempt += 1
                 continue
             }

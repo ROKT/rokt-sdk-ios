@@ -113,7 +113,9 @@ class RoktInternalImplementation {
     // generation is discarded. Covers what the txn store's epoch does not: the legacy session id,
     // the real-time event store, the experience cache and the render itself.
     private var sessionGeneration = 0
-    // Recursive so a managed session invalidated under the lock may read the generation.
+    // Recursive so a managed session invalidated under the lock may read the generation. Held only for bounded local
+    // work (a commit's parse, a placement's start, and the synchronous hand-off of one offers request to the network
+    // stack in handOffIfCurrent) and never across a wait on a response.
     private let sessionGenerationLock = NSRecursiveLock()
 
     // Caching is disabled by default when no CacheConfig is provided to the Builder.
@@ -1274,6 +1276,18 @@ class RoktInternalImplementation {
         return true
     }
 
+    /// Runs `handOff` under the generation lock while `generation` is still current and returns true; returns false,
+    /// running nothing, once clearSession has moved the generation. The hand-off is the one call that gives a
+    /// placement's offers request to the network stack: a synchronous enqueue (the URLRequest is built and a
+    /// URLSession task is resumed) that returns as soon as the request is queued and never waits on its response.
+    /// Held there, the lock makes the decision to send and the send itself one step: a clearSession on another queue
+    /// lands wholly before it, and nothing is sent for the departing customer, or wholly after it, when the request is
+    /// already queued and its response is discarded by commitIfCurrent with nothing from it persisted. The hold is
+    /// bounded by that enqueue, never by the network; keep it that way.
+    func handOffIfCurrent(generation: Int, _ handOff: () -> Void) -> Bool {
+        commitIfCurrent(generation: generation, handOff)
+    }
+
     // The offers response echoes events for the next placement to forward. Captured after a
     // clearSession, they would re-seed the store that call just emptied.
     func captureUntriggeredEvents(_ events: [UntriggeredRealTimeEvent], generation: Int) {
@@ -1571,16 +1585,19 @@ class RoktInternalImplementation {
                             return
                         }
                         // The send runs on its own task after the lock above is released, so the generation is checked
-                        // again there: just before the token is read and the request is built, and after each retry
-                        // backoff before the request is re-sent. A clearSession that lands between the build and a
-                        // check means nothing more is sent; the failure comes back as `discardedBeforeSend` and takes
-                        // the discard branch of `onFailure`.
+                        // again there, at the one point that matters: the hand-off of the request to the network stack,
+                        // for the first attempt and every retry, runs under the generation lock and only while the
+                        // generation is still current. A clearSession lands wholly before that hand-off (nothing is
+                        // sent, and the failure comes back as `discardedBeforeSend` and takes the discard branch of
+                        // `onFailure`) or wholly after it, when the fences above discard the response.
                         offersService.getExperienceData(
                             viewName: viewName,
                             attributes: attributes,
                             config: self.roktConfig,
                             onRequestStart: onExperiencesRequestStart,
-                            shouldSend: { [weak self] in self?.currentSessionGeneration() == generation },
+                            sendGate: { [weak self] handOff in
+                                self?.handOffIfCurrent(generation: generation, handOff) ?? false
+                            },
                             successLayout: onSuccess,
                             failure: onFailure
                         )

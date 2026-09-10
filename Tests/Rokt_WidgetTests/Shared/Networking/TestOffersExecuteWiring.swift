@@ -85,6 +85,8 @@ final class TestOffersExecuteWiring: XCTestCase {
         private let lock = NSLock()
         private var pending: (() -> Void)?
         private var requests = 0
+        /// Runs inside `startRequestWith`, before the request is recorded: a seam inside the hand-off itself.
+        var onStartRequest: (() -> Void)?
         init(data: Data?, status: Int) {
             self.data = data
             self.status = status
@@ -118,6 +120,7 @@ final class TestOffersExecuteWiring: XCTestCase {
             completionQueue: DispatchQueue,
             completionHandler: ((RoktHTTPRequestResult) -> Void)?
         ) -> URLRequest? {
+            onStartRequest?()
             let url = URL(string: urlAddress) ?? URL(string: Environment.Prod.gatewayBaseURL)!
             let result = RoktHTTPRequestResult(
                 httpURLResponse: HTTPURLResponse(url: url, statusCode: status, httpVersion: nil, headerFields: nil),
@@ -806,7 +809,8 @@ final class TestOffersExecuteWiring: XCTestCase {
         let clearSessionReturned = expectation(description: "clearSession returned")
         // A store-backed session manager, built with the request as in production, so a session the response
         // carries would be persisted where the next placement restores from. The session is cleared on the sending
-        // task, after the service was built and just before it checks whether it may still send.
+        // task, after the service was built and before the token is read and the request is built; the gate at the
+        // hand-off then declines.
         impl.makeOffersServiceOverride = { [weak impl] tagId in
             var service = OffersService(
                 environment: .Prod,
@@ -846,6 +850,73 @@ final class TestOffersExecuteWiring: XCTestCase {
         XCTAssertTrue(events.contains(where: { $0 is RoktEvent.HideLoadingIndicator }), "the loading indicator is dismissed")
         XCTAssertTrue(events.contains(where: { $0 is RoktEvent.PlacementFailure }), "the failure reaches the caller")
         XCTAssertNil(impl.capturedPage)
+        XCTAssertNil(impl.getSessionId(), "the cleared session id must not come back")
+
+        // The fence released `isExecuting`: the next placement is accepted and renders.
+        impl.makeOffersServiceOverride = offersOverride(data: try renderFixture(), status: 200)
+        impl.execute(viewName: "checkout", attributes: ["email": "arriving@example.com"], config: nil)
+        waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
+    }
+
+    /// The check that the session is still current and the hand-off of the request to the network stack are one step
+    /// under the generation lock: a `clearSession()` that arrives while the hand-off is in progress waits for it, so a
+    /// reset lands wholly before the request is given to the network stack (nothing is sent) or wholly after it (the
+    /// request is already queued; its response is discarded and nothing from it is persisted). This pins the second
+    /// case: the clear waits, then wins.
+    func test_execute_clearSessionDuringTheOffersHandOff_waitsForItThenDiscardsTheResponse() throws {
+        let store = InMemoryTxnStore()
+        impl.txnSessionStore = store
+        initialize()
+        let client = DeferredHTTPClient(data: try renderFixture(), status: 200)
+        // A store-backed session manager, built with the request as in production, so a session the response
+        // carries would be persisted where the next placement restores from.
+        impl.makeOffersServiceOverride = { tagId in
+            OffersService(
+                environment: .Prod,
+                accountId: tagId,
+                sdkVersion: "5.2.2",
+                layoutSchemaVersion: "2.8",
+                sessionManager: TxnSessionManager(roktTagId: tagId, store: store),
+                httpClient: client,
+                maxRetries: 0,
+                sleep: { _ in }
+            )
+        }
+        let generationBefore = impl.currentSessionGeneration()
+        let clearSessionReturned = expectation(description: "clearSession returned")
+        var clearSessionReturnedDuringHandOff = true
+        var generationDuringHandOff: Int?
+        client.onStartRequest = { [weak impl] in
+            // clearSession from another queue while the hand-off holds the fence: it has to wait.
+            let entered = DispatchSemaphore(value: 0)
+            let returned = DispatchSemaphore(value: 0)
+            DispatchQueue.global().async {
+                entered.signal()
+                impl?.clearSession()
+                returned.signal()
+                clearSessionReturned.fulfill()
+            }
+            entered.wait()
+            clearSessionReturnedDuringHandOff = returned.wait(timeout: .now() + 0.3) == .success
+            // Read on the hand-off's own thread, which holds the recursive lock: the clear has not landed yet.
+            generationDuringHandOff = impl?.currentSessionGeneration()
+        }
+        let discarded = expectation(description: "the late placement reports failure")
+        impl.execute(viewName: "checkout", attributes: ["email": "leaving@example.com"], config: nil) { event in
+            if event is RoktEvent.PlacementFailure { discarded.fulfill() }
+        }
+        wait(for: [clearSessionReturned], timeout: 10)
+        XCTAssertEqual(client.requestCount, 1, "the hand-off that began before the clear ran to its end")
+        client.release()
+        wait(for: [discarded], timeout: 10)
+        settle()
+
+        XCTAssertFalse(clearSessionReturnedDuringHandOff, "clearSession waits for a hand-off in progress")
+        XCTAssertEqual(generationDuringHandOff, generationBefore, "the generation does not move during the hand-off")
+        XCTAssertEqual(impl.currentSessionGeneration(), generationBefore + 1, "the clear landed once the hand-off returned")
+        XCTAssertNil(impl.capturedPage, "a response that arrives after the clear is not rendered")
+        XCTAssertNil(store.string(forKey: TxnSessionStoreKeys.sessionId), "no session is left for the next customer")
+        XCTAssertNil(store.string(forKey: TxnSessionStoreKeys.token))
         XCTAssertNil(impl.getSessionId(), "the cleared session id must not come back")
 
         // The fence released `isExecuting`: the next placement is accepted and renders.
