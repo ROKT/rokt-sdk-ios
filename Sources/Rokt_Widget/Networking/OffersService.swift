@@ -167,7 +167,7 @@ internal struct OffersService {
                 // token) is never sent, or wholly after it, and the caller discards the response. A declined
                 // hand-off throws discardedBeforeSend, which is not a transport failure and so is not retried below.
                 let (data, response) = try await client.fetchOffers(input: input) { start in
-                    guard sendGate(start) else { throw OffersError.discardedBeforeSend }
+                    guard sendGate({ start() }) else { throw OffersError.discardedBeforeSend }
                 }
                 let statusCode = response?.statusCode ?? 0
 
