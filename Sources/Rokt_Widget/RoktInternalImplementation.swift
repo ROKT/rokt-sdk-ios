@@ -113,9 +113,9 @@ class RoktInternalImplementation {
     // Test-only hook, run while a response's echoed events are captured under the generation lock, after the generation
     // check has passed and before the store's write is queued; nil in production.
     var unitTest_duringEventCapture: (() -> Void)?
-    // Test-only hook, run while a response is being prepared OUTSIDE the generation lock (prepareLayoutPageExecutePayload),
-    // once its experience is parsed, its echoed events decoded and its cached view state read, and before any of it is
-    // committed; nil in production.
+    // Test-only hook, run at the end of a response's prepare OUTSIDE the generation lock (prepareLayoutPageExecutePayload):
+    // after its experience is parsed and, when the parse yields a page, after its echoed events are decoded and its cached
+    // view state read; before any of it is committed. Nil in production.
     var unitTest_duringPayloadPrepare: (() -> Void)?
     // Test-only hook, run when a placement is ended with a failure through its own handler (concludeFailed): its result
     // discarded after clearSession, its experience decoded to nothing, or its offers request failed. A layout the
