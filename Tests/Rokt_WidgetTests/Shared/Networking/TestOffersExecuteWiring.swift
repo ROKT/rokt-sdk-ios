@@ -715,9 +715,10 @@ final class TestOffersExecuteWiring: XCTestCase {
 
     /// The commit queues the cache write and moves on: the scan that evicts the superseded responses, their deletes and
     /// the write run inside one barrier on the cache's own queue, off the main thread and outside the generation lock.
-    /// A `clearSession()` that arrives while that barrier is running does not wait for it — the lock is free — and its
-    /// own clear is queued behind the write, so once both have landed nothing stays cached. Whether the placement is
-    /// rendered or discarded depends on which lands first, the clear or the render claim, and is not asserted here.
+    /// The commit does not wait for that barrier, and a `clearSession()` that arrives while it is running, once the
+    /// commit has returned, does not wait for it either — the lock is free — and its own clear is queued behind the
+    /// write, so once both have landed nothing stays cached. Whether the placement is rendered or discarded depends on
+    /// which lands first, the clear or the render claim, and is not asserted here.
     func test_execute_theCacheWriteAfterACommit_holdsNeitherTheSessionLockNorTheMainThread() throws {
         impl.txnSessionStore = InMemoryTxnStore()
         initialize(cacheEnabled: true)
@@ -730,6 +731,12 @@ final class TestOffersExecuteWiring: XCTestCase {
         impl.makeOffersServiceOverride = offersOverride(data: try renderFixture(), status: 200)
 
         let clearSessionReturned = expectation(description: "clearSession returned")
+        // Signalled once the commit has returned and released the lock. The barrier is queued from inside the commit,
+        // before its parse and decode, so it can start while the commit still holds the lock; the hook below waits for
+        // this signal first, so the clearSession it then spawns can only ever be waiting on the eviction itself.
+        let commitReturned = DispatchSemaphore(value: 0)
+        impl.unitTest_afterCommitBeforePayloadCheck = { commitReturned.signal() }
+        var commitReturnedDuringEviction = false
         var clearSessionReturnedDuringEviction = false
         var evictionRanOnMainThread = true
         var evictionQueueLabel: String?
@@ -739,7 +746,10 @@ final class TestOffersExecuteWiring: XCTestCase {
             evictionStarted = true
             evictionRanOnMainThread = Thread.isMainThread
             evictionQueueLabel = String(cString: __dispatch_queue_get_label(nil))
-            // clearSession from another queue while the eviction runs: the lock is not held here, so it returns.
+            // Were the eviction run on the caller under the lock instead, the commit could not return until this hook
+            // did, and this wait would time out.
+            commitReturnedDuringEviction = commitReturned.wait(timeout: .now() + 10) == .success
+            // clearSession from another queue while the eviction runs: the lock has been released, so it returns.
             let returned = DispatchSemaphore(value: 0)
             DispatchQueue.global().async {
                 impl?.clearSession()
@@ -758,6 +768,7 @@ final class TestOffersExecuteWiring: XCTestCase {
         XCTAssertTrue(evictionStarted, "the response was committed and its cache write queued")
         XCTAssertFalse(evictionRanOnMainThread, "the eviction scan and the write run off the main thread")
         XCTAssertEqual(evictionQueueLabel, ExperienceCacheManager.experienceCacheStorageQueueName)
+        XCTAssertTrue(commitReturnedDuringEviction, "the commit does not wait for the cache write it queued")
         XCTAssertTrue(clearSessionReturnedDuringEviction, "clearSession does not wait for the cache write")
         let cached = ExperienceCacheManager.getCachedExperienceResponse(
             viewName: viewName, attributes: attributes, cacheDuration: cacheDuration
