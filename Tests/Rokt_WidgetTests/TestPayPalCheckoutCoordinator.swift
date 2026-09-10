@@ -5,9 +5,12 @@ import XCTest
 /// Stands in for a presented approval sheet whose dismissal the test completes by hand: its view sits in a window
 /// until `finishDismissal()` runs the completion `dismiss` was given, the way UIKit keeps a dismissing sheet on screen
 /// until its transition ends; `tearDown()` takes the view off screen without any completion, the way a host replacing
-/// the screen would.
+/// the screen would. `cover()` puts another full-screen view over the sheet the way UIKit does: the sheet's own view
+/// leaves its window while the covering controller, reported through `presentedViewController`, has its view in one.
 final class DeferredDismissSheetStandIn: UIViewController {
     private let window = UIWindow()
+    private let coverWindow = UIWindow()
+    private var coveringViewController: UIViewController?
     private var pendingDismissCompletion: (() -> Void)?
 
     static func onScreen() -> DeferredDismissSheetStandIn {
@@ -18,6 +21,8 @@ final class DeferredDismissSheetStandIn: UIViewController {
 
     /// Whether `dismiss` has been called and its completion is still waiting for `finishDismissal()`.
     var isDismissalPending: Bool { pendingDismissCompletion != nil }
+
+    override var presentedViewController: UIViewController? { coveringViewController }
 
     override func dismiss(animated flag: Bool, completion: (() -> Void)?) {
         _ = flag
@@ -34,6 +39,28 @@ final class DeferredDismissSheetStandIn: UIViewController {
 
     /// Takes the sheet off screen without reporting back.
     func tearDown() {
+        view.removeFromSuperview()
+    }
+
+    /// Presents a full-screen view over the sheet: the sheet's own view leaves its window and the cover's takes one.
+    func cover() {
+        view.removeFromSuperview()
+        let cover = UIViewController()
+        coverWindow.addSubview(cover.view)
+        coveringViewController = cover
+    }
+
+    /// Ends the covering presentation: the cover's view leaves its window and the sheet's own view returns to its.
+    func uncover() {
+        coveringViewController?.view.removeFromSuperview()
+        coveringViewController = nil
+        window.addSubview(view)
+    }
+
+    /// Takes the sheet and the view covering it off screen together without reporting back.
+    func tearDownWholeStack() {
+        coveringViewController?.view.removeFromSuperview()
+        coveringViewController = nil
         view.removeFromSuperview()
     }
 }
@@ -231,6 +258,50 @@ final class TestPayPalCheckoutCoordinator: XCTestCase {
         sheet.tearDown()
 
         XCTAssertFalse(coordinator.isApprovalSheetOnScreen, "A sheet out of its window holds nothing, finished or not")
+        drainMainQueue()
+    }
+
+    func test_isApprovalSheetOnScreen_whileAnotherFullScreenViewCoversTheSheet_staysTrueUntilTheWholeStackIsGone() {
+        var result: PaymentSheetResult?
+        let coordinator = makeCoordinator { result = $0 }
+        let sheet = DeferredDismissSheetStandIn.onScreen()
+        coordinator.attachPresentingCheckoutViewController(sheet)
+        XCTAssertTrue(coordinator.isApprovalSheetOnScreen)
+
+        // Another full-screen view is presented over the sheet: UIKit takes the sheet's own view out of the window
+        // until that view is dismissed, while the sheet stays presented underneath and comes back the moment the cover
+        // goes.
+        sheet.cover()
+        XCTAssertTrue(coordinator.isApprovalSheetOnScreen, "Covered, not gone: the view it presents is in a window")
+
+        sheet.uncover()
+        XCTAssertTrue(coordinator.isApprovalSheetOnScreen, "Back on screen once the cover has been dismissed")
+
+        XCTAssertEqual(
+            coordinator.handleDeepLinkReturn(link("myapp://paypal/success?token=ORDER_MOCK")),
+            .completedReturn
+        )
+        drainMainQueue()
+        XCTAssertTrue(sheet.isDismissalPending)
+        XCTAssertTrue(coordinator.isApprovalSheetOnScreen, "Still on screen while the sheet animates away")
+
+        sheet.finishDismissal()
+        XCTAssertFalse(coordinator.isApprovalSheetOnScreen, "Off screen once the dismissal has completed")
+        XCTAssertEqual(result?.outcome, .succeeded)
+        XCTAssertEqual(result?.transactionId, "ORDER_MOCK")
+    }
+
+    func test_isApprovalSheetOnScreen_afterTheHostToreDownTheWholeStackWhileTheSheetWasCovered_isFalse() {
+        let coordinator = makeCoordinator { _ in XCTFail("Nothing reports back for a stack the host tore down") }
+        let sheet = DeferredDismissSheetStandIn.onScreen()
+        coordinator.attachPresentingCheckoutViewController(sheet)
+        sheet.cover()
+        XCTAssertTrue(coordinator.isApprovalSheetOnScreen, "Covered, not gone")
+
+        // The host replaces the screen under the sheet and its cover, so neither view is in a window any more.
+        sheet.tearDownWholeStack()
+
+        XCTAssertFalse(coordinator.isApprovalSheetOnScreen, "Nothing of the sheet's presentation chain is in a window")
         drainMainQueue()
     }
 

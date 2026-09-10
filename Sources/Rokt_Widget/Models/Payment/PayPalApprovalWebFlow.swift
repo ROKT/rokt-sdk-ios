@@ -60,20 +60,27 @@ final class PayPalCheckoutCoordinator {
     /// Whether this checkout's approval sheet still holds the screen, so no other PayPal approval may be presented
     /// over it. Read on the main thread. Before the presenter has handed a sheet over, `true` while the checkout is
     /// still going (the sheet is being put up) and `false` once it has finished: a checkout that failed before any
-    /// sheet was shown holds nothing. After the hand-over the sheet counts as on screen while its view is in a window,
-    /// whether or not the checkout has finished: a checkout its return link finished is still on screen while its sheet
-    /// animates away, and stops being when the dismissal completes and its callback runs; a sheet the host released, or
-    /// took off screen with the view hierarchy it replaced, reads as gone even though no cancel or return will ever
-    /// report it. The wait for a hand-over ends: ``PayPalApprovalWebPresenter`` hands over every sheet UIKit accepts
-    /// and fails the checkout for one it would drop, so a sheet that was never shown does not read as on screen for
-    /// good.
+    /// sheet was shown holds nothing. After the hand-over the sheet counts as on screen while its own view, or the view
+    /// of any controller it presents in turn, is in a window, whether or not the checkout has finished: a checkout its
+    /// return link finished is still on screen while its sheet animates away, and stops being when the dismissal
+    /// completes and its callback runs; a sheet covered by a full-screen presentation of its own, which takes the
+    /// sheet's view out of the window until that presentation ends, still counts as on screen. Only a sheet with
+    /// nothing of its presentation chain in a window reads as gone: one the host released, or took off screen with the
+    /// view hierarchy it replaced, even though no cancel or return will ever report it. The wait for a hand-over ends:
+    /// ``PayPalApprovalWebPresenter`` hands over every sheet UIKit accepts and fails the checkout for one it would
+    /// drop, so a sheet that was never shown does not read as on screen for good.
     var isApprovalSheetOnScreen: Bool {
         lock.lock()
         let isFinished = finished
         let isAttached = sheetAttached
         lock.unlock()
         guard isAttached else { return !isFinished }
-        return presentingCheckoutViewController?.viewIfLoaded?.window != nil
+        var controller = presentingCheckoutViewController
+        while let current = controller {
+            if current.viewIfLoaded?.window != nil { return true }
+            controller = current.presentedViewController
+        }
+        return false
     }
 
     init(

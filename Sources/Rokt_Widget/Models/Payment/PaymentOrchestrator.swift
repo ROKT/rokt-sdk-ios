@@ -187,11 +187,12 @@ final class PaymentOrchestrator {
         /// whatever the phase and whether or not the checkout has finished. The sheet is never interrupted from here,
         /// so it holds later confirms back for as long as it is on screen: a checkout its return link finished still
         /// holds them back while its sheet animates away, until the dismissal completes and its callback removes this
-        /// mark. A sheet the host took off screen without a cancel or a return (a screen it replaced, a modal it
-        /// dismissed itself) reports nothing and its checkout never completes, so it lets later confirms through: with
-        /// its layout still open, nothing else would ever run to release them, and PayPal would be blocked for the rest
-        /// of the process. A checkout that is gone can never complete either, and holds nothing back. Read on the main
-        /// thread.
+        /// mark, and a sheet covered by a full-screen presentation of its own still holds them back, since it comes
+        /// back the moment that presentation ends. A sheet the host took off screen without a cancel or a return (a
+        /// screen it replaced, a modal it dismissed itself), with nothing of its presentation chain left in a window,
+        /// reports nothing and its checkout never completes, so it lets later confirms through: with its layout still
+        /// open, nothing else would ever run to release them, and PayPal would be blocked for the rest of the process.
+        /// A checkout that is gone can never complete either, and holds nothing back. Read on the main thread.
         var holdsBackOtherApprovals: Bool {
             coordinator?.isApprovalSheetOnScreen ?? false
         }
@@ -637,9 +638,10 @@ final class PaymentOrchestrator {
         // take over the return-link routing (``activePayPalCheckout`` is one coordinator), so its entry stays
         // pending for a confirm after the current sheet ends. A sheet is not interrupted from here, whether or not its
         // placement has closed, so it holds later confirms back for as long as it is still being put up or is still on
-        // screen; once the host has torn it down without reporting back it no longer does, so it cannot block PayPal
-        // for the rest of the process. A checkout that finished still holds confirms back while its sheet animates
-        // away: its callback, which runs when the dismissal completes, removes the mark and clears
+        // screen, a sheet covered by a full-screen presentation of its own included; once the host has torn it down
+        // without reporting back, with nothing of its presentation chain left in a window, it no longer does, so it
+        // cannot block PayPal for the rest of the process. A checkout that finished still holds confirms back while its
+        // sheet animates away: its callback, which runs when the dismissal completes, removes the mark and clears
         // ``activePayPalCheckout``, and clears it only when it still names its own checkout, because a checkout whose
         // sheet the host tore down can report back late, after another sheet has been presented in its place.
         guard !Self.presentedBuiltInPayPalCheckouts.values.contains(where: \.holdsBackOtherApprovals) else {

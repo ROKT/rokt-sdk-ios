@@ -96,8 +96,12 @@ final class HoldingPayPalApprovalPresenter: PayPalApprovalPresenting {
 
 /// Stands in for a presented approval sheet: its view sits in a window until the checkout dismisses it, or until the
 /// test tears it down the way a host replacing the screen would, without a cancel or a return ever reporting back.
+/// `cover()` puts another full-screen view over it the way UIKit does: the sheet's own view leaves its window while the
+/// covering controller, reported through `presentedViewController`, has its view in one; `uncover()` reverses that.
 final class PayPalApprovalSheetStandIn: UIViewController {
     private let window = UIWindow()
+    private let coverWindow = UIWindow()
+    private var coveringViewController: UIViewController?
 
     static func onScreen() -> PayPalApprovalSheetStandIn {
         let sheet = PayPalApprovalSheetStandIn()
@@ -105,9 +109,26 @@ final class PayPalApprovalSheetStandIn: UIViewController {
         return sheet
     }
 
+    override var presentedViewController: UIViewController? { coveringViewController }
+
     /// Takes the sheet off screen without reporting back.
     func tearDown() {
         view.removeFromSuperview()
+    }
+
+    /// Presents a full-screen view over the sheet: the sheet's own view leaves its window and the cover's takes one.
+    func cover() {
+        view.removeFromSuperview()
+        let cover = UIViewController()
+        coverWindow.addSubview(cover.view)
+        coveringViewController = cover
+    }
+
+    /// Ends the covering presentation: the cover's view leaves its window and the sheet's own view returns to its.
+    func uncover() {
+        coveringViewController?.view.removeFromSuperview()
+        coveringViewController = nil
+        window.addSubview(view)
     }
 
     override func dismiss(animated flag: Bool, completion: (() -> Void)?) {
@@ -2930,6 +2951,89 @@ class TestPaymentOrchestrator: XCTestCase {
         // released its checkout, and the second item's with its return link.
         XCTAssertFalse(sut.presentPendingBuiltInPayPalForForwardPayment(for: secondKey) { _ in })
         XCTAssertEqual(sut.unitTest_presentedBuiltInPayPalCount(), 0, "No mark is left for an abandoned approval")
+    }
+
+    /// Another full-screen view presented over the first item's sheet takes the sheet's own view out of the window
+    /// while the sheet stays presented and comes back the moment the cover goes. A confirm for a second item must wait
+    /// for it as it waits for an uncovered sheet, and the first order's return link must keep reaching the first order.
+    func test_presentPendingBuiltInPayPal_aCoveredSheet_holdsALaterItemAndKeepsReturnLinksOnTheFirstOrder() {
+        let payPalPresenter = HoldingPayPalApprovalPresenter()
+        sut = PaymentOrchestrator(
+            apiHelper: PaymentOrchestratorAPIHelperSpy.self,
+            payPalApprovalPresenter: payPalPresenter
+        )
+        // Held strongly until the deferred presents have run; the pending checkouts only keep a weak reference.
+        let presentingViewController = UIViewController()
+        var firstResult: PaymentSheetResult?
+        var secondResult: PaymentSheetResult?
+        func startStepOne(cartItemId: String, orderId: String, completion: @escaping (PaymentSheetResult) -> Void) {
+            PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse =
+                Self.validPayPalInitializePurchaseResponse(orderId: orderId)
+            sut.processPayment(
+                method: .paypal,
+                item: PaymentItem(id: "p1", name: "P", amount: 1, currency: "USD"),
+                context: PaymentContext(
+                    billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                    returnURL: "myapp://paypal/success",
+                    cancelURL: nil
+                ),
+                cartItemId: cartItemId,
+                from: presentingViewController,
+                builtInPayPalDevicePaySession: paypalDeviceSessionForTests(),
+                completion: completion
+            )
+        }
+        startStepOne(cartItemId: "v1:cart:1", orderId: "ORDER_1") { firstResult = $0 }
+        startStepOne(cartItemId: "v1:cart:2", orderId: "ORDER_2") { secondResult = $0 }
+        let firstKey = testKey(cartItemId: "v1:cart:1")
+        let secondKey = testKey(cartItemId: "v1:cart:2")
+
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: firstKey) { _ in })
+        drainMainQueue()
+        XCTAssertEqual(payPalPresenter.presentCallCount, 1, "The first item's approval sheet is presented")
+
+        // Another full-screen view goes up over the first sheet: the sheet's own view leaves the window, the cover's is
+        // in one, and nothing reports back because the sheet is still presented underneath.
+        payPalPresenter.presentedSheets.last?.cover()
+
+        XCTAssertTrue(
+            sut.presentPendingBuiltInPayPalForForwardPayment(for: secondKey) { _ in
+                XCTFail("The second item is not presented while the first sheet is covered")
+            },
+            "The second confirm stays on the PayPal path instead of running a card purchase"
+        )
+        drainMainQueue()
+        XCTAssertEqual(payPalPresenter.presentCallCount, 1, "A covered sheet is still up, so nothing else is presented")
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: secondKey), "The second item keeps waiting")
+        XCTAssertEqual(sut.unitTest_presentedBuiltInPayPalCount(), 1, "The first item's mark is kept, not pruned")
+
+        // The cover is dismissed: the first sheet is back on screen and still holds the second item back.
+        payPalPresenter.presentedSheets.last?.uncover()
+        XCTAssertTrue(
+            sut.presentPendingBuiltInPayPalForForwardPayment(for: secondKey) { _ in
+                XCTFail("The second item is not presented while the first sheet is up")
+            }
+        )
+        drainMainQueue()
+        XCTAssertEqual(payPalPresenter.presentCallCount, 1, "The uncovered sheet still holds the second item back")
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: secondKey))
+
+        // The first order's return link still reaches the first order's checkout: its routing was never replaced.
+        XCTAssertTrue(sut.handleURLCallback(with: URL(string: "myapp://paypal/success?token=ORDER_1")!))
+        drainMainQueue()
+        XCTAssertEqual(firstResult?.outcome, .succeeded)
+        XCTAssertEqual(firstResult?.transactionId, "ORDER_1")
+        XCTAssertNil(secondResult)
+
+        // With the first sheet gone, the second item's confirm presents its own order.
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: secondKey) { _ in })
+        drainMainQueue()
+        XCTAssertEqual(payPalPresenter.presentCallCount, 2, "The second item's approval sheet is presented")
+        XCTAssertFalse(sut.unitTest_hasPendingBuiltInTwoStep(for: secondKey))
+        XCTAssertTrue(sut.handleURLCallback(with: URL(string: "myapp://paypal/success?token=ORDER_2")!))
+        drainMainQueue()
+        XCTAssertEqual(secondResult?.outcome, .succeeded)
+        XCTAssertEqual(secondResult?.transactionId, "ORDER_2")
     }
 
     func test_presentPendingBuiltInPayPal_afterItsLayoutClosedWhileItsSheetIsStillUp_aLaterItemWaitsUntilThatSheetEnds() {
