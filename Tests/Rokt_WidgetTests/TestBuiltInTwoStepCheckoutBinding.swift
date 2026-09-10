@@ -705,6 +705,97 @@ final class TestBuiltInTwoStepCheckoutBinding: XCTestCase {
         XCTAssertNil(impl.stateManager.getState(id: executeId), "Nothing holds the state once its checkout is dropped")
     }
 
+    /// A PayPal approval sheet is up when its placement closes; the host then tears the sheet down without a cancel or
+    /// a return, and a later approval for another execute presents in its place and releases the checkout. The mark
+    /// left behind is pruned by the next confirm, and the execute it belonged to, which nothing else holds, goes with it.
+    func test_layoutClosed_whileItsPayPalSheetIsUp_thenTheSheetIsTornDownAndItsCheckoutReleased_releasesTheExecutesState() {
+        let impl = RoktInternalImplementation()
+        let presenter = HoldingPayPalApprovalPresenter()
+        impl.paymentOrchestratorForTesting = PaymentOrchestrator(
+            apiHelper: PaymentOrchestratorAPIHelperSpy.self,
+            payPalApprovalPresenter: presenter
+        )
+        defer { PaymentOrchestratorAPIHelperSpy.reset() }
+        let orch = impl.paymentOrchestratorForTesting
+        let bag = ExecuteStateBag(uxHelper: nil, onRoktEvent: nil)
+        bag.loadedPlacements = 1
+        impl.stateManager.addState(id: executeId, state: bag)
+        impl.stateManager.initiateInstantPurchase(id: executeId)
+        let otherBag = ExecuteStateBag(uxHelper: nil, onRoktEvent: nil)
+        otherBag.loadedPlacements = 1
+        impl.stateManager.addState(id: "other-execute", state: otherBag)
+        // Held strongly: the pending checkouts only keep a weak reference to the screen they present from.
+        let presentingViewController = UIViewController()
+        func startPayPalStepOne(
+            executeId: String,
+            layoutId: String,
+            cartItemId: String,
+            catalogItemId: String,
+            orderId: String
+        ) {
+            PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = payPalInitializePurchaseResponse(orderId: orderId)
+            orch.processPayment(
+                method: .paypal,
+                item: PaymentItem(id: catalogItemId, name: "Test item", amount: 1, currency: "USD"),
+                context: PaymentContext(
+                    billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                    returnURL: "myapp://paypal/success",
+                    cancelURL: "myapp://paypal/cancel"
+                ),
+                cartItemId: cartItemId,
+                from: presentingViewController,
+                builtInPayPalDevicePaySession: BuiltInTwoStepDevicePaySession(
+                    executeId: executeId,
+                    layoutId: layoutId,
+                    catalogItemId: catalogItemId
+                ) { _, _, _ in }
+            ) { result in
+                XCTFail("Neither approval reports back in this test, got \(result.outcome)")
+            }
+        }
+        startPayPalStepOne(
+            executeId: executeId, layoutId: "layout-1", cartItemId: "cart-a", catalogItemId: "catalog-a", orderId: "ORDER_A"
+        )
+        impl.handleForwardPayment(
+            executeId: executeId,
+            event: makeForwardPaymentEvent(cartItemId: "cart-a", catalogItemId: "catalog-a")
+        )
+        drainMainQueue()
+        XCTAssertEqual(presenter.presentCallCount, 1, "The approval sheet is up")
+
+        // The placement closes while the sheet is up, and the host then tears the sheet down without reporting back.
+        // The checkout itself is still held, so its mark still counts and the state is kept.
+        impl.callOnRoktUXEvent(executeId, uxEvent: RoktUXEvent.LayoutClosed(layoutId: "layout-1"))
+        presenter.presentedSheets.first?.tearDown()
+        drainMainQueue()
+        XCTAssertEqual(bag.loadedPlacements, 0)
+        XCTAssertNotNil(impl.stateManager.getState(id: executeId), "The state is kept while the checkout can still report back")
+
+        // Another execute's item is confirmed; its approval presents in place of the sheet that is gone, and the first
+        // checkout, held by nothing else, is released. Its mark stays until a later pass prunes it, and so does the state.
+        startPayPalStepOne(
+            executeId: "other-execute",
+            layoutId: "layout-2",
+            cartItemId: "cart-b",
+            catalogItemId: "catalog-b",
+            orderId: "ORDER_B"
+        )
+        let otherConfirm = makeForwardPaymentEvent(layoutId: "layout-2", cartItemId: "cart-b", catalogItemId: "catalog-b")
+        impl.handleForwardPayment(executeId: "other-execute", event: otherConfirm)
+        drainMainQueue()
+        XCTAssertEqual(presenter.presentCallCount, 2, "The other execute's approval sheet is presented")
+        XCTAssertNotNil(impl.stateManager.getState(id: executeId), "The mark is pruned only on a later pass")
+
+        // A repeated confirm for the other item has nothing to start, but prunes the first mark and reports the first
+        // execute; nothing else holds that execute's state, so the state goes and the tap's flag with it.
+        impl.handleForwardPayment(executeId: "other-execute", event: otherConfirm)
+        drainMainQueue()
+        XCTAssertEqual(presenter.presentCallCount, 2, "A repeated confirm for an approval already up presents nothing")
+        XCTAssertFalse(bag.instantPurchaseInitiated, "An approval that never reports back can never clear the flag itself")
+        XCTAssertNil(impl.stateManager.getState(id: executeId), "Nothing holds the state once the abandoned mark is pruned")
+        XCTAssertNotNil(impl.stateManager.getState(id: "other-execute"), "The approval still up keeps its own execute")
+    }
+
     // MARK: - A confirm during a repeated Step-1 for the item belongs to PayPal and starts nothing
 
     /// Step-1 runs again for an item whose PayPal checkout is already on offer. Until the new request answers, a

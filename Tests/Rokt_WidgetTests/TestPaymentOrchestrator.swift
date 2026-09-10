@@ -3401,6 +3401,250 @@ class TestPaymentOrchestrator: XCTestCase {
         XCTAssertTrue(sut.hasOutstandingBuiltInTwoStepCheckout(forExecuteId: "execute_in_flight"))
         XCTAssertFalse(sut.hasOutstandingBuiltInTwoStepCheckout(forExecuteId: "execute_waiting"))
     }
+
+    // MARK: - A pruned mark of an abandoned approval reports its execute
+
+    private static let otherExecuteKey = BuiltInTwoStepCheckoutKey(
+        executeId: "other_execute", layoutId: "other_layout", catalogItemId: "other_catalog", cartItemId: "v1:cart:other"
+    )
+
+    /// Starts built-in PayPal Step-1 for `key` and presents its approval sheet from `presentingViewController`, which the
+    /// test holds strongly for as long as the sheet must stay presentable.
+    private func presentPayPalCheckout(
+        for key: BuiltInTwoStepCheckoutKey,
+        orderId: String,
+        from presentingViewController: UIViewController,
+        onStepOneResult: @escaping (PaymentSheetResult) -> Void = { _ in }
+    ) {
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = Self.validPayPalInitializePurchaseResponse(orderId: orderId)
+        sut.processPayment(
+            method: .paypal,
+            item: PaymentItem(id: key.catalogItemId, name: "P", amount: 1, currency: "USD"),
+            context: PaymentContext(
+                billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                returnURL: "myapp://paypal/success",
+                cancelURL: nil
+            ),
+            cartItemId: key.cartItemId,
+            from: presentingViewController,
+            builtInPayPalDevicePaySession: BuiltInTwoStepDevicePaySession(
+                executeId: key.executeId,
+                layoutId: key.layoutId,
+                catalogItemId: key.catalogItemId
+            ) { _, _, _ in },
+            completion: onStepOneResult
+        )
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: key) { _ in })
+        drainMainQueue()
+    }
+
+    /// Leaves the test execute with a mark whose checkout may be gone: its PayPal approval is presented, its placement
+    /// closes while the sheet is up, the host tears the sheet down without a cancel or a return (`tearDownSheet`), and
+    /// another execute's approval then presents in its place. With a presenter that does not hold its checkouts, that
+    /// presentation releases the first checkout, and the mark left behind stays until a later pass prunes it.
+    private func abandonTheTestExecutesApproval(
+        from presentingViewController: UIViewController,
+        tearDownSheet: () -> Void,
+        onStepOneResult: @escaping (PaymentSheetResult) -> Void = { _ in }
+    ) {
+        presentPayPalCheckout(
+            for: testKey(),
+            orderId: "ORDER_1",
+            from: presentingViewController,
+            onStepOneResult: onStepOneResult
+        )
+        sut.discardPendingBuiltInTwoStep(forExecuteId: Self.testExecuteId, layoutId: "test_layout")
+        tearDownSheet()
+        presentPayPalCheckout(for: Self.otherExecuteKey, orderId: "ORDER_OTHER", from: presentingViewController)
+        XCTAssertEqual(sut.unitTest_presentedBuiltInPayPalCount(), 2, "Both marks are held until a later pass prunes one")
+    }
+
+    func test_presentPendingBuiltInPayPal_pruningTheLastMarkOfAnExecuteWhoseCheckoutIsGone_reportsThatExecute() {
+        let payPalPresenter = HoldingPayPalApprovalPresenter()
+        sut = PaymentOrchestrator(apiHelper: PaymentOrchestratorAPIHelperSpy.self, payPalApprovalPresenter: payPalPresenter)
+        var reported: [String] = []
+        sut.onExecuteHasNoOutstandingCheckout = { reported.append($0) }
+        // Held strongly until the deferred presents have run; the pending checkouts only keep a weak reference.
+        let presentingViewController = UIViewController()
+        abandonTheTestExecutesApproval(
+            from: presentingViewController,
+            tearDownSheet: { payPalPresenter.presentedSheets.first?.tearDown() },
+            onStepOneResult: { _ in XCTFail("An approval that never reported back owes nothing") }
+        )
+        XCTAssertTrue(reported.isEmpty, "Nothing has been pruned yet, so nothing is reported")
+
+        // A repeated confirm for the other item has nothing to start, but prunes the first mark on its way in. Nothing
+        // of the first execute is left, so that execute is reported; the other execute's approval is still up.
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: Self.otherExecuteKey) { _ in })
+        drainMainQueue()
+        XCTAssertEqual(sut.unitTest_presentedBuiltInPayPalCount(), 1, "Only the mark of the approval still up is left")
+        XCTAssertEqual(reported, [Self.testExecuteId])
+        XCTAssertFalse(sut.hasOutstandingBuiltInTwoStepCheckout(forExecuteId: Self.testExecuteId))
+        XCTAssertTrue(sut.hasOutstandingBuiltInTwoStepCheckout(forExecuteId: Self.otherExecuteKey.executeId))
+    }
+
+    func test_presentPendingBuiltInPayPal_keepsTheMarkOfAnAbandonedApprovalWhoseCheckoutIsStillHeld_andReportsNothing() {
+        let payPalPresenter = RetainingPayPalApprovalPresenter()
+        sut = PaymentOrchestrator(apiHelper: PaymentOrchestratorAPIHelperSpy.self, payPalApprovalPresenter: payPalPresenter)
+        var reported: [String] = []
+        sut.onExecuteHasNoOutstandingCheckout = { reported.append($0) }
+        let presentingViewController = UIViewController()
+        abandonTheTestExecutesApproval(
+            from: presentingViewController,
+            tearDownSheet: { payPalPresenter.presentedSheets.first?.tearDown() }
+        )
+
+        // The first checkout is still held, so a late cancel or return may yet reach it: its mark stays, it still counts
+        // for its execute, and nothing is reported.
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: Self.otherExecuteKey) { _ in })
+        drainMainQueue()
+        XCTAssertEqual(sut.unitTest_presentedBuiltInPayPalCount(), 2, "A mark whose checkout is held is not pruned")
+        XCTAssertTrue(reported.isEmpty)
+        XCTAssertTrue(sut.hasOutstandingBuiltInTwoStepCheckout(forExecuteId: Self.testExecuteId))
+    }
+
+    func test_hasOutstandingBuiltInTwoStepCheckout_leavesAMarkWhoseCheckoutIsGoneForAPassThatReportsWhatItPrunes() {
+        let payPalPresenter = HoldingPayPalApprovalPresenter()
+        sut = PaymentOrchestrator(apiHelper: PaymentOrchestratorAPIHelperSpy.self, payPalApprovalPresenter: payPalPresenter)
+        var reported: [String] = []
+        sut.onExecuteHasNoOutstandingCheckout = { reported.append($0) }
+        let presentingViewController = UIViewController()
+        abandonTheTestExecutesApproval(
+            from: presentingViewController,
+            tearDownSheet: { payPalPresenter.presentedSheets.first?.tearDown() }
+        )
+
+        // The read runs inside the state keeper's own release check, so it changes nothing: the mark whose checkout is
+        // gone does not count, but stays for a pass that reports what it prunes, and no report is sent from a read.
+        XCTAssertFalse(sut.hasOutstandingBuiltInTwoStepCheckout(forExecuteId: Self.testExecuteId))
+        XCTAssertTrue(sut.hasOutstandingBuiltInTwoStepCheckout(forExecuteId: Self.otherExecuteKey.executeId))
+        drainMainQueue()
+        XCTAssertEqual(sut.unitTest_presentedBuiltInPayPalCount(), 2, "The read prunes nothing")
+        XCTAssertTrue(reported.isEmpty, "The read reports nothing")
+
+        // The next confirm is the pass that prunes the mark and reports its execute.
+        XCTAssertTrue(sut.presentPendingBuiltInPayPalForForwardPayment(for: Self.otherExecuteKey) { _ in })
+        drainMainQueue()
+        XCTAssertEqual(sut.unitTest_presentedBuiltInPayPalCount(), 1)
+        XCTAssertEqual(reported, [Self.testExecuteId])
+    }
+
+    func test_stepOne_payPal_whoseResponsePrunesTheLastMarkOfAnExecuteWhoseCheckoutIsGone_reportsThatExecute() {
+        let payPalPresenter = HoldingPayPalApprovalPresenter()
+        sut = PaymentOrchestrator(apiHelper: PaymentOrchestratorAPIHelperSpy.self, payPalApprovalPresenter: payPalPresenter)
+        var reported: [String] = []
+        sut.onExecuteHasNoOutstandingCheckout = { reported.append($0) }
+        let presentingViewController = UIViewController()
+        abandonTheTestExecutesApproval(
+            from: presentingViewController,
+            tearDownSheet: { payPalPresenter.presentedSheets.first?.tearDown() }
+        )
+
+        // Step-1 for a second item of the first execute fails, so nothing is stored for it, and its response prunes the
+        // first item's mark on the way. Nothing of the first execute is left, so that execute is reported; the other is not.
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = nil
+        var stepOneResult: PaymentSheetResult?
+        sut.processPayment(
+            method: .paypal,
+            item: PaymentItem(id: "p2", name: "P", amount: 1, currency: "USD"),
+            context: PaymentContext(
+                billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                returnURL: "myapp://paypal/success",
+                cancelURL: nil
+            ),
+            cartItemId: "v1:cart:2",
+            from: presentingViewController,
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests(layoutId: "second_layout") { _, _, _ in
+                XCTFail("A failed Step-1 shows no confirm button")
+            }
+        ) { stepOneResult = $0 }
+        drainMainQueue()
+
+        XCTAssertEqual(stepOneResult?.outcome, .failed, "The layout still hears that this attempt failed")
+        XCTAssertEqual(sut.unitTest_presentedBuiltInPayPalCount(), 1, "Only the mark of the approval still up is left")
+        XCTAssertEqual(reported, [Self.testExecuteId])
+    }
+
+    func test_stepOne_payPal_whoseResponseStoresANewCheckoutOfTheExecute_prunesAnAbandonedMarkAndReportsNothing() {
+        let payPalPresenter = HoldingPayPalApprovalPresenter()
+        sut = PaymentOrchestrator(apiHelper: PaymentOrchestratorAPIHelperSpy.self, payPalApprovalPresenter: payPalPresenter)
+        var reported: [String] = []
+        sut.onExecuteHasNoOutstandingCheckout = { reported.append($0) }
+        let presentingViewController = UIViewController()
+        abandonTheTestExecutesApproval(
+            from: presentingViewController,
+            tearDownSheet: { payPalPresenter.presentedSheets.first?.tearDown() }
+        )
+
+        // Step-1 for a second item of the first execute succeeds and stores its checkout. Its response prunes the first
+        // item's mark on the way, but the new checkout keeps the execute outstanding, so nothing is reported for it.
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse =
+            Self.validPayPalInitializePurchaseResponse(orderId: "ORDER_2")
+        var confirmationShown = false
+        sut.processPayment(
+            method: .paypal,
+            item: PaymentItem(id: "p2", name: "P", amount: 1, currency: "USD"),
+            context: PaymentContext(
+                billingAddress: ContactAddress(name: "A", email: "a@b.com"),
+                returnURL: "myapp://paypal/success",
+                cancelURL: nil
+            ),
+            cartItemId: "v1:cart:2",
+            from: presentingViewController,
+            builtInPayPalDevicePaySession: paypalDeviceSessionForTests(layoutId: "second_layout") { _, _, _ in
+                confirmationShown = true
+            }
+        ) { _ in }
+        drainMainQueue()
+        let secondItemKey = BuiltInTwoStepCheckoutKey(
+            executeId: Self.testExecuteId,
+            layoutId: "second_layout",
+            catalogItemId: "test_catalog",
+            cartItemId: "v1:cart:2"
+        )
+
+        XCTAssertTrue(confirmationShown, "The new checkout is on offer")
+        XCTAssertTrue(sut.unitTest_hasPendingBuiltInTwoStep(for: secondItemKey))
+        XCTAssertEqual(sut.unitTest_presentedBuiltInPayPalCount(), 1, "The mark of the approval that is gone is pruned")
+        XCTAssertTrue(reported.isEmpty, "Not reported while the new checkout of the execute waits for its confirm")
+        XCTAssertTrue(sut.hasOutstandingBuiltInTwoStepCheckout(forExecuteId: Self.testExecuteId))
+    }
+
+    func test_stepOne_card_whoseResponsePrunesTheLastMarkOfAnExecuteWhoseCheckoutIsGone_reportsThatExecute() {
+        let payPalPresenter = HoldingPayPalApprovalPresenter()
+        sut = PaymentOrchestrator(apiHelper: PaymentOrchestratorAPIHelperSpy.self, payPalApprovalPresenter: payPalPresenter)
+        var reported: [String] = []
+        sut.onExecuteHasNoOutstandingCheckout = { reported.append($0) }
+        let presentingViewController = UIViewController()
+        abandonTheTestExecutesApproval(
+            from: presentingViewController,
+            tearDownSheet: { payPalPresenter.presentedSheets.first?.tearDown() }
+        )
+
+        // A card Step-1 for a second item of the first execute fails, so nothing is stored for it, and its response prunes
+        // the first item's mark on the way. Nothing of the first execute is left, so that execute is reported.
+        PaymentOrchestratorAPIHelperSpy.initializePurchaseResponse = nil
+        var stepOneResult: PaymentSheetResult?
+        sut.processPayment(
+            method: .card,
+            item: PaymentItem(id: "item-card", name: "Widget", amount: 9.99, currency: "USD"),
+            context: PaymentContext(),
+            cartItemId: "v1:cart:2",
+            from: presentingViewController,
+            builtInCardDevicePaySession: BuiltInTwoStepDevicePaySession(
+                executeId: Self.testExecuteId,
+                layoutId: "second_layout",
+                catalogItemId: "test_catalog"
+            ) { _, _, _ in
+                XCTFail("A failed Step-1 shows no confirm button")
+            }
+        ) { stepOneResult = $0 }
+        drainMainQueue()
+
+        XCTAssertEqual(stepOneResult?.outcome, .failed, "The layout still hears that this attempt failed")
+        XCTAssertEqual(sut.unitTest_presentedBuiltInPayPalCount(), 1, "Only the mark of the approval still up is left")
+        XCTAssertEqual(reported, [Self.testExecuteId])
+    }
 }
 
 class PaymentOrchestratorAPIHelperSpy: RoktAPIHelper {

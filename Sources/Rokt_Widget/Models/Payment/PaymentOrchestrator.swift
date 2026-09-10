@@ -227,7 +227,8 @@ final class PaymentOrchestrator {
     /// Called on the main queue with an execute id when the last outstanding checkout of that execute ended without
     /// reporting back: its placement closed while it waited for its Step-1 response or for its confirm, a PayPal
     /// approval was cancelled after its placement closed, a card purchase failed retryably after its placement closed,
-    /// or the session was cleared. State kept for the execute can then be checked again.
+    /// the session was cleared, or the mark of a PayPal approval the host tore down without a cancel or a return was
+    /// pruned once its checkout was gone. State kept for the execute can then be checked again.
     var onExecuteHasNoOutstandingCheckout: ((String) -> Void)?
 
     init(
@@ -446,7 +447,7 @@ final class PaymentOrchestrator {
         // PayPal approval sheet is up: nothing is stored and the new attempt is reported as failed.
         let endPreparing: (PendingBuiltInTwoStepCheckout?) -> FinishedPreparing = { entry in
             guard let preparingKey, let preparingToken else { return .stored }
-            return Self.finishPreparingBuiltInTwoStep(for: preparingKey, token: preparingToken, storing: entry)
+            return self.finishPreparingBuiltInTwoStep(for: preparingKey, token: preparingToken, storing: entry)
         }
         preparePaymentForItem(
             item: item,
@@ -569,6 +570,11 @@ final class PaymentOrchestrator {
     /// same pending checkout so the confirmation UI can stay up and ``presentPendingBuiltInPayPalForForwardPayment``
     /// can run again.
     ///
+    /// A mark left by an approval whose checkout is gone (a sheet the host tore down without a cancel or a return,
+    /// whose checkout a later presentation then released) is pruned on the way in and reported the way a fence reports
+    /// the marks it prunes: once this confirm has decided what it starts, every execute so affected that is left with
+    /// no checkout outstanding is reported through ``onExecuteHasNoOutstandingCheckout``.
+    ///
     /// - Parameters:
     ///   - key: item and placement of the Step-2 confirm; only that item's pending PayPal checkout is consumed.
     ///   - onCompletion: called on the main queue with the coordinator outcome.
@@ -585,7 +591,11 @@ final class PaymentOrchestrator {
         onCompletion: @escaping (PaymentSheetResult) -> Void
     ) -> Bool {
         Self.pendingBuiltInTwoStepLock.lock()
-        Self.pruneAbandonedPresentedBuiltInPayPal()
+        // Reported on the way out, after every exit below has released the lock and this confirm has decided what it
+        // starts: the report skips an execute that still has a checkout outstanding, the one this confirm presents or
+        // leaves pending included.
+        let prunedExecuteIds = Set(Self.pruneAbandonedPresentedBuiltInPayPal().map(\.executeId))
+        defer { prunedExecuteIds.forEach(reportIfNoOutstandingCheckout(forExecuteId:)) }
         // This item's approval sheet is already up: a repeated confirm has nothing to start, and is not a card purchase.
         if Self.presentedBuiltInPayPalCheckouts[key] != nil {
             Self.pendingBuiltInTwoStepLock.unlock()
@@ -783,7 +793,7 @@ final class PaymentOrchestrator {
                 )
                 let pending = PendingBuiltInCardCheckout(owner: self, completion: completion)
                 // Stored before the confirm button appears, so a confirm can never miss it.
-                switch Self.finishPreparingBuiltInTwoStep(for: key, token: preparingToken, storing: .card(pending)) {
+                switch self.finishPreparingBuiltInTwoStep(for: key, token: preparingToken, storing: .card(pending)) {
                 case .superseded:
                     return
                 case .keptPurchaseInFlight:
@@ -801,7 +811,7 @@ final class PaymentOrchestrator {
                 }
                 devicePaySession.showConfirmation(devicePaySession.layoutId, devicePaySession.catalogItemId, catalogRuntimeData)
             case .failure(let error):
-                if case .superseded = Self.finishPreparingBuiltInTwoStep(for: key, token: preparingToken, storing: nil) {
+                if case .superseded = self.finishPreparingBuiltInTwoStep(for: key, token: preparingToken, storing: nil) {
                     return
                 }
                 DispatchQueue.main.async {
@@ -955,16 +965,19 @@ final class PaymentOrchestrator {
     /// Whether a built-in two-step checkout of `executeId` is still outstanding: a Step-1 request out, a Step-1
     /// result waiting for its confirm, a card purchase in flight, or a PayPal approval sheet up. Read by the
     /// execute's state keeper before it drops the execute's state, so a result that arrives after every placement
-    /// closed still has somewhere to report. A mark whose checkout is gone can never report back and does not count.
+    /// closed still has somewhere to report. A mark whose checkout is gone can never report back and does not count,
+    /// but this read leaves it in place: it runs inside the state keeper's own check, so it changes none of the tables
+    /// and reports nothing. The next fence, confirm or Step-1 response prunes the mark and reports its execute.
     func hasOutstandingBuiltInTwoStepCheckout(forExecuteId executeId: String) -> Bool {
         Self.pendingBuiltInTwoStepLock.lock()
         defer { Self.pendingBuiltInTwoStepLock.unlock() }
-        Self.pruneAbandonedPresentedBuiltInPayPal()
         let hasPendingCheckout = Self.pendingBuiltInTwoStepCheckouts.contains { entry in
             entry.key.executeId == executeId && entry.value.owner === self
         }
         let hasPreparingCheckout = Self.preparingBuiltInTwoStepCheckouts.keys.contains { $0.executeId == executeId }
-        let hasPresentedCheckout = Self.presentedBuiltInPayPalCheckouts.keys.contains { $0.executeId == executeId }
+        let hasPresentedCheckout = Self.presentedBuiltInPayPalCheckouts.contains { entry in
+            entry.key.executeId == executeId && entry.value.coordinator != nil
+        }
         return hasPendingCheckout || hasPreparingCheckout || hasPresentedCheckout
     }
 
@@ -1035,8 +1048,9 @@ final class PaymentOrchestrator {
     /// longer holds other approvals back (``PresentedBuiltInPayPalCheckout/holdsBackOtherApprovals``); a repeated
     /// confirm for its own item does nothing until the mark goes.
     ///
-    /// - Returns: the keys of the marks pruned, so a caller can report an execute left with nothing outstanding.
-    @discardableResult
+    /// - Returns: the keys of the marks pruned. Every caller reports each execute a pruned mark left with nothing
+    ///   outstanding once it has released the lock (``reportIfNoOutstandingCheckout(forExecuteId:)``), so the result
+    ///   is not discardable: no pass may prune a mark without reporting its execute.
     private static func pruneAbandonedPresentedBuiltInPayPal() -> [BuiltInTwoStepCheckoutKey] {
         let abandoned = presentedBuiltInPayPalCheckouts.filter { $0.value.coordinator == nil }.map(\.key)
         abandoned.forEach { presentedBuiltInPayPalCheckouts.removeValue(forKey: $0) }
@@ -1096,29 +1110,45 @@ final class PaymentOrchestrator {
     /// store drops a checkout still on offer for the item (a card entry, or a PayPal entry a cancel re-queued while
     /// the request was out): its layout is told this attempt failed, so a later confirm must not start the superseded
     /// one. A card purchase already sent, or a PayPal approval sheet already up, keeps its place whatever the new
-    /// request brings, because its result still has to reach its completion; the new state is not stored.
-    private static func finishPreparingBuiltInTwoStep(
+    /// request brings, because its result still has to reach its completion; the new state is not stored. A mark of an
+    /// abandoned approval pruned on the way is reported the way a fence reports the marks it prunes: once the lock is
+    /// released, every execute so affected that is left with no checkout outstanding is reported through
+    /// ``onExecuteHasNoOutstandingCheckout``; an execute whose new state was just stored is still outstanding, and is not.
+    private func finishPreparingBuiltInTwoStep(
         for key: BuiltInTwoStepCheckoutKey,
         token: UUID,
         storing entry: PendingBuiltInTwoStepCheckout?
     ) -> FinishedPreparing {
+        let finished = Self.finishPreparingBuiltInTwoStepInTables(for: key, token: token, storing: entry)
+        finished.prunedExecuteIds.forEach(reportIfNoOutstandingCheckout(forExecuteId:))
+        return finished.outcome
+    }
+
+    /// The table updates of ``finishPreparingBuiltInTwoStep(for:token:storing:)``, under the lock. Beside the outcome it
+    /// returns the executes whose abandoned approval marks it pruned on the way, for the caller to report once the lock
+    /// is released; a request that was superseded, or that met a card purchase already sent, returns before pruning.
+    private static func finishPreparingBuiltInTwoStepInTables(
+        for key: BuiltInTwoStepCheckoutKey,
+        token: UUID,
+        storing entry: PendingBuiltInTwoStepCheckout?
+    ) -> (outcome: FinishedPreparing, prunedExecuteIds: Set<String>) {
         pendingBuiltInTwoStepLock.lock()
         defer { pendingBuiltInTwoStepLock.unlock() }
-        guard preparingBuiltInTwoStepCheckouts[key] == token else { return .superseded }
+        guard preparingBuiltInTwoStepCheckouts[key] == token else { return (.superseded, []) }
         preparingBuiltInTwoStepCheckouts.removeValue(forKey: key)
         if pendingBuiltInTwoStepCheckouts[key]?.isCardPurchaseInFlight == true {
-            return entry == nil ? .stored : .keptPurchaseInFlight
+            return (entry == nil ? .stored : .keptPurchaseInFlight, [])
         }
-        pruneAbandonedPresentedBuiltInPayPal()
+        let prunedExecuteIds = Set(pruneAbandonedPresentedBuiltInPayPal().map(\.executeId))
         if presentedBuiltInPayPalCheckouts[key] != nil {
-            return entry == nil ? .stored : .keptApprovalInProgress
+            return (entry == nil ? .stored : .keptApprovalInProgress, prunedExecuteIds)
         }
         if let entry {
             pendingBuiltInTwoStepCheckouts[key] = entry
         } else {
             pendingBuiltInTwoStepCheckouts.removeValue(forKey: key)
         }
-        return .stored
+        return (.stored, prunedExecuteIds)
     }
 
     private static func catalogRuntimeDataForDevicePayConfirmation(
