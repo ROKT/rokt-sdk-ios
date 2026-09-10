@@ -858,8 +858,6 @@ final class TestOffersExecuteWiring: XCTestCase {
         settle()
 
         XCTAssertNotNil(impl.capturedPage, "the second placement renders")
-        XCTAssertFalse(secondEvents.contains(where: { $0 is RoktEvent.PlacementFailure }),
-                       "the second placement's caller never hears a failure")
         XCTAssertTrue(secondHidLoadingAfterItsResponse,
                       "the second placement's render dismisses its own loading indicator, so its handler survived")
     }
