@@ -1229,8 +1229,9 @@ class RoktInternalImplementation {
         sessionGenerationLock.lock()
         sessionGeneration &+= 1
         // The persisted session and its epoch go under the same lock as the generation. A placement builds its
-        // offers request under this lock too, so the session manager it carries can never read the old epoch
-        // against a new generation, or the new epoch against an old one.
+        // offers service under this lock too, so the session manager it carries can never read the old epoch
+        // against a new generation, or the new epoch against an old one; and it hands its request to the network
+        // stack under this lock (handOffIfCurrent), so no request leaves for a session this call has ended.
         TxnSessionManager.clearPersistedSession(store: txnSessionStore)
         // Also clears the legacy session id and, via ManagedSession, the real-time event store.
         sessionManager.invalidateSession()
@@ -1282,8 +1283,10 @@ class RoktInternalImplementation {
     /// URLSession task is resumed) that returns as soon as the request is queued and never waits on its response.
     /// Held there, the lock makes the decision to send and the send itself one step: a clearSession on another queue
     /// lands wholly before it, and nothing is sent for the departing customer, or wholly after it, when the request is
-    /// already queued and its response is discarded by commitIfCurrent with nothing from it persisted. The hold is
-    /// bounded by that enqueue, never by the network; keep it that way.
+    /// already queued and cannot be recalled. Its response is then fenced out: commitIfCurrent refuses the render and
+    /// the cache write, the store's epoch refuses the session it carries (TxnSessionManager.update), and
+    /// captureUntriggeredEvents drops its echoed events, so nothing from it is shown or persisted. The hold is bounded
+    /// by that enqueue, never by the network; keep it that way.
     func handOffIfCurrent(generation: Int, _ handOff: () -> Void) -> Bool {
         commitIfCurrent(generation: generation, handOff)
     }

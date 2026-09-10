@@ -6,8 +6,9 @@ internal struct OffersService {
         case invalidBaseURL
         case missingResponseData
         case unexpectedStatusCode(Int)
-        /// The session was reset after the placement started and before its request, or a retry of it, was
-        /// sent. Nothing more went to the network; there is no status code and no response.
+        /// The session was reset after the placement started and before its request, or a retry of it, was handed
+        /// to the network stack, so the gate on that hand-off declined it. Nothing more went to the network; there
+        /// is no status code and no response.
         case discardedBeforeSend
     }
 
