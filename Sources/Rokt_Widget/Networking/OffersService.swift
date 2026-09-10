@@ -167,7 +167,10 @@ internal struct OffersService {
                 // token) is never sent, or wholly after it, and the caller discards the response. A declined
                 // hand-off throws discardedBeforeSend, which is not a transport failure and so is not retried below.
                 let (data, response) = try await client.fetchOffers(input: input) { start in
-                    guard sendGate({ start() }) else { throw OffersError.discardedBeforeSend }
+                    // `start` is a non-escaping parameter and so is the gate's; the compiler will not pass one
+                    // straight to the other, so the send is lent to the gate for the duration of the call only.
+                    let allowed = withoutActuallyEscaping(start) { escapableStart in sendGate(escapableStart) }
+                    guard allowed else { throw OffersError.discardedBeforeSend }
                 }
                 let statusCode = response?.statusCode ?? 0
 
