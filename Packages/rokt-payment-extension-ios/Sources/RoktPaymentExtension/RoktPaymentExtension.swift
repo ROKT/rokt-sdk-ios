@@ -128,8 +128,9 @@ public class RoktPaymentExtension: PaymentExtension {
 
         if let urlScheme, !urlScheme.isEmpty {
             let returnURL = "\(urlScheme)://\(Self.returnHost)"
+            // Afterpay scopes its client to a connected account per payment, so it gets a client of its own.
             stripeAfterpayManager = StripeAfterpayManager(
-                apiClient: apiClient,
+                apiClient: STPAPIClient(publishableKey: stripeKey),
                 returnURL: returnURL
             )
         }
