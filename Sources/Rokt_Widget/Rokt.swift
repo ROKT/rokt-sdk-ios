@@ -303,7 +303,9 @@ internal import RoktUXHelper
     ///
     /// - Note: The SDK must be initialized. Empty `sessionId` or `sessionToken` values are ignored.
     /// - Note: ``RoktSession/expiresAt`` is optional (aligned with Web `sessionId` + `sessionToken`).
-    ///   When omitted or already past, a short-lived default TTL is applied for local persistence.
+    ///   When omitted or already past, a short-lived default TTL is applied for local persistence;
+    ///   an expiry more than a year out is capped locally, so ``getSession()`` may return an earlier
+    ///   value than was supplied.
     ///
     /// - Parameter session: The session id and JWT session token to apply (optional expiry).
     public static func setSession(_ session: RoktSession) {

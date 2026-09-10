@@ -8,6 +8,10 @@ internal class StripeAfterpayManager {
     private let apiClient: STPAPIClient
     internal let returnURL: String
 
+    /// True from the moment a confirmation is handed to Stripe until its completion runs, so a
+    /// second tap in that window fails instead of starting another confirmation. Main queue only.
+    private var isConfirming = false
+
     internal init(apiClient: STPAPIClient, returnURL: String) {
         self.apiClient = apiClient
         self.returnURL = returnURL
@@ -77,14 +81,6 @@ internal class StripeAfterpayManager {
                 return
             }
 
-            // STPPaymentHandler.shared() uses STPAPIClient.shared internally,
-            // so we must configure the shared client with the same publishable key
-            // and connected account. (Unlike STPApplePayContext which accepts a
-            // custom apiClient directly.)
-            STPAPIClient.shared.publishableKey = self.apiClient.publishableKey
-            STPAPIClient.shared.stripeAccount = preparation.merchantId
-            self.apiClient.stripeAccount = preparation.merchantId
-
             let params = STPPaymentIntentParams(clientSecret: preparation.clientSecret)
             params.paymentMethodParams = STPPaymentMethodParams(
                 afterpayClearpay: STPPaymentMethodAfterpayClearpayParams(),
@@ -100,8 +96,31 @@ internal class StripeAfterpayManager {
             let authContext = SimpleAuthenticationContext(presentingController: viewController)
 
             DispatchQueue.main.async {
-                STPPaymentHandler.shared()
-                    .confirmPaymentIntent(params: params, authenticationContext: authContext) { status, intent, error in
+                guard !self.isConfirming else {
+                    completion(.failed(error: "A payment is already in progress"))
+                    return
+                }
+                self.isConfirming = true
+
+                // Stripe exposes one payment handler, so for this confirmation it is pointed at the
+                // extension's own client (scoped to the connected account) and afterwards handed back
+                // the client it held. STPAPIClient.shared itself is never changed.
+                let extensionClient = self.apiClient
+                extensionClient.stripeAccount = preparation.merchantId
+                let handler = STPPaymentHandler.shared()
+                let previousClient = handler.apiClient
+                handler.apiClient = extensionClient
+
+                handler.confirmPaymentIntent(
+                    params: params,
+                    authenticationContext: authContext
+                ) { [weak self] status, intent, error in
+                    // The redirect and polling steps also run on the handler's client, so the
+                    // hand-back waits for the completion and happens on every outcome.
+                    handler.apiClient = previousClient
+                    extensionClient.stripeAccount = nil
+                    self?.isConfirming = false
+
                     switch status {
                     case .succeeded:
                         completion(.succeeded(transactionId: StripePaymentDiagnostics.transactionId(

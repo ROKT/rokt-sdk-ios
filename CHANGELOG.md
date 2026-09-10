@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [5.5.0] - 2026-09-09
+
+### Core
+
+#### Added
+
+- Integrate product carousel responses ([#307](https://github.com/ROKT/rokt-sdk-ios/pull/307))
+
+#### Fixed
+
+- Expire the session id sent on diagnostics and timings headers ([#316](https://github.com/ROKT/rokt-sdk-ios/pull/316))
+- Disable HTTP cookies on SDK network requests ([#315](https://github.com/ROKT/rokt-sdk-ios/pull/315))
+
+#### Changed
+
+- Add deterministic safe-change approval ([#306](https://github.com/ROKT/rokt-sdk-ios/pull/306))
+- Bump trunk-io/trunk-action from 1.3.1 to 2.0.0 ([#313](https://github.com/ROKT/rokt-sdk-ios/pull/313))
+- Bump softprops/action-gh-release from 3.0.0 to 3.0.3 ([#314](https://github.com/ROKT/rokt-sdk-ios/pull/314))
+
 ## [5.4.1] - 2026-09-03
 
 ### Core
@@ -602,7 +621,8 @@ For a complete migration walkthrough with before/after code examples, see the [v
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.4.1...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.5.0...HEAD
+[5.5.0]: https://github.com/ROKT/rokt-sdk-ios/compare/5.4.1...5.5.0
 [5.4.1]: https://github.com/ROKT/rokt-sdk-ios/compare/5.4.0...5.4.1
 [5.4.0]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.4...5.4.0
 [5.3.4]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.3...5.3.4
