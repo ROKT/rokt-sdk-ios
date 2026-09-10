@@ -14,6 +14,19 @@ internal struct TxnEventService {
         case unexpectedStatusCode(Int)
     }
 
+    /// How a batch is bound to a session. Each batch resolves its route on its own, from one read
+    /// of the session manager, just before it is sent.
+    private enum Route {
+        /// Follows the live session: the stored bearer when there is one, otherwise neither a
+        /// bearer nor a stamp, and the server mints a fresh session.
+        case live
+        /// Bound to the session that produced the batch: that session's bearer while it is still
+        /// the stored session with an unexpired token, otherwise stamped with its id.
+        case origin(String)
+        /// Always stamped with the session id, never a bearer.
+        case replay(String)
+    }
+
     let sessionManager: TxnSessionManager
     let maxRetries: Int
     let baseBackoff: TimeInterval
@@ -59,41 +72,75 @@ internal struct TxnEventService {
 
     /// Sends events for the current session, authenticated with the stored token.
     func send(events: [TxnEvent]) async throws {
-        try await send(events: events, replaySessionId: nil)
+        try await send(events: events, route: .live)
+    }
+
+    /// Sends events bound to the session that produced them. Each batch goes out with that
+    /// session's bearer while it is still the stored session and its token is unexpired; otherwise
+    /// it goes out stamped with `originSessionId` and without Authorization, like a replay, so it
+    /// can neither ride a later session's token nor start a session of its own.
+    func send(events: [TxnEvent], originSessionId: String) async throws {
+        try await send(events: events, route: .origin(originSessionId))
     }
 
     /// Replays a batch that outlived the session it belongs to, unauthenticated with `session_id`
     /// stamped on every event, so it stays on that session rather than the current one.
     func replay(events: [TxnEvent], sessionId: String) async throws {
-        try await send(events: events, replaySessionId: sessionId)
+        try await send(events: events, route: .replay(sessionId))
     }
 
-    private func send(events: [TxnEvent], replaySessionId: String?) async throws {
+    private func send(events: [TxnEvent], route: Route) async throws {
         guard !events.isEmpty else { return }
         guard client != nil else { throw TxnEventError.invalidBaseURL }
 
-        // Send batches sequentially (awaiting each) to preserve event order and so a
-        // session token refreshed by one batch is picked up by the next.
+        // Send batches sequentially (awaiting each) to preserve event order and so a session token
+        // refreshed by one batch is picked up by the next. Each batch resolves its route afresh, so
+        // a token that expires between batches flips the later ones to the stamped form.
         for start in stride(from: 0, to: events.count, by: Self.maxEventsPerBatch) {
             let end = min(start + Self.maxEventsPerBatch, events.count)
             let batch = Array(events[start..<end])
             do {
-                try await sendBatch(events: batch, replaySessionId: replaySessionId)
+                try await sendBatch(events: batch, route: route)
             } catch {
                 // Persist recoverable failures (exhausted 5xx/transport) for replay on the next
                 // init instead of dropping them; permanent failures (400/401) are not replayed.
                 if shouldPersistOnFailure(error) {
                     // Re-bind to the originating session so a repeated failure stays attributable.
-                    let sessionId: String?
-                    if let replaySessionId {
-                        sessionId = replaySessionId
-                    } else {
-                        sessionId = await sessionManager.currentSessionId
-                    }
+                    let sessionId = await boundSessionId(for: route)
                     pendingStore?.persist(events: batch, sessionId: sessionId)
                 }
                 throw error
             }
+        }
+    }
+
+    // The session a failed batch is persisted against: the one it is bound to when known, otherwise
+    // whichever session is live now.
+    private func boundSessionId(for route: Route) async -> String? {
+        switch route {
+        case .live:
+            return await sessionManager.currentSessionId
+        case .origin(let sessionId), .replay(let sessionId):
+            return sessionId
+        }
+    }
+
+    // The bearer and the `session_id` stamp for one batch, never both. `.live` reads the stored
+    // bearer, nil when there is no unexpired token; `.replay` always stamps; `.origin` asks for that
+    // session's bearer in one actor call, so the id and the expiry cannot disagree, and stamps when
+    // none comes back because the session is no longer the stored one or its token has expired.
+    private func resolve(_ route: Route) async -> (authToken: String?, stampedSessionId: String?) {
+        switch route {
+        case .live:
+            let authToken = await sessionManager.authorizationHeader
+            return (authToken, nil)
+        case .replay(let sessionId):
+            return (nil, sessionId)
+        case .origin(let sessionId):
+            if let authToken = await sessionManager.authorizationHeader(forSession: sessionId) {
+                return (authToken, nil)
+            }
+            return (nil, sessionId)
         }
     }
 
@@ -106,22 +153,20 @@ internal struct TxnEventService {
         return isRetryable(error: error)
     }
 
-    private func sendBatch(events: [TxnEvent], replaySessionId: String?) async throws {
+    private func sendBatch(events: [TxnEvent], route: Route) async throws {
         guard let client else { throw TxnEventError.invalidBaseURL }
 
-        let authToken: String?
+        let (authToken, stampedSessionId) = await resolve(route)
         let payload: [TxnEvent]
-        if let replaySessionId {
-            // No Authorization on purpose: a token disagreeing with the stamped session_id is
-            // rejected as a conflict.
-            authToken = nil
+        if let stampedSessionId {
+            // No Authorization on a stamped batch (`resolve` never returns both): a token
+            // disagreeing with the stamped session_id is rejected as a conflict.
             payload = events.map { event in
                 var stamped = event
-                stamped.sessionId = replaySessionId
+                stamped.sessionId = stampedSessionId
                 return stamped
             }
         } else {
-            authToken = await sessionManager.authorizationHeader
             payload = events
         }
 
@@ -150,8 +195,9 @@ internal struct TxnEventService {
                         message: Self.unauthorizedDiagnosticCode,
                         callStack: "Dropped \(events.count) event(s) after events 401"
                     )
-                    // A replay carries no token, so its 401 says nothing about the live session.
-                    if replaySessionId == nil {
+                    // A stamped batch carries no token, so its 401 says nothing about the live
+                    // session.
+                    if stampedSessionId == nil {
                         await sessionManager.clear()
                     }
                     throw TxnEventError.unexpectedStatusCode(statusCode)
@@ -161,9 +207,9 @@ internal struct TxnEventService {
                     throw TxnEventError.unexpectedStatusCode(statusCode)
                 }
 
-                // A replay response describes the old session; adopting its token would
-                // overwrite the live one.
-                if replaySessionId == nil,
+                // A stamped batch's response describes the stamped session, which by now may not be
+                // the stored one; adopting its token would overwrite the live one.
+                if stampedSessionId == nil,
                    let data,
                    let decoded = try? JSONDecoder().decode(TxnEventsResponse.self, from: data),
                    let sessionToken = decoded.sessionToken {

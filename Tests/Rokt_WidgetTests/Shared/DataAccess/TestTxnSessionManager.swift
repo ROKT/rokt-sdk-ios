@@ -53,6 +53,37 @@ final class TestTxnSessionManager: XCTestCase {
         XCTAssertEqual(sessionId, "sid")
     }
 
+    // MARK: - Bearer for a named session
+
+    func test_authorizationHeaderForSession_heldSessionWithLiveToken_returnsBearer() async {
+        await manager.update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 1800))
+        let header = await manager.authorizationHeader(forSession: "sid")
+        XCTAssertEqual(header, "Bearer jwt")
+    }
+
+    /// The id still matches but the token has expired: one call answers nil for both, where a
+    /// caller comparing `currentSessionId` and then reading `authorizationHeader` sees a match
+    /// beside a missing token.
+    func test_authorizationHeaderForSession_heldSessionWithExpiredToken_returnsNil() async {
+        await manager.update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 60))
+        now = now.addingTimeInterval(61)
+        let header = await manager.authorizationHeader(forSession: "sid")
+        let sessionId = await manager.currentSessionId
+        XCTAssertNil(header)
+        XCTAssertEqual(sessionId, "sid", "The id is kept so the batch can still be stamped with it")
+    }
+
+    func test_authorizationHeaderForSession_otherSession_returnsNil() async {
+        await manager.update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 1800))
+        let header = await manager.authorizationHeader(forSession: "other")
+        XCTAssertNil(header)
+    }
+
+    func test_authorizationHeaderForSession_noSession_returnsNil() async {
+        let header = await manager.authorizationHeader(forSession: "sid")
+        XCTAssertNil(header)
+    }
+
     func test_expiryBoundary_isExpiredAtExactExpiry() async {
         await manager.update(sessionId: "sid", sessionToken: token("jwt", expiresInSeconds: 60))
         now = now.addingTimeInterval(60)

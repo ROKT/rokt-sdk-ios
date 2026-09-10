@@ -42,6 +42,8 @@ internal actor TxnSessionManager {
         restoreFromStore()
     }
 
+    /// The id of the session this instance holds. Kept after the token expires, so a batch can
+    /// still be stamped with it; it never implies a usable token.
     var currentSessionId: String? {
         sessionId
     }
@@ -50,11 +52,20 @@ internal actor TxnSessionManager {
         hasExpired
     }
 
-    // nil when there is no token or it has expired; the server then mints a
-    // fresh session rather than returning 401.
+    /// nil when there is no token or it has expired; the server then mints a fresh session rather
+    /// than returning 401. A caller that must bind a batch to a named session reads
+    /// ``authorizationHeader(forSession:)`` instead: comparing ``currentSessionId`` and then reading
+    /// this can straddle the expiry and pair a matching id with a missing token.
     var authorizationHeader: String? {
         guard let token, !hasExpired else { return nil }
         return "Bearer \(token)"
+    }
+
+    /// The bearer for `origin`, or nil unless `origin` is the session held here and its token is
+    /// unexpired. One actor call, so the id and the expiry are read together and cannot disagree.
+    func authorizationHeader(forSession origin: String) -> String? {
+        guard sessionId == origin else { return nil }
+        return authorizationHeader
     }
 
     func update(sessionId: String, sessionToken: TxnSessionToken) {

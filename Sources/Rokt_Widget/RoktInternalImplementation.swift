@@ -1219,16 +1219,17 @@ class RoktInternalImplementation {
     }
 
     // Each batch gets a fresh service instance so it rehydrates the latest persisted token.
-    // A batch names the session that produced it; when that session is no longer the live one
-    // (cleared, or replaced by a later placement) the batch is replayed on its own session
-    // instead of riding the live token. Without an origin the batch follows the live session.
+    // A batch names the session that produced it, and the origin is passed straight through: no
+    // decision is made here. The service decides per batch, from one read of the session manager,
+    // whether that session is still the stored one with an unexpired token (sent with its bearer,
+    // unstamped) or not (stamped with its session id, no Authorization). Without an origin the
+    // batch follows the live session.
     func dispatchTxnEvents(_ events: [TxnEvent], originSessionId: String? = nil) {
         guard !events.isEmpty, let roktTagId else { return }
         let service = makeTxnEventServiceOverride?(roktTagId) ?? defaultTxnEventService(roktTagId: roktTagId)
         Task {
-            if let originSessionId, !originSessionId.isEmpty,
-               await service.sessionManager.currentSessionId != originSessionId {
-                try? await service.replay(events: events, sessionId: originSessionId)
+            if let originSessionId, !originSessionId.isEmpty {
+                try? await service.send(events: events, originSessionId: originSessionId)
             } else {
                 try? await service.send(events: events)
             }

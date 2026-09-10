@@ -63,6 +63,141 @@ final class TestTxnEventService: XCTestCase {
         [TxnEvent(eventType: "impression", instanceId: "instance-1", timestamp: 1_700_000_000_000, data: ["k": "v"])]
     }
 
+    /// The `session_id` of every event in request number `index`; `nil` where none was stamped.
+    private func bodySessionIds(inRequest index: Int) -> [String?] {
+        guard httpClient.capturedBodies.indices.contains(index) else { return [] }
+        let events = httpClient.capturedBodies[index]["events"] as? [[String: Any]] ?? []
+        return events.map { $0["session_id"] as? String }
+    }
+
+    // MARK: - Sends bound to the session that produced the batch
+
+    /// The origin is the stored session and its token is unexpired: sent with that bearer, unstamped,
+    /// and the rotated token is adopted as it is for any live send. Red if the origin route stamps
+    /// while the bearer is available, or if it stops adopting the response token.
+    func test_sendWithOrigin_originIsStoredSessionWithLiveToken_sendsBearerUnstamped() async throws {
+        await storeValidToken()
+        httpClient.results = [.success(status: 202, data: rotatedResponse())]
+
+        try await makeService().send(events: sampleEvents(), originSessionId: "session-1")
+
+        XCTAssertEqual(httpClient.capturedHeaders.first?["Authorization"], "Bearer stored-jwt")
+        XCTAssertEqual(bodySessionIds(inRequest: 0), [nil])
+        let header = await sessionManager.authorizationHeader
+        XCTAssertEqual(header, "Bearer rotated-jwt")
+    }
+
+    /// The origin is still the stored session but its token has expired: the batch must not leave
+    /// with neither a bearer nor a stamp. It is stamped with the origin and sent without
+    /// Authorization, and the response token is not adopted, so the header stays nil. Red when the
+    /// route is decided from the session id and the bearer is read in a second call.
+    func test_sendWithOrigin_tokenExpired_stampsOriginWithoutAuthorization() async throws {
+        await storeValidToken()
+        now = now.addingTimeInterval(1801)
+        httpClient.results = [.success(status: 202, data: rotatedResponse())]
+
+        try await makeService().send(events: sampleEvents(), originSessionId: "session-1")
+
+        XCTAssertNil(httpClient.capturedHeaders.first?["Authorization"])
+        XCTAssertEqual(bodySessionIds(inRequest: 0), ["session-1"])
+        let header = await sessionManager.authorizationHeader
+        XCTAssertNil(header, "A stamped batch's response token must not be adopted")
+    }
+
+    /// The origin is not the stored session: stamped with the origin, no Authorization, and the live
+    /// session's token is left alone.
+    func test_sendWithOrigin_originIsNotStoredSession_stampsOriginAndKeepsLiveToken() async throws {
+        await storeValidToken("live-jwt")
+        httpClient.results = [.success(status: 202, data: rotatedResponse())]
+
+        try await makeService().send(events: sampleEvents(), originSessionId: "session-old")
+
+        XCTAssertNil(httpClient.capturedHeaders.first?["Authorization"])
+        XCTAssertEqual(bodySessionIds(inRequest: 0), ["session-old"])
+        let header = await sessionManager.authorizationHeader
+        XCTAssertEqual(header, "Bearer live-jwt")
+    }
+
+    /// A stamped batch carried no token, so its 401 says nothing about the live session. Red if the
+    /// clear is keyed on how the send was entered rather than on what the batch carried.
+    func test_sendWithOrigin_stampedBatch401_doesNotClearLiveSession() async {
+        await storeValidToken("live-jwt")
+        httpClient.results = [.status(401)]
+
+        do {
+            try await makeService().send(events: sampleEvents(), originSessionId: "session-old")
+            XCTFail("Expected the 401 to surface")
+        } catch {
+            // Expected.
+        }
+
+        let header = await sessionManager.authorizationHeader
+        XCTAssertEqual(header, "Bearer live-jwt")
+    }
+
+    /// A batch that went out with the live bearer and got a 401 clears the session, as a live send
+    /// does. Red if an origin-bound batch never clears.
+    func test_sendWithOrigin_bearerBatch401_clearsLiveSession() async {
+        await storeValidToken()
+        httpClient.results = [.status(401)]
+
+        do {
+            try await makeService().send(events: sampleEvents(), originSessionId: "session-1")
+            XCTFail("Expected the 401 to surface")
+        } catch {
+            // Expected.
+        }
+
+        let header = await sessionManager.authorizationHeader
+        let sessionId = await sessionManager.currentSessionId
+        XCTAssertNil(header)
+        XCTAssertNil(sessionId)
+    }
+
+    /// Three batches; the first batch's response rotates the token to one that has already expired.
+    /// The first goes out with the bearer, the later two stamped. Red if the route or the bearer is
+    /// decided once for the whole sequence instead of once per batch.
+    func test_sendWithOrigin_tokenExpiresBetweenBatches_laterBatchesAreStamped() async throws {
+        await storeValidToken()
+        let expiredMs = Int64(now.addingTimeInterval(-1).timeIntervalSince1970 * 1000)
+        httpClient.results = [.success(status: 202, data: rotatedResponse(expiresAtMs: expiredMs))]
+
+        try await makeService().send(events: events(60), originSessionId: "session-1")
+
+        XCTAssertEqual(httpClient.capturedEventCounts, [25, 25, 10])
+        XCTAssertEqual(httpClient.capturedHeaders[0]["Authorization"], "Bearer stored-jwt")
+        XCTAssertEqual(bodySessionIds(inRequest: 0), [String?](repeating: nil, count: 25))
+        XCTAssertNil(httpClient.capturedHeaders[1]["Authorization"])
+        XCTAssertEqual(bodySessionIds(inRequest: 1), [String?](repeating: "session-1", count: 25))
+        XCTAssertNil(httpClient.capturedHeaders[2]["Authorization"])
+        XCTAssertEqual(bodySessionIds(inRequest: 2), [String?](repeating: "session-1", count: 10))
+    }
+
+    /// A failed origin-bound batch is persisted against its origin, not against whatever session is
+    /// stored. Red if the persisted binding reads the stored session when the origin is known.
+    func test_sendWithOrigin_failure_persistsBatchBoundToOrigin() async {
+        await storeValidToken()
+        let store = SpyTxnPendingEventStore()
+        httpClient.results = [.status(503)]
+
+        try? await makeService(pendingStore: store).send(events: sampleEvents(), originSessionId: "session-old")
+
+        XCTAssertEqual(store.persistedSessionIds, ["session-old"])
+    }
+
+    /// The live session is cleared while the batch is still retrying: the persisted batch stays
+    /// bound to the session it came from rather than to the now-empty live one.
+    func test_sendWithOrigin_failureAfterSessionCleared_persistsBatchBoundToOrigin() async {
+        await storeValidToken()
+        let store = SpyTxnPendingEventStore()
+        httpClient.results = [.status(503)]
+        let service = makeService(pendingStore: store, sleep: { _ in await self.sessionManager.clear() })
+
+        try? await service.send(events: sampleEvents(), originSessionId: "session-1")
+
+        XCTAssertEqual(store.persistedSessionIds, ["session-1"])
+    }
+
     // MARK: - Replay of a batch that outlived its session
 
     /// A replay identifies its session in the body, not the header.

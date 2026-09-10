@@ -6,9 +6,12 @@ final class TestTxnEventWiring: XCTestCase {
     private var impl: RoktInternalImplementation!
     private var stub: MockTxnEventsHTTPClient!
     private var userDefaults: UserDefaults!
+    // The clock a test-built session manager reads, so a test decides when its token expires.
+    private var now: Date!
 
     override func setUp() {
         super.setUp()
+        now = Date(timeIntervalSince1970: 1_000_000)
         userDefaults = UserDefaults(suiteName: #file)
         userDefaults.removePersistentDomain(forName: #file)
         // A scratch legacy session so `clearSession()` never touches `UserDefaults.standard`.
@@ -23,6 +26,7 @@ final class TestTxnEventWiring: XCTestCase {
         userDefaults = nil
         impl = nil
         stub = nil
+        now = nil
         super.tearDown()
     }
 
@@ -74,9 +78,11 @@ final class TestTxnEventWiring: XCTestCase {
 
     // MARK: - Session binding
 
-    /// A batch names the session that produced it. While that session is live it is sent as
-    /// before; once it is not (cleared, or replaced by a later placement) the batch is replayed
-    /// on its own session, so it neither rides the live token nor starts a session of its own.
+    /// A batch names the session that produced it. While that session is the stored one and its
+    /// token is unexpired the batch is sent with that bearer; once it is not (cleared, replaced by
+    /// a later placement, or its token expired) the batch is stamped with its own session id and
+    /// sent without Authorization, so it neither rides the live token nor starts a session of its
+    /// own. Red if the origin route stamps while the live bearer is available.
     func test_dispatch_originIsLiveSession_sendsWithLiveBearer() {
         let store = InMemoryTxnStore()
         injectPersistedSessionService(store: store)
@@ -154,6 +160,46 @@ final class TestTxnEventWiring: XCTestCase {
         XCTAssertEqual(bodySessionIds(), [nil])
     }
 
+    // MARK: - Session binding when the token has expired
+
+    /// The origin is still the stored session, but its token expired before the batch was sent. The
+    /// session id alone would choose the live path, whose bearer is then nil, and the batch would
+    /// leave with neither binding for the server to mint a session around. It must go out stamped,
+    /// and the token the response returns must not be adopted. Red when the route is chosen from
+    /// the session id and the bearer is read separately, and red when the origin route falls back
+    /// to the live send on a missing bearer.
+    func test_dispatch_originIsStoredSession_tokenExpired_stampsOriginWithoutAuthorization() {
+        let store = InMemoryTxnStore()
+        seedSession("session-a", token: "jwt-a", store: store, expiresAt: now.addingTimeInterval(60))
+        injectService(on: TxnSessionManager(roktTagId: "tag-1", store: store, clock: { self.now }))
+        now = now.addingTimeInterval(61)
+        stub.results = [.success(status: 200, data: tokenResponse("minted-jwt"))]
+
+        impl.dispatchTxnEvents([sampleEvent(), sampleEvent()], originSessionId: "session-a")
+
+        waitUntil { self.stub.callCount == 1 }
+        settle()
+        XCTAssertNil(stub.capturedHeaders.first?["Authorization"])
+        XCTAssertEqual(bodySessionIds(), ["session-a", "session-a"])
+        XCTAssertEqual(store.string(forKey: TxnSessionStoreKeys.token), "jwt-a")
+    }
+
+    /// No origin and an expired token: the batch follows the live session as before, with neither
+    /// a bearer nor a stamp, and the server mints a fresh session for it. Red if the live route ever
+    /// stamps, or if a dispatch without an origin is routed through the origin-bound send.
+    func test_dispatch_withoutOrigin_tokenExpired_sendsUnboundAsBefore() {
+        let store = InMemoryTxnStore()
+        seedSession("session-b", token: "jwt-b", store: store, expiresAt: now.addingTimeInterval(60))
+        injectService(on: TxnSessionManager(roktTagId: "tag-1", store: store, clock: { self.now }))
+        now = now.addingTimeInterval(61)
+
+        impl.dispatchTxnEvents([sampleEvent()])
+
+        waitUntil { self.stub.callCount == 1 }
+        XCTAssertNil(stub.capturedHeaders.first?["Authorization"])
+        XCTAssertEqual(bodySessionIds(), [nil])
+    }
+
     // MARK: - Helpers
 
     /// Scratch store so assertions never touch `UserDefaults.standard`.
@@ -182,8 +228,28 @@ final class TestTxnEventWiring: XCTestCase {
         }
     }
 
-    private func seedSession(_ sessionId: String, token: String, store: TxnSessionStore) {
-        let expiryMs = Int64(Date().addingTimeInterval(1800).timeIntervalSince1970 * 1000)
+    /// One manager, built by the test and shared by every dispatch, so the test controls when its
+    /// token expires. Production builds a manager per dispatch; this stands in for one that outlives
+    /// its token, as a manager sending several batches in sequence does.
+    private func injectService(on manager: TxnSessionManager) {
+        impl.roktTagId = "tag-1"
+        impl.makeTxnEventServiceOverride = { [stub] tagId in
+            TxnEventService(
+                environment: .Prod,
+                accountId: tagId,
+                sdkVersion: "5.2.2",
+                sessionManager: manager,
+                httpClient: stub!,
+                baseBackoff: 0,
+                sleep: { _ in }
+            )
+        }
+    }
+
+    /// Seeds a session that expires at `expiresAt`, half an hour from now when not given.
+    private func seedSession(_ sessionId: String, token: String, store: TxnSessionStore, expiresAt: Date? = nil) {
+        let expiry = expiresAt ?? Date().addingTimeInterval(1800)
+        let expiryMs = Int64(expiry.timeIntervalSince1970 * 1000)
         TxnSessionPersistence.seed(
             roktTagId: "tag-1",
             sessionId: sessionId,
