@@ -15,12 +15,27 @@ final class TestOffersExecuteWiring: XCTestCase {
     /// generation lock: a response that was prepared and then refused by the fence leaves it nil.
     private final class CapturingImplementation: RoktInternalImplementation {
         var committedPage: PreparedLayoutPage?
+        /// The experience string the success hand-off passed to the prepare, outside the lock, whether or not it parsed.
+        var preparedPage: String?
         /// Runs inside the response commit, under the generation lock, before the prepared page is committed — a seam
         /// for racing it.
         var onCommit: (() -> Void)?
         /// When set, the page is captured and then decodes to nothing, as an experience the renderer cannot turn into
         /// a page does. The renderer's parser lives in the UX helper, so a test of that outcome need not depend on it.
         var pageDecodesToNothing = false
+        /// Runs outside the generation lock with the experience string the success hand-off delivered, whether or not
+        /// it parses; a seam for tests of the hand-off itself.
+        override func prepareLayoutPageExecutePayload(
+            _ page: String,
+            viewName: String? = nil,
+            attributes: [String: String],
+            readsFromCache: Bool
+        ) -> PreparedLayoutPage? {
+            preparedPage = page
+            return super.prepareLayoutPageExecutePayload(
+                page, viewName: viewName, attributes: attributes, readsFromCache: readsFromCache
+            )
+        }
         override func commitLayoutPageExecutePayload(
             _ prepared: PreparedLayoutPage,
             selectionId: String
@@ -283,9 +298,9 @@ final class TestOffersExecuteWiring: XCTestCase {
 
         impl.execute(viewName: "checkout", attributes: [:], config: nil)
 
-        // The offline transport still decodes + adapts, so the success hand-off runs.
-        waitUntil({ self.impl.committedPage != nil }, timeout: 10)
-        XCTAssertNotNil(impl.committedPage)
+        // The offline transport still decodes + adapts, so the success hand-off runs and its page reaches the prepare.
+        waitUntil({ self.impl.preparedPage != nil }, timeout: 10)
+        XCTAssertNotNil(impl.preparedPage)
     }
 
     func test_execute_v2Offers_cacheEnabled_writesThenReusesCachedExperience() throws {

@@ -3,9 +3,13 @@ import XCTest
 // MARK: - Polling
 
 extension XCTestCase {
+    /// Polls `condition` on the main queue until it holds or `timeout` passes. The poll stops as soon as the wait has
+    /// ended, so a timed-out wait leaves no closure behind to run against a test that has already been torn down.
     func waitUntil(_ condition: @escaping () -> Bool, timeout: TimeInterval = 2) {
         let exp = expectation(description: "condition met")
+        var waiting = true
         func check() {
+            guard waiting else { return }
             if condition() {
                 exp.fulfill()
             } else {
@@ -14,6 +18,7 @@ extension XCTestCase {
         }
         check()
         wait(for: [exp], timeout: timeout)
+        waiting = false
     }
 }
 
