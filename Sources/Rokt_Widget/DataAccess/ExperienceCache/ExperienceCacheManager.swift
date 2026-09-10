@@ -158,8 +158,7 @@ internal class ExperienceCacheManager {
                                          viewName: String?,
                                          attributes: [String: String]) -> RoktPluginViewState? {
         guard let fileData = getCachedPluginViewStateFileData(
-            pluginId: pluginId, viewName: viewName, attributes: attributes
-        ) else { return nil }
+            pluginId: pluginId, viewName: viewName, attributes: attributes) else { return nil }
         return ExperienceCacheUtils.getValidPluginViewState(pluginId: pluginId, data: fileData)
     }
 
