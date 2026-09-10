@@ -115,8 +115,10 @@ final class TestOffersService: XCTestCase {
         init(_ request: URLRequest) {
             url = request.url
             method = request.httpMethod
+            // URLSession adds Content-Length to a body-bearing request before the transport sees it; the SDK never sets it.
             headers = request.allHTTPHeaderFields.map { fields in
                 Dictionary(uniqueKeysWithValues: fields.map { ($0.key.lowercased(), $0.value) })
+                    .filter { $0.key != "content-length" }
             }
             body = request.bodyStreamAsJSON() as? NSDictionary
         }
