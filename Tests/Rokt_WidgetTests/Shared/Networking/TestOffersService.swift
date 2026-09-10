@@ -101,7 +101,8 @@ final class TestOffersService: XCTestCase {
         deviceHeaders: [String: String] = [:],
         triggeredEvents: @escaping () -> [TriggeredRealTimeEvent] = { [] },
         captureEvents: @escaping ([UntriggeredRealTimeEvent]) -> Void = { _ in },
-        maxRetries: Int = 0
+        maxRetries: Int = 0,
+        sleep: @escaping (TimeInterval) async throws -> Void = { _ in }
     ) -> OffersService {
         // Event store seams default to inert so tests never touch the global singleton.
         OffersService(
@@ -113,7 +114,7 @@ final class TestOffersService: XCTestCase {
             httpClient: stub,
             deviceHeaders: deviceHeaders,
             maxRetries: maxRetries,
-            sleep: { _ in },
+            sleep: sleep,
             triggeredEvents: triggeredEvents,
             captureEvents: captureEvents
         )
@@ -409,6 +410,56 @@ final class TestOffersService: XCTestCase {
 
         wait(for: [completed], timeout: 5)
         XCTAssertEqual(stub.requestCount, 2)
+    }
+
+    /// A retry re-sends the attributes and token captured for the first attempt. When the session is reset while
+    /// the backoff after a retryable server error runs, the retry is not sent and the placement is discarded.
+    func test_getExperienceData_sessionResetDuringRetryBackoffAfterServerError_sendsNoRetry() {
+        let stub = StubHTTPClient(responseData: nil, statusCode: 503)
+        var sessionReset = false
+        let service = makeService(stub, maxRetries: 1, sleep: { _ in sessionReset = true })
+
+        let discarded = expectation(description: "the retry is not sent once the session was reset")
+        service.getExperienceData(
+            viewName: "checkout",
+            attributes: [:],
+            config: nil,
+            shouldSend: { !sessionReset },
+            successLayout: { _ in XCTFail("unexpected success") },
+            failure: { error, statusCode, _ in
+                XCTAssertEqual(error as? OffersService.OffersError, .discardedBeforeSend)
+                XCTAssertNil(statusCode, "a discard carries no status code")
+                discarded.fulfill()
+            }
+        )
+
+        wait(for: [discarded], timeout: 5)
+        XCTAssertEqual(stub.requestCount, 1, "the departing customer's attributes and token are not sent again")
+    }
+
+    /// The same window after a transient transport failure: the reset during the backoff stops the retry.
+    func test_getExperienceData_sessionResetDuringRetryBackoffAfterTransportError_sendsNoRetry() {
+        let timeout = NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut)
+        let stub = StubHTTPClient(sequence: [StubResponse(data: nil, status: 0, error: timeout)])
+        var sessionReset = false
+        let service = makeService(stub, maxRetries: 1, sleep: { _ in sessionReset = true })
+
+        let discarded = expectation(description: "the retry is not sent once the session was reset")
+        service.getExperienceData(
+            viewName: "checkout",
+            attributes: [:],
+            config: nil,
+            shouldSend: { !sessionReset },
+            successLayout: { _ in XCTFail("unexpected success") },
+            failure: { error, statusCode, _ in
+                XCTAssertEqual(error as? OffersService.OffersError, .discardedBeforeSend)
+                XCTAssertNil(statusCode, "a discard carries no status code")
+                discarded.fulfill()
+            }
+        )
+
+        wait(for: [discarded], timeout: 5)
+        XCTAssertEqual(stub.requestCount, 1, "the departing customer's attributes and token are not sent again")
     }
 
     func test_getExperienceData_doesNotRetryNonTransportError() {

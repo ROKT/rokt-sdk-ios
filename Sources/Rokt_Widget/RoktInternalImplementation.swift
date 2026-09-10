@@ -1571,9 +1571,10 @@ class RoktInternalImplementation {
                             return
                         }
                         // The send runs on its own task after the lock above is released, so the generation is checked
-                        // once more there, just before the token is read and the request is built. A clearSession that
-                        // lands between the build and that check means nothing is sent; the failure comes back as
-                        // `discardedBeforeSend` and takes the discard branch of `onFailure`.
+                        // again there: just before the token is read and the request is built, and after each retry
+                        // backoff before the request is re-sent. A clearSession that lands between the build and a
+                        // check means nothing more is sent; the failure comes back as `discardedBeforeSend` and takes
+                        // the discard branch of `onFailure`.
                         offersService.getExperienceData(
                             viewName: viewName,
                             attributes: attributes,

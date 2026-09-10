@@ -6,8 +6,8 @@ internal struct OffersService {
         case invalidBaseURL
         case missingResponseData
         case unexpectedStatusCode(Int)
-        /// The session was reset after the placement started and before its request was sent.
-        /// Nothing went to the network; there is no status code and no response.
+        /// The session was reset after the placement started and before its request, or a retry of it, was
+        /// sent. Nothing more went to the network; there is no status code and no response.
         case discardedBeforeSend
     }
 
@@ -29,7 +29,7 @@ internal struct OffersService {
     // Real-time event store seams (injected for tests).
     let triggeredEvents: () -> [TriggeredRealTimeEvent]
     let captureEvents: ([UntriggeredRealTimeEvent]) -> Void
-    // Test-only hook, run on the sending task just before `shouldSend` is checked; nil in production.
+    // Test-only hook, run on the sending task just before the first `shouldSend` check; nil in production.
     var unitTest_beforeSend: (() -> Void)?
 
     init(
@@ -79,11 +79,12 @@ internal struct OffersService {
     /// Builds the request from the partner inputs, fetches the experience, and reports
     /// the experience string (or failure) on ``completionQueue``.
     ///
-    /// `shouldSend` is asked once, on the task that sends, just before the session token is read and the
-    /// request is built. When it answers false the request is not sent and `failure` receives
+    /// `shouldSend` is asked on the task that sends: once just before the session token is read and the
+    /// request is built, and again after each retry backoff, just before the same request is sent again.
+    /// When it answers false nothing further is sent and `failure` receives
     /// ``OffersError/discardedBeforeSend`` with no status code. The caller uses it to check that the session
     /// the placement started in is still the current one: the service is built while that is true, but the
-    /// send runs on its own task, and a reset can land in between.
+    /// send runs on its own task, and a reset can land in between or during a backoff.
     func getExperienceData(
         viewName: String?,
         attributes: [String: String],
@@ -114,7 +115,8 @@ internal struct OffersService {
                     pageIdentifier: viewName ?? "",
                     attributes: enrichedAttributes,
                     privacyControl: privacyControl,
-                    privacy: privacy
+                    privacy: privacy,
+                    shouldSend: shouldSend
                 )
                 completionQueue.async { successLayout?(experience) }
             } catch {
@@ -128,7 +130,8 @@ internal struct OffersService {
         pageIdentifier: String,
         attributes: [String: String],
         privacyControl: SelectPrivacyControl?,
-        privacy: SelectPrivacy?
+        privacy: SelectPrivacy?,
+        shouldSend: () -> Bool
     ) async throws -> String {
         guard let baseURL = URL(string: environment.gatewayBaseURL) else {
             throw OffersError.invalidBaseURL
@@ -172,6 +175,9 @@ internal struct OffersService {
 
                 if isRetryable(statusCode: statusCode), attempt < maxRetries {
                     try await sleep(backoffDelay(attempt: attempt))
+                    // The retry re-sends the attributes and token captured above. A session reset that landed
+                    // during the backoff means they belong to the customer who left; nothing more goes on the wire.
+                    guard shouldSend() else { throw OffersError.discardedBeforeSend }
                     attempt += 1
                     continue
                 }
@@ -199,6 +205,9 @@ internal struct OffersService {
                 return raw
             } catch let error where isRetryable(error: error) && attempt < maxRetries {
                 try await sleep(backoffDelay(attempt: attempt))
+                // Same check as the status-code retry above; the error is not a transport failure, so it is
+                // not caught here and reaches the caller as a discard.
+                guard shouldSend() else { throw OffersError.discardedBeforeSend }
                 attempt += 1
                 continue
             }
