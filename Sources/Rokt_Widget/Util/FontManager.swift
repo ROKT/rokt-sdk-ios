@@ -403,7 +403,16 @@ internal class FontManager {
     internal static var fileUrlResolverOverride: ((String) -> URL?)?
     #endif
 
+    /// Resolves a font name to its file under `RoktFonts`. Names that could resolve anywhere
+    /// else return nil, which every caller already treats as "skip this font".
     internal static func getFileUrl(name: String) -> URL? {
+        guard FontRepository.isSafeFontFileName(name) else {
+            RoktAPIHelper.sendDiagnostics(message: fontDiagnosticCode,
+                                          callStack: "font file name rejected",
+                                          severity: .warning)
+            return nil
+        }
+
         #if DEBUG
         if let fileUrlResolverOverride {
             return fileUrlResolverOverride(name)
@@ -420,6 +429,13 @@ internal class FontManager {
         }
 
         let fullPath = fontDirectoryUrl.appendingPathComponent("\(name)\(fontExtension)")
+        guard fullPath.isContained(in: fontDirectoryUrl) else {
+            RoktAPIHelper.sendDiagnostics(message: fontDiagnosticCode,
+                                          callStack: "font file path rejected",
+                                          severity: .warning)
+            return nil
+        }
+
         // Log FFL008
         sendFullFontLogs("Full file path URL: \(fullPath)", fontLogId: fullFontLogCode8)
         return fullPath

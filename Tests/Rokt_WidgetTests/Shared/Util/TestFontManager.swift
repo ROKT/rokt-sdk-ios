@@ -576,6 +576,108 @@ class TestFontManager: XCTestCase {
                        "the URL entry has to go too, otherwise removeUnusedFonts can never reclaim it")
     }
 
+    // MARK: - Font names stay inside the font directory
+
+    func test_getFileUrl_withPathSeparatorOrDotSegment_returnsNil() {
+        let traces = captureDiagnosticStackTraces()
+        let rejected = ["../../../Documents/x", "a/b", "..", ".", "", "  ", "\\..\\x", "%2e%2e/x", "nul\u{0}byte"]
+
+        for name in rejected {
+            XCTAssertNil(FontManager.getFileUrl(name: name), "\(name.debugDescription) must not resolve to a file URL")
+        }
+
+        XCTAssertTrue(waitUntil { traces.contains { $0.contains("font file name rejected") } },
+                      "a rejected name should be visible in diagnostics")
+    }
+
+    func test_getFileUrl_withDotsInsideName_staysUnderFontDirectory() throws {
+        let fontDirectoryUrl = try XCTUnwrap(FontRepository.getFontDirectoryUrl())
+
+        let url = try XCTUnwrap(FontManager.getFileUrl(name: "Roboto-Regular.v2"))
+
+        XCTAssertEqual(url, fontDirectoryUrl.appendingPathComponent("Roboto-Regular.v2.ttf"))
+        XCTAssertTrue(url.isContained(in: fontDirectoryUrl))
+    }
+
+    func test_downloadFonts_withTraversalPostScriptName_writesNothingOutsideRoktFonts() throws {
+        let fileManager = FileManager.default
+        let fontDirectory = try XCTUnwrap(FontRepository.getFontDirectoryUrl())
+        let documentsRoot = try XCTUnwrap(fileManager.urls(for: .documentDirectory, in: .userDomainMask).first)
+        let traversingName = "../../../Documents/rokt-traversal-probe"
+        let escapedTarget = fontDirectory.appendingPathComponent("\(traversingName).ttf").standardizedFileURL
+        let documentsTarget = documentsRoot.appendingPathComponent("rokt-traversal-probe.ttf")
+        XCTAssertFalse(escapedTarget.isContained(in: fontDirectory), "the probe must target a path outside RoktFonts")
+        for target in [escapedTarget, documentsTarget] {
+            try? fileManager.removeItem(at: target)
+            addTeardownBlock { try? fileManager.removeItem(at: target) }
+        }
+
+        let requests = Counter()
+        let fontUrl = "https://font.test/traversal.ttf"
+        stubFontFileUrl(fontUrl) { requests.increment() }
+
+        let completion = expectation(description: "onFontDownloadComplete")
+        FontManager.downloadFonts([FontModel(name: "traversal", url: fontUrl, postScriptName: traversingName)]) {
+            completion.fulfill()
+        }
+        wait(for: [completion], timeout: 10)
+
+        XCTAssertEqual(requests.value, 0, "a font whose name cannot be placed must never be fetched")
+        XCTAssertFalse(fileManager.fileExists(atPath: escapedTarget.path))
+        XCTAssertFalse(fileManager.fileExists(atPath: documentsTarget.path))
+        XCTAssertNil(FontRepository.loadFontDetail(key: fontUrl))
+        XCTAssertTrue(Rokt.shared.roktImplementation.isInitFailedForFont,
+                      "the skipped font should still be recorded for diagnostics")
+    }
+
+    func test_removeUnusedFonts_withStoredTraversalName_dropsMetadataWithoutDeletingTarget() throws {
+        let sentinel = try writeDocumentsSentinel(named: "rokt-remove-sentinel")
+        let url = "https://font.test/stale-traversal.ttf"
+        let urlSaved = expectation(description: "font url saved")
+        let detailSaved = expectation(description: "font detail saved")
+        FontRepository.saveFontUrl(key: url) { urlSaved.fulfill() }
+        FontRepository.saveFontDetail(
+            key: url,
+            values: [
+                FontManager.keyName: "../../../Documents/rokt-remove-sentinel",
+                FontManager.keyTimestamp: "\(Date().timeIntervalSince1970)"
+            ]
+        ) { detailSaved.fulfill() }
+        wait(for: [urlSaved, detailSaved], timeout: 15)
+
+        FontManager.removeUnusedFonts(fonts: [])
+
+        XCTAssertTrue(waitUntil {
+            FontRepository.loadFontDetail(key: url) == nil && !(FontRepository.loadAllFontURLs()?.contains(url) ?? false)
+        }, "the stale entry should be dropped from both metadata files")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sentinel.path),
+                      "a stored name must never be able to delete a file outside RoktFonts")
+    }
+
+    func test_invalidateCachedFont_withTraversalName_leavesTargetFile() throws {
+        let sentinel = try writeDocumentsSentinel(named: "rokt-invalidate-sentinel")
+        let font = FontModel(name: "../../../Documents/rokt-invalidate-sentinel", url: "https://font.test/stale.ttf")
+
+        let invalidated = expectation(description: "font invalidated")
+        FontManager.invalidateCachedFont(font) { invalidated.fulfill() }
+        wait(for: [invalidated], timeout: 15)
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sentinel.path))
+        XCTAssertNil(FontRepository.loadFontDetail(key: font.url))
+    }
+
+    /// Plants a file in Documents that a traversing font name would point at, so a test can
+    /// prove the SDK never touches it.
+    private func writeDocumentsSentinel(named name: String) throws -> URL {
+        let fileManager = FileManager.default
+        let documentsRoot = try XCTUnwrap(fileManager.urls(for: .documentDirectory, in: .userDomainMask).first)
+        try fileManager.createDirectory(at: documentsRoot, withIntermediateDirectories: true)
+        let sentinel = documentsRoot.appendingPathComponent("\(name).ttf")
+        try Data([0x01]).write(to: sentinel)
+        addTeardownBlock { try? fileManager.removeItem(at: sentinel) }
+        return sentinel
+    }
+
     /// Replaces the default diagnostics stub so a test can read the call stacks rather
     /// than just the error codes.
     private func captureDiagnosticStackTraces() -> Traces {

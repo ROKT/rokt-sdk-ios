@@ -5,6 +5,8 @@ internal class ExperienceCacheManager {
 
     static let shared = ExperienceCacheManager()
     static let experienceCacheStorageQueueName = "com.rokt.experiencecachestorage.queue"
+    private static let cacheDiagnosticCode = "[CACHE]"
+    private static let unsafeFileNameCharacters = CharacterSet(charactersIn: "/\\\u{0}")
     private(set) static var cacheDirectory = "RoktExperienceCache"
     private let fileStorage: FileStorage
     private static var backingStore: FileStorage { ExperienceCacheManager.shared.fileStorage }
@@ -328,9 +330,30 @@ internal class ExperienceCacheManager {
         }
     }
 
+    /// Every cache file is a single component directly under the cache directory. A name
+    /// that could resolve anywhere else is refused, which callers treat as a cache miss.
     static func getFileUrl(name: String) -> URL? {
         guard let cachesDirectoryUrl = getCacheDirectoryUrl() else { return nil }
-        return cachesDirectoryUrl.appendingPathComponent(name).appendingPathExtension("json")
+        guard isSafeFileName(name) else {
+            rejectFileName(reason: "cache file name rejected")
+            return nil
+        }
+
+        let fileUrl = cachesDirectoryUrl.appendingPathComponent(name).appendingPathExtension("json")
+        guard fileUrl.isContained(in: cachesDirectoryUrl) else {
+            rejectFileName(reason: "cache file path rejected")
+            return nil
+        }
+        return fileUrl
+    }
+
+    private static func isSafeFileName(_ name: String) -> Bool {
+        guard !name.isEmpty, name != ".", name != ".." else { return false }
+        return name.rangeOfCharacter(from: unsafeFileNameCharacters) == nil
+    }
+
+    private static func rejectFileName(reason: String) {
+        RoktAPIHelper.sendDiagnostics(message: cacheDiagnosticCode, callStack: reason, severity: .warning)
     }
 
     static func getCacheDirectoryUrl() -> URL? {
