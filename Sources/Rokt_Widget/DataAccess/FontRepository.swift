@@ -201,6 +201,7 @@ class FontRepository {
     // MARK: - Font directory (Application Support)
 
     static let fontDirectoryName = "RoktFonts"
+    private static let unsafeFontFileNameCharacters = CharacterSet(charactersIn: "/\\\u{0}")
     private static let migrationMarkerFileName = ".rokt_font_storage_application_support"
     private static let productionFontURLMetadataFileName = "RoktFontDownloadedUrl.json"
     private static let productionFontDetailMetadataFileName = "RoktFontDownloadedDetail.json"
@@ -222,6 +223,14 @@ class FontRepository {
         }
 
         return fullPath
+    }
+
+    /// A font name is only ever used as a single path component under `RoktFonts`, so path
+    /// separators, NUL and the bare `.`/`..` segments are refused. Dots inside a name stay legal.
+    internal static func isSafeFontFileName(_ name: String) -> Bool {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != ".", trimmed != ".." else { return false }
+        return name.rangeOfCharacter(from: unsafeFontFileNameCharacters) == nil
     }
 
     /// Creates `RoktFonts` under Application Support if needed and excludes it from device/iCloud
@@ -316,14 +325,14 @@ class FontRepository {
             return
         }
 
-        let fontNames = Set(details.values.compactMap { $0["name"] })
+        let fontNames = Set(details.values.compactMap { $0["name"] }.filter(isSafeFontFileName))
         for fontName in fontNames {
             let fileName = "\(fontName).ttf"
-            migrateFileIfNeeded(
-                from: documentsRoot.appendingPathComponent(fileName),
-                to: destination.appendingPathComponent(fileName),
-                fileManager: fileManager
-            )
+            let source = documentsRoot.appendingPathComponent(fileName)
+            let target = destination.appendingPathComponent(fileName)
+            guard source.isContained(in: documentsRoot), target.isContained(in: destination) else { continue }
+
+            migrateFileIfNeeded(from: source, to: target, fileManager: fileManager)
         }
     }
 
