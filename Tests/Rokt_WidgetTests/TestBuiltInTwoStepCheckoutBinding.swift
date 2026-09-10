@@ -400,7 +400,7 @@ final class TestBuiltInTwoStepCheckoutBinding: XCTestCase {
         )
         defer { PaymentOrchestratorAPIHelperSpy.reset() }
         let orch = impl.paymentOrchestratorForTesting
-        let uxHelper = DevicePayFinalizeRecordingRoktUX()
+        let uxHelper = FinalizeRecordingRoktUX()
         var partnerEvents: [RoktEvent] = []
         let bag = ExecuteStateBag(uxHelper: uxHelper) { partnerEvents.append($0) }
         bag.loadedPlacements = 2
@@ -473,24 +473,53 @@ final class TestBuiltInTwoStepCheckoutBinding: XCTestCase {
         XCTAssertEqual(itemBPurchase?.catalogItemId, "catalog-b", "The partner hears item B's result")
         XCTAssertTrue(
             uxHelper.finalizedCalls.contains { $0.layoutId == "layout-2" && $0.catalogItemId == "catalog-b" && $0.success },
-            "The layout hears item B's result"
+            "The layout hears item B's result from its Step-1 completion"
+        )
+        XCTAssertTrue(
+            uxHelper.forwardFinalizedCalls.contains {
+                $0.layoutId == "layout-2" && $0.catalogItemId == "catalog-b" && $0.success
+            },
+            "The layout hears item B's result from its Step-2 return"
         )
         XCTAssertNil(impl.stateManager.getState(id: executeId), "Once item B has finished, nothing holds the state")
     }
 }
 
-/// Records the layout finalize calls made for a device-pay outcome.
-private final class DevicePayFinalizeRecordingRoktUX: RoktUX {
+/// Records the layout finalize calls: the device-pay ones a Step-1 completion makes, and the forward-payment ones a
+/// Step-2 return makes. The forward-payment override does not call through, so no layout needs to be loaded.
+private final class FinalizeRecordingRoktUX: RoktUX {
     struct FinalizedCall {
         let layoutId: String
         let catalogItemId: String
         let success: Bool
     }
 
+    struct ForwardFinalizedCall {
+        let layoutId: String
+        let catalogItemId: String
+        let success: Bool
+        let failureReason: String?
+    }
+
     private(set) var finalizedCalls: [FinalizedCall] = []
+    private(set) var forwardFinalizedCalls: [ForwardFinalizedCall] = []
 
     override func devicePayFinalized(layoutId: String, catalogItemId: String, success: Bool) {
         finalizedCalls.append(FinalizedCall(layoutId: layoutId, catalogItemId: catalogItemId, success: success))
         super.devicePayFinalized(layoutId: layoutId, catalogItemId: catalogItemId, success: success)
+    }
+
+    override func forwardPaymentFinalized(
+        layoutId: String,
+        catalogItemId: String,
+        success: Bool,
+        failureReason: String?
+    ) {
+        forwardFinalizedCalls.append(ForwardFinalizedCall(
+            layoutId: layoutId,
+            catalogItemId: catalogItemId,
+            success: success,
+            failureReason: failureReason
+        ))
     }
 }
