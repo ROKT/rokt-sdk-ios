@@ -117,18 +117,7 @@ final class TestEmbeddedSizeChangedOnClose: XCTestCase {
     /// that placement's events.
     func test_reinitialising_releasesRetainedHandlersAndPendingHeights() {
         let impl = makeImplementation()
-        impl.makeTxnInitServiceOverride = { tagId in
-            TxnInitService(
-                environment: .Prod,
-                accountId: tagId,
-                sdkVersion: "5.3.2",
-                layoutSchemaVersion: "1.0",
-                httpClient: FailingInitHTTPClient(),
-                maxRetries: 0,
-                baseBackoff: 0,
-                sleep: { _ in }
-            )
-        }
+        impl.makeTxnInitServiceOverride = Self.offlineInitService
         var received: [RoktEvent] = []
         impl.setEventHandler({ received.append($0) }, for: executeId)
         impl.callOnEmbeddedSizeChange(executeId, selectedPlacementName: location, widgetHeight: 240)
@@ -153,6 +142,37 @@ final class TestEmbeddedSizeChangedOnClose: XCTestCase {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { released.fulfill() }
         wait(for: [released], timeout: 2)
         XCTAssertNil(impl.eventHandler(for: executeId))
+    }
+
+    /// Size changes are scheduled off the queue that drains them, and `Rokt.initWith` clears them
+    /// on whichever queue the host called it from, so the debounce map cannot be main-confined.
+    func test_concurrentSizeChangesDoNotRaceOnTheDebounceMap() {
+        let impl = makeImplementation()
+        let executeIds = (0..<4).map { "execute-\($0)" }
+        // A retained handler for every execute keeps this off the shared state bag, which is not
+        // synchronised and is out of scope here.
+        executeIds.forEach { impl.setEventHandler({ _ in }, for: $0) }
+
+        DispatchQueue.concurrentPerform(iterations: 200) { index in
+            impl.callOnEmbeddedSizeChange(executeIds[index % executeIds.count],
+                                          selectedPlacementName: self.location,
+                                          widgetHeight: CGFloat(index % 3 == 0 ? 0 : 240))
+        }
+
+        waitForDebounceToDrain()
+    }
+
+    private static let offlineInitService: (String) -> TxnInitService = { tagId in
+        TxnInitService(
+            environment: .Prod,
+            accountId: tagId,
+            sdkVersion: "5.3.2",
+            layoutSchemaVersion: "1.0",
+            httpClient: FailingInitHTTPClient(),
+            maxRetries: 0,
+            baseBackoff: 0,
+            sleep: { _ in }
+        )
     }
 
     private func waitForDebounceToDrain() {

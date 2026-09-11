@@ -145,12 +145,17 @@ class RoktInternalImplementation {
     // Debounce work items for EmbeddedSizeChanged. Keyed by execute as well as placement: a second
     // execute can render into the same location while the first is still on screen, and keying by
     // location alone let the older execute's collapse cancel the newer one's pending height.
+    // Locked rather than confined to main, because initWith clears these on the caller's queue and
+    // the public entry point does not promise a thread.
     private struct SizeChangeKey: Hashable {
+        // periphery:ignore - read by the synthesized Hashable, not by code
         let executeId: String
+        // periphery:ignore - read by the synthesized Hashable, not by code
         let placementName: String
     }
 
     private var sizeChangeWorkItems: [SizeChangeKey: DispatchWorkItem] = [:]
+    private let sizeChangeWorkItemsLock = NSLock()
     private let sizeChangeDebounceInterval: TimeInterval = 0.1
 
     // to hold RoktLayout for SwiftUI integration
@@ -534,8 +539,27 @@ class RoktInternalImplementation {
         eventHandlers.removeAll()
         eventHandlersLock.unlock()
 
-        sizeChangeWorkItems.values.forEach { $0.cancel() }
+        cancelPendingSizeChanges()
+    }
+
+    private func takePendingSizeChange(for key: SizeChangeKey) -> DispatchWorkItem? {
+        sizeChangeWorkItemsLock.lock()
+        defer { sizeChangeWorkItemsLock.unlock() }
+        return sizeChangeWorkItems.removeValue(forKey: key)
+    }
+
+    private func setPendingSizeChange(_ workItem: DispatchWorkItem, for key: SizeChangeKey) {
+        sizeChangeWorkItemsLock.lock()
+        defer { sizeChangeWorkItemsLock.unlock() }
+        sizeChangeWorkItems[key] = workItem
+    }
+
+    private func cancelPendingSizeChanges() {
+        sizeChangeWorkItemsLock.lock()
+        let pending = Array(sizeChangeWorkItems.values)
         sizeChangeWorkItems.removeAll()
+        sizeChangeWorkItemsLock.unlock()
+        pending.forEach { $0.cancel() }
     }
 
     /// Keys the removal on `executeId` so a second execute started while this placement was still
@@ -558,7 +582,7 @@ class RoktInternalImplementation {
         )
 
         let key = SizeChangeKey(executeId: executeId, placementName: selectedPlacementName)
-        sizeChangeWorkItems.removeValue(forKey: key)?.cancel()
+        takePendingSizeChange(for: key)?.cancel()
 
         guard roundedHeight > 0 else {
             callOnRoktEvent(executeId, event: event)
@@ -566,10 +590,10 @@ class RoktInternalImplementation {
         }
 
         let workItem = DispatchWorkItem { [weak self] in
-            self?.sizeChangeWorkItems.removeValue(forKey: key)
+            self?.takePendingSizeChange(for: key)
             self?.callOnRoktEvent(executeId, event: event)
         }
-        sizeChangeWorkItems[key] = workItem
+        setPendingSizeChange(workItem, for: key)
         DispatchQueue.main.asyncAfter(deadline: .now() + sizeChangeDebounceInterval,
                                       execute: workItem)
     }
