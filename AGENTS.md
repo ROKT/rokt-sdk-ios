@@ -49,6 +49,7 @@ Only the parts `ls` will not tell you:
 | Lint and format as CI does    | `trunk check --all`; `trunk fmt` to apply                                                                     |
 | Unit tests only               | `xcodebuild test -scheme Rokt-Widget -only-testing:Rokt_WidgetTests -destination '<simulator>'`               |
 | The specs CI calls "UI Tests" | `xcodebuild test -project Example/rokt.xcodeproj -scheme rokt-Example-MOCK -destination '…'`                  |
+| Drive the sample app for real | `xcodebuild test -project Example/rokt.xcodeproj -scheme rokt-Example-AUTOMATION -destination '…'` — trap 3   |
 | Consumer contract only        | `xcodebuild test -scheme Rokt-Widget -only-testing:ContractTests`, `TEST_RUNNER_PACT_OUTPUT_DIR` set — trap 2 |
 | Unused-code scan              | index-store build first, then `periphery scan` — see trap 4                                                   |
 | SDK size delta                | `Tests/SizeReport/measure_size.sh` (`--json` for the CI shape)                                                |
@@ -65,11 +66,13 @@ Only the parts `ls` will not tell you:
    specs still **pass**, writing to their fallback `pacts/` inside the simulator container rather
    than the host path you asked for — and `pacts/` is gitignored, so there is nothing to notice.
    Pass `-only-testing:Rokt_WidgetTests` when you only want unit tests.
-3. There is no XCUITest in this repo. `Example/rokt.xcodeproj` defines only the `rokt_Example`
-   app and the `rokt_Tests` bundle; the "UI Tests" job runs the Quick/Nimble specs in
-   `Example/Tests/` through the `rokt-Example-MOCK` scheme — use that one. `rokt-Example` and
-   `rokt-Example-STAGE` still list a `rokt_ExampleUITests` testable that no longer exists as a
-   target, skipped in the former and not skipped in the latter.
+3. **The job CI calls "UI Tests" is not XCUITest.** It runs the Quick/Nimble specs in
+   `Example/Tests/` — in-process, host-app-backed — through the `rokt-Example-MOCK` scheme. Use
+   that one when you mean those. The real XCUITest bundle is `rokt_ExampleUITests`
+   (`Example/UITests/`), which launches and drives the sample app for real and runs through the
+   `rokt-Example-AUTOMATION` scheme. It is **not** in CI: `rokt-Example-MOCK` is what the
+   workflow tests, so adding a UI-test bundle there would change CI with no YAML edit. See
+   `Example/README.md` for the launch arguments that configure an unattended run.
 4. Bare `periphery scan` cannot work here. `.periphery.yml` sets `skip_build: true` and reads a
    pre-built index store out of `DerivedData-periphery/`, so run the workflow's indexing build
    first — same `-derivedDataPath`, with the two index-store build settings the Periphery Scan
