@@ -15,6 +15,7 @@ class RoktLayoutViewModel: ObservableObject {
     private let config: RoktConfig?
     private let placementOptions: RoktPlacementOptions?
     private let onRoktEvent: ((RoktEvent) -> Void)?
+    private var onSizeChanged: ((CGFloat) -> Void)?
     @Published var state: State = .empty
 
     init(
@@ -50,12 +51,17 @@ extension RoktLayoutViewModel: LayoutLoader {
         onSizeChanged: @escaping ((CGFloat) -> Void),
         @ViewBuilder injectedView: @escaping () -> Content
     ) {
+        self.onSizeChanged = onSizeChanged
         state = .ready(AnyView(injectedView()))
     }
 
     func updateEmbeddedSize(_ size: CGFloat) {}
 
     func closeEmbedded() {
+        // Publishes the collapse before emptying so hosts sizing themselves from
+        // EmbeddedSizeChanged do not keep the space reserved.
+        onSizeChanged?(0)
+        onSizeChanged = nil
         state = .empty
     }
 }
