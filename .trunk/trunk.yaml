@@ -40,6 +40,8 @@ lint:
         - Tests/Rokt_WidgetTests/**/*.json
         - Tests/SizeReport/**/Assets.xcassets/**/*.json
         - Example/Tests/**/*.json
+        # Offline offers fixture: CKV_SECRET_6 fires on the `token` key name, whatever the value.
+        - Example/rokt/Automation/*.json
         - periphery-baseline.json
   enabled:
     - objc-prop-check

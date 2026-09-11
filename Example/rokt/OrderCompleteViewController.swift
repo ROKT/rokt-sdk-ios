@@ -19,6 +19,10 @@ class OrderCompleteViewController: UIViewController {
     var location4Height: CGFloat = 0
     private let contentHeight: CGFloat = 300
 
+    /// Set by an automated run to add the on-screen transcript a UI test reads.
+    var showsAutomationTranscript = false
+    private weak var location4View: RoktEmbeddedView?
+
     override func viewDidLoad() {
         super.viewDidLoad()
         locationLabel.text = location
@@ -26,9 +30,15 @@ class OrderCompleteViewController: UIViewController {
         let location4: RoktEmbeddedView = RoktEmbeddedView(frame: CGRect(x: 15, y: 200, width: view.bounds.width - 30, height: 0))
 
         contentView.addSubview(location4)
+        location4View = location4
+        installAutomationIdentifiers(location4: location4)
+        if showsAutomationTranscript {
+            installAutomationTranscriptView()
+        }
 
         Rokt.events(identifier: pageIdentifier) {roktEvent in
             print("Received Rokt on event \(roktEvent)")
+            AutomationTranscript.shared.record(roktEvent)
             if let event = roktEvent as? RoktEvent.EmbeddedSizeChanged {
                 print("Updated height: \(event.updatedHeight)")
                 self.onEmbeddedSizeChange(selectedPlacement: event.identifier, widgetHeight: event.updatedHeight)
@@ -40,6 +50,30 @@ class OrderCompleteViewController: UIViewController {
         }
 
         showPlacemnt(location4: location4)
+    }
+
+    /// Addresses the embedded views from the accessibility tree so a UI test can read the height
+    /// the host actually settled at, independently of the height the SDK published.
+    private func installAutomationIdentifiers(location4: RoktEmbeddedView) {
+        location1?.accessibilityIdentifier = "rokt-embedded-Location1"
+        location2?.accessibilityIdentifier = "rokt-embedded-Location2"
+        location3?.accessibilityIdentifier = "rokt-embedded-Location3"
+        location4.accessibilityIdentifier = "rokt-embedded-Location4"
+    }
+
+    private func installAutomationTranscriptView() {
+        let transcriptView = UITextView()
+        transcriptView.isEditable = false
+        transcriptView.font = .monospacedSystemFont(ofSize: 9, weight: .regular)
+        transcriptView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(transcriptView)
+        NSLayoutConstraint.activate([
+            transcriptView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            transcriptView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            transcriptView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
+            transcriptView.heightAnchor.constraint(equalToConstant: 120)
+        ])
+        AutomationTranscript.shared.attach(to: transcriptView)
     }
 
     private func showPlacemnt(location4: RoktEmbeddedView) {
@@ -110,6 +144,21 @@ class OrderCompleteViewController: UIViewController {
         print("\(selectedPlacement) : \(widgetHeight)")
         self.scrollViewHeight.constant = self.contentHeight + self.location1Height +
         self.location2Height + self.location3Height + self.location4Height
+        recordObservedHeights()
+    }
+
+    /// The heights the host's own views settled at after applying the published height. Recorded
+    /// next to it so a published height that never arrives shows up as a divergence rather than
+    /// as silence.
+    private func recordObservedHeights() {
+        view.layoutIfNeeded()
+        AutomationTranscript.shared.record("HostHeights", [
+            "scrollViewHeight": scrollViewHeight.constant,
+            "Location1": location1?.bounds.height ?? -1,
+            "Location2": location2?.bounds.height ?? -1,
+            "Location3": location3?.bounds.height ?? -1,
+            "Location4": location4View?.bounds.height ?? -1
+        ])
     }
 
     private func onRoktEvent(roktEvent: RoktEvent) {

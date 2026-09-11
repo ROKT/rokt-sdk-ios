@@ -25,5 +25,6 @@ included:
   - Sources
   - Example/rokt
   - Example/Tests
+  - Example/UITests
   - Tests
   - Packages
