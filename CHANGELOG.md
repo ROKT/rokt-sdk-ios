@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [5.5.1] - 2026-09-14
+
+### Core
+
+#### Fixed
+
+- Deliver EmbeddedSizeChanged 0 when an embedded placement closes ([#326](https://github.com/ROKT/rokt-sdk-ios/pull/326))
+- Keep cache and font file names inside their own directories ([#321](https://github.com/ROKT/rokt-sdk-ios/pull/321))
+- Bound server-supplied Retry-After and session expiry values before conversion ([#318](https://github.com/ROKT/rokt-sdk-ios/pull/318))
+- Stop caching a response from wiping the experience view state ([#310](https://github.com/ROKT/rokt-sdk-ios/pull/310))
+
+#### Changed
+
+- Give the cache-write wait time on loaded runners ([#324](https://github.com/ROKT/rokt-sdk-ios/pull/324))
+- Trim AGENTS.md to the non-derivable core and add CLAUDE.md ([#308](https://github.com/ROKT/rokt-sdk-ios/pull/308))
+
+### Kits
+
+#### Rokt-payment-extension-ios
+
+##### Fixed
+
+- Confirm Afterpay through the extension-owned Stripe client ([#319](https://github.com/ROKT/rokt-sdk-ios/pull/319))
+
 ## [5.5.0] - 2026-09-09
 
 ### Core
@@ -621,7 +645,8 @@ For a complete migration walkthrough with before/after code examples, see the [v
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.5.0...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.5.1...HEAD
+[5.5.1]: https://github.com/ROKT/rokt-sdk-ios/compare/5.5.0...5.5.1
 [5.5.0]: https://github.com/ROKT/rokt-sdk-ios/compare/5.4.1...5.5.0
 [5.4.1]: https://github.com/ROKT/rokt-sdk-ios/compare/5.4.0...5.4.1
 [5.4.0]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.4...5.4.0
