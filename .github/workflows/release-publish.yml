@@ -14,8 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write
-  packages: write
+  contents: read
 
 jobs:
   detect:
@@ -62,6 +61,8 @@ jobs:
     needs: detect
     if: needs.detect.outputs.release == 'true'
     runs-on: macos-latest
+    permissions:
+      contents: write
     outputs:
       release_version: ${{ steps.version-file.outputs.release-version }}
       release_notes: ${{ steps.extract-release-notes.outputs.release_notes }}
@@ -105,6 +106,8 @@ jobs:
     needs: [detect, create-release]
     if: needs.detect.outputs.release == 'true' && needs.create-release.result == 'success'
     runs-on: macos-latest-xlarge
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -132,6 +135,7 @@ jobs:
         with:
           sparse-checkout: Packages/matrix.json
           sparse-checkout-cone-mode: false
+          persist-credentials: false
       - id: set
         run: echo "matrix=$(jq -c . Packages/matrix.json)" >> "$GITHUB_OUTPUT"
 
@@ -287,6 +291,8 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: |
             rokt-docs
+          permission-contents: write
+          permission-pull-requests: write
 
       - name: Checkout rokt-docs
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -340,6 +346,7 @@ jobs:
           private-key: ${{ secrets.SDK_RELEASE_GITHUB_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: rokt-demo-ios
+          permission-contents: write
 
       - name: Dispatch Event
         uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1

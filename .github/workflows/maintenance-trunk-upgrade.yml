@@ -6,8 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
   trunk-upgrade:
@@ -23,6 +22,8 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: |
             rokt-sdk-ios
+          permission-contents: write
+          permission-pull-requests: write
 
       - name: Checkout repository
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3

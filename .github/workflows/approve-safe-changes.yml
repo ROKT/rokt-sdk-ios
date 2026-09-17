@@ -1,7 +1,8 @@
 name: Approve Safe Changes
 
 on:
-  workflow_run:
+  # This workflow only executes trusted default-branch policy code, never PR code.
+  workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows:
       - Pull Request
     types:
