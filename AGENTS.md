@@ -138,7 +138,7 @@ Only the parts `ls` will not tell you:
 - Do **not** hand-edit `CHANGELOG.md` in a feature or fix PR. `release-draft.yml` regenerates it
   and opens the release PR; `release-publish.yml` publishes from it. There is no per-PR
   changelog step.
-- Use `.github/pull_request_template.md` as the description skeleton.
+- No repo-local PR template; GitHub applies the org-wide default from `ROKT/.github` automatically.
 - The default-branch ruleset requires only a subset of the Pull Request workflow's jobs — Trunk
   Check, SPM Unit Tests, UI Tests and Consumer Test (PactSwift). Podspec Lint, Package SPM Tests,
   Periphery Scan and SDK Size Report are advisory and can be red on a mergeable PR. Re-check the
