@@ -45,12 +45,6 @@ final class AutomationTranscript {
         }
     }
 
-    /// The heights the host's own views actually settled at, recorded alongside the published
-    /// height so "the SDK collapsed but the host did not" is visible rather than inferred.
-    func record(observedHeights: [String: CGFloat]) {
-        record("ObservedHeights", observedHeights.mapValues { $0 })
-    }
-
     func record(_ name: String, _ fields: [String: Any]) {
         var payload: [String: Any] = fields
         payload["event"] = name
@@ -70,13 +64,6 @@ final class AutomationTranscript {
         lines.append(line)
         lock.unlock()
         render([line])
-    }
-
-    /// Every line recorded so far, newest last.
-    var recordedLines: [String] {
-        lock.lock()
-        defer { lock.unlock() }
-        return lines
     }
 
     private func render(_ newLines: [String]) {
