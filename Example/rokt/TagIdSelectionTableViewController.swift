@@ -14,15 +14,63 @@ class TagIdSelectionTableViewController: UIViewController, UIPickerViewDelegate,
     var roktTags: [RoktTag] = [RoktTag]()
     private var currentEnvironment: Environment = .Stage
 
+    private var hasStartedAutomatedRun = false
+
     override func viewDidLoad() {
         super.viewDidLoad()
-        setEnvironment(.Stage)
-        setTagIds(.Stage)
+        let automation = AutomationLaunchConfig.current
+        // An explicit environment wins. Otherwise an automated run leaves the build
+        // configuration's own environment alone, because `Rokt.setEnvironment` replaces the
+        // configuration wholesale and would take a MOCK build off the offline transports.
+        if let environment = automation.environment {
+            setEnvironment(environment)
+        } else if !automation.isAutoRunEnabled {
+            setEnvironment(.Stage)
+        }
+        setTagIds(automation.environment ?? .Stage)
         title = "Rokt Tag Selection"
         customTagIdTextField.text = "2754655826098840951"
         customTagIdTextField.delegate = self
         self.view.addGestureRecognizer(UITapGestureRecognizer(target: self.view, action: #selector(UIView.endEditing(_:))))
         installShoppableAdsDemoButton()
+
+        if automation.isAutoRunEnabled {
+            startAutomatedRun(automation)
+        }
+    }
+
+    /// Initialises and shows a placement with no taps, so an agent or UI test can drive a whole
+    /// offer cycle. Waits for `InitComplete` rather than racing it — `selectPlacements` before
+    /// init completes is dropped.
+    private func startAutomatedRun(_ config: AutomationLaunchConfig) {
+        Rokt.globalEvents { [weak self] roktEvent in
+            AutomationTranscript.shared.record(roktEvent)
+            guard let initEvent = roktEvent as? RoktEvent.InitComplete else { return }
+            guard initEvent.success else {
+                AutomationTranscript.shared.record("AutomationFailure", ["reason": "initFailed"])
+                return
+            }
+            DispatchQueue.main.async { self?.showPlacementForAutomatedRun(config) }
+        }
+        Rokt.initWith(roktTagId: config.tagId ?? selectedTagID())
+    }
+
+    private func showPlacementForAutomatedRun(_ config: AutomationLaunchConfig) {
+        guard !hasStartedAutomatedRun else { return }
+        hasStartedAutomatedRun = true
+
+        guard let orderComplete = storyboard?
+            .instantiateViewController(withIdentifier: "OrderCompleteVC") as? OrderCompleteViewController
+        else {
+            AutomationTranscript.shared.record("AutomationFailure", ["reason": "missingOrderCompleteVC"])
+            return
+        }
+
+        orderComplete.pageIdentifier = config.pageIdentifier ?? roktTags[0].pageIdentifier
+        orderComplete.location = config.location ?? "Location1"
+        orderComplete.attributes = config.attributes
+        orderComplete.showsAutomationTranscript = true
+        navigationController?.pushViewController(orderComplete, animated: false)
     }
 
     private func installShoppableAdsDemoButton() {
