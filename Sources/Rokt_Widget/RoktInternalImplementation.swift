@@ -116,10 +116,10 @@ class RoktInternalImplementation {
     // mints a session.
     private var mustBypassCacheOnNextExecute = false
 
-    // Suppresses every cache read within one execute: the experience response and the view state
-    // (sentEventHashes, plugin view states). Without covering the view state too, the next customer
-    // inherits the previous one's sent-event hashes and UI progress from files the asynchronous
-    // clearCache has not deleted yet.
+    // Suppresses the experience response read within one execute. View state (sentEventHashes, plugin
+    // view states) is only read for the generation of the response being shown, so the fresh response
+    // that follows starts without the previous customer's sent-event hashes and UI progress, even
+    // while the asynchronous clearCache has not deleted their files yet.
     private var cacheSuppressedForCurrentExecute = false
 
     // Flushes buffered events when the app backgrounds so they are not lost in the debounce window.
@@ -1348,9 +1348,9 @@ class RoktInternalImplementation {
             preExecuteFailureHandler()
             return
         }
-        // Latched once per execute, after the guard so a rejected call does not consume it. Both
-        // cache reads in this execute — the experience response and the view state read later in
-        // processLayoutPageExecutePayload — must see the same answer.
+        // Latched once per execute, after the guard so a rejected call does not consume it. It gates
+        // the experience response read; view state is only restored along with a response read from
+        // the cache, so a suppressed read suppresses both.
         cacheSuppressedForCurrentExecute = mustBypassCacheOnNextExecute
         mustBypassCacheOnNextExecute = false
         if #available(iOS 14.5, *) {
@@ -1397,7 +1397,11 @@ class RoktInternalImplementation {
                         self.isExecuting = false
 
                         guard let layoutPageExecutePayload = self.processLayoutPageExecutePayload(
-                            cachedExperience, selectionId: selectionId, viewName: viewName, attributes: attributes
+                            cachedExperience.experienceResponse,
+                            selectionId: selectionId,
+                            viewName: viewName,
+                            attributes: attributes,
+                            cacheGeneration: cachedExperience.generation
                         ) else {
                             self.conclude(withFailure: true, executeId: selectionId)
                             return
@@ -1425,15 +1429,20 @@ class RoktInternalImplementation {
                                 self.conclude(withFailure: true, executeId: selectionId)
                                 return
                             }
-                            // cache experience if applicable
+                            // A fresh response is a new experience: it gets a new generation, so no view
+                            // state from an earlier response can be restored into it.
+                            var cacheGeneration: String?
                             if self.isCacheEnabledAndConfigured() {
                                 let cacheAttributes = self.roktConfig.cacheConfig.getCacheAttributesOrFallback(attributes)
+                                let generation = UUID().uuidString
+                                cacheGeneration = generation
 
                                 DispatchQueue.background.async {
                                     ExperienceCacheManager.cacheExperienceResponse(
                                         viewName: viewName,
                                         attributes: cacheAttributes,
-                                        experienceResponse: page
+                                        experienceResponse: page,
+                                        generation: generation
                                     )
                                 }
                             }
@@ -1442,7 +1451,11 @@ class RoktInternalImplementation {
                             let attributesForPluginStates = self.roktConfig.cacheConfig
                                 .getCacheAttributesOrFallback(attributes)
                             guard let layoutPageExecutePayload = self.processLayoutPageExecutePayload(
-                                page, selectionId: selectionId, viewName: viewName, attributes: attributesForPluginStates
+                                page,
+                                selectionId: selectionId,
+                                viewName: viewName,
+                                attributes: attributesForPluginStates,
+                                cacheGeneration: cacheGeneration
                             ) else {
                                 self.conclude(withFailure: true, executeId: selectionId)
                                 return
@@ -1509,10 +1522,13 @@ class RoktInternalImplementation {
         !cacheSuppressedForCurrentExecute && isCacheEnabledAndConfigured()
     }
 
+    /// - Parameter cacheGeneration: The generation of the cached response `page` belongs to, or nil when
+    ///   caching is off. Its view state is restored from, and persisted to, that generation only.
     func processLayoutPageExecutePayload(_ page: String,
                                          selectionId: String,
                                          viewName: String? = nil,
-                                         attributes: [String: String]) -> LayoutPageExecutePayload? {
+                                         attributes: [String: String],
+                                         cacheGeneration: String? = nil) -> LayoutPageExecutePayload? {
         guard let pageData = page.data(using: .utf8) else {
             return nil
         }
@@ -1545,22 +1561,24 @@ class RoktInternalImplementation {
             pageInstanceGuid: pageModel.pageInstanceGuid
         )
 
-        if shouldReadFromCache() {
+        if let cacheGeneration {
             // For cached experiences, use cacheAttributes for consistency
             let cacheAttributes = roktConfig.cacheConfig.getCacheAttributesOrFallback(attributes)
             let experiencesViewState = ExperienceCacheManager.getCachedExperiencesViewState(
-                viewName: viewName, attributes: cacheAttributes
+                viewName: viewName, attributes: cacheAttributes, generation: cacheGeneration
             )
             sentEventHashes = ThreadSafeSet(Array(experiencesViewState?.sentEventHashes ?? .init()))
 
             let pluginViewStates = getLayoutPluginViewStates(pageModel: pageModel,
                                                              viewName: viewName,
-                                                             attributes: cacheAttributes)
+                                                             attributes: cacheAttributes,
+                                                             generation: cacheGeneration)
 
             func onPluginViewStateChange(_ pluginViewStateUpdates: RoktPluginViewState) {
                 ExperienceCacheManager.updatePluginViewStateCache(
                     viewName: viewName,
                     attributes: cacheAttributes,
+                    generation: cacheGeneration,
                     updateStates: pluginViewStateUpdates
                 )
             }
@@ -1568,6 +1586,7 @@ class RoktInternalImplementation {
             let cacheProperties = LayoutPageCacheProperties(
                 viewName: viewName,
                 experienceCacheAttributes: cacheAttributes,
+                generation: cacheGeneration,
                 pluginViewStates: pluginViewStates,
                 onPluginViewStateChange: onPluginViewStateChange
             )
@@ -1588,11 +1607,12 @@ class RoktInternalImplementation {
 
     private func getLayoutPluginViewStates(pageModel: RoktUXPageModel,
                                            viewName: String?,
-                                           attributes: [String: String]) -> [RoktPluginViewState]? {
+                                           attributes: [String: String],
+                                           generation: String) -> [RoktPluginViewState]? {
         guard let layoutPlugins = pageModel.layoutPlugins else { return nil }
         return layoutPlugins.compactMap { (plugin) -> RoktPluginViewState? in
             return ExperienceCacheManager.getOrCreateCachedPluginViewState(
-                pluginId: plugin.pluginId, viewName: viewName, attributes: attributes
+                pluginId: plugin.pluginId, viewName: viewName, attributes: attributes, generation: generation
             )
         }
     }
@@ -1919,6 +1939,8 @@ struct LayoutPageCacheProperties {
     let viewName: String?
     // Snapshot aligned with cache-attribute keys for this execute (see getCacheAttributesOrFallback).
     let experienceCacheAttributes: [String: String]
+    // The cached response this page's view state belongs to.
+    let generation: String
     let pluginViewStates: [RoktPluginViewState]?
     let onPluginViewStateChange: ((RoktPluginViewState) -> Void)?
 }

@@ -24,13 +24,15 @@ class MockRoktInternalImplementation: RoktInternalImplementation {
     override func processLayoutPageExecutePayload(_ page: String,
                                                   selectionId: String,
                                                   viewName: String? = nil,
-                                                  attributes: [String: String]) -> LayoutPageExecutePayload? {
+                                                  attributes: [String: String],
+                                                  cacheGeneration: String? = nil) -> LayoutPageExecutePayload? {
         executingPageString = page
         executingLayoutPage = super.processLayoutPageExecutePayload(
             page,
             selectionId: selectionId,
             viewName: viewName,
-            attributes: attributes
+            attributes: attributes,
+            cacheGeneration: cacheGeneration
         )
         return executingLayoutPage
     }
@@ -89,7 +91,8 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
         let fileName = ExperienceCacheUtils.getPluginViewStateFileName(
             pluginId: expected.pluginId,
             viewName: cacheProperties.viewName,
-            attributes: cacheProperties.experienceCacheAttributes
+            attributes: cacheProperties.experienceCacheAttributes,
+            generation: cacheProperties.generation
         )
         guard let fileUrl = ExperienceCacheManager.getFileUrl(name: fileName) else {
             return XCTFail("plugin view state cache file url should not be nil", file: file, line: line)
@@ -501,7 +504,40 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                         .toEventually(beTrue(), timeout: kPipelineWaitTimeout)
                 }
 
+                it("uses initial plugin view states after cache expiry") {
+                    let config = RoktConfig.Builder()
+                        .cacheConfig(RoktConfig.CacheConfig(
+                            cacheAttributes: self.mockedAttributes
+                        ))
+                        .build()
+
+                    self.executeRokt(config: config)
+                    expect(mockImplementation.executingLayoutPage?.cacheProperties)
+                        .toEventuallyNot(beNil(), timeout: kPipelineWaitTimeout)
+                    guard let pluginId = mockImplementation.executingPluginIds?.first,
+                          let cacheProperties = mockImplementation.executingLayoutPage?.cacheProperties else {
+                        return XCTFail("cacheProperties should not be nil")
+                    }
+
+                    // The customer dismisses the placement, then the cached experience expires.
+                    let dismissedState = RoktPluginViewState(pluginId: pluginId, offerIndex: 4, isPluginDismissed: true)
+                    cacheProperties.onPluginViewStateChange?(dismissedState)
+                    self.waitForCachedPluginViewState(dismissedState, cacheProperties: cacheProperties)
+                    RoktSDKDateHandler.customDate = RoktSDKDateHandler.currentDate()
+                        .addingTimeInterval(RoktConfig.CacheConfig.maxCacheDuration + 1)
+
+                    mockImplementation.executingLayoutPage = nil
+                    self.executeRokt(config: config)
+
+                    // The fresh experience starts clean instead of completing on the stale dismissal.
+                    expect(mockImplementation.executingLayoutPage?.cacheProperties?.pluginViewStates)
+                        .toEventually(equal([RoktPluginViewState(pluginId: pluginId)]), timeout: kPipelineWaitTimeout)
+                    expect(mockImplementation.executingLayoutPage?.cacheProperties?.generation)
+                        .notTo(equal(cacheProperties.generation))
+                }
+
                 afterEach {
+                    RoktSDKDateHandler.customDate = nil
                     self.deleteExperienceCacheTestFiles()
                     mockImplementation.executingLayoutPage = nil
                     testVC = nil
