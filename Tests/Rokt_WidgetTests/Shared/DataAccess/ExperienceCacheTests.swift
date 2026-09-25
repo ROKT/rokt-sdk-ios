@@ -10,6 +10,8 @@ class ExperienceCacheTests: XCTestCase {
                                                "confirmation": "123457"]
     private let mockedExperienceResponse = "experienceResponse"
     private let mockedPluginId = "plugin-id"
+    private let mockedGeneration = "generation-a"
+    private let mockedNextGeneration = "generation-b"
 
     private let mockedEventHash1: Set<String> = ["event", "hash", "1"]
     private let mockedEventHash2: Set<String> = ["event", "hash", "2"]
@@ -21,6 +23,7 @@ class ExperienceCacheTests: XCTestCase {
     }
 
     override func tearDown() {
+        RoktSDKDateHandler.customDate = nil
         ExperienceCacheTests.deleteExperienceCacheTestFiles()
         super.tearDown()
     }
@@ -38,14 +41,15 @@ class ExperienceCacheTests: XCTestCase {
             attributes: mockedAttributes
         )
 
-        XCTAssertTrue(fileName.hasPrefix("RoktExperienceResponseV2"))
+        XCTAssertTrue(fileName.hasPrefix("RoktExperienceResponseV3"))
     }
 
     func test_cacheExperienceResponse_checkFileContents() {
         let mockedCachedDate = RoktSDKDateHandler.currentDate()
         ExperienceCacheManager.cacheExperienceResponse(viewName: mockedViewName,
                                                        attributes: mockedAttributes,
-                                                       experienceResponse: mockedExperienceResponse)
+                                                       experienceResponse: mockedExperienceResponse,
+                                                       generation: mockedGeneration)
 
         let exp = expectation(description: "Test after 1s")
         _ = XCTWaiter.wait(for: [exp], timeout: 1)
@@ -78,7 +82,8 @@ class ExperienceCacheTests: XCTestCase {
         // Set initial cache
         ExperienceCacheManager.cacheExperienceResponse(viewName: mockedViewName,
                                                        attributes: mockedAttributes,
-                                                       experienceResponse: mockedExperienceResponse)
+                                                       experienceResponse: mockedExperienceResponse,
+                                                       generation: mockedGeneration)
 
         let exp = expectation(description: "Test after 1s")
         _ = XCTWaiter.wait(for: [exp], timeout: 1)
@@ -91,7 +96,8 @@ class ExperienceCacheTests: XCTestCase {
         // Set subsequent cache
         ExperienceCacheManager.cacheExperienceResponse(viewName: mockedViewName,
                                                        attributes: mockedNonMatchingAttributes,
-                                                       experienceResponse: mockedExperienceResponse)
+                                                       experienceResponse: mockedExperienceResponse,
+                                                       generation: mockedGeneration)
 
         let exp2 = expectation(description: "Test subsequent cache after 1s")
         _ = XCTWaiter.wait(for: [exp2], timeout: 1)
@@ -104,68 +110,98 @@ class ExperienceCacheTests: XCTestCase {
         ))
     }
 
-    /// Caching a response must not take the view state with it: the plugin view states and
-    /// sent-event hashes share that directory and are what the next execute restores. Deleting the
-    /// directory to evict the previous response destroyed them, and because the delete is an async
-    /// barrier while the view state is read straight off disk, it did so at a nondeterministic
-    /// point — which is what made `uses cached plugin view states` fail on some runs and not others.
-    func test_cacheExperienceResponse_evictsOnlyResponses_keepingViewState() {
+    /// Caching a response evicts every other generation, and nothing of its own. The new response's
+    /// view state can reach disk before the eviction runs — the response write is dispatched to a
+    /// background queue while the first view state is written straight away — so eviction must not
+    /// sweep by file type, which is what destroyed it nondeterministically before.
+    func test_cacheExperienceResponse_evictsOtherGenerations_keepingItsOwnViewState() {
+        // The superseded response and the view state it produced.
+        ExperienceCacheManager.cacheExperienceResponse(viewName: mockedViewName,
+                                                       attributes: mockedNonMatchingAttributes,
+                                                       experienceResponse: mockedExperienceResponse,
+                                                       generation: mockedGeneration)
         ExperienceCacheManager.updatePluginViewStateCache(
             viewName: mockedViewName,
             attributes: mockedAttributes,
-            updateStates: RoktPluginViewState(pluginId: mockedPluginId, offerIndex: 4)
+            generation: mockedGeneration,
+            updateStates: RoktPluginViewState(pluginId: mockedPluginId, offerIndex: 3, isPluginDismissed: true)
         )
         ExperienceCacheManager.cacheExperiencesViewStateSentEventHashes(
             viewName: mockedViewName,
             attributes: mockedAttributes,
+            generation: mockedGeneration,
             sentEventHashes: mockedEventHash1
         )
-        // A superseded response, to prove eviction still happens.
-        ExperienceCacheManager.cacheExperienceResponse(viewName: mockedViewName,
-                                                       attributes: mockedNonMatchingAttributes,
-                                                       experienceResponse: mockedExperienceResponse)
+        // View state of the next response, written before that response is cached.
+        ExperienceCacheManager.updatePluginViewStateCache(
+            viewName: mockedViewName,
+            attributes: mockedAttributes,
+            generation: mockedNextGeneration,
+            updateStates: RoktPluginViewState(pluginId: mockedPluginId, offerIndex: 1)
+        )
+        ExperienceCacheManager.cacheExperiencesViewStateSentEventHashes(
+            viewName: mockedViewName,
+            attributes: mockedAttributes,
+            generation: mockedNextGeneration,
+            sentEventHashes: mockedEventHash2
+        )
 
         let seeded = expectation(description: "Seeded cache after 1s")
         _ = XCTWaiter.wait(for: [seeded], timeout: 1)
 
-        XCTAssertTrue(ExperienceCacheTests.experienceCachePluginViewStateFileExists(
-            pluginId: mockedPluginId, viewName: mockedViewName, attributes: mockedAttributes
-        ))
-
         ExperienceCacheManager.cacheExperienceResponse(viewName: mockedViewName,
                                                        attributes: mockedAttributes,
-                                                       experienceResponse: mockedExperienceResponse)
+                                                       experienceResponse: mockedExperienceResponse,
+                                                       generation: mockedNextGeneration)
 
         let cached = expectation(description: "Cached response after 1s")
         _ = XCTWaiter.wait(for: [cached], timeout: 1)
 
-        // The new response is cached and the superseded one is gone.
-        XCTAssertTrue(ExperienceCacheTests.experienceCacheFileExists(
-            viewName: mockedViewName, attributes: mockedAttributes
-        ))
+        // The new response is cached and the superseded one is gone, with its view state.
+        XCTAssertEqual(ExperienceCacheManager.getCachedExperienceResponse(
+            viewName: mockedViewName, attributes: mockedAttributes, cacheDuration: TimeInterval(60)
+        )?.generation, mockedNextGeneration)
         XCTAssertFalse(ExperienceCacheTests.experienceCacheFileExists(
             viewName: mockedViewName, attributes: mockedNonMatchingAttributes
         ))
+        XCTAssertFalse(ExperienceCacheTests.experienceCachePluginViewStateFileExists(
+            pluginId: mockedPluginId, viewName: mockedViewName, attributes: mockedAttributes, generation: mockedGeneration
+        ))
+        XCTAssertFalse(ExperienceCacheTests.experienceCacheExperiencesViewStateFileExists(
+            viewName: mockedViewName, attributes: mockedAttributes, generation: mockedGeneration
+        ))
 
-        // The view state survived, contents intact.
-        XCTAssertTrue(ExperienceCacheTests.experienceCachePluginViewStateFileExists(
-            pluginId: mockedPluginId, viewName: mockedViewName, attributes: mockedAttributes
-        ))
-        XCTAssertTrue(ExperienceCacheTests.experienceCacheExperiencesViewStateFileExists(
-            viewName: mockedViewName, attributes: mockedAttributes
-        ))
+        // The new response's own view state survived, contents intact.
         XCTAssertEqual(
             ExperienceCacheManager.getOrCreateCachedPluginViewState(
-                pluginId: mockedPluginId, viewName: mockedViewName, attributes: mockedAttributes
+                pluginId: mockedPluginId, viewName: mockedViewName, attributes: mockedAttributes,
+                generation: mockedNextGeneration
             ),
-            RoktPluginViewState(pluginId: mockedPluginId, offerIndex: 4, isPluginDismissed: false)
+            RoktPluginViewState(pluginId: mockedPluginId, offerIndex: 1, isPluginDismissed: false)
         )
         XCTAssertEqual(
             ExperienceCacheManager.getCachedExperiencesViewState(
-                viewName: mockedViewName, attributes: mockedAttributes
+                viewName: mockedViewName, attributes: mockedAttributes, generation: mockedNextGeneration
             )?.sentEventHashes,
-            mockedEventHash1
+            mockedEventHash2
         )
+    }
+
+    /// A response written before responses carried a generation has no view state to pair with, so
+    /// it is a cache miss rather than a response served with state from an unknown origin.
+    func test_getCachedExperienceResponse_withoutGeneration_returnsNil() throws {
+        let fileName = ExperienceCacheUtils.getExperienceResponseCacheFileName(
+            viewName: mockedViewName, attributes: mockedAttributes
+        )
+        let fileUrl = try XCTUnwrap(ExperienceCacheManager.getFileUrl(name: fileName))
+        try FileManager.default.createDirectory(at: fileUrl.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+        let legacy = #"{"experienceResponse":"experienceResponse","cachedTime":\#(Date().timeIntervalSinceReferenceDate)}"#
+        try Data(legacy.utf8).write(to: fileUrl)
+
+        XCTAssertNil(ExperienceCacheManager.getCachedExperienceResponse(
+            viewName: mockedViewName, attributes: mockedAttributes, cacheDuration: TimeInterval(60)
+        ))
     }
 
     func test_getCachedExperienceResponse_onEmptyCache_returnsNil() {
@@ -184,7 +220,8 @@ class ExperienceCacheTests: XCTestCase {
     func test_getCachedExperienceResponse_onValidMatchingCache_returnsExperienceResponse() {
         ExperienceCacheManager.cacheExperienceResponse(viewName: mockedViewName,
                                                        attributes: mockedAttributes,
-                                                       experienceResponse: mockedExperienceResponse)
+                                                       experienceResponse: mockedExperienceResponse,
+                                                       generation: mockedGeneration)
 
         let exp = expectation(description: "Test after 1s")
         _ = XCTWaiter.wait(for: [exp], timeout: 1)
@@ -199,13 +236,15 @@ class ExperienceCacheTests: XCTestCase {
         XCTAssertTrue(ExperienceCacheTests.experienceCacheFileExists(
             viewName: mockedViewName, attributes: mockedAttributes
         ))
-        XCTAssertEqual(cachedExperienceResponse, mockedExperienceResponse)
+        XCTAssertEqual(cachedExperienceResponse?.experienceResponse, mockedExperienceResponse)
+        XCTAssertEqual(cachedExperienceResponse?.generation, mockedGeneration)
     }
 
     func test_getCachedExperienceResponse_onNonMatchingCache_returnsNil() {
         ExperienceCacheManager.cacheExperienceResponse(viewName: mockedViewName,
                                                        attributes: mockedAttributes,
-                                                       experienceResponse: mockedExperienceResponse)
+                                                       experienceResponse: mockedExperienceResponse,
+                                                       generation: mockedGeneration)
 
         let exp = expectation(description: "Test after 1s")
         _ = XCTWaiter.wait(for: [exp], timeout: 1)
@@ -226,7 +265,8 @@ class ExperienceCacheTests: XCTestCase {
     func test_getCachedExperienceResponse_onExpiredMatchingCache_returnsNil() {
         ExperienceCacheManager.cacheExperienceResponse(viewName: mockedViewName,
                                                        attributes: mockedAttributes,
-                                                       experienceResponse: mockedExperienceResponse)
+                                                       experienceResponse: mockedExperienceResponse,
+                                                       generation: mockedGeneration)
 
         let exp = expectation(description: "Test after 1s")
         _ = XCTWaiter.wait(for: [exp], timeout: 1)
@@ -253,7 +293,7 @@ class ExperienceCacheTests: XCTestCase {
         let pluginViewState = ExperienceCacheManager.getOrCreateCachedPluginViewState(
             pluginId: mockedPluginId,
             viewName: mockedViewName,
-            attributes: mockedAttributes
+            attributes: mockedAttributes, generation: mockedGeneration
         )
 
         let exp = expectation(description: "Test after 1s")
@@ -262,11 +302,11 @@ class ExperienceCacheTests: XCTestCase {
         XCTAssertEqual(pluginViewState, RoktPluginViewState(pluginId: mockedPluginId))
         XCTAssertTrue(ExperienceCacheTests.experienceCacheDirectoryExists())
         XCTAssertTrue(ExperienceCacheTests.experienceCachePluginViewStateFileExists(
-            pluginId: mockedPluginId, viewName: mockedViewName, attributes: mockedAttributes
+            pluginId: mockedPluginId, viewName: mockedViewName, attributes: mockedAttributes, generation: mockedGeneration
         ))
 
         guard let fileData = ExperienceCacheManager.getCachedPluginViewStateFileData(
-            pluginId: mockedPluginId, viewName: mockedViewName, attributes: mockedAttributes
+            pluginId: mockedPluginId, viewName: mockedViewName, attributes: mockedAttributes, generation: mockedGeneration
         )
         else {
             XCTFail("File data could not be read")
@@ -289,6 +329,7 @@ class ExperienceCacheTests: XCTestCase {
         ExperienceCacheManager.updatePluginViewStateCache(
             viewName: mockedViewName,
             attributes: mockedAttributes,
+            generation: mockedGeneration,
             updateStates: RoktPluginViewState(pluginId: mockedPluginId,
                                               offerIndex: 4)
         )
@@ -298,11 +339,11 @@ class ExperienceCacheTests: XCTestCase {
 
         XCTAssertTrue(ExperienceCacheTests.experienceCacheDirectoryExists())
         XCTAssertTrue(ExperienceCacheTests.experienceCachePluginViewStateFileExists(
-            pluginId: mockedPluginId, viewName: mockedViewName, attributes: mockedAttributes
+            pluginId: mockedPluginId, viewName: mockedViewName, attributes: mockedAttributes, generation: mockedGeneration
         ))
 
         guard let fileData = ExperienceCacheManager.getCachedPluginViewStateFileData(
-            pluginId: mockedPluginId, viewName: mockedViewName, attributes: mockedAttributes
+            pluginId: mockedPluginId, viewName: mockedViewName, attributes: mockedAttributes, generation: mockedGeneration
         )
         else {
             XCTFail("File data could not be read")
@@ -325,6 +366,7 @@ class ExperienceCacheTests: XCTestCase {
         ExperienceCacheManager.updatePluginViewStateCache(
             viewName: mockedViewName,
             attributes: mockedAttributes,
+            generation: mockedGeneration,
             updateStates: RoktPluginViewState(pluginId: mockedPluginId,
                                               isPluginDismissed: true,
                                               customStateMap: customStateMap)
@@ -335,11 +377,11 @@ class ExperienceCacheTests: XCTestCase {
 
         XCTAssertTrue(ExperienceCacheTests.experienceCacheDirectoryExists())
         XCTAssertTrue(ExperienceCacheTests.experienceCachePluginViewStateFileExists(
-            pluginId: mockedPluginId, viewName: mockedViewName, attributes: mockedAttributes
+            pluginId: mockedPluginId, viewName: mockedViewName, attributes: mockedAttributes, generation: mockedGeneration
         ))
 
         guard let fileData = ExperienceCacheManager.getCachedPluginViewStateFileData(
-            pluginId: mockedPluginId, viewName: mockedViewName, attributes: mockedAttributes
+            pluginId: mockedPluginId, viewName: mockedViewName, attributes: mockedAttributes, generation: mockedGeneration
         )
         else {
             XCTFail("File data could not be read")
@@ -357,6 +399,56 @@ class ExperienceCacheTests: XCTestCase {
         } catch { XCTFail("File data could not be decoded") }
     }
 
+    /// View state belongs to one generation: a later response with the same plugin starts clean,
+    /// and a partial update to it cannot inherit the earlier generation's dismissal or custom state.
+    func test_pluginViewState_isIsolatedBetweenGenerations() {
+        let customStateMap = [CustomStateIdentifiable(position: 2, key: "state"): 1]
+        ExperienceCacheManager.updatePluginViewStateCache(
+            viewName: mockedViewName,
+            attributes: mockedAttributes,
+            generation: mockedGeneration,
+            updateStates: RoktPluginViewState(pluginId: mockedPluginId, offerIndex: 3,
+                                              isPluginDismissed: true, customStateMap: customStateMap)
+        )
+
+        let exp = expectation(description: "Test after 1s")
+        _ = XCTWaiter.wait(for: [exp], timeout: 1)
+
+        XCTAssertEqual(
+            ExperienceCacheManager.getOrCreateCachedPluginViewState(
+                pluginId: mockedPluginId, viewName: mockedViewName, attributes: mockedAttributes,
+                generation: mockedNextGeneration
+            ),
+            RoktPluginViewState(pluginId: mockedPluginId)
+        )
+
+        ExperienceCacheManager.updatePluginViewStateCache(
+            viewName: mockedViewName,
+            attributes: mockedAttributes,
+            generation: mockedNextGeneration,
+            updateStates: RoktPluginViewState(pluginId: mockedPluginId, offerIndex: 1)
+        )
+
+        let exp2 = expectation(description: "Test after 1s")
+        _ = XCTWaiter.wait(for: [exp2], timeout: 1)
+
+        XCTAssertEqual(
+            ExperienceCacheManager.getOrCreateCachedPluginViewState(
+                pluginId: mockedPluginId, viewName: mockedViewName, attributes: mockedAttributes,
+                generation: mockedNextGeneration
+            ),
+            RoktPluginViewState(pluginId: mockedPluginId, offerIndex: 1, isPluginDismissed: false)
+        )
+        XCTAssertEqual(
+            ExperienceCacheManager.getOrCreateCachedPluginViewState(
+                pluginId: mockedPluginId, viewName: mockedViewName, attributes: mockedAttributes,
+                generation: mockedGeneration
+            ),
+            RoktPluginViewState(pluginId: mockedPluginId, offerIndex: 3,
+                                isPluginDismissed: true, customStateMap: customStateMap)
+        )
+    }
+
     // MARK: Plugin ids and file names stay inside the cache directory
 
     func test_getPluginViewStateFileName_hashesPluginId_soNoPathBytesReachTheFileName() {
@@ -368,7 +460,7 @@ class ExperienceCacheTests: XCTestCase {
             let fileName = pluginViewStateFileName(for: pluginId)
 
             XCTAssertTrue(fileName.hasPrefix(prefix), fileName)
-            XCTAssertEqual(fileName.count, prefix.count + 128, fileName)
+            XCTAssertEqual(fileName.count, prefix.count + 128 + mockedGeneration.count, fileName)
             XCTAssertNil(fileName.rangeOfCharacter(from: CharacterSet(charactersIn: "/\\.")), fileName)
             fileNames.insert(fileName)
         }
@@ -407,10 +499,10 @@ class ExperienceCacheTests: XCTestCase {
         addTeardownBlock { try? fileManager.removeItem(at: escapedTarget) }
 
         _ = ExperienceCacheManager.getOrCreateCachedPluginViewState(
-            pluginId: "/x", viewName: mockedViewName, attributes: mockedAttributes
+            pluginId: "/x", viewName: mockedViewName, attributes: mockedAttributes, generation: mockedGeneration
         )
         let created = ExperienceCacheManager.getOrCreateCachedPluginViewState(
-            pluginId: traversingPluginId, viewName: mockedViewName, attributes: mockedAttributes
+            pluginId: traversingPluginId, viewName: mockedViewName, attributes: mockedAttributes, generation: mockedGeneration
         )
 
         let exp = expectation(description: "Test after 1s")
@@ -419,7 +511,7 @@ class ExperienceCacheTests: XCTestCase {
         XCTAssertEqual(created, RoktPluginViewState(pluginId: traversingPluginId))
         XCTAssertFalse(fileManager.fileExists(atPath: escapedTarget.path), "plugin view state escaped the cache directory")
         XCTAssertTrue(ExperienceCacheTests.experienceCachePluginViewStateFileExists(
-            pluginId: traversingPluginId, viewName: mockedViewName, attributes: mockedAttributes
+            pluginId: traversingPluginId, viewName: mockedViewName, attributes: mockedAttributes, generation: mockedGeneration
         ), "the view state should still be cached, inside the cache directory")
 
         let contents = try XCTUnwrap(
@@ -433,7 +525,7 @@ class ExperienceCacheTests: XCTestCase {
 
     private func pluginViewStateFileName(for pluginId: String) -> String {
         ExperienceCacheUtils.getPluginViewStateFileName(
-            pluginId: pluginId, viewName: mockedViewName, attributes: mockedAttributes
+            pluginId: pluginId, viewName: mockedViewName, attributes: mockedAttributes, generation: mockedGeneration
         )
     }
 
@@ -443,6 +535,7 @@ class ExperienceCacheTests: XCTestCase {
         ExperienceCacheManager.cacheExperiencesViewStateSentEventHashes(
             viewName: mockedViewName,
             attributes: mockedAttributes,
+            generation: mockedGeneration,
             sentEventHashes: mockedEventHash1
         )
 
@@ -451,12 +544,12 @@ class ExperienceCacheTests: XCTestCase {
 
         XCTAssertTrue(ExperienceCacheTests.experienceCacheDirectoryExists())
         XCTAssertTrue(ExperienceCacheTests.experienceCacheExperiencesViewStateFileExists(
-            viewName: mockedViewName, attributes: mockedAttributes
+            viewName: mockedViewName, attributes: mockedAttributes, generation: mockedGeneration
         ))
 
         guard let fileData = ExperienceCacheManager.getCachedExperiencesViewStateFileData(
             viewName: mockedViewName,
-            attributes: mockedAttributes
+            attributes: mockedAttributes, generation: mockedGeneration
         )
         else {
             XCTFail("File data could not be read")
@@ -474,6 +567,7 @@ class ExperienceCacheTests: XCTestCase {
         ExperienceCacheManager.cacheExperiencesViewStateSentEventHashes(
             viewName: mockedViewName,
             attributes: mockedAttributes,
+            generation: mockedGeneration,
             sentEventHashes: mockedEventHash1
         )
 
@@ -482,7 +576,7 @@ class ExperienceCacheTests: XCTestCase {
 
         guard let fileData = ExperienceCacheManager.getCachedExperiencesViewStateFileData(
             viewName: mockedViewName,
-            attributes: mockedAttributes
+            attributes: mockedAttributes, generation: mockedGeneration
         )
         else {
             XCTFail("File data could not be read")
@@ -498,6 +592,7 @@ class ExperienceCacheTests: XCTestCase {
         ExperienceCacheManager.cacheExperiencesViewStateSentEventHashes(
             viewName: mockedViewName,
             attributes: mockedAttributes,
+            generation: mockedGeneration,
             sentEventHashes: mockedEventHash2
         )
 
@@ -506,7 +601,7 @@ class ExperienceCacheTests: XCTestCase {
 
         guard let fileData = ExperienceCacheManager.getCachedExperiencesViewStateFileData(
             viewName: mockedViewName,
-            attributes: mockedAttributes
+            attributes: mockedAttributes, generation: mockedGeneration
         )
         else {
             XCTFail("File data could not be read")
@@ -521,7 +616,8 @@ class ExperienceCacheTests: XCTestCase {
 
     func test_getCachedExperiencesViewState_onEmptyCache_returnsNil() {
         let cachedExperiencesViewState = ExperienceCacheManager.getCachedExperiencesViewState(viewName: mockedViewName,
-                                                                                              attributes: mockedAttributes)
+                                                                                              attributes: mockedAttributes,
+                                                                                              generation: mockedGeneration)
         XCTAssertNil(cachedExperiencesViewState)
     }
 
@@ -529,6 +625,7 @@ class ExperienceCacheTests: XCTestCase {
         ExperienceCacheManager.cacheExperiencesViewStateSentEventHashes(
             viewName: mockedViewName,
             attributes: mockedAttributes,
+            generation: mockedGeneration,
             sentEventHashes: mockedEventHash1
         )
 
@@ -537,12 +634,12 @@ class ExperienceCacheTests: XCTestCase {
 
         let cachedExperiencesViewState = ExperienceCacheManager.getCachedExperiencesViewState(
             viewName: mockedViewName,
-            attributes: mockedAttributes
+            attributes: mockedAttributes, generation: mockedGeneration
         )
 
         XCTAssertTrue(ExperienceCacheTests.experienceCacheDirectoryExists())
         XCTAssertTrue(ExperienceCacheTests.experienceCacheExperiencesViewStateFileExists(
-            viewName: mockedViewName, attributes: mockedAttributes
+            viewName: mockedViewName, attributes: mockedAttributes, generation: mockedGeneration
         ))
         XCTAssertEqual(cachedExperiencesViewState?.sentEventHashes, mockedEventHash1)
     }
@@ -551,6 +648,7 @@ class ExperienceCacheTests: XCTestCase {
         ExperienceCacheManager.cacheExperiencesViewStateSentEventHashes(
             viewName: mockedViewName,
             attributes: mockedAttributes,
+            generation: mockedGeneration,
             sentEventHashes: mockedEventHash1
         )
 
@@ -559,12 +657,12 @@ class ExperienceCacheTests: XCTestCase {
 
         let cachedExperiencesViewState = ExperienceCacheManager.getCachedExperiencesViewState(
             viewName: mockedViewName,
-            attributes: mockedNonMatchingAttributes
+            attributes: mockedNonMatchingAttributes, generation: mockedGeneration
         )
 
         XCTAssertTrue(ExperienceCacheTests.experienceCacheDirectoryExists())
         XCTAssertTrue(ExperienceCacheTests.experienceCacheExperiencesViewStateFileExists(
-            viewName: mockedViewName, attributes: mockedAttributes
+            viewName: mockedViewName, attributes: mockedAttributes, generation: mockedGeneration
         ))
         XCTAssertNil(cachedExperiencesViewState)
     }
@@ -608,11 +706,13 @@ extension XCTestCase {
     }
 
     static func experienceCachePluginViewStateFileExists(pluginId: String, viewName: String,
-                                                         attributes: [String: String]) -> Bool {
+                                                         attributes: [String: String],
+                                                         generation: String) -> Bool {
         let fileName = ExperienceCacheUtils.getPluginViewStateFileName(
             pluginId: pluginId,
             viewName: viewName,
-            attributes: attributes
+            attributes: attributes,
+            generation: generation
         )
         guard let fileURL = ExperienceCacheManager.getFileUrl(name: fileName) else {
             return false
@@ -620,10 +720,12 @@ extension XCTestCase {
         return FileManager.default.fileExists(atPath: fileURL.path)
     }
 
-    static func experienceCacheExperiencesViewStateFileExists(viewName: String, attributes: [String: String]) -> Bool {
+    static func experienceCacheExperiencesViewStateFileExists(viewName: String, attributes: [String: String],
+                                                              generation: String) -> Bool {
         let fileName = ExperienceCacheUtils.getExperiencesViewStateFileName(
             viewName: viewName,
-            attributes: attributes
+            attributes: attributes,
+            generation: generation
         )
         guard let fileURL = ExperienceCacheManager.getFileUrl(name: fileName) else {
             return false

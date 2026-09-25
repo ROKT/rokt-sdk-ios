@@ -29,7 +29,7 @@ internal class ExperienceCacheManager {
      */
     static func getCachedExperienceResponse(viewName: String?,
                                             attributes: [String: String],
-                                            cacheDuration: TimeInterval) -> String? {
+                                            cacheDuration: TimeInterval) -> ExperienceCacheUtils.ExperienceResponseFileData? {
         guard let fileData = getCachedExperienceResponseFileData(
             viewName: viewName,
             attributes: attributes) else { return nil }
@@ -37,12 +37,13 @@ internal class ExperienceCacheManager {
     }
 
     /**
-     Evict superseded experience responses and save new experience response in cache
+     Evict superseded experience responses and their view state, and save new experience response in cache
 
      - Parameters:
       - viewName: A string representing the targetted view name received in execute.
       - attributes: A string dictionary containing the custom attributes received in execute.
       - experienceResponse: String representation of entire experience response to be cached.
+      - generation: A new identifier for this response, shared with the view state it produces.
       - success: Callback on success of saving new experience response in cache.
       - failure: Callback on any failure on attempt to save new experience response in cache.
      */
@@ -50,6 +51,7 @@ internal class ExperienceCacheManager {
         viewName: String?,
         attributes: [String: String],
         experienceResponse: String,
+        generation: String,
         success: (() -> Void)? = nil,
         failure: (() -> Void)? = nil
     ) {
@@ -62,14 +64,14 @@ internal class ExperienceCacheManager {
         }
 
         guard let fileContents = ExperienceCacheUtils.generateExperienceResponseCacheFileContent(
-            experienceResponse: experienceResponse) else {
+            experienceResponse: experienceResponse, generation: generation) else {
             failure?()
             return
         }
 
         // Enqueued before the write rather than nested in its completion: both are barriers on the
         // same queue, which runs barriers in submission order, so the new response still lands last.
-        clearCachedExperienceResponses()
+        evictFiles(notBelongingTo: generation)
 
         saveToFile(
             data: fileContents,
@@ -78,14 +80,10 @@ internal class ExperienceCacheManager {
             failure: failure)
     }
 
-    /// Evicts every cached experience response, leaving the view state that shares the directory.
-    ///
-    /// The response cache holds one entry at a time, but `clearCache` enforces that by deleting the
-    /// whole directory — which also destroys the plugin view states and sent-event hashes the next
-    /// execute is meant to restore. Those reads are direct synchronous file reads while the delete
-    /// is an async barrier, so it landed at a nondeterministic point: the same execute that cached a
-    /// response could wipe the view state it had just persisted, before or after the next read.
-    private static func clearCachedExperienceResponses() {
+    /// Evicts superseded responses and the view state they produced. The new response's own view state
+    /// may already be on disk, so it is matched by generation rather than swept with the directory.
+    /// Old state is kept out by its file names, not by when this deletion runs.
+    private static func evictFiles(notBelongingTo generation: String) {
         // Enumerated off the barrier queue, so a response write still in flight is not swept. Only
         // overlapping executes could do that, which `isExecuting` already rejects; if that guard
         // ever goes away, move the enumeration onto the queue.
@@ -96,7 +94,7 @@ internal class ExperienceCacheManager {
         else { return }
 
         for fileUrl in cachedFileUrls
-        where ExperienceCacheUtils.isExperienceResponseFileName(fileUrl.lastPathComponent) {
+        where !ExperienceCacheUtils.isFileName(fileUrl.lastPathComponent, ofGeneration: generation) {
             backingStore.deleteFileAtUrl(at: fileUrl, completion: nil)
         }
     }
@@ -123,16 +121,20 @@ internal class ExperienceCacheManager {
       - pluginId: A string representing the plugin ID
       - viewName: A string representing the targetted view name received in execute.
       - attributes: A string dictionary containing the custom attributes received in execute.
+      - generation: The generation of the cached response this view state belongs to.
 
      */
     static func getOrCreateCachedPluginViewState(pluginId: String,
                                                  viewName: String?,
-                                                 attributes: [String: String]) -> RoktPluginViewState {
-        if let fileData = getCachedPluginViewStateFileData(pluginId: pluginId, viewName: viewName, attributes: attributes),
+                                                 attributes: [String: String],
+                                                 generation: String) -> RoktPluginViewState {
+        if let fileData = getCachedPluginViewStateFileData(pluginId: pluginId, viewName: viewName,
+                                                           attributes: attributes, generation: generation),
            let validPluginViewState = ExperienceCacheUtils.getValidPluginViewState(pluginId: pluginId, data: fileData) {
             return validPluginViewState
         } else {
-            return createPluginViewStateCache(pluginId: pluginId, viewName: viewName, attributes: attributes)
+            return createPluginViewStateCache(pluginId: pluginId, viewName: viewName,
+                                              attributes: attributes, generation: generation)
         }
 
     }
@@ -148,11 +150,13 @@ internal class ExperienceCacheManager {
     private static func createPluginViewStateCache(
         pluginId: String,
         viewName: String?,
-        attributes: [String: String]
+        attributes: [String: String],
+        generation: String
     ) -> RoktPluginViewState {
 
         let pluginViewState = RoktPluginViewState(pluginId: pluginId)
-        cachePluginViewState(viewName: viewName, attributes: attributes, pluginViewState: pluginViewState)
+        cachePluginViewState(viewName: viewName, attributes: attributes,
+                             generation: generation, pluginViewState: pluginViewState)
         return pluginViewState
     }
 
@@ -162,23 +166,27 @@ internal class ExperienceCacheManager {
      - Parameters:
       - viewName: A string representing the targetted view name received in execute.
       - attributes: A string dictionary containing the custom attributes received in execute.
+      - generation: The generation of the cached response this view state belongs to.
       - pluginViewStateUpdates: RoktPluginViewStateUpdates of all properties to be updated.
      */
     static func updatePluginViewStateCache(
         viewName: String?,
         attributes: [String: String],
+        generation: String,
         updateStates: RoktPluginViewState
     ) {
 
         let cached = getOrCreateCachedPluginViewState(pluginId: updateStates.pluginId,
                                                       viewName: viewName,
-                                                      attributes: attributes)
+                                                      attributes: attributes,
+                                                      generation: generation)
 
         let pluginViewState = RoktPluginViewState(pluginId: updateStates.pluginId,
                                                   offerIndex: updateStates.offerIndex ?? cached.offerIndex,
                                                   isPluginDismissed: updateStates.isPluginDismissed ?? cached.isPluginDismissed,
                                                   customStateMap: updateStates.customStateMap ?? cached.customStateMap)
-        cachePluginViewState(viewName: viewName, attributes: attributes, pluginViewState: pluginViewState)
+        cachePluginViewState(viewName: viewName, attributes: attributes,
+                             generation: generation, pluginViewState: pluginViewState)
     }
 
     /**
@@ -187,17 +195,20 @@ internal class ExperienceCacheManager {
      - Parameters:
       - viewName: A string representing the targetted view name received in execute.
       - attributes: A string dictionary containing the custom attributes received in execute.
+      - generation: The generation of the cached response this view state belongs to.
       - pluginViewState: RoktPluginViewState object storing latest view state for a plugin
      */
     private static func cachePluginViewState(
         viewName: String?,
         attributes: [String: String],
+        generation: String,
         pluginViewState: RoktPluginViewState
     ) {
         let fileName = ExperienceCacheUtils.getPluginViewStateFileName(
             pluginId: pluginViewState.pluginId,
             viewName: viewName,
-            attributes: attributes)
+            attributes: attributes,
+            generation: generation)
         guard let fileURL = getFileUrl(name: fileName) else {
             return
         }
@@ -212,9 +223,10 @@ internal class ExperienceCacheManager {
 
     static func getCachedPluginViewStateFileData(pluginId: String,
                                                  viewName: String?,
-                                                 attributes: [String: String]) -> Data? {
+                                                 attributes: [String: String],
+                                                 generation: String) -> Data? {
         let fileName = ExperienceCacheUtils.getPluginViewStateFileName(
-            pluginId: pluginId, viewName: viewName, attributes: attributes)
+            pluginId: pluginId, viewName: viewName, attributes: attributes, generation: generation)
         guard let fileUrl = getFileUrl(name: fileName) else { return nil }
         do {
             return try Data(contentsOf: fileUrl, options: .mappedIfSafe)
@@ -231,12 +243,15 @@ internal class ExperienceCacheManager {
      - Parameters:
       - viewName: A string representing the targetted view name received in execute.
       - attributes: A string dictionary containing the custom attributes received in execute.
+      - generation: The generation of the cached response this view state belongs to.
      */
     static func getCachedExperiencesViewState(viewName: String?,
-                                              attributes: [String: String]) -> ExperiencesViewState? {
+                                              attributes: [String: String],
+                                              generation: String) -> ExperiencesViewState? {
         guard let fileData = getCachedExperiencesViewStateFileData(
             viewName: viewName,
-            attributes: attributes) else { return nil }
+            attributes: attributes,
+            generation: generation) else { return nil }
         return ExperienceCacheUtils.getValidExperiencesViewState(data: fileData)
     }
 
@@ -246,15 +261,18 @@ internal class ExperienceCacheManager {
      - Parameters:
       - viewName: A string representing the targetted view name received in execute.
       - attributes: A string dictionary containing the custom attributes received in execute.
+      - generation: The generation of the cached response this view state belongs to.
       - eventHashes: Set of event hashes to be added to cache.
      */
     static func cacheExperiencesViewStateSentEventHashes(
         viewName: String?,
         attributes: [String: String],
+        generation: String,
         sentEventHashes: Set<String>
     ) {
         let experiencesViewState = ExperiencesViewState(sentEventHashes: sentEventHashes)
-        cacheExperiencesViewState(viewName: viewName, attributes: attributes, experiencesViewState: experiencesViewState)
+        cacheExperiencesViewState(viewName: viewName, attributes: attributes,
+                                  generation: generation, experiencesViewState: experiencesViewState)
     }
 
     /**
@@ -263,15 +281,17 @@ internal class ExperienceCacheManager {
      - Parameters:
       - viewName: A string representing the targetted view name received in execute.
       - attributes: A string dictionary containing the custom attributes received in execute.
+      - generation: The generation of the cached response this view state belongs to.
       - experiencesViewState: ExperiencesViewState object storing latest view state for the experience
      */
     private static func cacheExperiencesViewState(
         viewName: String?,
         attributes: [String: String],
+        generation: String,
         experiencesViewState: ExperiencesViewState
     ) {
         let fileName = ExperienceCacheUtils.getExperiencesViewStateFileName(
-            viewName: viewName, attributes: attributes)
+            viewName: viewName, attributes: attributes, generation: generation)
         guard let fileURL = getFileUrl(name: fileName) else {
             return
         }
@@ -285,8 +305,10 @@ internal class ExperienceCacheManager {
     }
 
     static func getCachedExperiencesViewStateFileData(viewName: String?,
-                                                      attributes: [String: String]) -> Data? {
-        let fileName = ExperienceCacheUtils.getExperiencesViewStateFileName(viewName: viewName, attributes: attributes)
+                                                      attributes: [String: String],
+                                                      generation: String) -> Data? {
+        let fileName = ExperienceCacheUtils.getExperiencesViewStateFileName(viewName: viewName, attributes: attributes,
+                                                                            generation: generation)
         guard let fileUrl = getFileUrl(name: fileName) else { return nil }
         do {
             return try Data(contentsOf: fileUrl, options: .mappedIfSafe)
