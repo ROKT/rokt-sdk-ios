@@ -402,10 +402,15 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
 
                     // Wait for the async barrier write triggered by onPluginViewStateChange to
                     // reach disk before the second execute reads it back.
-                    self.waitForCachedPluginViewState(
-                        pluginViewStateUpdates,
-                        cacheProperties: mockImplementation.executingLayoutPage?.cacheProperties
-                    )
+                    let cacheProperties = mockImplementation.executingLayoutPage?.cacheProperties
+                    self.waitForCachedPluginViewState(pluginViewStateUpdates, cacheProperties: cacheProperties)
+                    // State is only restored on a cache hit, and the response is written at background
+                    // priority, so it must reach disk before the second execute reads the cache.
+                    expect(ExperienceCacheManager.getCachedExperienceResponse(
+                        viewName: cacheProperties?.viewName,
+                        attributes: cacheProperties?.experienceCacheAttributes ?? [:],
+                        cacheDuration: config.cacheConfig.cacheDuration
+                    )?.generation).toEventually(equal(cacheProperties?.generation), timeout: .seconds(10))
 
                     // Second execute with same config
                     self.executeRokt(config: config)
