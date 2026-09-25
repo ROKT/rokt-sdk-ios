@@ -71,39 +71,49 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
         )
     }
 
-    /// Waits for an `onPluginViewStateChange` update to reach the plugin view state cache file.
+    /// Waits for an `onPluginViewStateChange` update to reach the plugin view state cache file and,
+    /// with `responseCacheDuration`, for the response it belongs to as well: view state is only
+    /// restored on a cache hit, and the response is written at background priority.
     ///
-    /// The SDK writes it as an async barrier while the next execute reads synchronously, so waiting a
+    /// The SDK writes both as async work while the next execute reads synchronously, so waiting a
     /// fixed interval instead lets a loaded machine read first — and a read that already returned
     /// stale data is a hard failure, not something a wider budget can rescue.
-    ///
-    /// Reads unmapped rather than via `getCachedPluginViewStateFileData`, which uses `.mappedIfSafe`:
-    /// polling a mapped file while the writer replaces it faults the test host, whereas an unmapped
-    /// half-written read just fails to decode and is retried.
     func waitForCachedPluginViewState(_ expected: RoktPluginViewState,
                                       cacheProperties: LayoutPageCacheProperties?,
+                                      responseCacheDuration: TimeInterval? = nil,
                                       file: StaticString = #filePath,
                                       line: UInt = #line) {
         guard let cacheProperties else {
             return XCTFail("cacheProperties should not be nil", file: file, line: line)
         }
 
+        // Not `kPipelineWaitTimeout`: this awaits local file writes, not a whole pipeline.
+        expect(file: "\(file)", line: line) { () -> Bool in
+            guard self.cachedPluginViewState(pluginId: expected.pluginId, cacheProperties: cacheProperties) == expected
+            else { return false }
+            guard let responseCacheDuration else { return true }
+            return ExperienceCacheManager.getCachedExperienceResponse(
+                viewName: cacheProperties.viewName,
+                attributes: cacheProperties.experienceCacheAttributes,
+                cacheDuration: responseCacheDuration
+            )?.generation == cacheProperties.generation
+        }
+        .toEventually(beTrue(), timeout: .seconds(10), description: "cached plugin view state")
+    }
+
+    /// Reads unmapped rather than via `getCachedPluginViewStateFileData`, which uses `.mappedIfSafe`:
+    /// polling a mapped file while the writer replaces it faults the test host, whereas an unmapped
+    /// half-written read just fails to decode and is retried.
+    func cachedPluginViewState(pluginId: String, cacheProperties: LayoutPageCacheProperties) -> RoktPluginViewState? {
         let fileName = ExperienceCacheUtils.getPluginViewStateFileName(
-            pluginId: expected.pluginId,
+            pluginId: pluginId,
             viewName: cacheProperties.viewName,
             attributes: cacheProperties.experienceCacheAttributes,
             generation: cacheProperties.generation
         )
-        guard let fileUrl = ExperienceCacheManager.getFileUrl(name: fileName) else {
-            return XCTFail("plugin view state cache file url should not be nil", file: file, line: line)
-        }
-
-        // Not `kPipelineWaitTimeout`: this awaits one local file write, not a whole pipeline.
-        expect(file: "\(file)", line: line) { () -> RoktPluginViewState? in
-            guard let data = try? Data(contentsOf: fileUrl, options: []) else { return nil }
-            return ExperienceCacheUtils.getValidPluginViewState(pluginId: expected.pluginId, data: data)
-        }
-        .toEventually(equal(expected), timeout: .seconds(10), description: "cached plugin view state")
+        guard let fileUrl = ExperienceCacheManager.getFileUrl(name: fileName),
+              let data = try? Data(contentsOf: fileUrl, options: []) else { return nil }
+        return ExperienceCacheUtils.getValidPluginViewState(pluginId: pluginId, data: data)
     }
 
     override func spec() {
@@ -400,17 +410,13 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     )
                     mockImplementation.executingLayoutPage?.cacheProperties?.onPluginViewStateChange?(pluginViewStateUpdates)
 
-                    // Wait for the async barrier write triggered by onPluginViewStateChange to
-                    // reach disk before the second execute reads it back.
-                    let cacheProperties = mockImplementation.executingLayoutPage?.cacheProperties
-                    self.waitForCachedPluginViewState(pluginViewStateUpdates, cacheProperties: cacheProperties)
-                    // State is only restored on a cache hit, and the response is written at background
-                    // priority, so it must reach disk before the second execute reads the cache.
-                    expect(ExperienceCacheManager.getCachedExperienceResponse(
-                        viewName: cacheProperties?.viewName,
-                        attributes: cacheProperties?.experienceCacheAttributes ?? [:],
-                        cacheDuration: config.cacheConfig.cacheDuration
-                    )?.generation).toEventually(equal(cacheProperties?.generation), timeout: .seconds(10))
+                    // Wait for the async barrier write triggered by onPluginViewStateChange, and for the
+                    // response it belongs to, to reach disk before the second execute reads them back.
+                    self.waitForCachedPluginViewState(
+                        pluginViewStateUpdates,
+                        cacheProperties: mockImplementation.executingLayoutPage?.cacheProperties,
+                        responseCacheDuration: config.cacheConfig.cacheDuration
+                    )
 
                     // Second execute with same config
                     self.executeRokt(config: config)
@@ -517,17 +523,29 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                         .build()
 
                     self.executeRokt(config: config)
-                    expect(mockImplementation.executingLayoutPage?.cacheProperties)
-                        .toEventuallyNot(beNil(), timeout: kPipelineWaitTimeout)
-                    guard let pluginId = mockImplementation.executingPluginIds?.first,
-                          let cacheProperties = mockImplementation.executingLayoutPage?.cacheProperties else {
-                        return XCTFail("cacheProperties should not be nil")
+
+                    // The customer dismisses the first placement as soon as it renders. One wait covers
+                    // the render and the dismissal reaching disk, keeping the spec within two waits.
+                    var dismissedState: RoktPluginViewState?
+                    var firstPage: LayoutPageCacheProperties?
+                    expect { () -> Bool in
+                        guard let cacheProperties = mockImplementation.executingLayoutPage?.cacheProperties,
+                              let pluginId = mockImplementation.executingPluginIds?.first else { return false }
+                        if dismissedState == nil {
+                            let state = RoktPluginViewState(pluginId: pluginId, offerIndex: 4, isPluginDismissed: true)
+                            dismissedState = state
+                            firstPage = cacheProperties
+                            cacheProperties.onPluginViewStateChange?(state)
+                        }
+                        return self.cachedPluginViewState(pluginId: pluginId, cacheProperties: cacheProperties)
+                            == dismissedState
+                    }
+                    .toEventually(beTrue(), timeout: kPipelineWaitTimeout, description: "dismissed first placement")
+                    guard let firstPage, let pluginId = dismissedState?.pluginId else {
+                        return XCTFail("the first placement never rendered")
                     }
 
-                    // The customer dismisses the placement, then the cached experience expires.
-                    let dismissedState = RoktPluginViewState(pluginId: pluginId, offerIndex: 4, isPluginDismissed: true)
-                    cacheProperties.onPluginViewStateChange?(dismissedState)
-                    self.waitForCachedPluginViewState(dismissedState, cacheProperties: cacheProperties)
+                    // Then the cached experience expires.
                     RoktSDKDateHandler.customDate = RoktSDKDateHandler.currentDate()
                         .addingTimeInterval(RoktConfig.CacheConfig.maxCacheDuration + 1)
 
@@ -538,7 +556,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                     expect(mockImplementation.executingLayoutPage?.cacheProperties?.pluginViewStates)
                         .toEventually(equal([RoktPluginViewState(pluginId: pluginId)]), timeout: kPipelineWaitTimeout)
                     expect(mockImplementation.executingLayoutPage?.cacheProperties?.generation)
-                        .notTo(equal(cacheProperties.generation))
+                        .notTo(equal(firstPage.generation))
                 }
 
                 afterEach {
