@@ -1437,14 +1437,12 @@ class RoktInternalImplementation {
                                 let generation = UUID().uuidString
                                 cacheGeneration = generation
 
-                                DispatchQueue.background.async {
-                                    ExperienceCacheManager.cacheExperienceResponse(
-                                        viewName: viewName,
-                                        attributes: cacheAttributes,
-                                        experienceResponse: page,
-                                        generation: generation
-                                    )
-                                }
+                                ExperienceCacheManager.cacheExperienceResponse(
+                                    viewName: viewName,
+                                    attributes: cacheAttributes,
+                                    experienceResponse: page,
+                                    generation: generation
+                                )
                             }
 
                             // Use cacheAttributes for plugin view states if cache is enabled for consistency

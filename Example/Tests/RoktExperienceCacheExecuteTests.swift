@@ -73,7 +73,7 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
 
     /// Waits for an `onPluginViewStateChange` update to reach the plugin view state cache file and,
     /// with `responseCacheDuration`, for the response it belongs to as well: view state is only
-    /// restored on a cache hit, and the response is written at background priority.
+    /// restored on a cache hit, and the response is written asynchronously.
     ///
     /// The SDK writes both as async work while the next execute reads synchronously, so waiting a
     /// fixed interval instead lets a loaded machine read first — and a read that already returned

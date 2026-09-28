@@ -212,9 +212,8 @@ final class TestOffersExecuteWiring: XCTestCase {
         waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
         XCTAssertNotNil(impl.capturedPage)
 
-        // Wait for the asynchronous cache write to flush before reusing it. The write runs at background
-        // quality of service and may be delayed on a busy host, so the wait is generous. It is not a
-        // timing assertion.
+        // Wait for the asynchronous cache write to flush before reusing it. A busy host can delay it, so
+        // the wait is generous. It is not a timing assertion.
         waitUntil({
             ExperienceCacheManager.getCachedExperienceResponse(
                 viewName: viewName, attributes: attributes, cacheDuration: cacheDuration
@@ -298,9 +297,9 @@ final class TestOffersExecuteWiring: XCTestCase {
         let cacheProperties = try XCTUnwrap(impl.capturedPayload?.cacheProperties)
         let cacheAttributes = cacheProperties.experienceCacheAttributes
 
-        // The response and view state writes are asynchronous; wait for both to reach disk. The response
-        // is written at background priority, which a busy host can delay by tens of seconds. The state
-        // file is read unmapped: polling a mapped file while the writer replaces it faults.
+        // The response and view state writes are asynchronous, and a busy host can delay them; wait for
+        // both to reach disk. The state file is read unmapped: polling a mapped file while the writer
+        // replaces it faults.
         waitUntil({
             ExperienceCacheManager.getCachedExperienceResponse(
                 viewName: viewName, attributes: cacheAttributes, cacheDuration: cacheDuration

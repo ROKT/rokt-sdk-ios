@@ -8,8 +8,8 @@ internal class ExperienceCacheManager {
     private static let cacheDiagnosticCode = "[CACHE]"
     private static let unsafeFileNameCharacters = CharacterSet(charactersIn: "/\\\u{0}")
     private(set) static var cacheDirectory = "RoktExperienceCache"
-    private let fileStorage: FileStorage
-    private static var backingStore: FileStorage { ExperienceCacheManager.shared.fileStorage }
+    private let fileStorage: ConcurrentQueueFileStorageDecorator
+    private static var backingStore: ConcurrentQueueFileStorageDecorator { ExperienceCacheManager.shared.fileStorage }
 
     private init() {
         fileStorage = ConcurrentQueueFileStorageDecorator(
@@ -69,24 +69,25 @@ internal class ExperienceCacheManager {
             return
         }
 
-        // Enqueued before the write rather than nested in its completion: both are barriers on the
-        // same queue, which runs barriers in submission order, so the new response still lands last.
-        evictFiles(notBelongingTo: generation)
-
-        saveToFile(
-            data: fileContents,
-            to: fileURL,
-            success: success,
-            failure: failure)
+        // One barrier, so responses are cached in the order they were fetched and the eviction sees
+        // every write queued before it, including a response that is still being written.
+        backingStore.performBarrier { store in
+            evictFiles(notBelongingTo: generation, from: store)
+            store.write(payload: fileContents, to: fileURL, options: [.createIntermediateDirectories]) { result in
+                switch result {
+                case .success:
+                    success?()
+                case .failure:
+                    failure?()
+                }
+            }
+        }
     }
 
     /// Evicts superseded responses and the view state they produced. The new response's own view state
     /// may already be on disk, so it is matched by generation rather than swept with the directory.
     /// Old state is kept out by its file names, not by when this deletion runs.
-    private static func evictFiles(notBelongingTo generation: String) {
-        // Enumerated off the barrier queue, so a response write still in flight is not swept. Only
-        // overlapping executes could do that, which `isExecuting` already rejects; if that guard
-        // ever goes away, move the enumeration onto the queue.
+    private static func evictFiles(notBelongingTo generation: String, from store: FileStorage) {
         guard let cacheDirectoryUrl = getCacheDirectoryUrl(),
               let cachedFileUrls = try? FileManager.default.contentsOfDirectory(
                   at: cacheDirectoryUrl,
@@ -95,7 +96,7 @@ internal class ExperienceCacheManager {
 
         for fileUrl in cachedFileUrls
         where !ExperienceCacheUtils.isFileName(fileUrl.lastPathComponent, ofGeneration: generation) {
-            backingStore.deleteFileAtUrl(at: fileUrl, completion: nil)
+            store.deleteFileAtUrl(at: fileUrl, completion: nil)
         }
     }
 

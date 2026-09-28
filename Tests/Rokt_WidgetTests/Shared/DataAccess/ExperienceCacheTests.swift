@@ -187,6 +187,29 @@ class ExperienceCacheTests: XCTestCase {
         )
     }
 
+    /// Responses are cached in the order they were fetched. The later response's eviction must see an
+    /// earlier response that is still being written, or that response outlives the one replacing it.
+    func test_cacheExperienceResponse_evictsAnEarlierResponseStillBeingWritten() {
+        ExperienceCacheManager.cacheExperienceResponse(viewName: mockedViewName,
+                                                       attributes: mockedNonMatchingAttributes,
+                                                       experienceResponse: mockedExperienceResponse,
+                                                       generation: mockedGeneration)
+        ExperienceCacheManager.cacheExperienceResponse(viewName: mockedViewName,
+                                                       attributes: mockedAttributes,
+                                                       experienceResponse: mockedExperienceResponse,
+                                                       generation: mockedNextGeneration)
+
+        let cached = expectation(description: "Cached responses after 1s")
+        _ = XCTWaiter.wait(for: [cached], timeout: 1)
+
+        XCTAssertFalse(ExperienceCacheTests.experienceCacheFileExists(
+            viewName: mockedViewName, attributes: mockedNonMatchingAttributes
+        ))
+        XCTAssertEqual(ExperienceCacheManager.getCachedExperienceResponse(
+            viewName: mockedViewName, attributes: mockedAttributes, cacheDuration: TimeInterval(60)
+        )?.generation, mockedNextGeneration)
+    }
+
     /// A response written before responses carried a generation has no view state to pair with, so
     /// it is a cache miss rather than a response served with state from an unknown origin.
     func test_getCachedExperienceResponse_withoutGeneration_returnsNil() throws {
