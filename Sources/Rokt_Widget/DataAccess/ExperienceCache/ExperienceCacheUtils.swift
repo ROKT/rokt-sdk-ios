@@ -6,6 +6,9 @@ struct ExperienceCacheUtils {
     struct ExperienceResponseFileData: Codable {
         let experienceResponse: String
         let cachedTime: Date
+        /// Identifies this cached response. Its view state files carry it in their names, so state
+        /// can only ever be restored into, or merged with, the response that produced it.
+        let generation: String
     }
 
     struct PluginViewStateFileData: Codable {
@@ -14,9 +17,7 @@ struct ExperienceCacheUtils {
         let customStateMap: RoktUXCustomStateMap?
     }
 
-    // Every response format version shares this stem, so eviction sweeps superseded ones too.
-    private static let experienceResponseFileStem = "RoktExperienceResponse"
-    private static let experienceResponseFilePrefix = experienceResponseFileStem + "V2"
+    private static let experienceResponseFilePrefix = "RoktExperienceResponseV3"
     private static let viewStateFilePrefix = "RoktPluginViewState"
     private static let experiencesViewStateFilePrefix = "RoktExperiencesViewState"
 
@@ -39,38 +40,42 @@ struct ExperienceCacheUtils {
     }
 
     /**
-     Whether a cache file name belongs to an experience response, and so is safe to evict when a new
-     response is cached. The view state files sharing the directory must survive that eviction.
+     Whether a cache file belongs to the given response generation, and so must survive the eviction
+     that runs when that response is cached.
 
      - Parameters:
       - fileName: The last path component of a file in the experience cache directory.
+      - generation: The generation of the response being cached.
      */
-    static func isExperienceResponseFileName(_ fileName: String) -> Bool {
-        fileName.hasPrefix(experienceResponseFileStem)
+    static func isFileName(_ fileName: String, ofGeneration generation: String) -> Bool {
+        fileName.contains(generation)
     }
 
     /**
-     Generate and return full contents to be written to experience response cache file. This consists of the experience response and cache expiry.
+     Generate and return full contents to be written to experience response cache file. This consists of the experience response, cache expiry and generation.
 
      - Parameters:
       - experienceResponse: A string of the entire experience response.
+      - generation: A new identifier for this response, shared with the view state it produces.
      */
-    static func generateExperienceResponseCacheFileContent(experienceResponse: String) -> ExperienceResponseFileData? {
+    static func generateExperienceResponseCacheFileContent(experienceResponse: String,
+                                                           generation: String) -> ExperienceResponseFileData? {
         return ExperienceResponseFileData(experienceResponse: experienceResponse,
-                                          cachedTime: RoktSDKDateHandler.currentDate())
+                                          cachedTime: RoktSDKDateHandler.currentDate(),
+                                          generation: generation)
     }
 
     /**
-     Get experience response from raw, existing experience response cache file content if file contents are in the correct format and cache is not expired.
+     Get the cached experience response and its generation from raw, existing experience response cache file content if file contents are in the correct format and cache is not expired.
 
      - Parameters:
       - fileContent: [String]? Undecoded raw file content
      */
-    static func getValidExperienceResponse(data: Data, cacheDuration: TimeInterval) -> String? {
+    static func getValidExperienceResponse(data: Data, cacheDuration: TimeInterval) -> ExperienceResponseFileData? {
         do {
             let decodedData = try JSONDecoder().decode(ExperienceResponseFileData.self, from: data)
             if RoktSDKDateHandler.currentDate() < decodedData.cachedTime.advanced(by: cacheDuration) {
-                return decodedData.experienceResponse
+                return decodedData
             }
         } catch {
             return nil
@@ -119,12 +124,14 @@ struct ExperienceCacheUtils {
       - pluginId: A string representing the plugin ID. It is hashed so the file name never carries raw identifier bytes.
       - viewName: A string representing the targetted view name received in execute.
       - attributes: A string dictionary containing the custom attributes received in execute.
+      - generation: The generation of the cached response this view state belongs to.
      */
     static func getPluginViewStateFileName(pluginId: String,
                                            viewName: String?,
-                                           attributes: [String: String]) -> String {
+                                           attributes: [String: String],
+                                           generation: String) -> String {
         let hashKey = getExperienceCacheHashKey(viewName: viewName, attributes: attributes)
-        return String(format: "%@%@%@", viewStateFilePrefix, hashKey, pluginId.sha256())
+        return String(format: "%@%@%@%@", viewStateFilePrefix, hashKey, generation, pluginId.sha256())
     }
 
     // MARK: Experiences view state
@@ -135,11 +142,13 @@ struct ExperienceCacheUtils {
      - Parameters:
       - viewName: A string representing the targetted view name received in execute.
       - attributes: A string dictionary containing the custom attributes received in execute.
+      - generation: The generation of the cached response this view state belongs to.
      */
     static func getExperiencesViewStateFileName(viewName: String?,
-                                                attributes: [String: String]) -> String {
+                                                attributes: [String: String],
+                                                generation: String) -> String {
         let hashKey = getExperienceCacheHashKey(viewName: viewName, attributes: attributes)
-        return String(format: "%@%@", experiencesViewStateFilePrefix, hashKey)
+        return String(format: "%@%@%@", experiencesViewStateFilePrefix, hashKey, generation)
     }
 
     /**
