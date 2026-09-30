@@ -33,7 +33,6 @@ jobs:
       root_sdk: ${{ steps.classify.outputs.root_sdk }}
       package: ${{ steps.classify.outputs.package }}
       ui: ${{ steps.classify.outputs.ui }}
-      manifest: ${{ steps.classify.outputs.manifest }}
       contract: ${{ steps.classify.outputs.contract }}
       periphery: ${{ steps.classify.outputs.periphery }}
       size: ${{ steps.classify.outputs.size }}
@@ -63,7 +62,8 @@ jobs:
                 | tee -a "$GITHUB_OUTPUT"
               ;;
             push)
-              if [[ -z "$PUSH_BASE_SHA" || "$PUSH_BASE_SHA" =~ ^0+$ ]]; then
+              if [[ -z "$PUSH_BASE_SHA" || "$PUSH_BASE_SHA" =~ ^0+$ ]] ||
+                ! git cat-file -e "${PUSH_BASE_SHA}^{commit}" 2>/dev/null; then
                 .github/scripts/classify-pr-changes.sh --full "push base SHA is unavailable" \
                   | tee -a "$GITHUB_OUTPUT"
               else
@@ -83,7 +83,6 @@ jobs:
           CONTRACT: ${{ steps.classify.outputs.contract }}
           DOCS: ${{ steps.classify.outputs.docs }}
           FULL: ${{ steps.classify.outputs.full }}
-          MANIFEST: ${{ steps.classify.outputs.manifest }}
           PACKAGE: ${{ steps.classify.outputs.package }}
           PERIPHERY: ${{ steps.classify.outputs.periphery }}
           ROOT_SDK: ${{ steps.classify.outputs.root_sdk }}
@@ -91,7 +90,7 @@ jobs:
           UI: ${{ steps.classify.outputs.ui }}
         run: |
           set -euo pipefail
-          for selection in "$DOCS" "$ROOT_SDK" "$PACKAGE" "$UI" "$MANIFEST" "$CONTRACT" "$PERIPHERY" "$SIZE" "$FULL"; do
+          for selection in "$DOCS" "$ROOT_SDK" "$PACKAGE" "$UI" "$CONTRACT" "$PERIPHERY" "$SIZE" "$FULL"; do
             if [[ "$selection" != "true" && "$selection" != "false" ]]; then
               echo "::error::Classifier emitted an invalid boolean: '$selection'."
               exit 1
@@ -157,7 +156,7 @@ jobs:
     name: Podspec Lint
     runs-on: macos-latest
     needs: [detect-changes, trunk-check]
-    if: needs.detect-changes.outputs.manifest == 'true'
+    if: needs.detect-changes.outputs.root_sdk == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -448,7 +447,7 @@ jobs:
     if: >
       needs.detect-changes.outputs.contract == 'true' &&
       github.actor != 'dependabot[bot]' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     environment: pact-publish
     permissions:
@@ -464,7 +463,7 @@ jobs:
         env:
           BUILD_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           GITHUB_SHA: ${{ github.sha }}
-          PACT_BRANCH: ${{ github.head_ref }}
+          PACT_BRANCH: ${{ github.head_ref || github.ref_name }}
           PACT_BROKER_BASE_URL: ${{ vars.PACT_BROKER_BASE_URL }}
           PACT_BROKER_PASSWORD: ${{ secrets.PACT_BROKER_PASSWORD }}
           PACT_BROKER_USERNAME: ${{ vars.PACT_BROKER_USERNAME }}
@@ -521,7 +520,7 @@ jobs:
           DETECT_RESULT: ${{ needs.detect-changes.result }}
           CONTRACT_SELECTED: ${{ needs.detect-changes.outputs.contract }}
           PACT_RESULT: ${{ needs.pact-validation.result }}
-          BROKER_SELECTED: ${{ needs.detect-changes.outputs.contract == 'true' && github.actor != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository }}
+          BROKER_SELECTED: ${{ needs.detect-changes.outputs.contract == 'true' && github.actor != 'dependabot[bot]' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
           BROKER_RESULT: ${{ needs.pact-broker-validation.result }}
         run: |
           set -euo pipefail
@@ -594,7 +593,6 @@ jobs:
           SAFE_CHANGE_RESULT: ${{ needs.safe-change-approval-tests.result }}
           TRUNK_RESULT: ${{ needs.trunk-check.result }}
           DEP_RESULT: ${{ needs.dependency-declaration-check.result }}
-          MANIFEST_SELECTED: ${{ needs.detect-changes.outputs.manifest }}
           PODSPEC_RESULT: ${{ needs.podspec-lint.result }}
           ROOT_SELECTED: ${{ needs.detect-changes.outputs.root_sdk }}
           ROOT_RESULT: ${{ needs.unit-test.result }}
@@ -649,7 +647,7 @@ jobs:
           require_success "Change detection" "$DETECT_RESULT"
           require_success "Safe-change approval tests" "$SAFE_CHANGE_RESULT"
           require_success "Trunk Check" "$TRUNK_RESULT"
-          require_selected_result "Podspec Lint" "$MANIFEST_SELECTED" "$PODSPEC_RESULT"
+          require_selected_result "Podspec Lint" "$ROOT_SELECTED" "$PODSPEC_RESULT"
           require_selected_result "SPM Unit Tests" "$ROOT_SELECTED" "$ROOT_RESULT"
           require_selected_result "Dependency Declaration Check" "$ROOT_SELECTED" "$DEP_RESULT"
           require_selected_result "Package SPM Tests" "$PACKAGE_SELECTED" "$PACKAGE_RESULT"

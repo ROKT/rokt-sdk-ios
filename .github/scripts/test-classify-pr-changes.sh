@@ -18,7 +18,7 @@ assert_selection() {
 	fi
 
 	local key expected actual
-	for key in docs root_sdk package ui manifest contract periphery size full; do
+	for key in docs root_sdk package ui contract periphery size full; do
 		expected=false
 		if [[ ",${expected_true}," == *",${key},"* ]]; then
 			expected=true
@@ -42,13 +42,13 @@ assert_selection "payment package" "package" $'M\tPackages/rokt-payment-extensio
 assert_selection "UI tests" "ui" $'M\tExample/Tests/PlacementUITests.swift'
 assert_selection "example source" "ui,periphery" $'M\tExample/rokt/AppDelegate.swift'
 assert_selection "mixed docs and package" "docs,package" $'M\tREADME.md' $'M\tPackages/rokt-payment-extension-ios/Tests/PaymentTests.swift'
-assert_selection "manifest is conservative" "docs,root_sdk,package,ui,manifest,contract,periphery,size,full" $'M\tPackage.swift'
-assert_selection "workflow is conservative" "docs,root_sdk,package,ui,manifest,contract,periphery,size,full" $'M\t.github/workflows/pull-request.yml'
-assert_selection "unknown path is conservative" "docs,root_sdk,package,ui,manifest,contract,periphery,size,full" $'A\tunexpected/config.toml'
-assert_selection "root source renamed to docs is conservative" "docs,root_sdk,package,ui,manifest,contract,periphery,size,full" $'R100\tSources/Rokt_Widget/Rokt.swift\tdocs/Rokt.md'
-assert_selection "docs renamed to root source is conservative" "docs,root_sdk,package,ui,manifest,contract,periphery,size,full" $'R100\tdocs/Rokt.md\tSources/Rokt_Widget/Rokt.swift'
-assert_selection "copy is conservative" "docs,root_sdk,package,ui,manifest,contract,periphery,size,full" $'C100\tREADME.md\tdocs/README.md'
-assert_selection "type change is conservative" "docs,root_sdk,package,ui,manifest,contract,periphery,size,full" $'T\tREADME.md'
-assert_selection "unknown status is conservative" "docs,root_sdk,package,ui,manifest,contract,periphery,size,full" $'X\tREADME.md'
-assert_selection "malformed record is conservative" "docs,root_sdk,package,ui,manifest,contract,periphery,size,full" README.md
-assert_selection "empty diff is conservative" "docs,root_sdk,package,ui,manifest,contract,periphery,size,full"
+assert_selection "manifest is conservative" "docs,root_sdk,package,ui,contract,periphery,size,full" $'M\tPackage.swift'
+assert_selection "workflow is conservative" "docs,root_sdk,package,ui,contract,periphery,size,full" $'M\t.github/workflows/pull-request.yml'
+assert_selection "unknown path is conservative" "docs,root_sdk,package,ui,contract,periphery,size,full" $'A\tunexpected/config.toml'
+assert_selection "root source renamed to docs is conservative" "docs,root_sdk,package,ui,contract,periphery,size,full" $'R100\tSources/Rokt_Widget/Rokt.swift\tdocs/Rokt.md'
+assert_selection "docs renamed to root source is conservative" "docs,root_sdk,package,ui,contract,periphery,size,full" $'R100\tdocs/Rokt.md\tSources/Rokt_Widget/Rokt.swift'
+assert_selection "copy is conservative" "docs,root_sdk,package,ui,contract,periphery,size,full" $'C100\tREADME.md\tdocs/README.md'
+assert_selection "type change is conservative" "docs,root_sdk,package,ui,contract,periphery,size,full" $'T\tREADME.md'
+assert_selection "unknown status is conservative" "docs,root_sdk,package,ui,contract,periphery,size,full" $'X\tREADME.md'
+assert_selection "malformed record is conservative" "docs,root_sdk,package,ui,contract,periphery,size,full" README.md
+assert_selection "empty diff is conservative" "docs,root_sdk,package,ui,contract,periphery,size,full"

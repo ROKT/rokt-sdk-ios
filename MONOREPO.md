@@ -43,7 +43,7 @@ Partners consume **RoktUXHelper** from [`github.com/ROKT/rokt-ux-helper-ios`](ht
 
 [Pull Request](.github/workflows/pull-request.yml) always runs change detection, safe-change approval tests, and Trunk, then selects the smallest safe validation set:
 
-- Root SDK source and tests run the root `Rokt-Widget` SPM tests and the declared-dependency check.
+- Root SDK source and tests run the root `Rokt-Widget` SPM tests, the declared-dependency check, and podspec lint.
 - Changes under a mirrored package run **`xcodebuild test`** from that package's [`Packages/matrix.json`](Packages/matrix.json) `local_path` (the same pattern as [mParticle kit SPM tests](https://github.com/mParticle/mparticle-apple-sdk/blob/main/.github/workflows/build-kits.yml)).
 - Example and UI-test changes run the Example scheme tests.
 - Product source runs Periphery and the SDK size report; documentation-only changes do not.

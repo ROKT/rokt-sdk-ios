@@ -68,10 +68,13 @@ jobs:
   publish:
     name: Publish to Broker
     needs: consumer-test
-    # Reusable PR calls publish in the caller so this environment-scoped secret
-    # never needs to cross a workflow boundary. Direct maintenance pushes still
-    # publish here.
-    if: github.event_name == 'push' && github.actor != 'dependabot[bot]'
+    # Under workflow_call, github.event_name is the caller's, so Pull Request's
+    # main and workstation pushes also read `push`. The ref check limits this job
+    # to direct maintenance pushes; Pull Request publishes in its own broker job.
+    if: >
+      github.event_name == 'push' &&
+      startsWith(github.ref, 'refs/heads/maintenance/') &&
+      github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     environment: pact-publish
     steps:
