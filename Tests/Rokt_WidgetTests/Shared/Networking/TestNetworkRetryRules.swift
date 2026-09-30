@@ -74,4 +74,44 @@ final class TestNetworkRetryRules: XCTestCase {
             )
         )
     }
+
+    // MARK: - sleepNanoseconds
+
+    private static let ceilingNanoseconds = UInt64(NetworkRetryRules.maxSleepInterval * 1_000_000_000)
+
+    func test_sleepNanoseconds_smallValueIsExact() {
+        XCTAssertEqual(NetworkRetryRules.sleepNanoseconds(clamping: 0.2), 200_000_000)
+        XCTAssertEqual(NetworkRetryRules.sleepNanoseconds(clamping: 2.5), 2_500_000_000)
+        XCTAssertEqual(NetworkRetryRules.sleepNanoseconds(clamping: 60), 60_000_000_000)
+    }
+
+    func test_sleepNanoseconds_nonFiniteReturnsZero() {
+        for seconds in [Double.infinity, -Double.infinity, Double.nan] {
+            XCTAssertEqual(NetworkRetryRules.sleepNanoseconds(clamping: seconds), 0, "\(seconds)")
+        }
+    }
+
+    func test_sleepNanoseconds_zeroOrNegativeReturnsZero() {
+        for seconds in [0, -1, -1e300, -Double.leastNonzeroMagnitude] {
+            XCTAssertEqual(NetworkRetryRules.sleepNanoseconds(clamping: seconds), 0, "\(seconds)")
+        }
+    }
+
+    /// Values past `UInt64.max` once multiplied into nanoseconds must clamp, not convert.
+    func test_sleepNanoseconds_hugeIsClampedToCeiling() {
+        for seconds in [2e10, 1e300, Double(UInt64.max), Double.greatestFiniteMagnitude] {
+            XCTAssertEqual(
+                NetworkRetryRules.sleepNanoseconds(clamping: seconds),
+                Self.ceilingNanoseconds,
+                "\(seconds)"
+            )
+        }
+    }
+
+    func test_sleepNanoseconds_atCeilingIsUnchanged() {
+        XCTAssertEqual(
+            NetworkRetryRules.sleepNanoseconds(clamping: NetworkRetryRules.maxSleepInterval),
+            Self.ceilingNanoseconds
+        )
+    }
 }

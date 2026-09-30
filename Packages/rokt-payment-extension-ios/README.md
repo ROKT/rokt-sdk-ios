@@ -186,7 +186,7 @@ RoktPaymentExtension (public facade)
 
 - **RoktPaymentExtension**: Implements `PaymentExtension` protocol from RoktContracts; routes each `PaymentMethodType` to the matching internal manager. `supportedMethods` is computed from the configured managers.
 - **StripeApplePayManager**: Manages Apple Pay / card flows via Stripe's `STPApplePayContext`, including line-item totals from the backend payment preparation response.
-- **StripeAfterpayManager**: Manages redirect-based Afterpay / Clearpay flows via `STPPaymentHandler`; validates `PaymentContext.billingAddress` and confirms the PaymentIntent with a Rokt-owned return URL built from the partner's `urlScheme`.
+- **StripeAfterpayManager**: Manages redirect-based Afterpay / Clearpay flows via `STPPaymentHandler`; validates `PaymentContext.billingAddress` and confirms the PaymentIntent with a Rokt-owned return URL built from the partner's `urlScheme`. The confirmation runs through the extension's own Stripe client and no longer changes the host app's shared `STPAPIClient` (its publishable key or connected account).
 - **ContactAddressMapping**: Converts Apple Pay `PKContact` to `ContactAddress`.
 - **BillingDetailsMapping**: Converts `ContactAddress` to `STPPaymentMethodBillingDetails` and `STPPaymentIntentShippingDetailsParams`.
 

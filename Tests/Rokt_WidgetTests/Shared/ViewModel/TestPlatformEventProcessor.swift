@@ -103,6 +103,28 @@ class TestPlatformEventProcessor: XCTestCase {
         )
     }
 
+    func test_productResponseUsesItsOwnTrigger() {
+        XCTAssertEqual(
+            PlatformEventProcessor.legacySignalName(for: "product_item_response"),
+            "SignalProductItemResponse"
+        )
+    }
+
+    func test_productResponseDoesNotChangePurchaseState() {
+        let payload: [String: Any] = ["events": [[
+            "event_type": "product_item_response",
+            "instance_id": "00000000-0000-0000-0000-000000000001",
+            "session_id": "session-1",
+            "data": ["parent_id": "response-option-1", "token": "test-response-token"]
+        ]]]
+
+        sut.process(payload, executeId: "1", cacheProperties: nil)
+
+        XCTAssertFalse(mockStateManager.initiateInstantPurchaseCalled)
+        XCTAssertFalse(mockStateManager.finishInstantPurchaseCalled)
+        XCTAssertTrue(mockStateManager.capturedEvents.isEmpty)
+    }
+
     // MARK: - ProcessTimingRequests Tests
 
     func test_processTimingRequests_WithValidEvent() {

@@ -181,6 +181,70 @@ final class RoktHTTPClientTests: XCTestCase {
         wait(for: [exp], timeout: 0.1)
     }
 
+    // MARK: - Cookie handling
+
+    func test_session_disablesCookieHandling() {
+        let sut = makeSUT()
+
+        XCTAssertFalse(sut.session.configuration.httpShouldSetCookies)
+        XCTAssertEqual(sut.session.configuration.httpCookieAcceptPolicy, .never)
+        XCTAssertFalse(sut.downloadSession.configuration.httpShouldSetCookies)
+        XCTAssertEqual(sut.downloadSession.configuration.httpCookieAcceptPolicy, .never)
+    }
+
+    func test_updateTimeout_preservesDisabledCookieHandling() {
+        let sut = makeSUT()
+
+        sut.updateTimeout(timeout: 9)
+
+        XCTAssertFalse(sut.session.configuration.httpShouldSetCookies)
+        XCTAssertEqual(sut.session.configuration.httpCookieAcceptPolicy, .never)
+    }
+
+    func test_startRequest_doesNotHandleCookies() {
+        let exp = expectation(description: "Wait for request")
+
+        RoktHTTPUrlProtocolStub.observeRequests { request in
+            XCTAssertEqual(request.httpShouldHandleCookies, false)
+            exp.fulfill()
+        }
+
+        makeSUT().startRequestWith(urlAddress: anyURLString(), method: .get)
+
+        wait(for: [exp], timeout: 0.1)
+    }
+
+    func test_startRequest_doesNotAttachSharedCookies() {
+        let url = anyURL()
+        let cookie = HTTPCookie(properties: [
+            .originURL: url,
+            .name: "rokt-session",
+            .value: String(repeating: "x", count: 2000),
+            .path: "/"
+        ])!
+        HTTPCookieStorage.shared.setCookie(cookie)
+        defer { HTTPCookieStorage.shared.deleteCookie(cookie) }
+
+        RoktHTTPUrlProtocolStub.stub(data: anyData(), response: anyHTTPURLResponse(), error: nil)
+
+        let configuration = URLSessionConfiguration.default
+        configuration.protocolClasses = [RoktHTTPUrlProtocolStub.self]
+        let sut = RoktHTTPClient(sessionConfiguration: configuration)
+
+        let exp = expectation(description: "Wait for request")
+        var capturedRequest: URLRequest?
+        RoktHTTPUrlProtocolStub.observeRequests { request in
+            capturedRequest = request
+            exp.fulfill()
+        }
+
+        sut.startRequestWith(urlAddress: anyURLString(), method: .post)
+
+        wait(for: [exp], timeout: 5.0)
+        XCTAssertNil(capturedRequest?.value(forHTTPHeaderField: "Cookie"))
+        XCTAssertEqual(capturedRequest?.httpShouldHandleCookies, false)
+    }
+
     func test_startRequest_withParameters_encodesParameters() {
         let exp = expectation(description: "Wait for request")
 

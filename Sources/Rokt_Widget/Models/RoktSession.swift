@@ -15,7 +15,8 @@ import Foundation
     /// Unix epoch milliseconds when ``sessionToken`` expires (matches server `expires_at` when known).
     ///
     /// Optional for partner handoff. When omitted (or already past) on ``Rokt/setSession(_:)``,
-    /// the SDK applies a short-lived default TTL for local persistence.
+    /// the SDK applies a short-lived default TTL for local persistence; an expiry more than a year
+    /// out is capped locally.
     @objc public let expiresAt: NSNumber?
 
     /// Creates a session handoff value.

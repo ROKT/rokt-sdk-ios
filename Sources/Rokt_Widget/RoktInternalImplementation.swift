@@ -2,6 +2,7 @@ import Foundation
 import UIKit
 import AppTrackingTransparency
 import RoktContracts
+internal import DcuiSchema
 internal import RoktUXHelper
 
 class RoktInternalImplementation {
@@ -11,6 +12,9 @@ class RoktInternalImplementation {
     private static let notInitializedDiagnosticCode = "[NOT_INITIALIZED]"
     private static let cacheHitDiagnosticCode = "[CACHE_HIT]"
     private static let cacheHitMessage = "Cache hit for view - %@"
+    private static let urlOpenErrorDomain = "com.rokt.sdk.url"
+    private static let urlOpenErrorCode = 1
+    private static let urlOpenErrorDescription = "The destination URL could not be opened."
     // Public-API-usage diagnostics (INFO severity). Keep this a small, bounded set of codes.
     static let apiInitCode = "[API_INIT]"
     static let apiInitMParticleCode = "[API_INIT_MPARTICLE]"
@@ -97,7 +101,7 @@ class RoktInternalImplementation {
     // Caching is disabled by default when no CacheConfig is provided to the Builder.
     var roktConfig: RoktConfig = RoktConfig.Builder().build()
 
-    private var linkHandler: LinkHandler = .init()
+    private let linkHandler: LinkHandler
     var sentEventHashes: ThreadSafeSet<String> = .init()
 
     // Persists unsent event batches so an offline/rate-limited failure is replayed on the next init.
@@ -126,13 +130,32 @@ class RoktInternalImplementation {
     private var roktEvent: ((RoktEvent) -> Void)?
     private var roktEventMap: [String: ((RoktEvent) -> Void)?] = [:]
 
+    // Retained per execute because the state bag is torn down before the embedded view reports its
+    // final height: LayoutCompleted/LayoutClosed unload the execute, and only then does the close
+    // path emit a height of 0. Held past unload for a grace window so that emit still lands.
+    private var eventHandlers: [String: (RoktEvent) -> Void] = [:]
+    private let eventHandlersLock = NSLock()
+    private let eventHandlerGraceInterval: TimeInterval = 0.5
+
     // Multicast: the mParticle kit and the host app both subscribe through Rokt.globalEvents,
     // so a single slot let whichever registered last silently unsubscribe the other.
     private var globalEventListeners: [(RoktEvent) -> Void] = []
     private let globalEventListenersLock = NSLock()
 
-    // debounce work item for EmbeddedSizeChanged
-    private var sizeChangeWorkItem: DispatchWorkItem?
+    // Debounce work items for EmbeddedSizeChanged. Keyed by execute as well as placement: a second
+    // execute can render into the same location while the first is still on screen, and keying by
+    // location alone let the older execute's collapse cancel the newer one's pending height.
+    // Locked rather than confined to main, because initWith clears these on the caller's queue and
+    // the public entry point does not promise a thread.
+    private struct SizeChangeKey: Hashable {
+        // periphery:ignore - read by the synthesized Hashable, not by code
+        let executeId: String
+        // periphery:ignore - read by the synthesized Hashable, not by code
+        let placementName: String
+    }
+
+    private var sizeChangeWorkItems: [SizeChangeKey: DispatchWorkItem] = [:]
+    private let sizeChangeWorkItemsLock = NSLock()
     private let sizeChangeDebounceInterval: TimeInterval = 0.1
 
     // to hold RoktLayout for SwiftUI integration
@@ -176,9 +199,10 @@ class RoktInternalImplementation {
     /// Rokt private initializer. Only available for the singleton object `shared`.
     /// `sessionManager` is injectable so tests can use a scratch `UserDefaults` suite
     /// instead of writing session state into `.standard`.
-    init(sessionManager: SessionManager? = nil) {
+    init(sessionManager: SessionManager? = nil, linkHandler: LinkHandler = LinkHandler()) {
         let managedSessionObjects = [RealTimeEventManager.shared]
         self.sessionManager = sessionManager ?? SessionManager(managedSessions: managedSessionObjects)
+        self.linkHandler = linkHandler
         NetworkingHelper.updateTimeout(timeout: clientTimeoutMilliseconds/1000)
     }
 
@@ -476,29 +500,100 @@ class RoktInternalImplementation {
         stateManager.increasePlacements(id: executeId)
     }
     private func callOnUnLoad(_ executeId: String) {
-        guard let stateBag = stateManager.getState(id: executeId) else { return }
+        guard let stateBag = stateManager.getState(id: executeId) else {
+            // The execution state was already discarded, so nothing further can be delivered for
+            // this execute and the handler would otherwise be retained indefinitely.
+            scheduleEventHandlerRemoval(for: executeId)
+            return
+        }
         stateManager.decreasePlacements(id: executeId)
         if stateBag.loadedPlacements <= 0 {
             clearCallBacks()
+            scheduleEventHandlerRemoval(for: executeId)
         }
     }
 
-    private func callOnEmbeddedSizeChange(_ executeId: String,
-                                          selectedPlacementName: String,
-                                          widgetHeight: CGFloat) {
-        let roundedHeight = ceil(widgetHeight)
+    func setEventHandler(_ handler: @escaping (RoktEvent) -> Void, for executeId: String) {
+        eventHandlersLock.lock()
+        defer { eventHandlersLock.unlock() }
+        eventHandlers[executeId] = handler
+    }
 
-        sizeChangeWorkItem?.cancel()
-        let workItem = DispatchWorkItem { [weak self] in
-            self?.callOnRoktEvent(
-                executeId,
-                event: RoktEvent.EmbeddedSizeChanged(
-                    identifier: selectedPlacementName,
-                    updatedHeight: roundedHeight
-                )
-            )
+    func eventHandler(for executeId: String) -> ((RoktEvent) -> Void)? {
+        eventHandlersLock.lock()
+        defer { eventHandlersLock.unlock() }
+        return eventHandlers[executeId]
+    }
+
+    private func removeEventHandler(for executeId: String) {
+        eventHandlersLock.lock()
+        defer { eventHandlersLock.unlock() }
+        eventHandlers.removeValue(forKey: executeId)
+    }
+
+    /// Resetting the execution state has to drop what is still pending from a previous layout —
+    /// a retained handler, a debounced height — or it outlives that layout and keeps calling back
+    /// into a host that has moved on.
+    private func clearRetainedExecutionCallbacks() {
+        eventHandlersLock.lock()
+        eventHandlers.removeAll()
+        eventHandlersLock.unlock()
+
+        cancelPendingSizeChanges()
+    }
+
+    private func takePendingSizeChange(for key: SizeChangeKey) -> DispatchWorkItem? {
+        sizeChangeWorkItemsLock.lock()
+        defer { sizeChangeWorkItemsLock.unlock() }
+        return sizeChangeWorkItems.removeValue(forKey: key)
+    }
+
+    private func setPendingSizeChange(_ workItem: DispatchWorkItem, for key: SizeChangeKey) {
+        sizeChangeWorkItemsLock.lock()
+        defer { sizeChangeWorkItemsLock.unlock() }
+        sizeChangeWorkItems[key] = workItem
+    }
+
+    private func cancelPendingSizeChanges() {
+        sizeChangeWorkItemsLock.lock()
+        let pending = Array(sizeChangeWorkItems.values)
+        sizeChangeWorkItems.removeAll()
+        sizeChangeWorkItemsLock.unlock()
+        pending.forEach { $0.cancel() }
+    }
+
+    /// Keys the removal on `executeId` so a second execute started while this placement was still
+    /// on screen keeps its own handler.
+    private func scheduleEventHandlerRemoval(for executeId: String) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + eventHandlerGraceInterval) { [weak self] in
+            self?.removeEventHandler(for: executeId)
         }
-        sizeChangeWorkItem = workItem
+    }
+
+    /// A height of 0 is the collapse signal, so it bypasses the debounce: the execute has already
+    /// unloaded by the time the close path reports it, and a delayed emit would be dropped.
+    func callOnEmbeddedSizeChange(_ executeId: String,
+                                  selectedPlacementName: String,
+                                  widgetHeight: CGFloat) {
+        let roundedHeight = ceil(widgetHeight)
+        let event = RoktEvent.EmbeddedSizeChanged(
+            identifier: selectedPlacementName,
+            updatedHeight: roundedHeight
+        )
+
+        let key = SizeChangeKey(executeId: executeId, placementName: selectedPlacementName)
+        takePendingSizeChange(for: key)?.cancel()
+
+        guard roundedHeight > 0 else {
+            callOnRoktEvent(executeId, event: event)
+            return
+        }
+
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.takePendingSizeChange(for: key)
+            self?.callOnRoktEvent(executeId, event: event)
+        }
+        setPendingSizeChange(workItem, for: key)
         DispatchQueue.main.asyncAfter(deadline: .now() + sizeChangeDebounceInterval,
                                       execute: workItem)
     }
@@ -516,6 +611,12 @@ class RoktInternalImplementation {
                                         type: event.type,
                                         completionHandler: {
                     event.onClose?(event.id)
+                }, failureHandler: {
+                    event.onError?(event.id, NSError(domain: Self.urlOpenErrorDomain,
+                                                     code: Self.urlOpenErrorCode,
+                                                     userInfo: [
+                                                         NSLocalizedDescriptionKey: Self.urlOpenErrorDescription
+                                                     ]))
                 })
             }
         } else if (uxEvent as? RoktUXEvent.LayoutFailure) != nil {
@@ -903,13 +1004,15 @@ class RoktInternalImplementation {
 
     private func callOnRoktEvent(_ executeId: String,
                                  event: RoktEvent?) {
-        if let event,
-            let stateBag = stateManager.getState(id: executeId) {
-            stateBag.onRoktEvent?(event)
+        guard let event else { return }
+        if let handler = eventHandler(for: executeId) {
+            handler(event)
+        } else {
+            stateManager.getState(id: executeId)?.onRoktEvent?(event)
         }
     }
 
-    private func conclude(withFailure: Bool = false) {
+    private func conclude(withFailure: Bool = false, executeId: String? = nil) {
         roktEvent?(RoktEvent.HideLoadingIndicator())
 
         if withFailure {
@@ -917,6 +1020,9 @@ class RoktInternalImplementation {
         }
 
         clearCallBacks()
+        if let executeId {
+            removeEventHandler(for: executeId)
+        }
     }
 
     func clearCallBacks() {
@@ -971,6 +1077,7 @@ class RoktInternalImplementation {
         FontManager.resetFontRecoveryState()
         FontManager.resetDiskPressureState()
         stateManager = StateBagManager()
+        clearRetainedExecutionCallbacks()
 
         RoktLogger.shared.debug("Starting API initialization request")
         initRecoveryAttempt = 0
@@ -1273,6 +1380,7 @@ class RoktInternalImplementation {
             composedEventHandler(RoktEvent.ShowLoadingIndicator())
             setSharedItems(attributes: attributes,
                            onRoktEvent: composedEventHandler, config: config)
+            setEventHandler(composedEventHandler, for: selectionId)
 
             if #available(iOS 15, *) {
                 FontManager.reRegisterFonts {
@@ -1291,7 +1399,7 @@ class RoktInternalImplementation {
                         guard let layoutPageExecutePayload = self.processLayoutPageExecutePayload(
                             cachedExperience, selectionId: selectionId, viewName: viewName, attributes: attributes
                         ) else {
-                            self.conclude(withFailure: true)
+                            self.conclude(withFailure: true, executeId: selectionId)
                             return
                         }
 
@@ -1314,7 +1422,7 @@ class RoktInternalImplementation {
                             self.isExecuting = false
 
                             guard let page else {
-                                self.conclude(withFailure: true)
+                                self.conclude(withFailure: true, executeId: selectionId)
                                 return
                             }
                             // cache experience if applicable
@@ -1336,7 +1444,7 @@ class RoktInternalImplementation {
                             guard let layoutPageExecutePayload = self.processLayoutPageExecutePayload(
                                 page, selectionId: selectionId, viewName: viewName, attributes: attributesForPluginStates
                             ) else {
-                                self.conclude(withFailure: true)
+                                self.conclude(withFailure: true, executeId: selectionId)
                                 return
                             }
 
@@ -1349,7 +1457,7 @@ class RoktInternalImplementation {
                         }
                         let onFailure: (Error, Int?, String) -> Void = { error, statusCode, response in
                             onExperiencesRequestEnd()
-                            self.executeFailureHandler(error, statusCode, response)
+                            self.executeFailureHandler(error, statusCode, response, executeId: selectionId)
                         }
 
                         // pageInit timing travels in attributes; record it here since the offers service
@@ -1515,13 +1623,16 @@ class RoktInternalImplementation {
         )
     }
 
-    internal func executeFailureHandler(_ error: Error, _ statusCode: Int?, _ response: String) {
+    internal func executeFailureHandler(_ error: Error,
+                                        _ statusCode: Int?,
+                                        _ response: String,
+                                        executeId: String? = nil) {
         isExecuting = false
         // Don't report diagnostics for 429 (Too Many Requests) status code
         if let code = statusCode, code != 429 {
             sendDiagnostics(Self.executeDiagnosticCode, error: error, statusCode: statusCode, response: response)
         }
-        conclude(withFailure: true)
+        conclude(withFailure: true, executeId: executeId)
     }
 
     func mapEvents(
@@ -1581,12 +1692,11 @@ class RoktInternalImplementation {
             return nil
         }
 
-        let snapshot = TxnSessionPersistence.readRaw(store: store)
+        var snapshot = TxnSessionPersistence.readRaw(store: store)
         guard let sessionId = snapshot.sessionId,
               !sessionId.isEmpty,
               let token = snapshot.token,
-              !token.isEmpty,
-              let expiresAt = snapshot.expiresAt
+              !token.isEmpty
         else {
             RoktLogger.shared.warning(
                 "Rokt.getSession returned nil: no session is present."
@@ -1594,14 +1704,37 @@ class RoktInternalImplementation {
             return nil
         }
 
-        if TxnSessionPersistence.clearIfExpired(expiresAt: expiresAt, store: store, clock: Date.init) {
+        // An absent expiry key is not a verdict on the session: the store writes its keys one at a time,
+        // so a read between the token write and the expiry write must return nil without touching it.
+        guard let rawExpiry = store.string(forKey: TxnSessionStoreKeys.expiresAt), !rawExpiry.isEmpty else {
+            RoktLogger.shared.warning(
+                "Rokt.getSession returned nil: no session is present."
+            )
+            return nil
+        }
+        // The expiry landed after the snapshot was taken: a write was in progress. Read the session again so
+        // the expiry decision below sees the same write the expiry came from, not a half-written session.
+        if snapshot.expiresAt == nil {
+            snapshot = TxnSessionPersistence.readRaw(store: store)
+        }
+
+        // A present but unreadable or out-of-range expiry counts as expired, matching restore.
+        if TxnSessionPersistence.clearIfExpired(expiresAt: snapshot.expiresAt, store: store, clock: Date.init) {
             RoktLogger.shared.warning(
                 "Rokt.getSession returned nil: session token is expired."
             )
             return nil
         }
 
-        let expiresAtMs = Int64((expiresAt.timeIntervalSince1970 * 1000).rounded(.down))
+        guard let expiresAt = snapshot.expiresAt,
+              let expiresAtMs = TxnSessionPersistence.epochMilliseconds(expiresAt)
+        else {
+            TxnSessionPersistence.clear(store: store)
+            RoktLogger.shared.warning(
+                "Rokt.getSession returned nil: persisted session expiry is invalid."
+            )
+            return nil
+        }
         return RoktSession(
             sessionId: sessionId,
             sessionToken: token,
@@ -1609,8 +1742,22 @@ class RoktInternalImplementation {
         )
     }
 
+    /// Session id for the diagnostics/timings header, or nil when no unexpired session is bound.
+    ///
+    /// Deliberately not used by ``getSessionId()``: that reports whatever the partner last set,
+    /// which carries no expiry to gate on.
+    func currentValidSessionId(clock: () -> Date = Date.init) -> String? {
+        guard let roktTagId else { return nil }
+        return TxnSessionManager.currentValidSessionId(
+            roktTagId: roktTagId,
+            store: txnSessionStore,
+            clock: clock
+        )
+    }
+
     /// Uses a future partner-supplied expiry when present; otherwise (or when already past)
-    /// falls back to now + ``partnerSessionTokenDefaultTTL``.
+    /// falls back to now + ``partnerSessionTokenDefaultTTL``. An expiry further out than
+    /// `TxnSessionPersistence.maxTokenTTL` is capped when the session is seeded.
     private static func resolvedPartnerExpiresAtMilliseconds(
         _ expiresAtMilliseconds: Int64?,
         now: Date = Date()

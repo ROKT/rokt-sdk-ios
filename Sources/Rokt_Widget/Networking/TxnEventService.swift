@@ -6,6 +6,9 @@ internal struct TxnEventService {
 
     static let unauthorizedDiagnosticCode = "[TXN_EVENTS_401]"
 
+    // Longest `Retry-After` honored; the batch stays in memory for the whole pause.
+    static let maxRetryAfterDelay: TimeInterval = 60
+
     enum TxnEventError: Error, Equatable {
         case invalidBaseURL
         case unexpectedStatusCode(Int)
@@ -31,7 +34,7 @@ internal struct TxnEventService {
         baseBackoff: TimeInterval = 0.2,
         pendingStore: TxnPendingEventStoring? = nil,
         sleep: @escaping (TimeInterval) async throws -> Void = { seconds in
-            try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+            try await Task.sleep(nanoseconds: NetworkRetryRules.sleepNanoseconds(clamping: seconds))
         }
     ) {
         self.sessionManager = sessionManager
@@ -182,13 +185,15 @@ internal struct TxnEventService {
     }
 
     // Reads the `Retry-After` header in delta-seconds form (fractional allowed, mirroring web).
-    // The HTTP-date form is not honored; callers fall back to exponential backoff.
+    // The HTTP-date form is not honored; callers fall back to exponential backoff. `Double.init`
+    // also parses "inf"/"nan", which are treated the same way, and anything above
+    // `maxRetryAfterDelay` is clamped rather than rejected so a rate-limiting gateway is still paced.
     private func retryAfterDelay(from response: HTTPURLResponse?) -> TimeInterval? {
         guard let raw = response?.value(forHTTPHeaderField: "Retry-After")?
             .trimmingCharacters(in: .whitespaces),
-              let seconds = Double(raw), seconds >= 0
+              let seconds = Double(raw), seconds.isFinite, seconds >= 0
         else { return nil }
-        return seconds
+        return min(seconds, Self.maxRetryAfterDelay)
     }
 
     // Transient transport failures worth retrying, including a device that is offline:

@@ -81,6 +81,7 @@ let txnEventTypeToLegacyName: [String: String] = [
     "load_start": "SignalLoadStart",
     "load_complete": "SignalLoadComplete",
     "signal_response": "SignalResponse",
+    "product_item_response": "SignalProductItemResponse",
     "dismissal": "SignalDismissal",
     "user_interaction": "SignalUserInteraction",
     "capture_attributes": "CaptureAttributes",

@@ -40,4 +40,17 @@ enum NetworkRetryRules {
             return false
         }
     }
+
+    /// Longest pause any retry loop takes before its next attempt.
+    static let maxSleepInterval: TimeInterval = 3600
+
+    /// The `Task.sleep(nanoseconds:)` operand for a delay that may originate from a server header.
+    ///
+    /// `UInt64.init(_: Double)` requires a finite value within range, so the delay is bounded first:
+    /// non-finite or non-positive input sleeps for zero, and anything above ``maxSleepInterval`` is
+    /// clamped to it.
+    static func sleepNanoseconds(clamping seconds: TimeInterval) -> UInt64 {
+        guard seconds.isFinite, seconds > 0 else { return 0 }
+        return UInt64(min(seconds, maxSleepInterval) * 1_000_000_000)
+    }
 }

@@ -9,6 +9,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [5.5.1] - 2026-09-14
+
+### Core
+
+#### Fixed
+
+- Deliver EmbeddedSizeChanged 0 when an embedded placement closes ([#326](https://github.com/ROKT/rokt-sdk-ios/pull/326))
+- Keep cache and font file names inside their own directories ([#321](https://github.com/ROKT/rokt-sdk-ios/pull/321))
+- Bound server-supplied Retry-After and session expiry values before conversion ([#318](https://github.com/ROKT/rokt-sdk-ios/pull/318))
+- Stop caching a response from wiping the experience view state ([#310](https://github.com/ROKT/rokt-sdk-ios/pull/310))
+
+#### Changed
+
+- Give the cache-write wait time on loaded runners ([#324](https://github.com/ROKT/rokt-sdk-ios/pull/324))
+- Trim AGENTS.md to the non-derivable core and add CLAUDE.md ([#308](https://github.com/ROKT/rokt-sdk-ios/pull/308))
+
+### Kits
+
+#### Rokt-payment-extension-ios
+
+##### Fixed
+
+- Confirm Afterpay through the extension-owned Stripe client ([#319](https://github.com/ROKT/rokt-sdk-ios/pull/319))
+
+## [5.5.0] - 2026-09-09
+
+### Core
+
+#### Added
+
+- Integrate product carousel responses ([#307](https://github.com/ROKT/rokt-sdk-ios/pull/307))
+
+#### Fixed
+
+- Expire the session id sent on diagnostics and timings headers ([#316](https://github.com/ROKT/rokt-sdk-ios/pull/316))
+- Disable HTTP cookies on SDK network requests ([#315](https://github.com/ROKT/rokt-sdk-ios/pull/315))
+
+#### Changed
+
+- Add deterministic safe-change approval ([#306](https://github.com/ROKT/rokt-sdk-ios/pull/306))
+- Bump trunk-io/trunk-action from 1.3.1 to 2.0.0 ([#313](https://github.com/ROKT/rokt-sdk-ios/pull/313))
+- Bump softprops/action-gh-release from 3.0.0 to 3.0.3 ([#314](https://github.com/ROKT/rokt-sdk-ios/pull/314))
+
+## [5.4.1] - 2026-09-03
+
+### Core
+
+#### Fixed
+
+- Always disable safe-area insets for embedded placements ([#311](https://github.com/ROKT/rokt-sdk-ios/pull/311))
+
+#### Changed
+
+- Enforce declared dependencies at compile time and in CI ([#302](https://github.com/ROKT/rokt-sdk-ios/pull/302))
+- Bump zizmorcore/zizmor-action from 0.5.6 to 0.5.7 ([#211](https://github.com/ROKT/rokt-sdk-ios/pull/211))
+- Upgrade trunk ([#309](https://github.com/ROKT/rokt-sdk-ios/pull/309))
+
 ## [5.4.0] - 2026-08-21
 
 ### Core
@@ -588,7 +645,10 @@ For a complete migration walkthrough with before/after code examples, see the [v
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.4.0...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.5.1...HEAD
+[5.5.1]: https://github.com/ROKT/rokt-sdk-ios/compare/5.5.0...5.5.1
+[5.5.0]: https://github.com/ROKT/rokt-sdk-ios/compare/5.4.1...5.5.0
+[5.4.1]: https://github.com/ROKT/rokt-sdk-ios/compare/5.4.0...5.4.1
 [5.4.0]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.4...5.4.0
 [5.3.4]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.3...5.3.4
 [5.3.3]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.2...5.3.3

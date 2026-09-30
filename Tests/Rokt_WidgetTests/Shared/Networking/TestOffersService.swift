@@ -143,6 +143,80 @@ final class TestOffersService: XCTestCase {
         XCTAssertEqual(sessionId, "session-1")
     }
 
+    func test_getExperienceData_farFutureExpiry_isAdoptedAndBounded() async throws {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let store = InMemoryTxnSessionStore()
+        let sessionManager = TxnSessionManager(roktTagId: "tag-1", store: store, clock: { now })
+        let service = makeService(StubHTTPClient(responseData: Data(offersResponse.utf8), statusCode: 200),
+                                  sessionManager: sessionManager)
+
+        let completed = expectation(description: "offers experience returned")
+        service.getExperienceData(viewName: "checkout", attributes: [:], config: nil, successLayout: { _ in
+            completed.fulfill()
+        }, failure: { error, _, _ in
+            XCTFail("unexpected failure: \(error)")
+        })
+
+        await fulfillment(of: [completed], timeout: 5)
+        // The fixture's far-future expiry is adopted, then persisted as an integer no later than now + maxTokenTTL.
+        let header = await sessionManager.authorizationHeader
+        XCTAssertEqual(header, "Bearer rolled-token")
+        let persisted = try XCTUnwrap(store.string(forKey: TxnSessionStoreKeys.expiresAt).flatMap { Int64($0) })
+        let nowMs = Int64(now.timeIntervalSince1970 * 1000)
+        let capMs = Int64(now.addingTimeInterval(TxnSessionPersistence.maxTokenTTL).timeIntervalSince1970 * 1000)
+        XCTAssertGreaterThan(persisted, nowMs)
+        XCTAssertLessThanOrEqual(persisted, capMs)
+    }
+
+    func test_productCarouselResponsePreservesRawDataSessionAndEvents() async throws {
+        let data = try ProductCarouselFixture.data()
+        let sessionManager = TxnSessionManager()
+        let stub = StubHTTPClient(responseData: data, statusCode: 200)
+        var capturedEvents: [UntriggeredRealTimeEvent] = []
+        let service = makeService(stub, sessionManager: sessionManager, captureEvents: { capturedEvents = $0 })
+        let completed = expectation(description: "Product selection forwarded")
+
+        service.getExperienceData(viewName: "example-checkout", attributes: [:], config: nil, successLayout: { raw in
+            XCTAssertEqual(raw.map { Data($0.utf8) }, data)
+            completed.fulfill()
+        }, failure: { error, _, _ in
+            XCTFail("Unexpected selection failure: \(error)")
+            completed.fulfill()
+        })
+        await fulfillment(of: [completed], timeout: 5)
+
+        XCTAssertEqual(stub.requestCount, 1)
+        XCTAssertNil(stub.lastHeaders?["Authorization"])
+        let sessionId = await sessionManager.currentSessionId
+        let authorization = await sessionManager.authorizationHeader
+        XCTAssertEqual(sessionId, "synthetic-product-carousel-session")
+        XCTAssertEqual(authorization, "Bearer synthetic-session-token-not-a-jwt")
+        XCTAssertEqual(capturedEvents.count, 17)
+        let productEvents = capturedEvents.filter { $0.triggerEvent == "SignalProductItemResponse" }
+        let expectedGuids = Set(["a", "b", "c", "d"].flatMap { letter in
+            ["positive", "details"].map { "response:example/product-\(letter)/\($0)" }
+        })
+        XCTAssertEqual(Set(productEvents.compactMap(\.triggerGuid)), expectedGuids)
+        for event in productEvents {
+            XCTAssertEqual(event.eventType, "SignalProductItemResponse")
+            XCTAssertEqual(event.payload, event.triggerGuid.map { "synthetic-payload:\($0)" })
+        }
+        XCTAssertTrue(capturedEvents.contains { $0.triggerGuid == "response:example/before/accept" })
+        XCTAssertTrue(capturedEvents.contains { $0.triggerGuid == "response:example/after/decline" })
+
+        let subsequent = expectation(description: "Subsequent request uses refreshed session")
+        service.getExperienceData(viewName: "example-checkout", attributes: [:], config: nil, successLayout: { raw in
+            XCTAssertEqual(raw.map { Data($0.utf8) }, data)
+            subsequent.fulfill()
+        }, failure: { error, _, _ in
+            XCTFail("Unexpected subsequent selection failure: \(error)")
+            subsequent.fulfill()
+        })
+        await fulfillment(of: [subsequent], timeout: 5)
+        XCTAssertEqual(stub.requestCount, 2)
+        XCTAssertEqual(stub.lastHeaders?["Authorization"], "Bearer synthetic-session-token-not-a-jwt")
+    }
+
     func test_getExperienceData_retriesRetryableStatusThenSucceeds() {
         let stub = StubHTTPClient(responses: [(nil, 503), (Data(offersResponse.utf8), 200)])
         let service = makeService(stub, maxRetries: 1)

@@ -1,0 +1,695 @@
+{
+  "session_id": "synthetic-product-carousel-session",
+  "session_token": {
+    "token": "synthetic-session-token-not-a-jwt",
+    "expires_at": 32503680000000
+  },
+  "page_instance_guid": "page:example/selection",
+  "page_context": {
+    "page_instance_guid": "page:example/selection",
+    "page_id": "synthetic-checkout",
+    "language": "en",
+    "token": "synthetic-page-token"
+  },
+  "plugins": [
+    {
+      "plugin": {
+        "id": "synthetic-embedded-plugin",
+        "name": "dcui",
+        "target_element_selector": "#example-embedded",
+        "config": {
+          "instance_guid": "plugin:example/embedded",
+          "token": "synthetic-plugin-token",
+          "outer_layout_schema": "offers_product_carousel_outer",
+          "slots": [
+            {
+              "instance_guid": "slot:example/before",
+              "token": "synthetic-slot-token-before",
+              "layout_variant": {
+                "layout_variant_id": "synthetic-layout-variant-before",
+                "module_name": "standard-marketing",
+                "layout_variant_schema": "offers_product_carousel_normal_variant"
+              },
+              "offer": {
+                "campaign_id": "synthetic-campaign-before",
+                "account_id": "synthetic-account-before",
+                "creative": {
+                  "referral_creative_id": "synthetic-creative-before",
+                  "instance_guid": "creative:example/before",
+                  "token": "synthetic-creative-token-before",
+                  "copy": {
+                    "creative.title": "Normal offer before products",
+                    "creative.copy": "This is the before offer. It has no catalog cards and must keep its own response context.",
+                    "creative.brandName": "Example Before",
+                    "creative.confirmation.message": "Thank you for viewing this example.",
+                    "creative.disclaimer": "Synthetic demonstration only. No purchase or payment is performed.",
+                    "callout.1.text": "Example offer 1",
+                    "beforeOnly": "Only before"
+                  },
+                  "images": {
+                    "brandIcon": {
+                      "light": "https://example.com/images/before-brand.png",
+                      "dark": "https://example.com/images/before-brand-dark.png",
+                      "alt": "Example before brand"
+                    },
+                    "creativeImage": {
+                      "light": "https://example.com/images/before-creative.png",
+                      "alt": "Example before creative"
+                    }
+                  },
+                  "links": {
+                    "termsCondition": {
+                      "url": "https://example.com/before/terms",
+                      "title": "Terms and conditions"
+                    },
+                    "privacyPolicy": {
+                      "url": "https://example.com/before/privacy",
+                      "title": "Privacy policy"
+                    }
+                  },
+                  "response_options_map": {
+                    "a-accept": {
+                      "id": "synthetic-response-before-accept",
+                      "instance_guid": "response:example/before/accept",
+                      "action": "Url",
+                      "signal_type": "SignalResponse",
+                      "is_positive": true,
+                      "short_label": "Learn more",
+                      "long_label": "Learn about this example offer",
+                      "short_success_label": "Opened",
+                      "url": "https://example.com/before?source=accept&value=%2F",
+                      "url_behavior": "inApp",
+                      "ignore_branch": false,
+                      "token": "synthetic-response-token-before-accept"
+                    },
+                    "z-decline": {
+                      "id": "synthetic-response-before-decline",
+                      "instance_guid": "response:example/before/decline",
+                      "action": "CaptureOnly",
+                      "signal_type": "SignalResponse",
+                      "is_positive": false,
+                      "short_label": "No thanks",
+                      "long_label": "Continue to the next example offer",
+                      "short_success_label": "Skipped",
+                      "ignore_branch": false,
+                      "token": "synthetic-response-token-before-decline"
+                    }
+                  }
+                },
+                "catalog_items": []
+              }
+            },
+            {
+              "instance_guid": "slot:example/products",
+              "token": "synthetic-slot-token-products",
+              "layout_variant": {
+                "layout_variant_id": "synthetic-layout-variant-products",
+                "module_name": "standard-marketing",
+                "layout_variant_schema": "offers_product_carousel_variant"
+              },
+              "offer": {
+                "campaign_id": "synthetic-campaign-products",
+                "account_id": "synthetic-account-products",
+                "catalog_item_response_action": "Url",
+                "creative": {
+                  "referral_creative_id": "synthetic-creative-products",
+                  "instance_guid": "creative:example/products",
+                  "token": "synthetic-creative-token-products",
+                  "copy": {
+                    "creative.title": "Explore example products",
+                    "creative.copy": "Explore example essentials 👨‍👩‍👧‍👦 for a calm day: a café cup, a soft layer, and a family kit. Each product is synthetic, with its own price and destination. Keep reading to see how expanded copy stays within this offer.",
+                    "creative.brandName": "Example Products",
+                    "creative.confirmation.message": "Thank you for viewing this example.",
+                    "creative.disclaimer": "Synthetic demonstration only. No purchase or payment is performed.",
+                    "callout.1.text": "Example collection",
+                    "productsOnly": "Only products"
+                  },
+                  "images": {
+                    "creativeImage.brandIcon": {
+                      "light": "https://example.com/images/products-brand.png",
+                      "dark": "https://example.com/images/products-brand-dark.png",
+                      "alt": "Example products brand"
+                    },
+                    "creativeImage": {
+                      "light": "https://example.com/images/products-creative.png",
+                      "alt": "Example products creative"
+                    }
+                  },
+                  "links": {
+                    "termsAndConditions": {
+                      "url": "https://example.com/products/terms",
+                      "title": "Terms and conditions"
+                    },
+                    "privacyPolicy": {
+                      "url": "https://example.com/products/privacy",
+                      "title": "Privacy policy"
+                    }
+                  },
+                  "response_options_map": {
+                    "a-accept": {
+                      "id": "synthetic-response-products-accept",
+                      "instance_guid": "response:example/products/accept",
+                      "action": "Url",
+                      "signal_type": "SignalResponse",
+                      "is_positive": true,
+                      "short_label": "Learn more",
+                      "long_label": "Learn about this example offer",
+                      "short_success_label": "Opened",
+                      "url": "https://example.com/products?source=accept&value=%2F",
+                      "url_behavior": "inApp",
+                      "ignore_branch": false,
+                      "token": "synthetic-response-token-products-accept"
+                    },
+                    "z-decline": {
+                      "id": "synthetic-response-products-decline",
+                      "instance_guid": "response:example/products/decline",
+                      "action": "CaptureOnly",
+                      "signal_type": "SignalResponse",
+                      "is_positive": false,
+                      "short_label": "No thanks",
+                      "long_label": "Continue to the next example offer",
+                      "short_success_label": "Skipped",
+                      "ignore_branch": false,
+                      "token": "synthetic-response-token-products-decline"
+                    }
+                  }
+                },
+                "catalog_items": [
+                  {
+                    "catalog_item_id": "item:example/product-a",
+                    "instance_guid": "catalog:example/product-a",
+                    "cart_item_id": "synthetic-cart-a",
+                    "title": "Example product A",
+                    "description": "Synthetic catalog card 1",
+                    "price": 12.5,
+                    "price_formatted": "$12.50",
+                    "original_price": 15,
+                    "original_price_formatted": "$15.00",
+                    "currency": "USD",
+                    "product_sku": "synthetic-sku-a",
+                    "catalog_id": "synthetic-catalog",
+                    "product_cart_attribute1": "title",
+                    "product_cart_attribute2": "price",
+                    "url": "https://example.com/product-a",
+                    "url_behavior": "newTab",
+                    "signal_type": "SignalProductItemResponse",
+                    "provider_data": "{\"sku\":\"synthetic-sku-a\"}",
+                    "copy": {
+                      "provider.productName": "Example product A",
+                      "cardAOnly": "Only card A"
+                    },
+                    "images": {
+                      "catalogItemImage0": {
+                        "light": "https://example.com/images/product-a-light.png",
+                        "dark": "https://example.com/images/product-a-dark.png",
+                        "alt": "Example product A",
+                        "title": "Example product A"
+                      }
+                    },
+                    "token": "synthetic-item-token-a",
+                    "response_options_map": {
+                      "positive": {
+                        "id": "synthetic-response-product-a-positive",
+                        "instance_guid": "response:example/product-a/positive",
+                        "action": "Url",
+                        "signal_type": "SignalProductItemResponse",
+                        "is_positive": true,
+                        "short_label": "View product A",
+                        "long_label": "View example product A",
+                        "short_success_label": "Opened",
+                        "url": "https://example.com/product-a?source=positive&value=%2F",
+                        "url_behavior": "newTab",
+                        "ignore_branch": true,
+                        "token": "synthetic-response-token-product-a-positive"
+                      },
+                      "details": {
+                        "id": "synthetic-response-product-a-details",
+                        "instance_guid": "response:example/product-a/details",
+                        "action": "Url",
+                        "signal_type": "SignalProductItemResponse",
+                        "is_positive": true,
+                        "short_label": "View product A",
+                        "long_label": "View example product A",
+                        "short_success_label": "Opened",
+                        "url": "https://example.com/product-a?source=details&value=%2F",
+                        "url_behavior": "newTab",
+                        "ignore_branch": true,
+                        "token": "synthetic-response-token-product-a-details"
+                      }
+                    }
+                  },
+                  {
+                    "catalog_item_id": "item:example/product-b",
+                    "instance_guid": "catalog:example/product-b",
+                    "cart_item_id": "synthetic-cart-b",
+                    "title": "Example product B",
+                    "description": "Synthetic catalog card 2",
+                    "price": 24,
+                    "price_formatted": "$24.00",
+                    "original_price_formatted": "",
+                    "currency": "USD",
+                    "product_sku": "synthetic-sku-b",
+                    "catalog_id": "synthetic-catalog",
+                    "product_cart_attribute1": "price",
+                    "product_cart_attribute2": "title",
+                    "url": "https://example.com/product-b",
+                    "url_behavior": "newTab",
+                    "signal_type": "SignalProductItemResponse",
+                    "provider_data": "{\"sku\":\"synthetic-sku-b\"}",
+                    "copy": {
+                      "provider.productName": "Example product B",
+                      "cardBOnly": "Only card B"
+                    },
+                    "images": {
+                      "catalogItemImage0": {
+                        "light": "https://example.com/images/product-b-light.png",
+                        "dark": "https://example.com/images/product-b-dark.png",
+                        "alt": "Example product B",
+                        "title": "Example product B"
+                      }
+                    },
+                    "token": "synthetic-item-token-b",
+                    "response_options_map": {
+                      "positive": {
+                        "id": "synthetic-response-product-b-positive",
+                        "instance_guid": "response:example/product-b/positive",
+                        "action": "Url",
+                        "signal_type": "SignalProductItemResponse",
+                        "is_positive": true,
+                        "short_label": "View product B",
+                        "long_label": "View example product B",
+                        "short_success_label": "Opened",
+                        "url": "https://example.com/product-b?source=positive&value=%2F",
+                        "url_behavior": "newTab",
+                        "ignore_branch": true,
+                        "token": "synthetic-response-token-product-b-positive"
+                      },
+                      "details": {
+                        "id": "synthetic-response-product-b-details",
+                        "instance_guid": "response:example/product-b/details",
+                        "action": "Url",
+                        "signal_type": "SignalProductItemResponse",
+                        "is_positive": true,
+                        "short_label": "View product B",
+                        "long_label": "View example product B",
+                        "short_success_label": "Opened",
+                        "url": "https://example.com/product-b?source=details&value=%2F",
+                        "url_behavior": "newTab",
+                        "ignore_branch": true,
+                        "token": "synthetic-response-token-product-b-details"
+                      }
+                    }
+                  },
+                  {
+                    "catalog_item_id": "item:example/product-c",
+                    "instance_guid": "catalog:example/product-c",
+                    "cart_item_id": "synthetic-cart-c",
+                    "title": "Example product C",
+                    "description": "Synthetic catalog card 3",
+                    "price": 36.75,
+                    "price_formatted": "$36.75",
+                    "original_price": 45,
+                    "original_price_formatted": "$45.00",
+                    "currency": "USD",
+                    "product_sku": "synthetic-sku-c",
+                    "catalog_id": "synthetic-catalog",
+                    "product_cart_attribute1": "title",
+                    "product_cart_attribute2": "price",
+                    "url": "https://example.com/product-c",
+                    "url_behavior": "newTab",
+                    "signal_type": "SignalProductItemResponse",
+                    "provider_data": "{\"sku\":\"synthetic-sku-c\"}",
+                    "copy": {
+                      "provider.productName": "Example product C",
+                      "cardCOnly": "Only card C"
+                    },
+                    "images": {
+                      "catalogItemImage0": {
+                        "light": "https://example.com/images/product-c-light.png",
+                        "dark": "https://example.com/images/product-c-dark.png",
+                        "alt": "Example product C",
+                        "title": "Example product C"
+                      }
+                    },
+                    "token": "synthetic-item-token-c",
+                    "response_options_map": {
+                      "positive": {
+                        "id": "synthetic-response-product-c-positive",
+                        "instance_guid": "response:example/product-c/positive",
+                        "action": "Url",
+                        "signal_type": "SignalProductItemResponse",
+                        "is_positive": true,
+                        "short_label": "View product C",
+                        "long_label": "View example product C",
+                        "short_success_label": "Opened",
+                        "url": "https://example.com/product-c?source=positive&value=%2F",
+                        "url_behavior": "newTab",
+                        "ignore_branch": true,
+                        "token": "synthetic-response-token-product-c-positive"
+                      },
+                      "details": {
+                        "id": "synthetic-response-product-c-details",
+                        "instance_guid": "response:example/product-c/details",
+                        "action": "Url",
+                        "signal_type": "SignalProductItemResponse",
+                        "is_positive": true,
+                        "short_label": "View product C",
+                        "long_label": "View example product C",
+                        "short_success_label": "Opened",
+                        "url": "https://example.com/product-c?source=details&value=%2F",
+                        "url_behavior": "newTab",
+                        "ignore_branch": true,
+                        "token": "synthetic-response-token-product-c-details"
+                      }
+                    }
+                  },
+                  {
+                    "catalog_item_id": "item:example/product-d",
+                    "instance_guid": "catalog:example/product-d",
+                    "cart_item_id": "synthetic-cart-d",
+                    "title": "Example product D",
+                    "description": "Synthetic catalog card 4",
+                    "price": 48,
+                    "price_formatted": "$48.00",
+                    "original_price_formatted": "",
+                    "currency": "USD",
+                    "product_sku": "synthetic-sku-d",
+                    "catalog_id": "synthetic-catalog",
+                    "product_cart_attribute1": "price",
+                    "product_cart_attribute2": "title",
+                    "url": "https://example.com/product-d",
+                    "url_behavior": "newTab",
+                    "signal_type": "SignalProductItemResponse",
+                    "provider_data": "{\"sku\":\"synthetic-sku-d\"}",
+                    "copy": {
+                      "provider.productName": "Example product D",
+                      "cardDOnly": "Only card D"
+                    },
+                    "images": {
+                      "catalogItemImage0": {
+                        "light": "https://example.com/images/product-d-light.png",
+                        "dark": "https://example.com/images/product-d-dark.png",
+                        "alt": "Example product D",
+                        "title": "Example product D"
+                      }
+                    },
+                    "token": "synthetic-item-token-d",
+                    "response_options_map": {
+                      "positive": {
+                        "id": "synthetic-response-product-d-positive",
+                        "instance_guid": "response:example/product-d/positive",
+                        "action": "Url",
+                        "signal_type": "SignalProductItemResponse",
+                        "is_positive": true,
+                        "short_label": "View product D",
+                        "long_label": "View example product D",
+                        "short_success_label": "Opened",
+                        "url": "https://example.com/product-d?source=positive&value=%2F",
+                        "url_behavior": "newTab",
+                        "ignore_branch": true,
+                        "token": "synthetic-response-token-product-d-positive"
+                      },
+                      "details": {
+                        "id": "synthetic-response-product-d-details",
+                        "instance_guid": "response:example/product-d/details",
+                        "action": "Url",
+                        "signal_type": "SignalProductItemResponse",
+                        "is_positive": true,
+                        "short_label": "View product D",
+                        "long_label": "View example product D",
+                        "short_success_label": "Opened",
+                        "url": "https://example.com/product-d?source=details&value=%2F",
+                        "url_behavior": "newTab",
+                        "ignore_branch": true,
+                        "token": "synthetic-response-token-product-d-details"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "instance_guid": "slot:example/after",
+              "token": "synthetic-slot-token-after",
+              "layout_variant": {
+                "layout_variant_id": "synthetic-layout-variant-after",
+                "module_name": "standard-marketing",
+                "layout_variant_schema": "offers_product_carousel_normal_variant"
+              },
+              "offer": {
+                "campaign_id": "synthetic-campaign-after",
+                "account_id": "synthetic-account-after",
+                "creative": {
+                  "referral_creative_id": "synthetic-creative-after",
+                  "instance_guid": "creative:example/after",
+                  "token": "synthetic-creative-token-after",
+                  "copy": {
+                    "creative.title": "Normal offer after products",
+                    "creative.copy": "This is the after offer. It has no catalog cards and must keep its own response context.",
+                    "creative.brandName": "Example After",
+                    "creative.confirmation.message": "Thank you for viewing this example.",
+                    "creative.disclaimer": "Synthetic demonstration only. No purchase or payment is performed.",
+                    "callout.1.text": "Example offer 3",
+                    "afterOnly": "Only after"
+                  },
+                  "images": {
+                    "brandIcon": {
+                      "light": "https://example.com/images/after-brand.png",
+                      "dark": "https://example.com/images/after-brand-dark.png",
+                      "alt": "Example after brand"
+                    },
+                    "creativeImage": {
+                      "light": "https://example.com/images/after-creative.png",
+                      "alt": "Example after creative"
+                    }
+                  },
+                  "links": {
+                    "termsCondition": {
+                      "url": "https://example.com/after/terms",
+                      "title": "Terms and conditions"
+                    },
+                    "privacyPolicy": {
+                      "url": "https://example.com/after/privacy",
+                      "title": "Privacy policy"
+                    }
+                  },
+                  "response_options_map": {
+                    "a-accept": {
+                      "id": "synthetic-response-after-accept",
+                      "instance_guid": "response:example/after/accept",
+                      "action": "Url",
+                      "signal_type": "SignalResponse",
+                      "is_positive": true,
+                      "short_label": "Learn more",
+                      "long_label": "Learn about this example offer",
+                      "short_success_label": "Opened",
+                      "url": "https://example.com/after?source=accept&value=%2F",
+                      "url_behavior": "inApp",
+                      "ignore_branch": false,
+                      "token": "synthetic-response-token-after-accept"
+                    },
+                    "z-decline": {
+                      "id": "synthetic-response-after-decline",
+                      "instance_guid": "response:example/after/decline",
+                      "action": "CaptureOnly",
+                      "signal_type": "SignalResponse",
+                      "is_positive": false,
+                      "short_label": "No thanks",
+                      "long_label": "Continue to the next example offer",
+                      "short_success_label": "Skipped",
+                      "ignore_branch": false,
+                      "token": "synthetic-response-token-after-decline"
+                    }
+                  }
+                },
+                "catalog_items": []
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "event_data": {
+    "catalog:example/product-a": {
+      "token": "synthetic-item-token-a"
+    },
+    "response:example/product-a/positive": {
+      "token": "synthetic-response-token-product-a-positive",
+      "events": {
+        "SignalProductItemResponse": {
+          "event_type": "SignalProductItemResponse",
+          "payload": "synthetic-payload:response:example/product-a/positive"
+        }
+      }
+    },
+    "response:example/product-a/details": {
+      "token": "synthetic-response-token-product-a-details",
+      "events": {
+        "SignalProductItemResponse": {
+          "event_type": "SignalProductItemResponse",
+          "payload": "synthetic-payload:response:example/product-a/details"
+        }
+      }
+    },
+    "catalog:example/product-b": {
+      "token": "synthetic-item-token-b"
+    },
+    "response:example/product-b/positive": {
+      "token": "synthetic-response-token-product-b-positive",
+      "events": {
+        "SignalProductItemResponse": {
+          "event_type": "SignalProductItemResponse",
+          "payload": "synthetic-payload:response:example/product-b/positive"
+        }
+      }
+    },
+    "response:example/product-b/details": {
+      "token": "synthetic-response-token-product-b-details",
+      "events": {
+        "SignalProductItemResponse": {
+          "event_type": "SignalProductItemResponse",
+          "payload": "synthetic-payload:response:example/product-b/details"
+        }
+      }
+    },
+    "catalog:example/product-c": {
+      "token": "synthetic-item-token-c"
+    },
+    "response:example/product-c/positive": {
+      "token": "synthetic-response-token-product-c-positive",
+      "events": {
+        "SignalProductItemResponse": {
+          "event_type": "SignalProductItemResponse",
+          "payload": "synthetic-payload:response:example/product-c/positive"
+        }
+      }
+    },
+    "response:example/product-c/details": {
+      "token": "synthetic-response-token-product-c-details",
+      "events": {
+        "SignalProductItemResponse": {
+          "event_type": "SignalProductItemResponse",
+          "payload": "synthetic-payload:response:example/product-c/details"
+        }
+      }
+    },
+    "catalog:example/product-d": {
+      "token": "synthetic-item-token-d"
+    },
+    "response:example/product-d/positive": {
+      "token": "synthetic-response-token-product-d-positive",
+      "events": {
+        "SignalProductItemResponse": {
+          "event_type": "SignalProductItemResponse",
+          "payload": "synthetic-payload:response:example/product-d/positive"
+        }
+      }
+    },
+    "response:example/product-d/details": {
+      "token": "synthetic-response-token-product-d-details",
+      "events": {
+        "SignalProductItemResponse": {
+          "event_type": "SignalProductItemResponse",
+          "payload": "synthetic-payload:response:example/product-d/details"
+        }
+      }
+    },
+    "creative:example/before": {
+      "token": "synthetic-creative-token-before",
+      "events": {
+        "SignalResponse": {
+          "event_type": "SignalResponse",
+          "payload": "synthetic-payload:creative:example/before"
+        }
+      }
+    },
+    "slot:example/before": {
+      "token": "synthetic-slot-token-before"
+    },
+    "response:example/before/accept": {
+      "token": "synthetic-response-token-before-accept",
+      "events": {
+        "SignalResponse": {
+          "event_type": "SignalResponse",
+          "payload": "synthetic-payload:response:example/before/accept"
+        }
+      }
+    },
+    "response:example/before/decline": {
+      "token": "synthetic-response-token-before-decline",
+      "events": {
+        "SignalResponse": {
+          "event_type": "SignalResponse",
+          "payload": "synthetic-payload:response:example/before/decline"
+        }
+      }
+    },
+    "creative:example/products": {
+      "token": "synthetic-creative-token-products",
+      "events": {
+        "SignalResponse": {
+          "event_type": "SignalResponse",
+          "payload": "synthetic-payload:creative:example/products"
+        }
+      }
+    },
+    "slot:example/products": {
+      "token": "synthetic-slot-token-products"
+    },
+    "response:example/products/accept": {
+      "token": "synthetic-response-token-products-accept",
+      "events": {
+        "SignalResponse": {
+          "event_type": "SignalResponse",
+          "payload": "synthetic-payload:response:example/products/accept"
+        }
+      }
+    },
+    "response:example/products/decline": {
+      "token": "synthetic-response-token-products-decline",
+      "events": {
+        "SignalResponse": {
+          "event_type": "SignalResponse",
+          "payload": "synthetic-payload:response:example/products/decline"
+        }
+      }
+    },
+    "creative:example/after": {
+      "token": "synthetic-creative-token-after",
+      "events": {
+        "SignalResponse": {
+          "event_type": "SignalResponse",
+          "payload": "synthetic-payload:creative:example/after"
+        }
+      }
+    },
+    "slot:example/after": {
+      "token": "synthetic-slot-token-after"
+    },
+    "response:example/after/accept": {
+      "token": "synthetic-response-token-after-accept",
+      "events": {
+        "SignalResponse": {
+          "event_type": "SignalResponse",
+          "payload": "synthetic-payload:response:example/after/accept"
+        }
+      }
+    },
+    "response:example/after/decline": {
+      "token": "synthetic-response-token-after-decline",
+      "events": {
+        "SignalResponse": {
+          "event_type": "SignalResponse",
+          "payload": "synthetic-payload:response:example/after/decline"
+        }
+      }
+    },
+    "page:example/selection": {
+      "token": "synthetic-page-token"
+    },
+    "plugin:example/embedded": {
+      "token": "synthetic-plugin-token"
+    }
+  }
+}

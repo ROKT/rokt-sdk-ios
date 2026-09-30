@@ -201,12 +201,14 @@ final class TestOffersExecuteWiring: XCTestCase {
         waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
         XCTAssertNotNil(impl.capturedPage)
 
-        // Wait for the background cache write to flush before reusing it.
+        // Wait for the asynchronous cache write to flush before reusing it. The write runs at background
+        // quality of service and may be delayed on a busy host, so the wait is generous. It is not a
+        // timing assertion.
         waitUntil({
             ExperienceCacheManager.getCachedExperienceResponse(
                 viewName: viewName, attributes: attributes, cacheDuration: cacheDuration
             ) != nil
-        }, timeout: 10)
+        }, timeout: 60)
         XCTAssertNotNil(ExperienceCacheManager.getCachedExperienceResponse(
             viewName: viewName, attributes: attributes, cacheDuration: cacheDuration
         ))

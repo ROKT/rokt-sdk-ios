@@ -1,4 +1,5 @@
 import Foundation
+internal import DcuiSchema
 internal import RoktUXHelper
 
 internal extension RoktUXEvent {

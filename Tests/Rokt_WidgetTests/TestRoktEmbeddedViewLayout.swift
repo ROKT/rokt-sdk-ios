@@ -33,6 +33,24 @@ final class TestRoktEmbeddedViewLayout: XCTestCase {
         XCTAssertTrue(embeddedView.clipsToBounds)
     }
 
+    func testLoadDisablesSafeAreaRegionsRegardlessOfFrameworkType() {
+        guard #available(iOS 16.4, *) else { return }
+
+        let embeddedView = makeEmbeddedViewInHierarchy(width: 320)
+
+        embeddedView.load(onSizeChanged: { _ in }, injectedView: {
+            Text("Embedded placement")
+        })
+
+        guard let hostingController = containerViewController.children.first(
+            where: { $0 is UIHostingController<AnyView> }
+        ) as? UIHostingController<AnyView> else {
+            return XCTFail("Expected a hosting controller for the embedded view")
+        }
+
+        XCTAssertEqual(hostingController.safeAreaRegions, [])
+    }
+
     func testUpdateEmbeddedSizeKeepsHostAndHostedBoundsEqualAfterLayout() {
         let embeddedView = makeEmbeddedViewInHierarchy(width: 320)
         let heightConstraint = embeddedView.heightAnchor.constraint(equalToConstant: 0)
@@ -86,6 +104,20 @@ final class TestRoktEmbeddedViewLayout: XCTestCase {
         XCTAssertTrue(embeddedView.bottomConstaint?.isActive ?? false)
         XCTAssertNotEqual(ObjectIdentifier(firstBottomConstraint as AnyObject),
                           ObjectIdentifier(embeddedView.bottomConstaint as AnyObject))
+    }
+
+    func testCloseEmbeddedReportsZeroHeightAndDetachesHostedView() {
+        let embeddedView = makeEmbeddedViewInHierarchy(width: 320)
+        var reportedHeights: [CGFloat] = []
+
+        embeddedView.load(onSizeChanged: { reportedHeights.append($0) }, injectedView: {
+            Text("Embedded placement")
+        })
+
+        embeddedView.closeEmbedded()
+
+        XCTAssertEqual(reportedHeights, [0])
+        XCTAssertNil(embeddedView.roktEmbeddedSwiftUIView)
     }
 
     private func makeEmbeddedViewInHierarchy(width: CGFloat) -> RoktEmbeddedView {

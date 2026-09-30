@@ -2,6 +2,11 @@ name: Pull Request
 
 on:
   pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
   push:
     branches:
       - main
@@ -14,7 +19,6 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -36,7 +40,7 @@ jobs:
       full: ${{ steps.classify.outputs.full }}
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -97,6 +101,25 @@ jobs:
       - name: Test change classifier
         run: .github/scripts/test-classify-pr-changes.sh
 
+  safe-change-approval-tests:
+    name: Safe-change approval tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            .github/safe-change-approval.json
+            .github/scripts/evaluate_safe_change.py
+            .github/scripts/test_evaluate_safe_change.py
+          sparse-checkout-cone-mode: false
+
+      - name: Test deterministic approval policy
+        run: python3 .github/scripts/test_evaluate_safe_change.py
+
   load-package-matrix:
     name: Load Packages matrix
     runs-on: ubuntu-latest
@@ -106,7 +129,7 @@ jobs:
       matrix: ${{ steps.set.outputs.matrix }}
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           sparse-checkout: Packages/matrix.json
@@ -120,21 +143,15 @@ jobs:
   trunk-check:
     name: Trunk Check
     runs-on: macos-latest
-    permissions:
-      contents: read
-      pull-requests: read
-      checks: write
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 1
 
       - name: Trunk Check
-        uses: trunk-io/trunk-action@04ba50e7658c81db7356da96657e6e77f220bfa3 # v1.3.1
-        with:
-          check-mode: all
+        uses: trunk-io/trunk-action@e1234e67a86010d61ddac8d8ebf4b783e2ffd2fa # v2.0.0
 
   podspec-lint:
     name: Podspec Lint
@@ -143,7 +160,7 @@ jobs:
     if: needs.detect-changes.outputs.manifest == 'true'
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -161,7 +178,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -194,7 +211,7 @@ jobs:
 
       - name: Upload coverage report
         if: always()
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml
@@ -219,7 +236,7 @@ jobs:
         package: ${{ fromJson(needs.load-package-matrix.outputs.matrix) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -290,7 +307,7 @@ jobs:
 
       - name: Upload coverage report
         if: always()
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./package-coverage.xml
@@ -304,7 +321,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -343,7 +360,7 @@ jobs:
 
       - name: Upload coverage report
         if: always()
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./ui-coverage.xml
@@ -363,7 +380,7 @@ jobs:
     if: needs.detect-changes.outputs.periphery == 'true'
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -381,6 +398,32 @@ jobs:
 
       - name: Run Periphery Scan
         run: periphery scan --format github-actions
+
+  dependency-declaration-check:
+    name: Dependency Declaration Check
+    runs-on: macos-latest-xlarge
+    needs: [detect-changes, trunk-check]
+    if: needs.detect-changes.outputs.root_sdk == 'true'
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
+        with:
+          xcode-version: "26.3"
+
+      - name: Resolve dependencies
+        run: swift package resolve
+
+      # Catches a module used through a dependency's public API but never declared
+      # in Package.swift. Such a module links in most configurations and only fails
+      # for consumers who build each package product as its own dynamic framework.
+      - name: Check declared dependencies
+        run: ./scripts/check_declared_dependencies.sh "${GITHUB_WORKSPACE}/.derived-data-depcheck"
 
   size-report:
     name: SDK Size Report
@@ -532,12 +575,14 @@ jobs:
     name: PR Gate
     needs:
       - detect-changes
+      - safe-change-approval-tests
       - trunk-check
       - podspec-lint
       - unit-test
       - package-unit-tests
       - ui-test
       - periphery-scan
+      - dependency-declaration-check
       - size-report
       - consumer-test-status
     if: always()
@@ -546,7 +591,9 @@ jobs:
       - name: Verify selected jobs
         env:
           DETECT_RESULT: ${{ needs.detect-changes.result }}
+          SAFE_CHANGE_RESULT: ${{ needs.safe-change-approval-tests.result }}
           TRUNK_RESULT: ${{ needs.trunk-check.result }}
+          DEP_RESULT: ${{ needs.dependency-declaration-check.result }}
           MANIFEST_SELECTED: ${{ needs.detect-changes.outputs.manifest }}
           PODSPEC_RESULT: ${{ needs.podspec-lint.result }}
           ROOT_SELECTED: ${{ needs.detect-changes.outputs.root_sdk }}
@@ -600,9 +647,11 @@ jobs:
           }
 
           require_success "Change detection" "$DETECT_RESULT"
+          require_success "Safe-change approval tests" "$SAFE_CHANGE_RESULT"
           require_success "Trunk Check" "$TRUNK_RESULT"
           require_selected_result "Podspec Lint" "$MANIFEST_SELECTED" "$PODSPEC_RESULT"
           require_selected_result "SPM Unit Tests" "$ROOT_SELECTED" "$ROOT_RESULT"
+          require_selected_result "Dependency Declaration Check" "$ROOT_SELECTED" "$DEP_RESULT"
           require_selected_result "Package SPM Tests" "$PACKAGE_SELECTED" "$PACKAGE_RESULT"
           require_selected_result "UI Tests" "$UI_SELECTED" "$UI_RESULT"
           require_selected_result "Periphery Scan" "$PERIPHERY_SELECTED" "$PERIPHERY_RESULT"
@@ -621,15 +670,9 @@ jobs:
       needs.pr-gate.result == 'success'
     name: Notify GChat
     needs: pr-gate
-    runs-on: ubuntu-latest
+    uses: ROKT/rokt-workflows/.github/workflows/oss_pr_opened_notification.yml@490d3ec9069eeedb757be147bf440d6394705e84 # main
     permissions:
       contents: read
-    steps:
-      - name: Send Google Chat notification
-        continue-on-error: true
-        uses: SimonScholz/google-chat-action@3b3519e5102dba8aa5046fd711c4b553586409bb # v1.1.0
-        with:
-          webhookUrl: ${{ secrets.GCHAT_PRS_MOBILE_INTEGRATION_CHANNEL_WEBHOOK }}
-          title: PR Created - ${{ github.event.pull_request.title }}
-          imageUrl: ${{ github.event.pull_request.user.avatar_url }}
-          threadKey: ${{ github.repository }}-${{ github.event.pull_request.number }}
+      id-token: write
+    secrets:
+      gchat_webhook: ${{ secrets.GCHAT_PRS_MOBILE_INTEGRATION_CHANNEL_WEBHOOK }}

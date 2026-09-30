@@ -40,6 +40,15 @@ internal struct TxnSessionToken: Decodable, Equatable {
     var expiresAtDate: Date {
         Date(timeIntervalSince1970: TimeInterval(expiresAt)/1000)
     }
+
+    /// The same token with its expiry clamped to `now + TxnSessionPersistence.maxTokenTTL`, so an
+    /// implausible `expires_at` never reaches persistence or a partner handoff unbounded.
+    func clampingExpiry(now: Date) -> TxnSessionToken {
+        TxnSessionToken(
+            token: token,
+            expiresAt: TxnSessionPersistence.boundedExpiryMilliseconds(expiresAt, now: now)
+        )
+    }
 }
 
 internal struct TxnFontItem: Decodable, Equatable {

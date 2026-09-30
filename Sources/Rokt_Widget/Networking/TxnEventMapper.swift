@@ -42,6 +42,7 @@ internal enum TxnEventMapper {
         case .SignalLoadStart: return MappedType("load_start")
         case .SignalLoadComplete: return MappedType("load_complete")
         case .SignalResponse: return MappedType("signal_response")
+        case .SignalProductItemResponse: return MappedType("product_item_response")
         case .SignalGatedResponse: return MappedType("signal_gated_response")
         case .SignalDismissal: return MappedType("dismissal")
         case .SignalActivation: return MappedType("user_interaction", ["interaction_type": "activation"])
