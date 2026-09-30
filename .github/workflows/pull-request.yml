@@ -447,7 +447,8 @@ jobs:
     if: >
       needs.detect-changes.outputs.contract == 'true' &&
       github.actor != 'dependabot[bot]' &&
-      (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
+      ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     environment: pact-publish
     permissions:
@@ -520,7 +521,7 @@ jobs:
           DETECT_RESULT: ${{ needs.detect-changes.result }}
           CONTRACT_SELECTED: ${{ needs.detect-changes.outputs.contract }}
           PACT_RESULT: ${{ needs.pact-validation.result }}
-          BROKER_SELECTED: ${{ needs.detect-changes.outputs.contract == 'true' && github.actor != 'dependabot[bot]' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
+          BROKER_SELECTED: ${{ needs.detect-changes.outputs.contract == 'true' && github.actor != 'dependabot[bot]' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event.pull_request.head.repo.full_name == github.repository) }}
           BROKER_RESULT: ${{ needs.pact-broker-validation.result }}
         run: |
           set -euo pipefail
