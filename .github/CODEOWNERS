@@ -1,11 +1,15 @@
 * @ROKT/sdk-engineering
 
-# Low-risk documentation and repository metadata can use the repository's
+# Low-risk markdown and repository metadata can use the repository's
 # normal approval rule without requiring an SDK code-owner review.
+# Non-markdown files under these directories still match the catch-all owner.
 /*.md
-/docs/
-/documentation/
-/.cortex/
+/docs/*.md
+/docs/**/*.md
+/documentation/*.md
+/documentation/**/*.md
+/.cortex/*.md
+/.cortex/**/*.md
 /.github/ISSUE_TEMPLATE/
 /.github/pull_request_template.md
 
