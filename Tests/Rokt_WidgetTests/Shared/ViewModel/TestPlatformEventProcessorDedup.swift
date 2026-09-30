@@ -80,6 +80,7 @@ final class TestPlatformEventProcessorDedup: XCTestCase {
         LayoutPageCacheProperties(
             viewName: mockedViewName,
             experienceCacheAttributes: mockedAttributes,
+            generation: "test-generation",
             pluginViewStates: nil,
             onPluginViewStateChange: nil
         )
@@ -183,7 +184,7 @@ final class TestPlatformEventProcessorDedup: XCTestCase {
         settle(1)
 
         XCTAssertFalse(XCTestCase.experienceCacheExperiencesViewStateFileExists(
-            viewName: mockedViewName, attributes: mockedAttributes
+            viewName: mockedViewName, attributes: mockedAttributes, generation: "test-generation"
         ))
     }
 
@@ -197,7 +198,7 @@ final class TestPlatformEventProcessorDedup: XCTestCase {
         settle(1)
 
         XCTAssertTrue(XCTestCase.experienceCacheExperiencesViewStateFileExists(
-            viewName: mockedViewName, attributes: mockedAttributes
+            viewName: mockedViewName, attributes: mockedAttributes, generation: "test-generation"
         ))
     }
 }
