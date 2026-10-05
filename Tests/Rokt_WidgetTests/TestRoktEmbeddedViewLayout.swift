@@ -106,6 +106,20 @@ final class TestRoktEmbeddedViewLayout: XCTestCase {
                           ObjectIdentifier(embeddedView.bottomConstaint as AnyObject))
     }
 
+    func testCloseEmbeddedReportsZeroHeightAndDetachesHostedView() {
+        let embeddedView = makeEmbeddedViewInHierarchy(width: 320)
+        var reportedHeights: [CGFloat] = []
+
+        embeddedView.load(onSizeChanged: { reportedHeights.append($0) }, injectedView: {
+            Text("Embedded placement")
+        })
+
+        embeddedView.closeEmbedded()
+
+        XCTAssertEqual(reportedHeights, [0])
+        XCTAssertNil(embeddedView.roktEmbeddedSwiftUIView)
+    }
+
     private func makeEmbeddedViewInHierarchy(width: CGFloat) -> RoktEmbeddedView {
         let embeddedView = RoktEmbeddedView()
         embeddedView.translatesAutoresizingMaskIntoConstraints = false

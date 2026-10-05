@@ -9,6 +9,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [5.5.2] - 2026-10-02
+
+### Core
+
+#### Fixed
+
+- Scope cached plugin view state to the response that created it ([#335](https://github.com/ROKT/rokt-sdk-ios/pull/335))
+- Harden GitHub Actions workflow security ([#331](https://github.com/ROKT/rokt-sdk-ios/pull/331))
+
+#### Changed
+
+- Upgrade trunk ([#338](https://github.com/ROKT/rokt-sdk-ios/pull/338))
+- Bump zizmorcore/zizmor-action from 0.5.7 to 0.6.4 ([#337](https://github.com/ROKT/rokt-sdk-ios/pull/337))
+- Make CLAUDE.md an import instead of a symlink ([#336](https://github.com/ROKT/rokt-sdk-ios/pull/336))
+- Bump codecov/codecov-action from 7.0.0 to 7.1.1 ([#333](https://github.com/ROKT/rokt-sdk-ios/pull/333))
+- Bump actions/checkout from 6.0.3 to 7.0.1 ([#334](https://github.com/ROKT/rokt-sdk-ios/pull/334))
+- Inherit org default PR template ([#332](https://github.com/ROKT/rokt-sdk-ios/pull/332))
+- Bump dorny/paths-filter from 4.0.1 to 4.0.3 ([#329](https://github.com/ROKT/rokt-sdk-ios/pull/329))
+- Bump trunk-io/trunk-action/upgrade from 1.3.1 to 2.0.0 ([#328](https://github.com/ROKT/rokt-sdk-ios/pull/328))
+
+## [5.5.1] - 2026-09-14
+
+### Core
+
+#### Fixed
+
+- Deliver EmbeddedSizeChanged 0 when an embedded placement closes ([#326](https://github.com/ROKT/rokt-sdk-ios/pull/326))
+- Keep cache and font file names inside their own directories ([#321](https://github.com/ROKT/rokt-sdk-ios/pull/321))
+- Bound server-supplied Retry-After and session expiry values before conversion ([#318](https://github.com/ROKT/rokt-sdk-ios/pull/318))
+- Stop caching a response from wiping the experience view state ([#310](https://github.com/ROKT/rokt-sdk-ios/pull/310))
+
+#### Changed
+
+- Give the cache-write wait time on loaded runners ([#324](https://github.com/ROKT/rokt-sdk-ios/pull/324))
+- Trim AGENTS.md to the non-derivable core and add CLAUDE.md ([#308](https://github.com/ROKT/rokt-sdk-ios/pull/308))
+
+### Kits
+
+#### Rokt-payment-extension-ios
+
+##### Fixed
+
+- Confirm Afterpay through the extension-owned Stripe client ([#319](https://github.com/ROKT/rokt-sdk-ios/pull/319))
+
 ## [5.5.0] - 2026-09-09
 
 ### Core
@@ -621,7 +665,9 @@ For a complete migration walkthrough with before/after code examples, see the [v
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.5.0...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.5.2...HEAD
+[5.5.2]: https://github.com/ROKT/rokt-sdk-ios/compare/5.5.1...5.5.2
+[5.5.1]: https://github.com/ROKT/rokt-sdk-ios/compare/5.5.0...5.5.1
 [5.5.0]: https://github.com/ROKT/rokt-sdk-ios/compare/5.4.1...5.5.0
 [5.4.1]: https://github.com/ROKT/rokt-sdk-ios/compare/5.4.0...5.4.1
 [5.4.0]: https://github.com/ROKT/rokt-sdk-ios/compare/5.3.4...5.4.0

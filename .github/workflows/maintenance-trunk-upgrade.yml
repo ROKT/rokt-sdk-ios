@@ -6,8 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
   trunk-upgrade:
@@ -23,15 +22,17 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: |
             rokt-sdk-ios
+          permission-contents: write
+          permission-pull-requests: write
 
       - name: Checkout repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Trunk Upgrade
         id: trunk-upgrade
-        uses: trunk-io/trunk-action/upgrade@04ba50e7658c81db7356da96657e6e77f220bfa3 # v1.3.1
+        uses: trunk-io/trunk-action/upgrade@e1234e67a86010d61ddac8d8ebf4b783e2ffd2fa # v2.0.0
         with:
           base: ${{ github.ref_name }}
           github-token: ${{ steps.generate-token.outputs.token }}

@@ -87,7 +87,14 @@ extension QuickSpec {
         ExperienceCacheManager.setCacheDirectoryName(testCacheDirectoryName)
     }
 
+    /// Waits for the delete: it is an async barrier, while the next spec's first cache read is a direct
+    /// synchronous file read, which could otherwise hit this spec's response just before it is deleted.
     func deleteExperienceCacheTestFiles() {
-        ExperienceCacheManager.clearCache()
+        let completion = DispatchSemaphore(value: 0)
+        ExperienceCacheManager.clearCache(
+            success: { completion.signal() },
+            failure: { completion.signal() }
+        )
+        _ = completion.wait(timeout: .now() + 5)
     }
 }

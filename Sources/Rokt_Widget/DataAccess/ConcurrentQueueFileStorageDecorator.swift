@@ -43,6 +43,15 @@ class ConcurrentQueueFileStorageDecorator: FileStorage {
         }
     }
 
+    /// Runs `work` against the wrapped storage as one barrier: it sees every write queued before it,
+    /// and nothing queued after it runs until it finishes.
+    func performBarrier(_ work: @escaping (FileStorage) -> Void) {
+        concurrentQueue.async(flags: .barrier) { [weak self] in
+            guard let self else { return }
+            work(self.decoratee)
+        }
+    }
+
     /// Performs an atomic read-modify-write operation using a barrier.
     /// The entire operation (read, transform, write) happens within a single barrier block,
     /// preventing race conditions between concurrent saves.

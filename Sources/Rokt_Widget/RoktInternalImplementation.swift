@@ -116,10 +116,10 @@ class RoktInternalImplementation {
     // mints a session.
     private var mustBypassCacheOnNextExecute = false
 
-    // Suppresses every cache read within one execute: the experience response and the view state
-    // (sentEventHashes, plugin view states). Without covering the view state too, the next customer
-    // inherits the previous one's sent-event hashes and UI progress from files the asynchronous
-    // clearCache has not deleted yet.
+    // Suppresses the experience response read within one execute. View state (sentEventHashes, plugin
+    // view states) is only read for the generation of the response being shown, so the fresh response
+    // that follows starts without the previous customer's sent-event hashes and UI progress, even
+    // while the asynchronous clearCache has not deleted their files yet.
     private var cacheSuppressedForCurrentExecute = false
 
     // Flushes buffered events when the app backgrounds so they are not lost in the debounce window.
@@ -130,13 +130,32 @@ class RoktInternalImplementation {
     private var roktEvent: ((RoktEvent) -> Void)?
     private var roktEventMap: [String: ((RoktEvent) -> Void)?] = [:]
 
+    // Retained per execute because the state bag is torn down before the embedded view reports its
+    // final height: LayoutCompleted/LayoutClosed unload the execute, and only then does the close
+    // path emit a height of 0. Held past unload for a grace window so that emit still lands.
+    private var eventHandlers: [String: (RoktEvent) -> Void] = [:]
+    private let eventHandlersLock = NSLock()
+    private let eventHandlerGraceInterval: TimeInterval = 0.5
+
     // Multicast: the mParticle kit and the host app both subscribe through Rokt.globalEvents,
     // so a single slot let whichever registered last silently unsubscribe the other.
     private var globalEventListeners: [(RoktEvent) -> Void] = []
     private let globalEventListenersLock = NSLock()
 
-    // debounce work item for EmbeddedSizeChanged
-    private var sizeChangeWorkItem: DispatchWorkItem?
+    // Debounce work items for EmbeddedSizeChanged. Keyed by execute as well as placement: a second
+    // execute can render into the same location while the first is still on screen, and keying by
+    // location alone let the older execute's collapse cancel the newer one's pending height.
+    // Locked rather than confined to main, because initWith clears these on the caller's queue and
+    // the public entry point does not promise a thread.
+    private struct SizeChangeKey: Hashable {
+        // periphery:ignore - read by the synthesized Hashable, not by code
+        let executeId: String
+        // periphery:ignore - read by the synthesized Hashable, not by code
+        let placementName: String
+    }
+
+    private var sizeChangeWorkItems: [SizeChangeKey: DispatchWorkItem] = [:]
+    private let sizeChangeWorkItemsLock = NSLock()
     private let sizeChangeDebounceInterval: TimeInterval = 0.1
 
     // to hold RoktLayout for SwiftUI integration
@@ -481,29 +500,100 @@ class RoktInternalImplementation {
         stateManager.increasePlacements(id: executeId)
     }
     private func callOnUnLoad(_ executeId: String) {
-        guard let stateBag = stateManager.getState(id: executeId) else { return }
+        guard let stateBag = stateManager.getState(id: executeId) else {
+            // The execution state was already discarded, so nothing further can be delivered for
+            // this execute and the handler would otherwise be retained indefinitely.
+            scheduleEventHandlerRemoval(for: executeId)
+            return
+        }
         stateManager.decreasePlacements(id: executeId)
         if stateBag.loadedPlacements <= 0 {
             clearCallBacks()
+            scheduleEventHandlerRemoval(for: executeId)
         }
     }
 
-    private func callOnEmbeddedSizeChange(_ executeId: String,
-                                          selectedPlacementName: String,
-                                          widgetHeight: CGFloat) {
-        let roundedHeight = ceil(widgetHeight)
+    func setEventHandler(_ handler: @escaping (RoktEvent) -> Void, for executeId: String) {
+        eventHandlersLock.lock()
+        defer { eventHandlersLock.unlock() }
+        eventHandlers[executeId] = handler
+    }
 
-        sizeChangeWorkItem?.cancel()
-        let workItem = DispatchWorkItem { [weak self] in
-            self?.callOnRoktEvent(
-                executeId,
-                event: RoktEvent.EmbeddedSizeChanged(
-                    identifier: selectedPlacementName,
-                    updatedHeight: roundedHeight
-                )
-            )
+    func eventHandler(for executeId: String) -> ((RoktEvent) -> Void)? {
+        eventHandlersLock.lock()
+        defer { eventHandlersLock.unlock() }
+        return eventHandlers[executeId]
+    }
+
+    private func removeEventHandler(for executeId: String) {
+        eventHandlersLock.lock()
+        defer { eventHandlersLock.unlock() }
+        eventHandlers.removeValue(forKey: executeId)
+    }
+
+    /// Resetting the execution state has to drop what is still pending from a previous layout —
+    /// a retained handler, a debounced height — or it outlives that layout and keeps calling back
+    /// into a host that has moved on.
+    private func clearRetainedExecutionCallbacks() {
+        eventHandlersLock.lock()
+        eventHandlers.removeAll()
+        eventHandlersLock.unlock()
+
+        cancelPendingSizeChanges()
+    }
+
+    private func takePendingSizeChange(for key: SizeChangeKey) -> DispatchWorkItem? {
+        sizeChangeWorkItemsLock.lock()
+        defer { sizeChangeWorkItemsLock.unlock() }
+        return sizeChangeWorkItems.removeValue(forKey: key)
+    }
+
+    private func setPendingSizeChange(_ workItem: DispatchWorkItem, for key: SizeChangeKey) {
+        sizeChangeWorkItemsLock.lock()
+        defer { sizeChangeWorkItemsLock.unlock() }
+        sizeChangeWorkItems[key] = workItem
+    }
+
+    private func cancelPendingSizeChanges() {
+        sizeChangeWorkItemsLock.lock()
+        let pending = Array(sizeChangeWorkItems.values)
+        sizeChangeWorkItems.removeAll()
+        sizeChangeWorkItemsLock.unlock()
+        pending.forEach { $0.cancel() }
+    }
+
+    /// Keys the removal on `executeId` so a second execute started while this placement was still
+    /// on screen keeps its own handler.
+    private func scheduleEventHandlerRemoval(for executeId: String) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + eventHandlerGraceInterval) { [weak self] in
+            self?.removeEventHandler(for: executeId)
         }
-        sizeChangeWorkItem = workItem
+    }
+
+    /// A height of 0 is the collapse signal, so it bypasses the debounce: the execute has already
+    /// unloaded by the time the close path reports it, and a delayed emit would be dropped.
+    func callOnEmbeddedSizeChange(_ executeId: String,
+                                  selectedPlacementName: String,
+                                  widgetHeight: CGFloat) {
+        let roundedHeight = ceil(widgetHeight)
+        let event = RoktEvent.EmbeddedSizeChanged(
+            identifier: selectedPlacementName,
+            updatedHeight: roundedHeight
+        )
+
+        let key = SizeChangeKey(executeId: executeId, placementName: selectedPlacementName)
+        takePendingSizeChange(for: key)?.cancel()
+
+        guard roundedHeight > 0 else {
+            callOnRoktEvent(executeId, event: event)
+            return
+        }
+
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.takePendingSizeChange(for: key)
+            self?.callOnRoktEvent(executeId, event: event)
+        }
+        setPendingSizeChange(workItem, for: key)
         DispatchQueue.main.asyncAfter(deadline: .now() + sizeChangeDebounceInterval,
                                       execute: workItem)
     }
@@ -914,13 +1004,15 @@ class RoktInternalImplementation {
 
     private func callOnRoktEvent(_ executeId: String,
                                  event: RoktEvent?) {
-        if let event,
-            let stateBag = stateManager.getState(id: executeId) {
-            stateBag.onRoktEvent?(event)
+        guard let event else { return }
+        if let handler = eventHandler(for: executeId) {
+            handler(event)
+        } else {
+            stateManager.getState(id: executeId)?.onRoktEvent?(event)
         }
     }
 
-    private func conclude(withFailure: Bool = false) {
+    private func conclude(withFailure: Bool = false, executeId: String? = nil) {
         roktEvent?(RoktEvent.HideLoadingIndicator())
 
         if withFailure {
@@ -928,6 +1020,9 @@ class RoktInternalImplementation {
         }
 
         clearCallBacks()
+        if let executeId {
+            removeEventHandler(for: executeId)
+        }
     }
 
     func clearCallBacks() {
@@ -982,6 +1077,7 @@ class RoktInternalImplementation {
         FontManager.resetFontRecoveryState()
         FontManager.resetDiskPressureState()
         stateManager = StateBagManager()
+        clearRetainedExecutionCallbacks()
 
         RoktLogger.shared.debug("Starting API initialization request")
         initRecoveryAttempt = 0
@@ -1252,9 +1348,9 @@ class RoktInternalImplementation {
             preExecuteFailureHandler()
             return
         }
-        // Latched once per execute, after the guard so a rejected call does not consume it. Both
-        // cache reads in this execute — the experience response and the view state read later in
-        // processLayoutPageExecutePayload — must see the same answer.
+        // Latched once per execute, after the guard so a rejected call does not consume it. It gates
+        // the experience response read; view state is only restored along with a response read from
+        // the cache, so a suppressed read suppresses both.
         cacheSuppressedForCurrentExecute = mustBypassCacheOnNextExecute
         mustBypassCacheOnNextExecute = false
         if #available(iOS 14.5, *) {
@@ -1284,6 +1380,7 @@ class RoktInternalImplementation {
             composedEventHandler(RoktEvent.ShowLoadingIndicator())
             setSharedItems(attributes: attributes,
                            onRoktEvent: composedEventHandler, config: config)
+            setEventHandler(composedEventHandler, for: selectionId)
 
             if #available(iOS 15, *) {
                 FontManager.reRegisterFonts {
@@ -1300,9 +1397,13 @@ class RoktInternalImplementation {
                         self.isExecuting = false
 
                         guard let layoutPageExecutePayload = self.processLayoutPageExecutePayload(
-                            cachedExperience, selectionId: selectionId, viewName: viewName, attributes: attributes
+                            cachedExperience.experienceResponse,
+                            selectionId: selectionId,
+                            viewName: viewName,
+                            attributes: attributes,
+                            cacheGeneration: cachedExperience.generation
                         ) else {
-                            self.conclude(withFailure: true)
+                            self.conclude(withFailure: true, executeId: selectionId)
                             return
                         }
 
@@ -1325,29 +1426,36 @@ class RoktInternalImplementation {
                             self.isExecuting = false
 
                             guard let page else {
-                                self.conclude(withFailure: true)
+                                self.conclude(withFailure: true, executeId: selectionId)
                                 return
                             }
-                            // cache experience if applicable
+                            // A fresh response is a new experience: it gets a new generation, so no view
+                            // state from an earlier response can be restored into it.
+                            var cacheGeneration: String?
                             if self.isCacheEnabledAndConfigured() {
                                 let cacheAttributes = self.roktConfig.cacheConfig.getCacheAttributesOrFallback(attributes)
+                                let generation = UUID().uuidString
+                                cacheGeneration = generation
 
-                                DispatchQueue.background.async {
-                                    ExperienceCacheManager.cacheExperienceResponse(
-                                        viewName: viewName,
-                                        attributes: cacheAttributes,
-                                        experienceResponse: page
-                                    )
-                                }
+                                ExperienceCacheManager.cacheExperienceResponse(
+                                    viewName: viewName,
+                                    attributes: cacheAttributes,
+                                    experienceResponse: page,
+                                    generation: generation
+                                )
                             }
 
                             // Use cacheAttributes for plugin view states if cache is enabled for consistency
                             let attributesForPluginStates = self.roktConfig.cacheConfig
                                 .getCacheAttributesOrFallback(attributes)
                             guard let layoutPageExecutePayload = self.processLayoutPageExecutePayload(
-                                page, selectionId: selectionId, viewName: viewName, attributes: attributesForPluginStates
+                                page,
+                                selectionId: selectionId,
+                                viewName: viewName,
+                                attributes: attributesForPluginStates,
+                                cacheGeneration: cacheGeneration
                             ) else {
-                                self.conclude(withFailure: true)
+                                self.conclude(withFailure: true, executeId: selectionId)
                                 return
                             }
 
@@ -1360,7 +1468,7 @@ class RoktInternalImplementation {
                         }
                         let onFailure: (Error, Int?, String) -> Void = { error, statusCode, response in
                             onExperiencesRequestEnd()
-                            self.executeFailureHandler(error, statusCode, response)
+                            self.executeFailureHandler(error, statusCode, response, executeId: selectionId)
                         }
 
                         // pageInit timing travels in attributes; record it here since the offers service
@@ -1412,10 +1520,13 @@ class RoktInternalImplementation {
         !cacheSuppressedForCurrentExecute && isCacheEnabledAndConfigured()
     }
 
+    /// - Parameter cacheGeneration: The generation of the cached response `page` belongs to, or nil when
+    ///   caching is off. Its view state is restored from, and persisted to, that generation only.
     func processLayoutPageExecutePayload(_ page: String,
                                          selectionId: String,
                                          viewName: String? = nil,
-                                         attributes: [String: String]) -> LayoutPageExecutePayload? {
+                                         attributes: [String: String],
+                                         cacheGeneration: String? = nil) -> LayoutPageExecutePayload? {
         guard let pageData = page.data(using: .utf8) else {
             return nil
         }
@@ -1448,22 +1559,24 @@ class RoktInternalImplementation {
             pageInstanceGuid: pageModel.pageInstanceGuid
         )
 
-        if shouldReadFromCache() {
+        if let cacheGeneration {
             // For cached experiences, use cacheAttributes for consistency
             let cacheAttributes = roktConfig.cacheConfig.getCacheAttributesOrFallback(attributes)
             let experiencesViewState = ExperienceCacheManager.getCachedExperiencesViewState(
-                viewName: viewName, attributes: cacheAttributes
+                viewName: viewName, attributes: cacheAttributes, generation: cacheGeneration
             )
             sentEventHashes = ThreadSafeSet(Array(experiencesViewState?.sentEventHashes ?? .init()))
 
             let pluginViewStates = getLayoutPluginViewStates(pageModel: pageModel,
                                                              viewName: viewName,
-                                                             attributes: cacheAttributes)
+                                                             attributes: cacheAttributes,
+                                                             generation: cacheGeneration)
 
             func onPluginViewStateChange(_ pluginViewStateUpdates: RoktPluginViewState) {
                 ExperienceCacheManager.updatePluginViewStateCache(
                     viewName: viewName,
                     attributes: cacheAttributes,
+                    generation: cacheGeneration,
                     updateStates: pluginViewStateUpdates
                 )
             }
@@ -1471,6 +1584,7 @@ class RoktInternalImplementation {
             let cacheProperties = LayoutPageCacheProperties(
                 viewName: viewName,
                 experienceCacheAttributes: cacheAttributes,
+                generation: cacheGeneration,
                 pluginViewStates: pluginViewStates,
                 onPluginViewStateChange: onPluginViewStateChange
             )
@@ -1491,11 +1605,12 @@ class RoktInternalImplementation {
 
     private func getLayoutPluginViewStates(pageModel: RoktUXPageModel,
                                            viewName: String?,
-                                           attributes: [String: String]) -> [RoktPluginViewState]? {
+                                           attributes: [String: String],
+                                           generation: String) -> [RoktPluginViewState]? {
         guard let layoutPlugins = pageModel.layoutPlugins else { return nil }
         return layoutPlugins.compactMap { (plugin) -> RoktPluginViewState? in
             return ExperienceCacheManager.getOrCreateCachedPluginViewState(
-                pluginId: plugin.pluginId, viewName: viewName, attributes: attributes
+                pluginId: plugin.pluginId, viewName: viewName, attributes: attributes, generation: generation
             )
         }
     }
@@ -1526,13 +1641,16 @@ class RoktInternalImplementation {
         )
     }
 
-    internal func executeFailureHandler(_ error: Error, _ statusCode: Int?, _ response: String) {
+    internal func executeFailureHandler(_ error: Error,
+                                        _ statusCode: Int?,
+                                        _ response: String,
+                                        executeId: String? = nil) {
         isExecuting = false
         // Don't report diagnostics for 429 (Too Many Requests) status code
         if let code = statusCode, code != 429 {
             sendDiagnostics(Self.executeDiagnosticCode, error: error, statusCode: statusCode, response: response)
         }
-        conclude(withFailure: true)
+        conclude(withFailure: true, executeId: executeId)
     }
 
     func mapEvents(
@@ -1819,6 +1937,8 @@ struct LayoutPageCacheProperties {
     let viewName: String?
     // Snapshot aligned with cache-attribute keys for this execute (see getCacheAttributesOrFallback).
     let experienceCacheAttributes: [String: String]
+    // The cached response this page's view state belongs to.
+    let generation: String
     let pluginViewStates: [RoktPluginViewState]?
     let onPluginViewStateChange: ((RoktPluginViewState) -> Void)?
 }

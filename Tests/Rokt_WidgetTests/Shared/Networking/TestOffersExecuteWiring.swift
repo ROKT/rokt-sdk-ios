@@ -1,6 +1,7 @@
 import UIKit
 import XCTest
 @testable import Rokt_Widget
+@testable internal import RoktUXHelper
 
 /// Drives `RoktInternalImplementation.execute(...)` through the v2 offers path so the
 /// call-site wiring is exercised end to end: the offers service factory, the success
@@ -13,16 +14,24 @@ final class TestOffersExecuteWiring: XCTestCase {
     /// observable without depending on the on-screen render completing.
     private final class CapturingImplementation: RoktInternalImplementation {
         var capturedPage: String?
+        var capturedPayload: LayoutPageExecutePayload?
+        /// Off for tests that only inspect the payload: a rendered placement keeps emitting events
+        /// through the shared SDK instance after the test ends, into whichever test runs next.
+        var rendersPlacements = true
         override func processLayoutPageExecutePayload(
             _ page: String,
             selectionId: String,
             viewName: String? = nil,
-            attributes: [String: String]
+            attributes: [String: String],
+            cacheGeneration: String? = nil
         ) -> LayoutPageExecutePayload? {
             capturedPage = page
-            return super.processLayoutPageExecutePayload(
-                page, selectionId: selectionId, viewName: viewName, attributes: attributes
+            let payload = super.processLayoutPageExecutePayload(
+                page, selectionId: selectionId, viewName: viewName, attributes: attributes,
+                cacheGeneration: cacheGeneration
             )
+            capturedPayload = payload
+            return rendersPlacements ? payload : nil
         }
     }
 
@@ -80,6 +89,7 @@ final class TestOffersExecuteWiring: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        RoktSDKDateHandler.customDate = nil
         originalEnvironment = config.environment
         Self.prepareExperienceCacheTestFiles()
         Self.deleteExperienceCacheTestFiles()
@@ -91,6 +101,7 @@ final class TestOffersExecuteWiring: XCTestCase {
     }
 
     override func tearDown() {
+        RoktSDKDateHandler.customDate = nil
         Self.deleteExperienceCacheTestFiles()
         config.environment = originalEnvironment
         window?.isHidden = true
@@ -201,9 +212,8 @@ final class TestOffersExecuteWiring: XCTestCase {
         waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
         XCTAssertNotNil(impl.capturedPage)
 
-        // Wait for the asynchronous cache write to flush before reusing it. The write runs at background
-        // quality of service and may be delayed on a busy host, so the wait is generous. It is not a
-        // timing assertion.
+        // Wait for the asynchronous cache write to flush before reusing it. A busy host can delay it, so
+        // the wait is generous. It is not a timing assertion.
         waitUntil({
             ExperienceCacheManager.getCachedExperienceResponse(
                 viewName: viewName, attributes: attributes, cacheDuration: cacheDuration
@@ -218,5 +228,100 @@ final class TestOffersExecuteWiring: XCTestCase {
         impl.execute(viewName: viewName, attributes: attributes, config: cacheConfig)
         waitUntil({ self.impl.capturedPage != nil }, timeout: 10)
         XCTAssertTrue(try XCTUnwrap(impl.capturedPage).contains("render-session"))
+    }
+
+    /// A response fetched after the cached one expired is a new experience: the dismissal the
+    /// customer gave the expired one must not stop the fresh one from rendering.
+    func test_execute_cacheExpired_freshResponseStartsWithCleanPluginState() throws {
+        let fixture = try executeAndDismissCachedPlacement()
+
+        RoktSDKDateHandler.customDate = RoktSDKDateHandler.currentDate().addingTimeInterval(fixture.cacheDuration + 1)
+        impl.capturedPayload = nil
+        impl.execute(viewName: fixture.viewName, attributes: fixture.attributes, config: fixture.config)
+        waitUntil({ self.impl.capturedPayload != nil }, timeout: 10)
+
+        XCTAssertEqual(fixture.offersRequests(), 2, "an expired cache must go back to the network")
+        XCTAssertNotEqual(impl.capturedPayload?.cacheProperties?.generation, fixture.generation)
+        XCTAssertEqual(impl.capturedPayload?.cacheProperties?.pluginViewStates,
+                       [RoktPluginViewState(pluginId: Self.renderPluginId)])
+    }
+
+    /// Within the TTL the cached experience is the same one the customer dismissed, so it stays dismissed.
+    func test_execute_withinTTL_cacheHitRestoresDismissedState() throws {
+        let fixture = try executeAndDismissCachedPlacement()
+
+        impl.capturedPayload = nil
+        impl.execute(viewName: fixture.viewName, attributes: fixture.attributes, config: fixture.config)
+        waitUntil({ self.impl.capturedPayload != nil }, timeout: 10)
+
+        XCTAssertEqual(fixture.offersRequests(), 1, "a valid cache must not go back to the network")
+        XCTAssertEqual(impl.capturedPayload?.cacheProperties?.generation, fixture.generation)
+        XCTAssertEqual(impl.capturedPayload?.cacheProperties?.pluginViewStates, [Self.dismissedState])
+    }
+
+    private static let renderPluginId = "render-plugin"
+    private static let dismissedState = RoktPluginViewState(pluginId: renderPluginId,
+                                                            offerIndex: 3,
+                                                            isPluginDismissed: true)
+
+    private struct CachedPlacementFixture {
+        let viewName: String
+        let attributes: [String: String]
+        let cacheDuration: TimeInterval
+        let config: RoktConfig
+        let generation: String
+        let offersRequests: () -> Int
+    }
+
+    /// Fetches and caches an experience, then records the customer dismissing its placement.
+    private func executeAndDismissCachedPlacement() throws -> CachedPlacementFixture {
+        initialize(cacheEnabled: true)
+        impl.rendersPlacements = false
+        let data = try renderFixture()
+        var offersRequests = 0
+        let makeOffersService = offersOverride(data: data, status: 200)
+        impl.makeOffersServiceOverride = { tagId in
+            offersRequests += 1
+            return makeOffersService(tagId)
+        }
+
+        let viewName = "checkout"
+        let attributes = ["email": "cache@rokt.com"]
+        let cacheDuration = TimeInterval(30)
+        let config = RoktConfig.Builder()
+            .cacheConfig(RoktConfig.CacheConfig(cacheDuration: cacheDuration))
+            .build()
+
+        impl.execute(viewName: viewName, attributes: attributes, config: config)
+        waitUntil({ self.impl.capturedPayload != nil }, timeout: 10)
+        let cacheProperties = try XCTUnwrap(impl.capturedPayload?.cacheProperties)
+        let cacheAttributes = cacheProperties.experienceCacheAttributes
+
+        // The response and view state writes are asynchronous, and a busy host can delay them; wait for
+        // both to reach disk. The state file is read unmapped: polling a mapped file while the writer
+        // replaces it faults.
+        waitUntil({
+            ExperienceCacheManager.getCachedExperienceResponse(
+                viewName: viewName, attributes: cacheAttributes, cacheDuration: cacheDuration
+            ) != nil
+        }, timeout: 60)
+        cacheProperties.onPluginViewStateChange?(Self.dismissedState)
+        let stateFileName = ExperienceCacheUtils.getPluginViewStateFileName(
+            pluginId: Self.renderPluginId, viewName: viewName, attributes: cacheAttributes,
+            generation: cacheProperties.generation
+        )
+        let stateFileUrl = try XCTUnwrap(ExperienceCacheManager.getFileUrl(name: stateFileName))
+        waitUntil({
+            guard let data = try? Data(contentsOf: stateFileUrl) else { return false }
+            return ExperienceCacheUtils.getValidPluginViewState(pluginId: Self.renderPluginId, data: data)
+                == Self.dismissedState
+        }, timeout: 10)
+
+        return CachedPlacementFixture(viewName: viewName,
+                                      attributes: attributes,
+                                      cacheDuration: cacheDuration,
+                                      config: config,
+                                      generation: cacheProperties.generation,
+                                      offersRequests: { offersRequests })
     }
 }
