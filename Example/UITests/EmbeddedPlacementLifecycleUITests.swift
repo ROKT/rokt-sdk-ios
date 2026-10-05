@@ -49,9 +49,7 @@ final class EmbeddedPlacementLifecycleUITests: XCTestCase {
 
         // End of offers. The renderer collapses its own view; the host can only follow if it is
         // told, so the published height is the signal that matters.
-        // The host-facing size change is debounced, so a late delivery needs time to land. There
-        // is no event to wait on here — its absence is precisely what is under test — so this is
-        // an honest fixed delay rather than a poll.
+        // The host-facing size change is debounced, so the final delivery needs time to land.
         Thread.sleep(forTimeInterval: 3)
 
         let publishedHeight = transcript.lastPublishedHeight(forPlacement: placement)
@@ -64,26 +62,19 @@ final class EmbeddedPlacementLifecycleUITests: XCTestCase {
         print("RECREATE_RESULT published=\(String(describing: publishedHeight)) "
             + "host=\(String(describing: hostHeight)) sdkCollapsed=\(sdkCollapsed)")
 
-        // The renderer's teardown is synchronous and unaffected by the defect below, so this
-        // holds either way and pins which side of the boundary failed.
+        // Asserted separately from the published height, so a failure pins which side of the
+        // boundary broke.
         XCTAssertTrue(
             sdkCollapsed,
             "the SDK's own embedded view should be collapsed once every offer is cycled"
         )
 
-        // End of offers. The renderer collapses its own view; the host can only follow if it is
-        // told, so the published height is the signal that matters.
-        let reason = "Known defect: the final EmbeddedSizeChanged is dropped because the debounced "
-            + "delivery outlives the state bag that unload tears down. Remove this expectation "
-            + "once that is fixed."
-        XCTExpectFailure(reason) {
-            XCTAssertEqual(
-                publishedHeight, 0,
-                "expected a final published height of 0 once every offer was cycled, got "
-                    + "\(String(describing: publishedHeight)); the host settled at "
-                    + "\(String(describing: hostHeight)). Transcript:\n\(transcript.debugDescription)"
-            )
-        }
+        XCTAssertEqual(
+            publishedHeight, 0,
+            "expected a final published height of 0 once every offer was cycled, got "
+                + "\(String(describing: publishedHeight)); the host settled at "
+                + "\(String(describing: hostHeight)). Transcript:\n\(transcript.debugDescription)"
+        )
     }
 
     /// Taps the response control for the current offer. Every tappable DCUI element carries the
