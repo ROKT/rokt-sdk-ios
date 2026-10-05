@@ -38,7 +38,9 @@ class OrderCompleteViewController: UIViewController {
 
         Rokt.events(identifier: pageIdentifier) {roktEvent in
             print("Received Rokt on event \(roktEvent)")
-            AutomationTranscript.shared.record(roktEvent)
+            if self.showsAutomationTranscript {
+                AutomationTranscript.shared.record(roktEvent)
+            }
             if let event = roktEvent as? RoktEvent.EmbeddedSizeChanged {
                 print("Updated height: \(event.updatedHeight)")
                 self.onEmbeddedSizeChange(selectedPlacement: event.identifier, widgetHeight: event.updatedHeight)
@@ -79,10 +81,11 @@ class OrderCompleteViewController: UIViewController {
     private func showPlacemnt(location4: RoktEmbeddedView) {
         Rokt.setBuiltInPayPalRedirectURLScheme("myapp")
 
-        let placements: [String: RoktEmbeddedView] = [location: location1,
-                                                      "Location2": location2,
+        var placements: [String: RoktEmbeddedView] = ["Location2": location2,
                                                       "Location3": location3,
                                                       "Location4": location4]
+        // A literal with `location` as a key traps when it repeats a fixed name.
+        placements[location] = placements[location] ?? location1
         let placementAttributes = attributesForSelectPlacements()
         Rokt.selectPlacements(
             identifier: pageIdentifier,
@@ -144,7 +147,9 @@ class OrderCompleteViewController: UIViewController {
         print("\(selectedPlacement) : \(widgetHeight)")
         self.scrollViewHeight.constant = self.contentHeight + self.location1Height +
         self.location2Height + self.location3Height + self.location4Height
-        recordObservedHeights()
+        if showsAutomationTranscript {
+            recordObservedHeights()
+        }
     }
 
     /// The heights the host's own views settled at after applying the published height. Recorded
