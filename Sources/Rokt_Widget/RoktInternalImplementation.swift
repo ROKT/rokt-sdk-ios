@@ -1079,6 +1079,10 @@ class RoktInternalImplementation {
         stateManager = StateBagManager()
         clearRetainedExecutionCallbacks()
 
+        // Resolves device-local attributes (e.g. Apple Pay capability) that must not be
+        // computed inline on selectPlacements' caller. Independent of API init succeeding.
+        AttributeEnrichment.shared.warmUp()
+
         RoktLogger.shared.debug("Starting API initialization request")
         initRecoveryAttempt = 0
         performInit(roktTagId: roktTagId, initStartTime: initStartTime)
@@ -1431,6 +1435,12 @@ class RoktInternalImplementation {
                             }
                             // A fresh response is a new experience: it gets a new generation, so no view
                             // state from an earlier response can be restored into it.
+                            //
+                            // A response fetched before an enricher (e.g. Apple Pay) has resolved may be
+                            // missing attributes a slightly later call would include. Caching it anyway is
+                            // an accepted tradeoff, not an oversight: the main fix here is keeping that
+                            // check off the calling thread and starting it at SDK init, which already
+                            // closes almost all of this window; see PR discussion for the decision.
                             var cacheGeneration: String?
                             if self.isCacheEnabledAndConfigured() {
                                 let cacheAttributes = self.roktConfig.cacheConfig.getCacheAttributesOrFallback(attributes)

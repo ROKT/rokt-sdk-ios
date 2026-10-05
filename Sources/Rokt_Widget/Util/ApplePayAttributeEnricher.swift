@@ -93,28 +93,60 @@ class RuntimePassKitCapabilityChecker: PassKitCapabilityChecker {
   - `true` for `applePayCapabilities` when Apple Pay is available.
   - `true` for `newToApplePay` when Apple Pay is available and the user has no cards setup.
   - `false` for `newToApplePay` when Apple Pay is not available or Apple Pay is available and the user has cards setup.
+  - neither key when capability hasn't resolved yet (see `warmUp()`).
+
+ `canDeviceMakePayments()` performs synchronous IPC with the system daemon (`passd`) and Secure
+ Element, which can block the calling thread for over a second on first use, so it must never run
+ on `enrich(config:)`'s caller (frequently the host app's main thread, via `Rokt.selectPlacements`).
+ `warmUp()` resolves it once on a background queue, at SDK initialization; `enrich(config:)` only
+ ever reads the cached result. If `enrich(config:)` is called before `warmUp()` has resolved, it
+ omits both attributes rather than guessing a value.
  */
 
 class ApplePayAttributeEnricher: AttributeEnricher {
     private let capabilityChecker: PassKitCapabilityChecker
+    private let backgroundQueue: DispatchQueue
+    private let cacheLock = NSLock()
+    private var cachedIsCapable: Bool?
+    private var cachedHasSpecificCardsSetup: Bool?
 
-    init(capabilityChecker: PassKitCapabilityChecker = RuntimePassKitCapabilityChecker()) {
+    init(
+        capabilityChecker: PassKitCapabilityChecker = RuntimePassKitCapabilityChecker(),
+        backgroundQueue: DispatchQueue = DispatchQueue(label: "com.rokt.applePayAttributeEnricher", qos: .utility)
+    ) {
         self.capabilityChecker = capabilityChecker
+        self.backgroundQueue = backgroundQueue
     }
 
     func enrich(config: RoktConfig?) -> [String: String] {
-        var enrichedAttributes = [String: String]()
+        cacheLock.lock()
+        let isSDKCapable = cachedIsCapable
+        let hasSpecificCardsSetup = cachedHasSpecificCardsSetup
+        cacheLock.unlock()
 
-        let isSDKCapable = capabilityChecker.canDeviceMakePayments()
-        enrichedAttributes[BE_IS_APPLE_PAY_CAPABLE_KEY] = String(isSDKCapable)
-
-        if isSDKCapable {
-            let hasSpecificCardsSetup = capabilityChecker.canDeviceMakePayments(usingNetworks: requiredPaymentNetworks)
-            enrichedAttributes[BE_IS_NEW_TO_APPLE_PAY_KEY] = String(!hasSpecificCardsSetup)
-        } else {
-            enrichedAttributes[BE_IS_NEW_TO_APPLE_PAY_KEY] = String(false)
+        guard let isSDKCapable else {
+            return [:]
         }
 
-        return enrichedAttributes
+        return [
+            BE_IS_APPLE_PAY_CAPABLE_KEY: String(isSDKCapable),
+            BE_IS_NEW_TO_APPLE_PAY_KEY: String(isSDKCapable && !(hasSpecificCardsSetup ?? false))
+        ]
+    }
+
+    func warmUp() {
+        let checker = capabilityChecker
+        backgroundQueue.async { [weak self] in
+            let isCapable = checker.canDeviceMakePayments()
+            let hasSpecificCardsSetup = isCapable
+                ? checker.canDeviceMakePayments(usingNetworks: requiredPaymentNetworks)
+                : false
+
+            guard let self else { return }
+            self.cacheLock.lock()
+            self.cachedIsCapable = isCapable
+            self.cachedHasSpecificCardsSetup = hasSpecificCardsSetup
+            self.cacheLock.unlock()
+        }
     }
 }
