@@ -64,7 +64,6 @@ class PlatformEventProcessor {
             sendAndCacheEvents(events: events, cacheProperties: cacheProperties)
         } catch {
             RoktLogger.shared.error("Failed to process platform events", error: error)
-            RoktLogger.shared.debug("Event payload that failed: \(eventPayload)")
         }
     }
 
