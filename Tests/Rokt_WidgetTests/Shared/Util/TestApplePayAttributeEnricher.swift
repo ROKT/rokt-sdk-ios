@@ -32,30 +32,64 @@ private class MockPassKitCapabilityChecker: PassKitCapabilityChecker {
 class TestApplePayAttributeEnricher: XCTestCase {
 
     private var mockCapabilityChecker: MockPassKitCapabilityChecker!
+    private var backgroundQueue: DispatchQueue!
     private var sut: ApplePayAttributeEnricher!
     private var mockConfig: RoktConfig!
 
     override func setUp() {
         super.setUp()
         mockCapabilityChecker = MockPassKitCapabilityChecker()
-        sut = ApplePayAttributeEnricher(capabilityChecker: mockCapabilityChecker)
+        backgroundQueue = DispatchQueue(label: "test.applePayAttributeEnricher")
+        sut = ApplePayAttributeEnricher(capabilityChecker: mockCapabilityChecker, backgroundQueue: backgroundQueue)
         mockConfig = RoktConfig.Builder().build()
     }
 
     override func tearDown() {
         mockCapabilityChecker = nil
+        backgroundQueue = nil
         sut = nil
         mockConfig = nil
         super.tearDown()
     }
 
+    /// Blocks until any capability-check work already queued on `backgroundQueue` has finished.
+    private func waitForCacheWarmup() {
+        backgroundQueue.sync {}
+    }
+
     // MARK: - Test Cases
+
+    func testEnrich_beforeWarmUpResolves_returnsNoAttributes() {
+        // Given
+        mockCapabilityChecker.canDeviceMakePaymentsResult = true
+        backgroundQueue.suspend()
+        sut.warmUp()
+
+        // When
+        let attributes = sut.enrich(config: mockConfig)
+
+        // Then: nothing has resolved yet, so enrich() must not guess a value.
+        XCTAssertTrue(attributes.isEmpty)
+
+        backgroundQueue.resume()
+    }
+
+    func testEnrich_whenWarmUpNeverCalled_returnsNoAttributesAndNeverTouchesChecker() {
+        // When
+        let attributes = sut.enrich(config: mockConfig)
+
+        // Then: enrich() is a pure cache read; it never triggers the checker itself.
+        XCTAssertTrue(attributes.isEmpty)
+        XCTAssertFalse(mockCapabilityChecker.didCallCanDeviceMakePayments)
+    }
 
     func testEnrich_whenSDKNotCapable_returnsNotCapableAndNotNewToApplePay() {
         // Given
         mockCapabilityChecker.canDeviceMakePaymentsResult = false
 
         // When
+        sut.warmUp()
+        waitForCacheWarmup()
         let attributes = sut.enrich(config: mockConfig)
 
         // Then
@@ -80,6 +114,8 @@ class TestApplePayAttributeEnricher: XCTestCase {
         mockCapabilityChecker.canDeviceMakePaymentsUsingNetworksResult = false // No specific cards setup
 
         // When
+        sut.warmUp()
+        waitForCacheWarmup()
         let attributes = sut.enrich(config: mockConfig)
 
         // Then
@@ -97,7 +133,6 @@ class TestApplePayAttributeEnricher: XCTestCase {
             "BE_IS_NEW_TO_APPLE_PAY_KEY should be true when no cards are setup."
         )
         XCTAssertNotNil(mockCapabilityChecker.receivedNetworks, "Should have passed networks to the capability checker.")
-        // Optionally, you could assert the content of mockCapabilityChecker.receivedNetworks matches `requiredPaymentNetworks` from the SUT, but that might be testing implementation detail too much.
     }
 
     func testEnrich_whenSDKCapableAndCardsAreSetup_returnsCapableAndNotNewToApplePay() {
@@ -106,6 +141,8 @@ class TestApplePayAttributeEnricher: XCTestCase {
         mockCapabilityChecker.canDeviceMakePaymentsUsingNetworksResult = true // Specific cards ARE setup
 
         // When
+        sut.warmUp()
+        waitForCacheWarmup()
         let attributes = sut.enrich(config: mockConfig)
 
         // Then
@@ -122,5 +159,23 @@ class TestApplePayAttributeEnricher: XCTestCase {
             "false",
             "BE_IS_NEW_TO_APPLE_PAY_KEY should be false when cards are setup."
         )
+    }
+
+    func testEnrich_calledRepeatedly_onlyQueriesCheckerOnce() {
+        // Given
+        mockCapabilityChecker.canDeviceMakePaymentsResult = true
+        mockCapabilityChecker.canDeviceMakePaymentsUsingNetworksResult = true
+
+        // When
+        sut.warmUp()
+        waitForCacheWarmup()
+        mockCapabilityChecker.didCallCanDeviceMakePayments = false
+        mockCapabilityChecker.didCallCanDeviceMakePaymentsUsingNetworks = false
+        _ = sut.enrich(config: mockConfig)
+        _ = sut.enrich(config: mockConfig)
+
+        // Then: cached results are served without re-querying PassKit.
+        XCTAssertFalse(mockCapabilityChecker.didCallCanDeviceMakePayments)
+        XCTAssertFalse(mockCapabilityChecker.didCallCanDeviceMakePaymentsUsingNetworks)
     }
 }
