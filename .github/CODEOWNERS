@@ -1,1 +1,21 @@
 * @ROKT/sdk-engineering
+
+# Low-risk markdown and repository metadata can use the repository's
+# normal approval rule without requiring an SDK code-owner review.
+# Non-markdown files under these directories still match the catch-all owner.
+/*.md
+/docs/*.md
+/docs/**/*.md
+/documentation/*.md
+/documentation/**/*.md
+/.cortex/*.md
+/.cortex/**/*.md
+/.github/ISSUE_TEMPLATE/
+/.github/pull_request_template.md
+
+# Security, release, and agent contracts remain explicitly owned.
+/AGENTS.md @ROKT/sdk-engineering
+/CLAUDE.md @ROKT/sdk-engineering
+/SECURITY.md @ROKT/sdk-engineering
+/RELEASING.md @ROKT/sdk-engineering
+/CHANGELOG.md @ROKT/sdk-engineering
