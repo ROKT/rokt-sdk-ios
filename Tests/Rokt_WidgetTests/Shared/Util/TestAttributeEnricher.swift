@@ -6,6 +6,7 @@ import XCTest
 private class MockAttributeEnricher: AttributeEnricher {
     var attributesToReturn: [String: String]
     var receivedConfig: RoktConfig? // To verify config passing
+    var didCallWarmUp = false
 
     init(attributesToReturn: [String: String] = [:]) {
         self.attributesToReturn = attributesToReturn
@@ -14,6 +15,10 @@ private class MockAttributeEnricher: AttributeEnricher {
     func enrich(config: RoktConfig?) -> [String: String] {
         self.receivedConfig = config
         return attributesToReturn
+    }
+
+    func warmUp() {
+        didCallWarmUp = true
     }
 }
 
@@ -253,5 +258,19 @@ class TestAttributeEnricher: XCTestCase {
 
         // Then
         XCTAssertNil(mockEnricher.receivedConfig, "Enricher should have received nil for config.")
+    }
+
+    func testWarmUp_callsWarmUpOnEveryEnricher() {
+        // Given
+        let mockEnricher1 = MockAttributeEnricher()
+        let mockEnricher2 = MockAttributeEnricher()
+        let sut = AttributeEnrichment(enrichers: [mockEnricher1, mockEnricher2])
+
+        // When
+        sut.warmUp()
+
+        // Then
+        XCTAssertTrue(mockEnricher1.didCallWarmUp)
+        XCTAssertTrue(mockEnricher2.didCallWarmUp)
     }
 }
