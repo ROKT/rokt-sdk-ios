@@ -1069,6 +1069,15 @@ class RoktInternalImplementation {
             NetworkingHelper.updateMParticleKitDetails(mParticleKitDetails: mParticleKitDetails)
         }
 
+        // Switching accounts. Runs before the new tag id is set, so buffered events are flushed
+        // under the account that produced them; its undelivered batches are dropped rather than
+        // replayed under the new one, and placements wait for the new account's init.
+        if let previousTagId = sessionManager.storedTagId, previousTagId != roktTagId {
+            isInitialized = false
+            endSession()
+            _ = txnPendingEventStore.drainValid()
+        }
+
         let pendingApiLogs = setRoktTagIdAndDrainPendingApiLogs(roktTagId)
         sessionManager.storedTagId = roktTagId
         RoktAPIHelper.logApiCalled(mParticleKitDetails != nil ? Self.apiInitMParticleCode : Self.apiInitCode)
@@ -1265,20 +1274,24 @@ class RoktInternalImplementation {
     }
 
     /// Ends the current Rokt session so the next placement starts a new one.
-    ///
+    func clearSession() {
+        RoktAPIHelper.logApiCalled(Self.apiClearSessionCode)
+        endSession()
+        // Also clears the legacy session id and, via ManagedSession, the real-time event store.
+        // `initWith` gets the same from the `storedTagId` setter on a tag change.
+        sessionManager.invalidateSession()
+        RoktLogger.shared.info("Session cleared; the next placement will start a new session")
+    }
+
     /// Order matters: flushing first hands buffered events to a `TxnEventService` that captures
     /// the departing token as it is built, so they stay attributed to the customer leaving. Only
     /// then is the session wiped, synchronously, so the next placement cannot rehydrate it.
-    func clearSession() {
-        RoktAPIHelper.logApiCalled(Self.apiClearSessionCode)
+    private func endSession() {
         EventQueue.flush()
         TxnSessionManager.clearPersistedSession(store: txnSessionStore)
-        // Also clears the legacy session id and, via ManagedSession, the real-time event store.
-        sessionManager.invalidateSession()
         // The cached experience was fetched inside the dropped session, so it goes with it.
         ExperienceCacheManager.clearCache()
         mustBypassCacheOnNextExecute = true
-        RoktLogger.shared.info("Session cleared; the next placement will start a new session")
     }
 
     private func defaultTxnEventService(roktTagId: String) -> TxnEventService {
