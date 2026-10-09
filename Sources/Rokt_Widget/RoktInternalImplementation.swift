@@ -1073,6 +1073,8 @@ class RoktInternalImplementation {
         // under the account that produced them; its undelivered batches are dropped rather than
         // replayed under the new one, and placements wait for the new account's init.
         if let previousTagId = sessionManager.storedTagId, previousTagId != roktTagId {
+            // Discards the previous account's init if it completes during the teardown below.
+            initGeneration += 1
             isInitialized = false
             endSession()
             _ = txnPendingEventStore.drainValid()
