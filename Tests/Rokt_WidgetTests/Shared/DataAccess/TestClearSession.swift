@@ -164,7 +164,69 @@ final class TestClearSession: XCTestCase {
         XCTAssertEqual(spy.replayedSessionIds, ["session-a"])
     }
 
+    // MARK: - Tag change on initWith
+
+    func test_initWith_newTag_dropsPreviousAccountsStateUntilItsOwnInitCompletes() {
+        Self.prepareExperienceCacheTestFiles()
+        let (spy, pendingStore) = initCapturingImplementation()
+        spy.initWith(roktTagId: "tag-a", mParticleKitDetails: nil)
+        waitUntil { spy.isInitialized }
+        pendingStore.persist(events: [event("a")], sessionId: "session-a")
+        cacheExperience(viewName: "view-a")
+
+        spy.initWith(roktTagId: "tag-b", mParticleKitDetails: nil)
+
+        XCTAssertFalse(spy.isInitialized, "placements must wait for the new account's init")
+        waitUntil { !Self.experienceCacheFileExists(viewName: "view-a", attributes: [:]) }
+        waitUntil { spy.isInitialized }
+        XCTAssertEqual(spy.replayedSessionIds, [], "the previous account's events must not replay under the new one")
+    }
+
+    func test_initWith_sameTag_stillReplaysPendingEvents() {
+        let (spy, pendingStore) = initCapturingImplementation()
+        spy.initWith(roktTagId: "tag-a", mParticleKitDetails: nil)
+        waitUntil { spy.isInitialized }
+        pendingStore.persist(events: [event("a")], sessionId: "session-a")
+
+        spy.initWith(roktTagId: "tag-a", mParticleKitDetails: nil)
+
+        XCTAssertTrue(spy.isInitialized)
+        waitUntil { spy.replayedSessionIds == ["session-a"] }
+    }
+
     // MARK: - Helpers
+
+    /// Inits against the offline init transport, with every store it touches scratch.
+    private func initCapturingImplementation() -> (ReplayCapturingImplementation, TxnPendingEventStore) {
+        let fileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("txn_pending_\(UUID().uuidString).json")
+        addTeardownBlock { try? FileManager.default.removeItem(at: fileURL) }
+        let pendingStore = TxnPendingEventStore(fileURL: fileURL)
+        let spy = replayCapturingImplementation(store: pendingStore)
+        spy.txnSessionStore = InMemoryTxnStore()
+        spy.makeTxnInitServiceOverride = { tagId in
+            TxnInitService(
+                environment: .Prod,
+                accountId: tagId,
+                sdkVersion: "5.5.3",
+                layoutSchemaVersion: "1.0",
+                httpClient: MockTxnInitHTTPClient()
+            )
+        }
+        return (spy, pendingStore)
+    }
+
+    private func cacheExperience(viewName: String) {
+        let cached = expectation(description: "cached")
+        ExperienceCacheManager.cacheExperienceResponse(
+            viewName: viewName,
+            attributes: [:],
+            experienceResponse: "{}",
+            generation: UUID().uuidString,
+            success: { cached.fulfill() }
+        )
+        wait(for: [cached], timeout: 2)
+    }
 
     private var farFutureExpiryMs: Int64 {
         Int64(Date().addingTimeInterval(1800).timeIntervalSince1970 * 1000)
