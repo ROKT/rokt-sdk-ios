@@ -3,6 +3,15 @@ import UIKit
 
 protocol AttributeEnricher {
     func enrich(config: RoktConfig?) -> [String: String]
+
+    /// Resolves anything `enrich(config:)` needs but must not block its caller to compute.
+    /// Called once, at SDK initialization, before any `enrich(config:)` call. Most enrichers
+    /// have nothing to resolve ahead of time and use the default no-op below.
+    func warmUp()
+}
+
+extension AttributeEnricher {
+    func warmUp() {}
 }
 
 struct AttributeEnrichment {
@@ -25,5 +34,9 @@ struct AttributeEnrichment {
         }
 
         return enrichedAttributes
+    }
+
+    func warmUp() {
+        enrichers.forEach { $0.warmUp() }
     }
 }
