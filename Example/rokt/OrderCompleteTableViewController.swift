@@ -9,6 +9,7 @@ class OrderCompleteTableViewController: UIViewController, UITableViewDelegate, U
     @IBOutlet weak var table: UITableView!
 
     var roktWidget: RoktEmbeddedView?
+    private var hasRequestedPlacement = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -22,6 +23,10 @@ class OrderCompleteTableViewController: UIViewController, UITableViewDelegate, U
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
 
+        // The embedded view is a table cell, which exists only after viewDidLoad. viewDidAppear runs
+        // again on every reappearance and each selectPlacements call starts a new selection, so request once.
+        guard !hasRequestedPlacement else { return }
+        hasRequestedPlacement = true
         showPlacement()
     }
 
