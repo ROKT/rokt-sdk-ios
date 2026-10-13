@@ -106,6 +106,53 @@ final class TestTxnInitService: XCTestCase {
         XCTAssertEqual(httpClient.callCount, 2)
     }
 
+    func test_initSession_defaultRetryBudget_isThreeRetriesWithBackoff() async {
+        httpClient.results = [.status(503)]
+        var delays: [TimeInterval] = []
+        let service = TxnInitService(
+            environment: .Prod,
+            accountId: "account-1",
+            sdkVersion: "5.2.2",
+            layoutSchemaVersion: "2.3",
+            httpClient: httpClient,
+            sleep: { delays.append($0) }
+        )
+
+        do {
+            _ = try await service.initSession()
+            XCTFail("Expected init to fail after exhausting retries")
+        } catch {
+            XCTAssertEqual(httpClient.callCount, 4, "one request plus three in-place retries")
+            XCTAssertEqual(delays.count, 3)
+            XCTAssertTrue(zip(delays, delays.dropFirst()).allSatisfy { $0 < $1 }, "backoff grows: \(delays)")
+        }
+    }
+
+    func test_initSession_cancelledBetweenAttempts_stopsRetrying() async {
+        httpClient.results = [.status(503)]
+        let box = TaskBox()
+        let service = TxnInitService(
+            environment: .Prod,
+            accountId: "account-1",
+            sdkVersion: "5.2.2",
+            layoutSchemaVersion: "2.3",
+            httpClient: httpClient,
+            maxRetries: 3,
+            baseBackoff: 0,
+            sleep: { _ in box.task?.cancel() }
+        )
+        let task = Task { try await service.initSession() }
+        box.task = task
+
+        do {
+            _ = try await task.value
+            XCTFail("Expected cancellation")
+        } catch {
+            XCTAssertTrue(error is CancellationError)
+            XCTAssertEqual(httpClient.callCount, 1, "a superseded init must not send its remaining attempts")
+        }
+    }
+
     func test_initSession_exhaustsRetries_throwsUnexpectedStatus() async {
         httpClient.results = [.status(503)]
 
@@ -171,6 +218,11 @@ final class TestTxnInitService: XCTestCase {
             XCTFail("Unexpected error: \(error)")
         }
     }
+}
+
+// Lets the injected `sleep` reach the task that is running it.
+private final class TaskBox {
+    var task: Task<TxnInitService.InitResult, Error>?
 }
 
 private final class MockTxnHTTPClient: HTTPClientAdapter {

@@ -37,10 +37,13 @@ class RoktInternalImplementation {
     private static let initFailedError = "INIT_FAILED"
     private static let fontFailedError = "FONT_FAILED"
     private static let trackingConsentError = "tracking consent not authorised"
-    // TxnInitService already retries 5xx and transport blips inside a single request. These
-    // recover from a whole failed init - a cold start with no network, or a 429 burst - which
-    // otherwise leaves the SDK uninitialised until the process restarts.
-    private static let initRecoveryDelaysSeconds: [TimeInterval] = [2, 8, 30]
+    // TxnInitService already retries 5xx and transport blips inside a single request. This
+    // recovers from a whole failed init - a cold start with no network, or a 429 burst - which
+    // otherwise leaves the SDK uninitialised until the process restarts. The delay is stretched
+    // by up to `initRecoveryJitterFraction` so devices that failed together do not all come
+    // back together.
+    private static let initRecoveryDelaysSeconds: [TimeInterval] = [5]
+    private static let initRecoveryJitterFraction = 0.25
     private static let rateLimitedStatusCode = 429
     private static let cacheDurationKey = "cacheDuration"
     private static let cacheAttributesKey = "cacheAttributeKeys"
@@ -57,6 +60,9 @@ class RoktInternalImplementation {
     // Identifies the latest init request so a superseded init's async completion is ignored.
     private var initGeneration = 0
     private var initRecoveryAttempt = 0
+    // The tag id whose init is in flight or waiting on recovery; a repeat `initWith` for it joins that init.
+    private var activeInitTagId: String?
+    private var initTask: Task<Void, Never>?
     let sessionManager: SessionManager
     var attributes = [String: String]()
     var isInitialized = false
@@ -1069,6 +1075,13 @@ class RoktInternalImplementation {
             NetworkingHelper.updateMParticleKitDetails(mParticleKitDetails: mParticleKitDetails)
         }
 
+        // Nothing to restart: the in-flight init, or its scheduled recovery, reports through the same
+        // global events. Starting another would only add requests to a connection that is struggling.
+        if activeInitTagId == roktTagId {
+            RoktLogger.shared.debug("Init already in progress for this tag id; joining it")
+            return
+        }
+
         // Switching accounts. Runs before the new tag id is set, so buffered events are flushed
         // under the account that produced them; its undelivered batches are dropped rather than
         // replayed under the new one, and placements wait for the new account's init.
@@ -1096,6 +1109,7 @@ class RoktInternalImplementation {
 
         RoktLogger.shared.debug("Starting API initialization request")
         initRecoveryAttempt = 0
+        activeInitTagId = roktTagId
         performInit(roktTagId: roktTagId, initStartTime: initStartTime)
     }
 
@@ -1103,7 +1117,9 @@ class RoktInternalImplementation {
         let service = makeTxnInitServiceOverride?(roktTagId) ?? defaultTxnInitService(roktTagId: roktTagId)
         initGeneration += 1
         let generation = initGeneration
-        Task {
+        // A superseded init's result is already ignored; cancelling also stops its remaining attempts.
+        initTask?.cancel()
+        initTask = Task {
             do {
                 let result = try await service.initSession()
                 let initResponse = result.response.toInitRespose(featureFlags: result.featureFlags)
@@ -1131,6 +1147,7 @@ class RoktInternalImplementation {
         RoktLogger.shared.info("API initialization succeeded")
         self.isInitialized = true
         self.initRecoveryAttempt = 0
+        self.activeInitTagId = nil
         self.initFeatureFlags = initResponse.featureFlags
 
         self.processedTimingsRequests = TimingsRequestProcessor()
@@ -1178,9 +1195,13 @@ class RoktInternalImplementation {
     private func scheduleInitRecovery(error: Error, statusCode: Int?, initStartTime: Date) {
         guard let roktTagId,
               Self.isRecoverable(error: error, statusCode: statusCode),
-              initRecoveryAttempt < Self.initRecoveryDelaysSeconds.count else { return }
+              initRecoveryAttempt < Self.initRecoveryDelaysSeconds.count else {
+            // Out of recovery attempts, so a later `initWith` starts a fresh init.
+            activeInitTagId = nil
+            return
+        }
 
-        let delay = Self.initRecoveryDelaysSeconds[initRecoveryAttempt]
+        let delay = Self.initRecoveryDelay(forAttempt: initRecoveryAttempt)
         let attempt = initRecoveryAttempt + 1
         initRecoveryAttempt = attempt
         let generation = initGeneration
@@ -1190,6 +1211,14 @@ class RoktInternalImplementation {
             guard let self, self.initGeneration == generation, !self.isInitialized else { return }
             self.performInit(roktTagId: roktTagId, initStartTime: initStartTime)
         }
+    }
+
+    static func initRecoveryDelay(
+        forAttempt attempt: Int,
+        jitterUnit: Double = Double.random(in: 0...1)
+    ) -> TimeInterval {
+        let base = initRecoveryDelaysSeconds[attempt]
+        return base + base * initRecoveryJitterFraction * jitterUnit
     }
 
     // A wrong tag id or a rejected request will fail the same way every time, so only

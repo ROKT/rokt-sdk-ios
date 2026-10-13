@@ -66,6 +66,8 @@ internal struct TxnInitService {
 
         var attempt = 0
         while true {
+            // A superseded init stops here instead of spending its remaining attempts.
+            try Task.checkCancellation()
             do {
                 let (data, response) = try await client.initSession(
                     operating_system: "ios",

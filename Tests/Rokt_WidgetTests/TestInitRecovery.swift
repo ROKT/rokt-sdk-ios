@@ -102,20 +102,133 @@ final class TestInitRecovery: XCTestCase {
 
         settle()
         XCTAssertFalse(impl.isInitialized)
-        XCTAssertEqual(stub.requestCount, 4, "initial attempt plus three bounded recoveries")
+        XCTAssertEqual(stub.requestCount, 2, "initial attempt plus one bounded recovery")
     }
 
     func test_initRecovery_counterResetsOnFreshInit() {
         stub.results = [.status(429), .status(429), .status(429), .status(429), .status(429)]
         impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
         settle()
-        XCTAssertEqual(stub.requestCount, 4)
+        XCTAssertEqual(stub.requestCount, 2)
 
         stub.results = [.status(429), .success(data: Self.successBody)]
         impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
 
         waitUntil { self.impl.isInitialized }
-        XCTAssertEqual(stub.requestCount, 6)
+        XCTAssertEqual(stub.requestCount, 4)
+    }
+
+    func test_initRecovery_repeatInitWhileRequestInFlight_joinsIt() {
+        stub.results = [.success(data: Self.successBody), .success(data: Self.successBody)]
+
+        // The second call lands before the first request has come back.
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+
+        waitUntil { self.impl.isInitialized }
+        settle()
+        XCTAssertEqual(stub.requestCount, 1, "a repeat init for the same tag id must not send a second request")
+    }
+
+    func test_initRecovery_repeatInitWhileRecoveryPending_doesNotRestartTheEpisode() {
+        var pending: [() -> Void] = []
+        impl.initRecoveryScheduler = { _, work in pending.append(work) }
+        stub.results = [.status(503), .success(data: Self.successBody)]
+
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+        settle()
+        XCTAssertEqual(stub.requestCount, 1)
+        XCTAssertEqual(pending.count, 1)
+
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+        settle()
+        XCTAssertEqual(stub.requestCount, 1, "the pending recovery already covers this tag id")
+        XCTAssertEqual(pending.count, 1)
+
+        pending.forEach { $0() }
+        waitUntil { self.impl.isInitialized }
+        XCTAssertEqual(stub.requestCount, 2)
+    }
+
+    func test_initRecovery_initAfterSuccess_sendsAFreshRequest() {
+        stub.results = [.success(data: Self.successBody), .success(data: Self.successBody)]
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+        waitUntil { self.impl.isInitialized }
+        XCTAssertEqual(stub.requestCount, 1)
+
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+
+        settle()
+        XCTAssertEqual(stub.requestCount, 2, "joining applies only while an init is in flight or waiting")
+    }
+
+    func test_initRecovery_initAfterRejectedInit_sendsAFreshRequest() {
+        stub.results = [.status(400), .success(data: Self.successBody)]
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+        settle()
+        XCTAssertEqual(stub.requestCount, 1)
+
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+
+        waitUntil { self.impl.isInitialized }
+        XCTAssertEqual(stub.requestCount, 2, "a rejected init is over, so a later call must not be joined to it")
+    }
+
+    func test_initRecovery_repeatInitForDifferentTagId_isNotJoined() {
+        var pending: [() -> Void] = []
+        impl.initRecoveryScheduler = { _, work in pending.append(work) }
+        stub.results = [.status(503), .success(data: Self.successBody)]
+
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+        settle()
+        XCTAssertEqual(stub.requestCount, 1)
+
+        impl.initWith(roktTagId: "tag-2", mParticleKitDetails: nil)
+
+        waitUntil { self.impl.isInitialized }
+        XCTAssertEqual(stub.requestCount, 2)
+    }
+
+    func test_initRecovery_worstCaseIsTwoAttemptsOfFourRequests() {
+        // Production retry budget: three in-place retries per attempt, then one recovery.
+        impl.makeTxnInitServiceOverride = { [stub] tagId in
+            TxnInitService(
+                environment: .Prod,
+                accountId: tagId,
+                sdkVersion: "5.3.2",
+                layoutSchemaVersion: "1.0",
+                httpClient: stub!,
+                baseBackoff: 0,
+                sleep: { _ in }
+            )
+        }
+        stub.results = Array(repeating: .transportError(Self.urlError(NSURLErrorTimedOut)), count: 12)
+
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+
+        settle()
+        XCTAssertFalse(impl.isInitialized)
+        XCTAssertEqual(stub.requestCount, 8, "four requests per attempt, and only one recovery attempt")
+    }
+
+    func test_initRecovery_scheduledDelayIsShortJitteredAndSingle() {
+        var delays: [TimeInterval] = []
+        impl.initRecoveryScheduler = { delay, work in
+            delays.append(delay)
+            DispatchQueue.main.async(execute: work)
+        }
+        stub.results = [.status(503), .status(503), .status(503)]
+
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+
+        settle()
+        XCTAssertEqual(delays.count, 1, "a single recovery attempt")
+        XCTAssertTrue((5.0...6.25).contains(delays[0]), "delay was \(delays[0])")
+    }
+
+    func test_initRecoveryDelay_jitterStretchesTheDelayByAtMostAQuarter() {
+        XCTAssertEqual(RoktInternalImplementation.initRecoveryDelay(forAttempt: 0, jitterUnit: 0), 5)
+        XCTAssertEqual(RoktInternalImplementation.initRecoveryDelay(forAttempt: 0, jitterUnit: 1), 6.25)
     }
 
     // The guards inside the scheduled block only matter while an attempt is in flight, which the
