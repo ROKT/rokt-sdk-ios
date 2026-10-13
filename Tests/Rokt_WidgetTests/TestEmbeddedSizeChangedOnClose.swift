@@ -168,10 +168,7 @@ final class TestEmbeddedSizeChangedOnClose: XCTestCase {
             accountId: tagId,
             sdkVersion: "5.3.2",
             layoutSchemaVersion: "1.0",
-            httpClient: FailingInitHTTPClient(),
-            maxRetries: 0,
-            baseBackoff: 0,
-            sleep: { _ in }
+            httpClient: FailingInitHTTPClient()
         )
     }
 
