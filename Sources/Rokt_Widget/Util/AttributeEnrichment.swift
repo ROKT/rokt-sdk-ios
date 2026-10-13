@@ -19,6 +19,7 @@ struct AttributeEnrichment {
         ApplePayAttributeEnricher(),
         ColorModeAttributeEnricher(),
         StripeAttributeEnricher(),
+        TrackingConsentAttributeEnricher(),
         PaymentExtensionAttributeEnricher(
             provider: { Rokt.shared.roktImplementation.isPaymentExtensionRegistered },
             availablePaymentMethodsProvider: { Rokt.shared.roktImplementation.availablePaymentMethods }

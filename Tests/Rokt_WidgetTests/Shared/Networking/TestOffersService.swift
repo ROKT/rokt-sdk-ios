@@ -1,3 +1,4 @@
+import AppTrackingTransparency
 import XCTest
 @testable import Rokt_Widget
 
@@ -293,6 +294,26 @@ final class TestOffersService: XCTestCase {
         // Privacy keys (incl. gpcEnabled) are stripped from the forwarded attributes.
         XCTAssertNil(attributes?["noFunctional"])
         XCTAssertNil(attributes?["gpcEnabled"])
+    }
+
+    func test_getExperienceData_sendsTrackingConsentAttribute() {
+        let stub = StubHTTPClient(responseData: Data(offersResponse.utf8), statusCode: 200)
+        let service = makeService(stub)
+
+        let completed = expectation(description: "request built")
+        service.getExperienceData(viewName: "checkout", attributes: [:], config: nil, successLayout: { _ in
+            completed.fulfill()
+        }, failure: { error, _, _ in
+            XCTFail("unexpected failure: \(error)")
+        })
+
+        wait(for: [completed], timeout: 5)
+        let body = stub.lastParameters as? [String: Any]
+        let attributes = body?["attributes"] as? [String: Any]
+        XCTAssertEqual(
+            attributes?["rokt.nativemobile.apple_tracking_consent"] as? String,
+            String(ATTrackingManager.trackingAuthorizationStatus.rawValue)
+        )
     }
 
     func test_getExperienceData_forwardsDeviceHeaders() {
