@@ -39,6 +39,9 @@ class OrderCompleteViewController: UIViewController {
             }
         }
 
+        // viewDidLoad runs once per screen instance, so the placement is requested once here. If the
+        // embedded view is created later (see OrderCompleteTableViewController), request it from
+        // viewDidAppear behind a once-only guard instead.
         showPlacemnt(location4: location4)
     }
 
