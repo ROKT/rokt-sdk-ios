@@ -10,7 +10,7 @@ final class TestGlobalEventsMulticast: XCTestCase {
         super.setUp()
         impl = RoktInternalImplementation()
         stub = StubGlobalEventsInitHTTPClient()
-        impl.makeTxnInitServiceOverride = { [stub] tagId in
+        impl.makeTxnInitServiceOverride = { [stub] tagId, _ in
             TxnInitService(
                 environment: .Prod,
                 accountId: tagId,

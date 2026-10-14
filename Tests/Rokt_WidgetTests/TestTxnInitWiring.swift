@@ -19,7 +19,7 @@ final class TestTxnInitWiring: XCTestCase {
     }
 
     private func injectService() {
-        impl.makeTxnInitServiceOverride = { [stub] tagId in
+        impl.makeTxnInitServiceOverride = { [stub] tagId, _ in
             TxnInitService(
                 environment: .Prod,
                 accountId: tagId,

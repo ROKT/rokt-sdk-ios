@@ -10,7 +10,7 @@ final class TestInitRecovery: XCTestCase {
         super.setUp()
         impl = RoktInternalImplementation()
         stub = StubRecoveryInitHTTPClient()
-        impl.makeTxnInitServiceOverride = { [stub] tagId in
+        impl.makeTxnInitServiceOverride = { [stub] tagId, _ in
             TxnInitService(
                 environment: .Prod,
                 accountId: tagId,
@@ -23,6 +23,7 @@ final class TestInitRecovery: XCTestCase {
     }
 
     override func tearDown() {
+        RoktSDKDateHandler.customDate = nil
         impl = nil
         stub = nil
         super.tearDown()
@@ -127,7 +128,7 @@ final class TestInitRecovery: XCTestCase {
         XCTAssertEqual(stub.requestCount, 1, "a repeat init for the same tag id must not send a second request")
     }
 
-    func test_initRecovery_repeatInitWhileRetryPending_doesNotRestartTheEpisode() {
+    func test_initRecovery_repeatInitJustAfterAFailure_isIgnoredWhileTheRetryWaits() {
         var pending: [() -> Void] = []
         impl.initRetryScheduler = { _, work in pending.append(work) }
         stub.results = [.status(503), .success(data: Self.successBody)]
@@ -139,7 +140,7 @@ final class TestInitRecovery: XCTestCase {
 
         impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
         settle()
-        XCTAssertEqual(stub.requestCount, 1, "the pending retry already covers this tag id")
+        XCTAssertEqual(stub.requestCount, 1, "a call within fifteen seconds of the failure leaves the wait alone")
         XCTAssertEqual(pending.count, 1)
 
         pending.forEach { $0() }
@@ -188,7 +189,7 @@ final class TestInitRecovery: XCTestCase {
 
     func test_initRecovery_worstCaseIsFiveSingleRequests() {
         // Production request settings: one request per attempt, with no quick retries in between.
-        impl.makeTxnInitServiceOverride = { [stub] tagId in
+        impl.makeTxnInitServiceOverride = { [stub] tagId, _ in
             TxnInitService(
                 environment: .Prod,
                 accountId: tagId,
@@ -218,25 +219,197 @@ final class TestInitRecovery: XCTestCase {
 
         settle()
         XCTAssertEqual(delays.count, 4, "four retries after the first attempt")
-        XCTAssertTrue((30.0...37.5).contains(delays[0]), "first wait was \(delays[0])")
-        XCTAssertTrue((60.0...75.0).contains(delays[1]), "second wait was \(delays[1])")
-        XCTAssertTrue((150.0...187.5).contains(delays[2]), "third wait was \(delays[2])")
+        XCTAssertTrue((10.0...12.5).contains(delays[0]), "first wait was \(delays[0])")
+        XCTAssertTrue((30.0...37.5).contains(delays[1]), "second wait was \(delays[1])")
+        XCTAssertTrue((60.0...75.0).contains(delays[2]), "third wait was \(delays[2])")
         XCTAssertTrue((150.0...187.5).contains(delays[3]), "fourth wait was \(delays[3])")
     }
 
     func test_initRetryDelay_jitterStretchesEachWaitByAtMostAQuarter() {
-        let bases: [TimeInterval] = [30, 60, 150, 150]
+        let bases: [TimeInterval] = [10, 30, 60, 150]
         for (attempt, base) in bases.enumerated() {
             XCTAssertEqual(RoktInternalImplementation.initRetryDelay(forAttempt: attempt, jitterUnit: 0), base)
             XCTAssertEqual(RoktInternalImplementation.initRetryDelay(forAttempt: attempt, jitterUnit: 1), base * 1.25)
         }
     }
 
-    func test_initRetryDelay_shortestSchedule_coversAtLeastFiveMinutes() {
-        let shortestWait = (0..<4).map { RoktInternalImplementation.initRetryDelay(forAttempt: $0, jitterUnit: 0) }
-            .reduce(0, +)
+    func test_initRetryDelay_startsQuicklyAndKeepsGoingForOverFourMinutes() {
+        let shortest = (0..<4).map { RoktInternalImplementation.initRetryDelay(forAttempt: $0, jitterUnit: 0) }
 
-        XCTAssertGreaterThanOrEqual(shortestWait, 300, "retries must keep going for at least five minutes")
+        XCTAssertLessThanOrEqual(shortest[0], 10, "the first retry comes quickly, to ride out a blip")
+        XCTAssertGreaterThanOrEqual(shortest.reduce(0, +), 250, "the retries must keep going for over four minutes")
+    }
+
+    func test_initRecovery_repeatInitAfterFifteenSeconds_runsTheWaitingRetryNow() {
+        var pending: [() -> Void] = []
+        impl.initRetryScheduler = { _, work in pending.append(work) }
+        stub.results = [.status(503), .success(data: Self.successBody)]
+        let failedAt = Date(timeIntervalSince1970: 1_000_000)
+        RoktSDKDateHandler.customDate = failedAt
+
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+        settle()
+        XCTAssertEqual(stub.requestCount, 1)
+        XCTAssertEqual(pending.count, 1)
+
+        // The host calls init again once the network is back, well before the wait would have ended.
+        RoktSDKDateHandler.customDate = failedAt.addingTimeInterval(16)
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+
+        waitUntil { self.impl.isInitialized }
+        XCTAssertEqual(stub.requestCount, 2, "the waiting retry ran at once")
+
+        // The timer that was waiting is now stale and must not send anything.
+        pending.forEach { $0() }
+        settle()
+        XCTAssertEqual(stub.requestCount, 2)
+    }
+
+    func test_initRecovery_repeatInitBeforeFifteenSeconds_doesNotBringTheRetryForward() {
+        var pending: [() -> Void] = []
+        impl.initRetryScheduler = { _, work in pending.append(work) }
+        stub.results = [.status(503), .success(data: Self.successBody)]
+        let failedAt = Date(timeIntervalSince1970: 1_000_000)
+        RoktSDKDateHandler.customDate = failedAt
+
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+        settle()
+
+        RoktSDKDateHandler.customDate = failedAt.addingTimeInterval(14)
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+
+        settle()
+        XCTAssertEqual(stub.requestCount, 1, "a call this soon after the failure must not cause another request")
+    }
+
+    func test_initRecovery_aListenerThatCallsInitWhenInitFailsForGood_startsAFreshInit() {
+        stub.results = [.status(400), .success(data: Self.successBody)]
+        var calledAgain = false
+        impl.mapEvents(isGlobal: true, onEvent: { [unowned impl = impl!] event in
+            if let initComplete = event as? RoktEvent.InitComplete, !initComplete.success, !calledAgain {
+                calledAgain = true
+                impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+            }
+        })
+
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+
+        waitUntil { self.impl.isInitialized }
+        XCTAssertEqual(stub.requestCount, 2, "the init was already over when the listener ran, so its call was not joined")
+    }
+
+    func test_initRecovery_firstAttemptUsesTheShortTimeoutAndRetriesTheLongOne() {
+        var timeouts: [TimeInterval] = []
+        impl.makeTxnInitServiceOverride = { [stub] tagId, timeout in
+            timeouts.append(timeout)
+            return TxnInitService(
+                environment: .Prod,
+                accountId: tagId,
+                sdkVersion: "5.3.2",
+                layoutSchemaVersion: "1.0",
+                httpClient: stub!,
+                requestTimeout: timeout
+            )
+        }
+        stub.results = Array(repeating: .status(503), count: 6)
+
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+
+        settle()
+        XCTAssertEqual(timeouts, [10, 30, 30, 30, 30])
+    }
+
+    func test_initRecovery_retriesAfterARequestTimeoutStatus() {
+        stub.results = [.status(408), .success(data: Self.successBody)]
+
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+
+        waitUntil { self.impl.isInitialized }
+        XCTAssertEqual(stub.requestCount, 2)
+    }
+
+    func test_initRecovery_repeatInitRightAfterTheTimerFires_joinsTheRetryThatIsNowRunning() {
+        var pending: [() -> Void] = []
+        impl.initRetryScheduler = { _, work in pending.append(work) }
+        stub.results = [.status(503), .success(data: Self.successBody), .success(data: Self.successBody)]
+        let failedAt = Date(timeIntervalSince1970: 1_000_000)
+        RoktSDKDateHandler.customDate = failedAt
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+        settle()
+        XCTAssertEqual(pending.count, 1)
+
+        // The timer fires and the host calls init in the same moment, well past the minimum gap.
+        RoktSDKDateHandler.customDate = failedAt.addingTimeInterval(60)
+        pending.forEach { $0() }
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+
+        waitUntil { self.impl.isInitialized }
+        settle()
+        XCTAssertEqual(stub.requestCount, 2, "the timer and the call must not each send a request")
+    }
+
+    func test_initRecovery_repeatInitExactlyFifteenSecondsAfterTheFailure_runsTheWaitingRetryNow() {
+        var pending: [() -> Void] = []
+        impl.initRetryScheduler = { _, work in pending.append(work) }
+        stub.results = [.status(503), .success(data: Self.successBody)]
+        let failedAt = Date(timeIntervalSince1970: 1_000_000)
+        RoktSDKDateHandler.customDate = failedAt
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+        settle()
+
+        RoktSDKDateHandler.customDate = failedAt.addingTimeInterval(15)
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+
+        waitUntil { self.impl.isInitialized }
+        XCTAssertEqual(stub.requestCount, 2)
+    }
+
+    func test_initRecovery_aListenerThatCallsInitWhenTheFailureScheduledARetry_isJoined() {
+        var pending: [() -> Void] = []
+        impl.initRetryScheduler = { _, work in pending.append(work) }
+        stub.results = [.status(503), .success(data: Self.successBody)]
+        var calledAgain = false
+        impl.mapEvents(isGlobal: true, onEvent: { [unowned impl = impl!] event in
+            if let initComplete = event as? RoktEvent.InitComplete, !initComplete.success, !calledAgain {
+                calledAgain = true
+                impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+            }
+        })
+
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+        settle()
+
+        XCTAssertEqual(stub.requestCount, 1, "the retry is already scheduled, so the listener's call adds nothing")
+        pending.forEach { $0() }
+        waitUntil { self.impl.isInitialized }
+        XCTAssertEqual(stub.requestCount, 2)
+    }
+
+    func test_initRecovery_aStaleTimerAfterARunNowCannotRunTheNewWaitingRetry() {
+        var pending: [() -> Void] = []
+        impl.initRetryScheduler = { _, work in pending.append(work) }
+        stub.results = [.status(503), .status(503), .success(data: Self.successBody)]
+        let failedAt = Date(timeIntervalSince1970: 1_000_000)
+        RoktSDKDateHandler.customDate = failedAt
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+        settle()
+        XCTAssertEqual(pending.count, 1)
+
+        // A repeat call runs the waiting retry at once, and that attempt fails too, so a second retry is waiting.
+        RoktSDKDateHandler.customDate = failedAt.addingTimeInterval(16)
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+        settle()
+        XCTAssertEqual(stub.requestCount, 2)
+        XCTAssertEqual(pending.count, 2)
+
+        // The first timer is stale now: it must not run the retry that the second timer owns.
+        pending[0]()
+        settle()
+        XCTAssertEqual(stub.requestCount, 2)
+
+        pending[1]()
+        waitUntil { self.impl.isInitialized }
+        XCTAssertEqual(stub.requestCount, 3)
     }
 
     func test_initRecovery_reportsTheFirstFailureAndTheFinalOneOnly() {

@@ -112,7 +112,7 @@ final class TestOffersExecuteWiring: XCTestCase {
 
     /// Brings the SDK to `isInitialized` with a stubbed init response.
     private func initialize(cacheEnabled: Bool = false) {
-        impl.makeTxnInitServiceOverride = { tagId in
+        impl.makeTxnInitServiceOverride = { tagId, _ in
             let stub = StubHTTPClient(data: Data(
                 """
                 {

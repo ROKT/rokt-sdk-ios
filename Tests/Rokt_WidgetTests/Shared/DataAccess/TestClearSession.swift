@@ -204,7 +204,7 @@ final class TestClearSession: XCTestCase {
         let pendingStore = TxnPendingEventStore(fileURL: fileURL)
         let spy = replayCapturingImplementation(store: pendingStore)
         spy.txnSessionStore = InMemoryTxnStore()
-        spy.makeTxnInitServiceOverride = { tagId in
+        spy.makeTxnInitServiceOverride = { tagId, _ in
             TxnInitService(
                 environment: .Prod,
                 accountId: tagId,
