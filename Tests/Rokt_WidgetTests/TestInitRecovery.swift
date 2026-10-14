@@ -50,7 +50,7 @@ final class TestInitRecovery: XCTestCase {
         impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
 
         waitUntil { self.impl.isInitialized }
-        XCTAssertEqual(events, [false, true])
+        XCTAssertEqual(events, [true], "the failed first attempt is not reported while a retry is still to come")
         XCTAssertEqual(stub.requestCount, 2)
     }
 
@@ -364,25 +364,38 @@ final class TestInitRecovery: XCTestCase {
         XCTAssertEqual(stub.requestCount, 2)
     }
 
-    func test_initRecovery_aListenerThatCallsInitWhenTheFailureScheduledARetry_isJoined() {
+    func test_initRecovery_listenersHearNoFailureWhileARetryIsWaiting() {
         var pending: [() -> Void] = []
         impl.initRetryScheduler = { _, work in pending.append(work) }
         stub.results = [.status(503), .success(data: Self.successBody)]
-        var calledAgain = false
-        impl.mapEvents(isGlobal: true, onEvent: { [unowned impl = impl!] event in
-            if let initComplete = event as? RoktEvent.InitComplete, !initComplete.success, !calledAgain {
-                calledAgain = true
-                impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
-            }
+        var events: [Bool] = []
+        impl.mapEvents(isGlobal: true, onEvent: { event in
+            if let initComplete = event as? RoktEvent.InitComplete { events.append(initComplete.success) }
         })
 
         impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
         settle()
 
-        XCTAssertEqual(stub.requestCount, 1, "the retry is already scheduled, so the listener's call adds nothing")
+        XCTAssertEqual(stub.requestCount, 1)
+        XCTAssertEqual(pending.count, 1, "a retry is waiting")
+        XCTAssertTrue(events.isEmpty, "init has not failed yet, so listeners are not told it did")
         pending.forEach { $0() }
         waitUntil { self.impl.isInitialized }
-        XCTAssertEqual(stub.requestCount, 2)
+        XCTAssertEqual(events, [true])
+    }
+
+    func test_initRecovery_listenersHearOneFailureOnceTheRetriesAreUsedUp() {
+        stub.results = Array(repeating: .status(503), count: 6)
+        var events: [Bool] = []
+        impl.mapEvents(isGlobal: true, onEvent: { event in
+            if let initComplete = event as? RoktEvent.InitComplete { events.append(initComplete.success) }
+        })
+
+        impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
+
+        settle()
+        XCTAssertEqual(stub.requestCount, 5)
+        XCTAssertEqual(events, [false], "one failure, after the last attempt")
     }
 
     func test_initRecovery_aStaleTimerAfterARunNowCannotRunTheNewWaitingRetry() {

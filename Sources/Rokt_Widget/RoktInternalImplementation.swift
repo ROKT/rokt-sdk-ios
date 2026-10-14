@@ -1246,7 +1246,11 @@ class RoktInternalImplementation {
             initStartTime: initStartTime,
             generation: generation
         )
-        self.sendEventToGlobalListeners(RoktEvent.InitComplete(success: false))
+        // Partner listeners hear about a failure only once init has given up; while a retry is waiting, init has not
+        // failed yet, and a later success reports `true` on its own.
+        if !retryScheduled {
+            self.sendEventToGlobalListeners(RoktEvent.InitComplete(success: false))
+        }
         // One report when init first fails and one when it gives up, rather than one per try, so a long
         // outage stays two reports. A rate limit (429) is not a fault on this device and is not reported.
         if statusCode != Self.rateLimitedStatusCode, failedAttempt == 1 || !retryScheduled {
