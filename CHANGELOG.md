@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [5.5.5] - 2026-10-14
+
+### Core
+
+#### Fixed
+
+- Retry a failed init over several minutes with growing waits ([#349](https://github.com/ROKT/rokt-sdk-ios/pull/349))
+- Send the App Tracking Transparency status on offers requests ([#347](https://github.com/ROKT/rokt-sdk-ios/pull/347))
+- Request placements once in the table-based order complete screen ([#348](https://github.com/ROKT/rokt-sdk-ios/pull/348))
+
 ## [5.5.4] - 2026-10-12
 
 ### Core
@@ -682,7 +692,8 @@ For a complete migration walkthrough with before/after code examples, see the [v
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.5.4...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.5.5...HEAD
+[5.5.5]: https://github.com/ROKT/rokt-sdk-ios/compare/5.5.4...5.5.5
 [5.5.4]: https://github.com/ROKT/rokt-sdk-ios/compare/5.5.3...5.5.4
 [5.5.3]: https://github.com/ROKT/rokt-sdk-ios/compare/5.5.2...5.5.3
 [5.5.2]: https://github.com/ROKT/rokt-sdk-ios/compare/5.5.1...5.5.2
