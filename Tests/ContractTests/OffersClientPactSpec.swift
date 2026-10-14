@@ -88,7 +88,8 @@ class OffersClientPactSpec: XCTestCase {
                     ],
                     "attributes": [
                         "standalone": Matcher.SomethingLike("notdefined"),
-                        "customer.locale": Matcher.SomethingLike("en-US")
+                        "customer.locale": Matcher.SomethingLike("en-US"),
+                        "rokt.nativemobile.apple_tracking_consent": Matcher.RegexLike("3", term: #"^[0-3]$"#)
                     ]
                 ]
             )
@@ -145,7 +146,8 @@ class OffersClientPactSpec: XCTestCase {
                         pageIdentifier: "checkout-page",
                         attributes: [
                             "standalone": "notdefined",
-                            "customer.locale": "en-US"
+                            "customer.locale": "en-US",
+                            "rokt.nativemobile.apple_tracking_consent": "3"
                         ],
                         privacyControl: SelectPrivacyControl(
                             noFunctional: false,
@@ -200,7 +202,8 @@ class OffersClientPactSpec: XCTestCase {
                     ],
                     "attributes": [
                         "standalone": Matcher.SomethingLike("notdefined"),
-                        "customer.locale": Matcher.SomethingLike("en-US")
+                        "customer.locale": Matcher.SomethingLike("en-US"),
+                        "rokt.nativemobile.apple_tracking_consent": Matcher.RegexLike("3", term: #"^[0-3]$"#)
                     ]
                 ]
             )
@@ -247,7 +250,8 @@ class OffersClientPactSpec: XCTestCase {
                         pageIdentifier: "checkout-page",
                         attributes: [
                             "standalone": "notdefined",
-                            "customer.locale": "en-US"
+                            "customer.locale": "en-US",
+                            "rokt.nativemobile.apple_tracking_consent": "3"
                         ],
                         privacyControl: SelectPrivacyControl(
                             noFunctional: false,
