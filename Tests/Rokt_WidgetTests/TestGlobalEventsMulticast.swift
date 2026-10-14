@@ -10,15 +10,13 @@ final class TestGlobalEventsMulticast: XCTestCase {
         super.setUp()
         impl = RoktInternalImplementation()
         stub = StubGlobalEventsInitHTTPClient()
-        impl.makeTxnInitServiceOverride = { [stub] tagId in
+        impl.makeTxnInitServiceOverride = { [stub] tagId, _ in
             TxnInitService(
                 environment: .Prod,
                 accountId: tagId,
                 sdkVersion: "5.3.2",
                 layoutSchemaVersion: "1.0",
-                httpClient: stub!,
-                baseBackoff: 0,
-                sleep: { _ in }
+                httpClient: stub!
             )
         }
     }

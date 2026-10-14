@@ -112,7 +112,7 @@ final class TestOffersExecuteWiring: XCTestCase {
 
     /// Brings the SDK to `isInitialized` with a stubbed init response.
     private func initialize(cacheEnabled: Bool = false) {
-        impl.makeTxnInitServiceOverride = { tagId in
+        impl.makeTxnInitServiceOverride = { tagId, _ in
             let stub = StubHTTPClient(data: Data(
                 """
                 {
@@ -128,9 +128,7 @@ final class TestOffersExecuteWiring: XCTestCase {
                 accountId: tagId,
                 sdkVersion: "5.2.2",
                 layoutSchemaVersion: "1.0",
-                httpClient: stub,
-                baseBackoff: 0,
-                sleep: { _ in }
+                httpClient: stub
             )
         }
         impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)

@@ -17,7 +17,6 @@ final class TestTxnInitService: XCTestCase {
 
     private func makeService(
         environment: Environment = .Prod,
-        maxRetries: Int = 3,
         deviceHeaders: [String: String] = [:]
     ) -> TxnInitService {
         TxnInitService(
@@ -26,10 +25,7 @@ final class TestTxnInitService: XCTestCase {
             sdkVersion: "5.2.2",
             layoutSchemaVersion: "2.3",
             httpClient: httpClient,
-            deviceHeaders: deviceHeaders,
-            maxRetries: maxRetries,
-            baseBackoff: 0,
-            sleep: { _ in }
+            deviceHeaders: deviceHeaders
         )
     }
 
@@ -89,35 +85,39 @@ final class TestTxnInitService: XCTestCase {
         XCTAssertEqual(headers?["rokt-os-type"], "ios")
     }
 
-    func test_initSession_retriesOnTransient5xx_thenSucceeds() async throws {
-        httpClient.results = [.status(500), .status(503), .status(504), .success(data: successJSON())]
-
-        _ = try await makeService().initSession()
-
-        XCTAssertEqual(httpClient.callCount, 4)
-    }
-
-    func test_initSession_retriesOnTimeout_thenSucceeds() async throws {
-        httpClient.results = [.transport(NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut)),
-                              .success(data: successJSON())]
-
-        _ = try await makeService().initSession()
-
-        XCTAssertEqual(httpClient.callCount, 2)
-    }
-
-    func test_initSession_exhaustsRetries_throwsUnexpectedStatus() async {
-        httpClient.results = [.status(503)]
+    func test_initSession_serverError_isOneRequestAndSurfaces() async {
+        httpClient.results = [.status(503), .success(data: successJSON())]
 
         do {
-            _ = try await makeService(maxRetries: 3).initSession()
-            XCTFail("Expected init to fail after exhausting retries")
+            _ = try await makeService().initSession()
+            XCTFail("Expected the server error to surface so the init scheduler can try again later")
         } catch let error as TxnInitService.TxnInitError {
             XCTAssertEqual(error, .unexpectedStatusCode(503))
-            XCTAssertEqual(httpClient.callCount, 4)
+            XCTAssertEqual(httpClient.callCount, 1, "no rapid retry")
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
+    }
+
+    func test_initSession_timeout_isOneRequestAndSurfaces() async {
+        httpClient.results = [.transport(NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut)),
+                              .success(data: successJSON())]
+
+        do {
+            _ = try await makeService().initSession()
+            XCTFail("Expected the timeout to surface so the init scheduler can try again later")
+        } catch {
+            XCTAssertEqual((error as NSError).code, NSURLErrorTimedOut)
+            XCTAssertEqual(httpClient.callCount, 1, "no rapid retry")
+        }
+    }
+
+    func test_initSession_defaultRequestTimeout_isTenSeconds() async throws {
+        httpClient.results = [.success(data: successJSON())]
+
+        _ = try await makeService().initSession()
+
+        XCTAssertEqual(httpClient.timeout, 10)
     }
 
     func test_initSession_nonRetryableStatus_doesNotRetry() async {

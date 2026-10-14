@@ -18,10 +18,7 @@ internal struct TxnInitService {
     let layoutSchemaVersion: String
     let httpClient: HTTPClientAdapter
     let deviceHeaders: [String: String]
-    let maxRetries: Int
     let requestTimeout: TimeInterval
-    let baseBackoff: TimeInterval
-    let sleep: (TimeInterval) async throws -> Void
 
     init(
         environment: Environment,
@@ -30,12 +27,7 @@ internal struct TxnInitService {
         layoutSchemaVersion: String,
         httpClient: HTTPClientAdapter = RoktHTTPClient(),
         deviceHeaders: [String: String] = [:],
-        maxRetries: Int = 3,
-        requestTimeout: TimeInterval = 7,
-        baseBackoff: TimeInterval = 0.2,
-        sleep: @escaping (TimeInterval) async throws -> Void = { seconds in
-            try await Task.sleep(nanoseconds: NetworkRetryRules.sleepNanoseconds(clamping: seconds))
-        }
+        requestTimeout: TimeInterval = 10
     ) {
         self.environment = environment
         self.accountId = accountId
@@ -43,10 +35,7 @@ internal struct TxnInitService {
         self.layoutSchemaVersion = layoutSchemaVersion
         self.httpClient = httpClient
         self.deviceHeaders = deviceHeaders
-        self.maxRetries = maxRetries
         self.requestTimeout = requestTimeout
-        self.baseBackoff = baseBackoff
-        self.sleep = sleep
     }
 
     func initSession() async throws -> InitResult {
@@ -64,50 +53,21 @@ internal struct TxnInitService {
             deviceHeaders: deviceHeaders
         )
 
-        var attempt = 0
-        while true {
-            do {
-                let (data, response) = try await client.initSession(
-                    operating_system: "ios",
-                    layout_schema_version: layoutSchemaVersion
-                )
-                let statusCode = response?.statusCode ?? 0
+        // One request. Trying again, with growing waits, is the init scheduler's job.
+        let (data, response) = try await client.initSession(
+            operating_system: "ios",
+            layout_schema_version: layoutSchemaVersion
+        )
+        let statusCode = response?.statusCode ?? 0
 
-                if isRetryable(statusCode: statusCode), attempt < maxRetries {
-                    try await sleep(backoffDelay(attempt: attempt))
-                    attempt += 1
-                    continue
-                }
-
-                guard (200..<300).contains(statusCode) else {
-                    throw TxnInitError.unexpectedStatusCode(statusCode)
-                }
-                guard let data else {
-                    throw TxnInitError.missingResponseData
-                }
-
-                let decoded = try JSONDecoder().decode(TxnInitResponse.self, from: data)
-                return InitResult(response: decoded, featureFlags: decoded.featureFlags.toInitFeatureFlags())
-            } catch let error where isRetryable(error: error) && attempt < maxRetries {
-                try await sleep(backoffDelay(attempt: attempt))
-                attempt += 1
-                continue
-            }
+        guard (200..<300).contains(statusCode) else {
+            throw TxnInitError.unexpectedStatusCode(statusCode)
         }
-    }
+        guard let data else {
+            throw TxnInitError.missingResponseData
+        }
 
-    private func isRetryable(statusCode: Int) -> Bool {
-        [500, 502, 503, 504].contains(statusCode)
-    }
-
-    // Transient transport failures only; a hard-offline device fails fast.
-    private func isRetryable(error: Error) -> Bool {
-        NetworkRetryRules.isTransientTransportFailure(error, policy: .transient)
-    }
-
-    // Exponential backoff with jitter to avoid hammering a struggling gateway.
-    private func backoffDelay(attempt: Int) -> TimeInterval {
-        let base = baseBackoff * pow(2, Double(attempt))
-        return base + Double.random(in: 0...(base/2))
+        let decoded = try JSONDecoder().decode(TxnInitResponse.self, from: data)
+        return InitResult(response: decoded, featureFlags: decoded.featureFlags.toInitFeatureFlags())
     }
 }

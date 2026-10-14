@@ -117,7 +117,7 @@ final class TestEmbeddedSizeChangedOnClose: XCTestCase {
     /// that placement's events.
     func test_reinitialising_releasesRetainedHandlersAndPendingHeights() {
         let impl = makeImplementation()
-        impl.makeTxnInitServiceOverride = Self.offlineInitService
+        impl.makeTxnInitServiceOverride = { tagId, _ in Self.offlineInitService(tagId) }
         var received: [RoktEvent] = []
         impl.setEventHandler({ received.append($0) }, for: executeId)
         impl.callOnEmbeddedSizeChange(executeId, selectedPlacementName: location, widgetHeight: 240)
@@ -168,10 +168,7 @@ final class TestEmbeddedSizeChangedOnClose: XCTestCase {
             accountId: tagId,
             sdkVersion: "5.3.2",
             layoutSchemaVersion: "1.0",
-            httpClient: FailingInitHTTPClient(),
-            maxRetries: 0,
-            baseBackoff: 0,
-            sleep: { _ in }
+            httpClient: FailingInitHTTPClient()
         )
     }
 

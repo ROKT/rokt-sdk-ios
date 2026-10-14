@@ -19,15 +19,13 @@ final class TestTxnInitWiring: XCTestCase {
     }
 
     private func injectService() {
-        impl.makeTxnInitServiceOverride = { [stub] tagId in
+        impl.makeTxnInitServiceOverride = { [stub] tagId, _ in
             TxnInitService(
                 environment: .Prod,
                 accountId: tagId,
                 sdkVersion: "5.2.2",
                 layoutSchemaVersion: "1.0",
-                httpClient: stub!,
-                baseBackoff: 0,
-                sleep: { _ in }
+                httpClient: stub!
             )
         }
     }

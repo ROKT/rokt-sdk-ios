@@ -37,10 +37,19 @@ class RoktInternalImplementation {
     private static let initFailedError = "INIT_FAILED"
     private static let fontFailedError = "FONT_FAILED"
     private static let trackingConsentError = "tracking consent not authorised"
-    // TxnInitService already retries 5xx and transport blips inside a single request. These
-    // recover from a whole failed init - a cold start with no network, or a 429 burst - which
-    // otherwise leaves the SDK uninitialised until the process restarts.
-    private static let initRecoveryDelaysSeconds: [TimeInterval] = [2, 8, 30]
+    // A failed init is tried again after these waits: a quick one to ride out a blip, then longer ones, so an app
+    // that starts without a usable network (a tunnel, a lift, a weak signal) recovers by itself instead of staying
+    // uninitialised until the process restarts. Each wait is stretched by up to `initRetryJitterFraction` so devices
+    // that failed together do not all come back together.
+    private static let initRetryDelaysSeconds: [TimeInterval] = [10, 30, 60, 150]
+    private static let initRetryJitterFraction = 0.25
+    // The first try fails fast so a dead network is noticed quickly; a retry gets longer so a slow link can get through.
+    private static let initFirstAttemptTimeout: TimeInterval = 10
+    private static let initRetryAttemptTimeout: TimeInterval = 30
+    // A repeat `initWith` that finds a retry waiting runs it at once, but never sooner than this after the last failure,
+    // so a host that calls it in a loop cannot cause a burst of requests.
+    private static let minimumInitRetryGap: TimeInterval = 15
+    private static let requestTimeoutStatusCode = 408
     private static let rateLimitedStatusCode = 429
     private static let cacheDurationKey = "cacheDuration"
     private static let cacheAttributesKey = "cacheAttributeKeys"
@@ -54,9 +63,37 @@ class RoktInternalImplementation {
             + "with a bare URL scheme registered in Info.plist (CFBundleURLTypes / CFBundleURLSchemes)."
 
     var roktTagId: String?
-    // Identifies the latest init request so a superseded init's async completion is ignored.
-    private var initGeneration = 0
-    private var initRecoveryAttempt = 0
+    // The init that is running or waiting to be retried. A repeat `initWith` for the same tag id joins it, or runs the
+    // waiting retry now. `initWith` can be called from any thread, so everything about an init attempt is read and
+    // written under the lock: which attempt owns the episode (so a superseded attempt's completion is ignored), how many
+    // retries have been scheduled, and which retry is waiting.
+    private struct InitEpisode {
+        let tagId: String
+        let startTime: Date
+        // The attempt that owns the episode now. Each attempt is given its own, so a completion from any earlier one is
+        // recognised as stale.
+        var generation: Int
+        var retriesScheduled: Int
+        var requestInFlight: Bool
+        var lastFailureAt: Date?
+        // Identifies the retry that is waiting. Whichever of the timer and a repeat `initWith` takes it first runs
+        // that retry, and the other finds it gone.
+        var waitingRetryToken: Int?
+    }
+    private struct InitAttempt {
+        let generation: Int
+        // 0 for the first try, then the number of the retry.
+        let number: Int
+    }
+    private enum InitClaim {
+        case start(InitAttempt)
+        case join
+        case runWaitingRetry(InitAttempt, startTime: Date)
+    }
+    private let initEpisodeLock = NSLock()
+    private var activeInitEpisode: InitEpisode?
+    private var lastInitGeneration = 0
+    private var lastWaitingRetryToken = 0
     let sessionManager: SessionManager
     var attributes = [String: String]()
     var isInitialized = false
@@ -83,9 +120,13 @@ class RoktInternalImplementation {
             .split(separator: ".").prefix(2).joined(separator: ".")
     }
     // Test-only override for the init service factory; nil uses the real builder.
-    var makeTxnInitServiceOverride: ((String) -> TxnInitService)?
-    var initRecoveryScheduler: (TimeInterval, @escaping () -> Void) -> Void = { delay, work in
+    var makeTxnInitServiceOverride: ((String, TimeInterval) -> TxnInitService)?
+    var initRetryScheduler: (TimeInterval, @escaping () -> Void) -> Void = { delay, work in
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+    // Test-only override for how the init diagnostics leave the SDK; the default posts them.
+    var diagnosticsSender: (String, String, [String: Any]) -> Void = { message, callStack, additionalInfo in
+        RoktAPIHelper.sendDiagnostics(message: message, callStack: callStack, additionalInfo: additionalInfo)
     }
     // Test-only override for the offers service factory; nil uses the real builder.
     var makeOffersServiceOverride: ((String) -> OffersService)?
@@ -477,10 +518,16 @@ class RoktInternalImplementation {
         return status == .denied || status == .restricted
     }
 
-    private func sendDiagnostics(_ message: String, error: Error, statusCode: Int?, response: String) {
+    private func sendDiagnostics(
+        _ message: String,
+        error: Error,
+        statusCode: Int?,
+        response: String,
+        additionalInfo: [String: Any] = [:]
+    ) {
         let callStack = "response: \(response) ,statusCode: \(String(describing: statusCode))" +
             " ,error: \(error.localizedDescription)"
-        RoktAPIHelper.sendDiagnostics(message: message, callStack: callStack)
+        diagnosticsSender(message, callStack, additionalInfo)
         RoktLogger.shared.verbose(callStack)
     }
 
@@ -1069,12 +1116,26 @@ class RoktInternalImplementation {
             NetworkingHelper.updateMParticleKitDetails(mParticleKitDetails: mParticleKitDetails)
         }
 
+        // Nothing to restart: the in-flight init, or its scheduled retry, reports through the same global events.
+        // Starting another would only add requests to a connection that is struggling.
+        let startedAttempt: InitAttempt
+        switch claimInit(tagId: roktTagId, startTime: initStartTime) {
+        case .join:
+            RoktLogger.shared.debug("Init already in progress for this tag id; joining it")
+            return
+        case .runWaitingRetry(let attempt, let startTime):
+            RoktLogger.shared.debug("Init retry was waiting; running it now")
+            performInit(roktTagId: roktTagId, initStartTime: startTime, attempt: attempt)
+            return
+        case .start(let attempt):
+            startedAttempt = attempt
+        }
+
         // Switching accounts. Runs before the new tag id is set, so buffered events are flushed
         // under the account that produced them; its undelivered batches are dropped rather than
         // replayed under the new one, and placements wait for the new account's init.
         if let previousTagId = sessionManager.storedTagId, previousTagId != roktTagId {
-            // Discards the previous account's init if it completes during the teardown below.
-            initGeneration += 1
+            // The previous account's init is already stale: claiming this one gave it a newer generation.
             isInitialized = false
             endSession()
             _ = txnPendingEventStore.drainValid()
@@ -1095,31 +1156,34 @@ class RoktInternalImplementation {
         AttributeEnrichment.shared.warmUp()
 
         RoktLogger.shared.debug("Starting API initialization request")
-        initRecoveryAttempt = 0
-        performInit(roktTagId: roktTagId, initStartTime: initStartTime)
+        performInit(roktTagId: roktTagId, initStartTime: initStartTime, attempt: startedAttempt)
     }
 
-    private func performInit(roktTagId: String, initStartTime: Date) {
-        let service = makeTxnInitServiceOverride?(roktTagId) ?? defaultTxnInitService(roktTagId: roktTagId)
-        initGeneration += 1
-        let generation = initGeneration
+    private func performInit(roktTagId: String, initStartTime: Date, attempt: InitAttempt) {
+        // A newer init may have claimed the episode since this attempt was given its generation.
+        guard isCurrentInitGeneration(attempt.generation) else { return }
+        let generation = attempt.generation
+        let timeout = Self.initRequestTimeout(forAttempt: attempt.number)
+        let service = makeTxnInitServiceOverride?(roktTagId, timeout)
+            ?? defaultTxnInitService(roktTagId: roktTagId, requestTimeout: timeout)
         Task {
             do {
                 let result = try await service.initSession()
                 let initResponse = result.response.toInitRespose(featureFlags: result.featureFlags)
                 DispatchQueue.main.async {
-                    guard self.initGeneration == generation else { return }
-                    self.handleInitSuccess(initResponse, initStartTime: initStartTime)
+                    guard self.isCurrentInitGeneration(generation) else { return }
+                    self.handleInitSuccess(initResponse, initStartTime: initStartTime, generation: generation)
                 }
             } catch {
                 let statusCode = Self.statusCode(from: error)
                 DispatchQueue.main.async {
-                    guard self.initGeneration == generation else { return }
+                    guard self.isCurrentInitGeneration(generation) else { return }
                     self.handleInitFailure(
                         error: error,
                         statusCode: statusCode,
                         response: "",
-                        initStartTime: initStartTime
+                        initStartTime: initStartTime,
+                        generation: generation
                     )
                 }
             }
@@ -1127,10 +1191,10 @@ class RoktInternalImplementation {
     }
 
     // Init completes on config; fonts load off the critical path (never block/fail init).
-    private func handleInitSuccess(_ initResponse: InitRespose, initStartTime: Date) {
+    private func handleInitSuccess(_ initResponse: InitRespose, initStartTime: Date, generation: Int) {
         RoktLogger.shared.info("API initialization succeeded")
         self.isInitialized = true
-        self.initRecoveryAttempt = 0
+        endInitEpisode(generation: generation)
         self.initFeatureFlags = initResponse.featureFlags
 
         self.processedTimingsRequests = TimingsRequestProcessor()
@@ -1161,49 +1225,179 @@ class RoktInternalImplementation {
         }
     }
 
-    private func handleInitFailure(error: Error, statusCode: Int?, response: String, initStartTime: Date) {
+    private func handleInitFailure(
+        error: Error,
+        statusCode: Int?,
+        response: String,
+        initStartTime: Date,
+        generation: Int
+    ) {
+        guard let failedAttempt = failedAttemptNumber(generation: generation) else { return }
         RoktLogger.shared.error("Initialization failed - statusCode: \(statusCode ?? -1), " +
                                 "error: \(error.localizedDescription)")
         self.isInitialized = false
         self.processedTimingsRequests?.setInitEndTime()
         NetworkingHelper.updateTimeout(timeout: self.clientTimeoutMilliseconds/1000)
-        // Don't report diagnostics for 429 (Too Many Requests) status code
-        if let code = statusCode, code != Self.rateLimitedStatusCode {
-            self.sendDiagnostics(Self.initDiagnosticCode, error: error, statusCode: statusCode, response: response)
+        // Decided before the event goes out, so a listener that calls `initWith` in response finds the init over (or
+        // waiting to retry) rather than still running.
+        let retryScheduled = scheduleInitRetry(
+            error: error,
+            statusCode: statusCode,
+            initStartTime: initStartTime,
+            generation: generation
+        )
+        // Partner listeners hear about a failure only once init has given up; while a retry is waiting, init has not
+        // failed yet, and a later success reports `true` on its own.
+        if !retryScheduled {
+            self.sendEventToGlobalListeners(RoktEvent.InitComplete(success: false))
         }
-        self.sendEventToGlobalListeners(RoktEvent.InitComplete(success: false))
-        self.scheduleInitRecovery(error: error, statusCode: statusCode, initStartTime: initStartTime)
+        // One report when init first fails and one when it gives up, rather than one per try, so a long
+        // outage stays two reports. A rate limit (429) is not a fault on this device and is not reported.
+        if statusCode != Self.rateLimitedStatusCode, failedAttempt == 1 || !retryScheduled {
+            self.sendDiagnostics(
+                Self.initDiagnosticCode,
+                error: error,
+                statusCode: statusCode,
+                response: response,
+                additionalInfo: ["attempt": String(failedAttempt), "final": String(!retryScheduled)]
+            )
+        }
     }
 
-    private func scheduleInitRecovery(error: Error, statusCode: Int?, initStartTime: Date) {
-        guard let roktTagId,
-              Self.isRecoverable(error: error, statusCode: statusCode),
-              initRecoveryAttempt < Self.initRecoveryDelaysSeconds.count else { return }
-
-        let delay = Self.initRecoveryDelaysSeconds[initRecoveryAttempt]
-        let attempt = initRecoveryAttempt + 1
-        initRecoveryAttempt = attempt
-        let generation = initGeneration
-
-        RoktLogger.shared.info("Scheduling init recovery attempt \(attempt) in \(delay)s")
-        initRecoveryScheduler(delay) { [weak self] in
-            guard let self, self.initGeneration == generation, !self.isInitialized else { return }
-            self.performInit(roktTagId: roktTagId, initStartTime: initStartTime)
+    // Returns whether another attempt was scheduled.
+    private func scheduleInitRetry(error: Error, statusCode: Int?, initStartTime: Date, generation: Int) -> Bool {
+        guard let roktTagId, Self.isRetryable(error: error, statusCode: statusCode) else {
+            // Nothing to retry, so a later `initWith` starts a fresh init.
+            endInitEpisode(generation: generation)
+            return false
         }
+        // Nil when the retries are used up (which ends the episode) or a newer init has taken over.
+        guard let waiting = recordWaitingRetry(generation: generation) else { return false }
+
+        let delay = Self.initRetryDelay(forAttempt: waiting.retryIndex)
+        RoktLogger.shared.info("Scheduling init retry \(waiting.retryIndex + 1) in \(delay)s")
+        initRetryScheduler(delay) { [weak self] in
+            guard let self, !self.isInitialized,
+                  let attempt = self.claimWaitingRetryForTimer(token: waiting.token) else { return }
+            self.performInit(roktTagId: roktTagId, initStartTime: initStartTime, attempt: attempt)
+        }
+        return true
+    }
+
+    // MARK: Init episode
+
+    // Decides what a call to `initWith` does: start an init, join the one running, or run the retry that is waiting.
+    // Starting an attempt gives it a new generation in the same step, so no other call can slip in between.
+    private func claimInit(tagId: String, startTime: Date) -> InitClaim {
+        initEpisodeLock.lock()
+        defer { initEpisodeLock.unlock() }
+        if let episode = activeInitEpisode, episode.tagId == tagId {
+            guard !episode.requestInFlight,
+                  episode.waitingRetryToken != nil,
+                  let failedAt = episode.lastFailureAt,
+                  RoktSDKDateHandler.currentDate().timeIntervalSince(failedAt) >= Self.minimumInitRetryGap else {
+                return .join
+            }
+            lastInitGeneration += 1
+            activeInitEpisode?.generation = lastInitGeneration
+            activeInitEpisode?.requestInFlight = true
+            activeInitEpisode?.waitingRetryToken = nil
+            return .runWaitingRetry(
+                InitAttempt(generation: lastInitGeneration, number: episode.retriesScheduled),
+                startTime: episode.startTime
+            )
+        }
+        lastInitGeneration += 1
+        activeInitEpisode = InitEpisode(
+            tagId: tagId,
+            startTime: startTime,
+            generation: lastInitGeneration,
+            retriesScheduled: 0,
+            requestInFlight: true,
+            lastFailureAt: nil,
+            waitingRetryToken: nil
+        )
+        return .start(InitAttempt(generation: lastInitGeneration, number: 0))
+    }
+
+    private func isCurrentInitGeneration(_ generation: Int) -> Bool {
+        initEpisodeLock.lock()
+        defer { initEpisodeLock.unlock() }
+        return activeInitEpisode?.generation == generation
+    }
+
+    // The number of the attempt that just failed (1 for the first try), or nil when it is no longer the current one.
+    private func failedAttemptNumber(generation: Int) -> Int? {
+        initEpisodeLock.lock()
+        defer { initEpisodeLock.unlock() }
+        guard let episode = activeInitEpisode, episode.generation == generation else { return nil }
+        return episode.retriesScheduled + 1
+    }
+
+    // Records that an attempt failed and a retry is now waiting. Returns the token that identifies that retry and its
+    // place in the schedule, or nil when the retries are used up (the episode ends) or the attempt is no longer current.
+    private func recordWaitingRetry(generation: Int) -> (token: Int, retryIndex: Int)? {
+        initEpisodeLock.lock()
+        defer { initEpisodeLock.unlock() }
+        guard let episode = activeInitEpisode, episode.generation == generation else { return nil }
+        guard episode.retriesScheduled < Self.initRetryDelaysSeconds.count else {
+            activeInitEpisode = nil
+            return nil
+        }
+        lastWaitingRetryToken += 1
+        let retryIndex = episode.retriesScheduled
+        activeInitEpisode?.retriesScheduled = retryIndex + 1
+        activeInitEpisode?.requestInFlight = false
+        activeInitEpisode?.lastFailureAt = RoktSDKDateHandler.currentDate()
+        activeInitEpisode?.waitingRetryToken = lastWaitingRetryToken
+        return (lastWaitingRetryToken, retryIndex)
+    }
+
+    // The retry timer takes the waiting retry, unless a repeat `initWith` already ran it or the init has moved on.
+    private func claimWaitingRetryForTimer(token: Int) -> InitAttempt? {
+        initEpisodeLock.lock()
+        defer { initEpisodeLock.unlock() }
+        guard let episode = activeInitEpisode, episode.waitingRetryToken == token else { return nil }
+        lastInitGeneration += 1
+        activeInitEpisode?.generation = lastInitGeneration
+        activeInitEpisode?.requestInFlight = true
+        activeInitEpisode?.waitingRetryToken = nil
+        return InitAttempt(generation: lastInitGeneration, number: episode.retriesScheduled)
+    }
+
+    // Ends the episode, but only for the attempt that owns it.
+    private func endInitEpisode(generation: Int) {
+        initEpisodeLock.lock()
+        if activeInitEpisode?.generation == generation {
+            activeInitEpisode = nil
+        }
+        initEpisodeLock.unlock()
+    }
+
+    static func initRequestTimeout(forAttempt attempt: Int) -> TimeInterval {
+        attempt == 0 ? initFirstAttemptTimeout : initRetryAttemptTimeout
+    }
+
+    static func initRetryDelay(
+        forAttempt attempt: Int,
+        jitterUnit: Double = Double.random(in: 0...1)
+    ) -> TimeInterval {
+        let base = initRetryDelaysSeconds[attempt]
+        return base + base * initRetryJitterFraction * jitterUnit
     }
 
     // A wrong tag id or a rejected request will fail the same way every time, so only
     // rate limiting, server faults and transient transport failures are worth coming back for.
-    // Recovery is scheduled seconds later rather than sent inline, so an offline device is
-    // worth retrying here even though the in-request loops fail fast on it.
-    private static func isRecoverable(error: Error, statusCode: Int?) -> Bool {
+    // The retry comes later rather than at once, so an offline device is worth retrying too.
+    private static func isRetryable(error: Error, statusCode: Int?) -> Bool {
         if let statusCode {
-            return statusCode == rateLimitedStatusCode || (500..<600).contains(statusCode)
+            return statusCode == rateLimitedStatusCode || statusCode == requestTimeoutStatusCode
+                || (500..<600).contains(statusCode)
         }
         return NetworkRetryRules.isTransientTransportFailure(error, policy: .transientIncludingOffline)
     }
 
-    private func defaultTxnInitService(roktTagId: String) -> TxnInitService {
+    private func defaultTxnInitService(roktTagId: String, requestTimeout: TimeInterval) -> TxnInitService {
         // Mock transports are a development-only convenience (Environment.Mock) and
         // are compiled out of release builds to keep them off the shipped SDK.
         var httpClient: HTTPClientAdapter = NetworkingHelper.shared.httpClient
@@ -1216,7 +1410,8 @@ class RoktInternalImplementation {
             sdkVersion: libraryVersion,
             layoutSchemaVersion: Self.txnLayoutSchemaVersion,
             httpClient: httpClient,
-            deviceHeaders: NetworkingHelper.txnDeviceHeaders()
+            deviceHeaders: NetworkingHelper.txnDeviceHeaders(),
+            requestTimeout: requestTimeout
         )
     }
 
