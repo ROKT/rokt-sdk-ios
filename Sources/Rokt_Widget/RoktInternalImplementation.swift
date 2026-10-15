@@ -1246,20 +1246,19 @@ class RoktInternalImplementation {
             initStartTime: initStartTime,
             generation: generation
         )
-        // Partner listeners hear about a failure only once init has given up; while a retry is waiting, init has not
-        // failed yet, and a later success reports `true` on its own.
-        if !retryScheduled {
-            self.sendEventToGlobalListeners(RoktEvent.InitComplete(success: false))
-        }
-        // One report when init first fails and one when it gives up, rather than one per try, so a long
-        // outage stays two reports. A rate limit (429) is not a fault on this device and is not reported.
-        if statusCode != Self.rateLimitedStatusCode, failedAttempt == 1 || !retryScheduled {
+        // While a retry is waiting, init has not failed yet: listeners hear nothing and nothing is reported, and a
+        // later success reports `true` on its own. Only when init has given up is the failure announced and reported.
+        guard !retryScheduled else { return }
+        self.sendEventToGlobalListeners(RoktEvent.InitComplete(success: false))
+        // A rate limit (429) is not a fault on this device and is not reported. `final` is kept so the report has the
+        // same shape as the Android SDK's.
+        if statusCode != Self.rateLimitedStatusCode {
             self.sendDiagnostics(
                 Self.initDiagnosticCode,
                 error: error,
                 statusCode: statusCode,
                 response: response,
-                additionalInfo: ["attempt": String(failedAttempt), "final": String(!retryScheduled)]
+                additionalInfo: ["attempt": String(failedAttempt), "final": "true"]
             )
         }
     }
