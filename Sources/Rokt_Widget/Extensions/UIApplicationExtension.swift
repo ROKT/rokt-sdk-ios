@@ -1,7 +1,7 @@
 import UIKit
 
 internal extension UIApplication {
-    class func topViewController(controller: UIViewController? = getKeyWindow()?.rootViewController)
+    class func topViewController(controller: UIViewController? = sceneKeyWindow()?.rootViewController)
     -> UIViewController? {
 
         if let navigationController = controller as? UINavigationController {
@@ -18,11 +18,11 @@ internal extension UIApplication {
         return controller
     }
 
-    private class func getKeyWindow() -> UIWindow? {
-        if #available(iOS 13.0, *) {
-            return UIApplication.shared.windows.filter {$0.isKeyWindow}.first
-        } else {
-            return UIApplication.shared.keyWindow
-        }
+    /// The key window of a foreground-active window scene, or of any connected window scene when
+    /// none is foreground-active. Nil when no connected window scene has a key window.
+    class func sceneKeyWindow() -> UIWindow? {
+        let windowScenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let foregroundActive = windowScenes.filter { $0.activationState == .foregroundActive }
+        return (foregroundActive + windowScenes).flatMap(\.windows).first(where: \.isKeyWindow)
     }
 }

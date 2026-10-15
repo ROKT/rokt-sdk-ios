@@ -224,17 +224,12 @@ class RoktInternalImplementation {
 
     func close() {
         RoktAPIHelper.logApiCalled(Self.apiCloseCode)
-        guard let window = UIApplication.shared.windows.filter({$0.isKeyWindow}).first,
-              let rootViewController = window.rootViewController
+        guard let rootViewController = UIApplication.sceneKeyWindow()?.rootViewController,
+              let roktVC = rootViewController.presentedViewController as? RoktUXSwiftUIViewController
         else {
             return
         }
-
-        if #available(iOS 15.0, *),
-           let roktVC = rootViewController.presentedViewController as? RoktUXSwiftUIViewController {
-            roktVC.closeModal()
-            // close modal
-        }
+        roktVC.closeModal()
     }
 
     /// Rokt private initializer. Only available for the singleton object `shared`.

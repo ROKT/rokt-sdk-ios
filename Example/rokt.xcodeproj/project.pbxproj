@@ -92,6 +92,7 @@
 		C1C0D10000000000000019E1 /* Environment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 258EDB1824062D59003202F5 /* Environment.swift */; };
 		C1C0D10000000000000020E1 /* Toast.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25226FF52A415C85006AFCF7 /* Toast.swift */; };
 		C1C0D10000000000000021E1 /* RoktCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 250B2B06236AF2430020A450 /* RoktCell.swift */; };
+		C1C0D10000000000000023E1 /* UIApplicationExtensionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1C0D10000000000000022E1 /* UIApplicationExtensionTests.swift */; };
 		607FACD81AFB9204008FA782 /* CartViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 607FACD71AFB9204008FA782 /* CartViewController.swift */; };
 		607FACDB1AFB9204008FA782 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 607FACD91AFB9204008FA782 /* Main.storyboard */; };
 		607FACDD1AFB9204008FA782 /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 607FACDC1AFB9204008FA782 /* Images.xcassets */; };
@@ -193,6 +194,7 @@
 		4F7DEE3B213601C8007DABC4 /* InvalidWidgetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvalidWidgetTests.swift; sourceTree = "<group>"; };
 		4F7DEE3D21360308007DABC4 /* invalidWidget.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = invalidWidget.json; sourceTree = "<group>"; };
 		4F7DEE3F2136EF8F007DABC4 /* APIErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIErrorTests.swift; sourceTree = "<group>"; };
+		C1C0D10000000000000022E1 /* UIApplicationExtensionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIApplicationExtensionTests.swift; sourceTree = "<group>"; };
 		4FCF94A0210931B7000CE923 /* OrderCompleteViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrderCompleteViewController.swift; sourceTree = "<group>"; };
 		566460F42DDAFAEC00C49EBF /* rokt_Example.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = rokt_Example.entitlements; sourceTree = "<group>"; };
 		566460F52DDAFE8900C49EBF /* PassKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = PassKit.framework; path = System/Library/Frameworks/PassKit.framework; sourceTree = SDKROOT; };
@@ -404,6 +406,7 @@
 				4F7DEE3B213601C8007DABC4 /* InvalidWidgetTests.swift */,
 				99FB79D12CEC6E4500B7E7EC /* RoktExperienceCacheExecuteTests.swift */,
 				4F7DEE3F2136EF8F007DABC4 /* APIErrorTests.swift */,
+				C1C0D10000000000000022E1 /* UIApplicationExtensionTests.swift */,
 				607FACE91AFB9204008FA782 /* Supporting Files */,
 			);
 			path = Tests;
@@ -725,6 +728,7 @@
 				4F7DEE3C213601C8007DABC4 /* InvalidWidgetTests.swift in Sources */,
 				4F7DEE36212DBBAF007DABC4 /* UnitTests.swift in Sources */,
 				4F7DEE402136EF8F007DABC4 /* APIErrorTests.swift in Sources */,
+				C1C0D10000000000000023E1 /* UIApplicationExtensionTests.swift in Sources */,
 				99FB79D22CEC6E4500B7E7EC /* RoktExperienceCacheExecuteTests.swift in Sources */,
 				2534233E231F2CCD00463C74 /* MockResponse.swift in Sources */,
 				25A1E31123EB952A00887B71 /* EventModel.swift in Sources */,
