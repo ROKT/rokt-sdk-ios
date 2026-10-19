@@ -1232,7 +1232,7 @@ class RoktInternalImplementation {
         initStartTime: Date,
         generation: Int
     ) {
-        guard let failedAttempt = failedAttemptNumber(generation: generation) else { return }
+        guard isCurrentInitGeneration(generation) else { return }
         RoktLogger.shared.error("Initialization failed - statusCode: \(statusCode ?? -1), " +
                                 "error: \(error.localizedDescription)")
         self.isInitialized = false
@@ -1256,8 +1256,7 @@ class RoktInternalImplementation {
                 Self.initDiagnosticCode,
                 error: error,
                 statusCode: statusCode,
-                response: response,
-                additionalInfo: ["attempt": String(failedAttempt)]
+                response: response
             )
         }
     }
@@ -1322,14 +1321,6 @@ class RoktInternalImplementation {
         initEpisodeLock.lock()
         defer { initEpisodeLock.unlock() }
         return activeInitEpisode?.generation == generation
-    }
-
-    // The number of the attempt that just failed (1 for the first try), or nil when it is no longer the current one.
-    private func failedAttemptNumber(generation: Int) -> Int? {
-        initEpisodeLock.lock()
-        defer { initEpisodeLock.unlock() }
-        guard let episode = activeInitEpisode, episode.generation == generation else { return nil }
-        return episode.retriesScheduled + 1
     }
 
     // Records that an attempt failed and a retry is now waiting. Returns the token that identifies that retry and its
