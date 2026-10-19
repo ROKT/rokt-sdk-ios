@@ -1250,15 +1250,14 @@ class RoktInternalImplementation {
         // later success reports `true` on its own. Only when init has given up is the failure announced and reported.
         guard !retryScheduled else { return }
         self.sendEventToGlobalListeners(RoktEvent.InitComplete(success: false))
-        // A rate limit (429) is not a fault on this device and is not reported. `final` is kept so the report has the
-        // same shape as the Android SDK's.
+        // A rate limit (429) is not a fault on this device and is not reported.
         if statusCode != Self.rateLimitedStatusCode {
             self.sendDiagnostics(
                 Self.initDiagnosticCode,
                 error: error,
                 statusCode: statusCode,
                 response: response,
-                additionalInfo: ["attempt": String(failedAttempt), "final": "true"]
+                additionalInfo: ["attempt": String(failedAttempt)]
             )
         }
     }

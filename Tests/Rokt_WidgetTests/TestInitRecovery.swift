@@ -426,16 +426,14 @@ final class TestInitRecovery: XCTestCase {
     }
 
     func test_initRecovery_reportsOnlyTheFinalFailure() {
-        var reports: [(attempt: String?, final: String?)] = []
-        impl.diagnosticsSender = { _, _, info in reports.append((info["attempt"] as? String, info["final"] as? String)) }
+        var reports: [String?] = []
+        impl.diagnosticsSender = { _, _, info in reports.append(info["attempt"] as? String) }
         stub.results = Array(repeating: .status(503), count: 6)
 
         impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
 
         settle()
-        XCTAssertEqual(reports.count, 1, "one report, when init gives up")
-        XCTAssertEqual(reports.first?.attempt, "5")
-        XCTAssertEqual(reports.first?.final, "true")
+        XCTAssertEqual(reports, ["5"], "one report, when init gives up, naming the attempt that gave up")
     }
 
     func test_initRecovery_doesNotReportAFailureThatARetryFixes() {
@@ -473,15 +471,15 @@ final class TestInitRecovery: XCTestCase {
         XCTAssertEqual(reports, 0, "a rate limit is not a fault on this device")
     }
 
-    func test_initRecovery_reportsARejectedInitOnceAsFinal() {
+    func test_initRecovery_reportsARejectedInitOnce() {
         var reports: [String?] = []
-        impl.diagnosticsSender = { _, _, info in reports.append(info["final"] as? String) }
+        impl.diagnosticsSender = { _, _, info in reports.append(info["attempt"] as? String) }
         stub.results = [.status(400)]
 
         impl.initWith(roktTagId: "tag-1", mParticleKitDetails: nil)
 
         settle()
-        XCTAssertEqual(reports, ["true"], "a failure that will not pass is reported once, when it gives up")
+        XCTAssertEqual(reports, ["1"], "a failure that will not pass is reported once, when it gives up")
     }
 
     func test_initRecovery_supersededAttemptDoesNotReinitialise() {
