@@ -38,6 +38,7 @@ component_management:
 
 ignore:
   - Example/Tests
+  - Example/rokt
   - Tests/Rokt_WidgetTests
   - Tests/SizeReport
   - Packages/**/Tests/**
