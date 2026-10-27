@@ -129,14 +129,6 @@ jobs:
         run: |
           xcresultparser --output-format cobertura TestResult.xcresult --project-root "$(pwd)" > "coverage.xml"
 
-      - name: Upload coverage report
-        if: always()
-        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./coverage.xml
-          flags: unittests
-
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -198,9 +190,8 @@ jobs:
           rm -rf "$DERIVED"
           mkdir -p "$DERIVED"
 
-          # Expose coverage artifacts to later steps before running tests so the
-          # upload (if: always()) still has them when tests fail.
-          echo "PKG_FLAG=$(basename "${{ matrix.package.path }}")" >> "$GITHUB_ENV"
+          # Expose the result bundle to later steps before running tests so the
+          # coverage step (if: always()) still has it when tests fail.
           echo "PKG_XCRESULT=${DERIVED}/Tests.xcresult" >> "$GITHUB_ENV"
 
           xcodebuild test \
@@ -223,14 +214,6 @@ jobs:
         if: always()
         run: |
           xcresultparser --output-format cobertura "$PKG_XCRESULT" --project-root "$GITHUB_WORKSPACE" > "package-coverage.xml"
-
-      - name: Upload coverage report
-        if: always()
-        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./package-coverage.xml
-          flags: ${{ env.PKG_FLAG }}
 
   ui-test:
     name: UI Tests
@@ -275,14 +258,6 @@ jobs:
         if: always()
         run: |
           xcresultparser --output-format cobertura UiTestResult.xcresult --project-root "$(pwd)" > "ui-coverage.xml"
-
-      - name: Upload coverage report
-        if: always()
-        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./ui-coverage.xml
-          flags: ui-tests
 
       - name: Upload test results
         if: always()
