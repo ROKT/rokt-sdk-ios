@@ -283,7 +283,7 @@ jobs:
 
   coverage-comment:
     name: Coverage comment
-    if: always() && github.event_name == 'pull_request'
+    if: ${{ !cancelled() && github.event_name == 'pull_request' }}
     needs: [unit-test, package-unit-tests, ui-test]
     runs-on: ubuntu-latest
     permissions:
