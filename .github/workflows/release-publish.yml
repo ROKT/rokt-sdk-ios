@@ -216,6 +216,8 @@ jobs:
       needs.create-release.result == 'success' &&
       needs.mirror-package.result == 'success'
     runs-on: macos-latest
+    outputs:
+      pushed: ${{ steps.trunk-push.outcome == 'success' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -226,6 +228,9 @@ jobs:
         run: sudo gem install cocoapods
 
       - name: Trunk push (order from matrix)
+        id: trunk-push
+        # CocoaPods trunk is going read-only; the GitHub release, the package mirror and SPM are already done.
+        continue-on-error: true
         env:
           COCOAPODS_TRUNK_TOKEN: ${{ secrets.COCOAPODS_TRUNK_TOKEN }}
         run: |
@@ -238,13 +243,22 @@ jobs:
             trunk_push_with_retries "$spec" || exit 1
           done < <(jq -c 'sort_by(.cocoapods_publish_order)[]' Packages/matrix.json)
 
+      - name: Warn when the trunk push failed
+        if: steps.trunk-push.outcome == 'failure'
+        run: |
+          echo "::warning::The CocoaPods trunk push failed, so the Rokt-Widget push was skipped. The GitHub release, the package mirror and SPM are not affected. Check the log above for the cause, and re-run this job once it is fixed or trunk accepts pushes again."
+          {
+            echo "### CocoaPods trunk push failed"
+            echo "The GitHub release, the package mirror and SPM are not affected. Check the job log for the cause."
+          } >> "$GITHUB_STEP_SUMMARY"
+
   publish-cocoapods-rokt-widget:
     name: Publish Rokt-Widget to CocoaPods
     needs: [detect, create-release, publish-mirrored-podspecs]
     if: >
       needs.detect.outputs.release == 'true' &&
       needs.create-release.result == 'success' &&
-      needs.publish-mirrored-podspecs.result == 'success'
+      needs.publish-mirrored-podspecs.outputs.pushed == 'true'
     runs-on: macos-latest
     steps:
       - name: Checkout repository
@@ -266,9 +280,19 @@ jobs:
           done < <(jq -c 'sort_by(.cocoapods_publish_order)[]' Packages/matrix.json)
 
       - name: Validate Podspec
+        id: pod-lint
+        # CocoaPods trunk is going read-only; the push below reports its own failure.
+        continue-on-error: true
         run: pod spec lint Rokt-Widget.podspec --allow-warnings --verbose
 
+      - name: Warn when pod spec lint failed
+        if: steps.pod-lint.outcome == 'failure'
+        run: echo "::warning::pod spec lint failed for Rokt-Widget. The GitHub release and SPM are not affected."
+
       - name: Publish to CocoaPods
+        id: trunk-push
+        # CocoaPods trunk is going read-only; the GitHub release and SPM are already done.
+        continue-on-error: true
         env:
           COCOAPODS_TRUNK_TOKEN: ${{ secrets.COCOAPODS_TRUNK_TOKEN }}
         run: |
@@ -276,6 +300,15 @@ jobs:
           set -uo pipefail
           . scripts/pod_push.sh
           trunk_push_with_retries Rokt-Widget.podspec || exit 1
+
+      - name: Warn when the trunk push failed
+        if: steps.trunk-push.outcome == 'failure'
+        run: |
+          echo "::warning::The CocoaPods trunk push failed. The GitHub release and SPM are not affected. Check the log above for the cause, and re-run this job once it is fixed or trunk accepts pushes again."
+          {
+            echo "### CocoaPods trunk push failed"
+            echo "The GitHub release and SPM are not affected. Check the job log for the cause."
+          } >> "$GITHUB_STEP_SUMMARY"
 
   upload-release-notes:
     needs: [detect, create-release]
@@ -330,12 +363,12 @@ jobs:
             chore
 
   trigger-demo-app-release:
-    needs: [detect, create-release, publish-cocoapods-rokt-widget]
+    needs: [detect, create-release, mirror-package]
     if: >
       github.ref_name == 'main' &&
       needs.detect.outputs.release == 'true' &&
       needs.create-release.result == 'success' &&
-      needs.publish-cocoapods-rokt-widget.result == 'success'
+      needs.mirror-package.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Generate token
