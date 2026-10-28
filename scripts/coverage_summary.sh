@@ -23,9 +23,9 @@ shift
 xcrun xccov view --report --only-targets --json "${RESULT_BUNDLE}" |
 	jq -r '
 		$ARGS.positional as $targets
+		| [.[] | select(($targets | length) == 0 or (.name | IN($targets[])))] as $rows
 		| "| Target | Covered lines | Coverage |",
 		  "| --- | ---: | ---: |",
-		  (.[]
-		   | select(($targets | length) == 0 or (.name | IN($targets[])))
-		   | "| \(.name) | \(.coveredLines)/\(.executableLines) | \(.lineCoverage * 10000 | round / 100)% |")
+		  ($rows[] | "| \(.name) | \(.coveredLines)/\(.executableLines) | \(.lineCoverage * 10000 | round / 100)% |"),
+		  ($targets - [$rows[].name] | select(length > 0) | "", "No coverage reported for: \(join(", "))")
 	' --args "$@"
