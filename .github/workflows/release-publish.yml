@@ -66,14 +66,33 @@ jobs:
           sudo gem install cocoapods
 
       - name: Validate Podspec
+        id: pod-lint
+        # CocoaPods trunk is going read-only; the push below reports its own failure.
+        continue-on-error: true
         run: |
           pod spec lint Rokt-Widget.podspec --allow-warnings --verbose
 
+      - name: Warn when pod spec lint failed
+        if: steps.pod-lint.outcome == 'failure'
+        run: echo "::warning::pod spec lint failed for Rokt-Widget. The GitHub release and SPM are not affected."
+
       - name: Publish to CocoaPods
+        id: trunk-push
+        # CocoaPods trunk is going read-only; the GitHub release and SPM are already done.
+        continue-on-error: true
         run: |
           pod trunk push Rokt-Widget.podspec --allow-warnings
         env:
           COCOAPODS_TRUNK_TOKEN: ${{ secrets.COCOAPODS_TRUNK_TOKEN }}
+
+      - name: Warn when the trunk push failed
+        if: steps.trunk-push.outcome == 'failure'
+        run: |
+          echo "::warning::The CocoaPods trunk push failed. The GitHub release and SPM are not affected. Check the log above for the cause, and re-run this job once it is fixed or trunk accepts pushes again."
+          {
+            echo "### CocoaPods trunk push failed"
+            echo "The GitHub release and SPM are not affected. Check the job log for the cause."
+          } >> "$GITHUB_STEP_SUMMARY"
 
   trigger-demo-app-release:
     needs: [release-rokt-sdk, publish-rokt-sdk]
