@@ -120,6 +120,10 @@ jobs:
             -retry-tests-on-failure \
             -resultBundlePath TestResult.xcresult
 
+      - name: Coverage summary
+        if: always()
+        run: scripts/coverage_summary.sh TestResult.xcresult Rokt-Widget >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -181,6 +185,10 @@ jobs:
           rm -rf "$DERIVED"
           mkdir -p "$DERIVED"
 
+          # Exported before the tests run so the coverage summary still finds them when tests fail.
+          echo "PKG_NAME=${PACKAGE}" >> "$GITHUB_ENV"
+          echo "PKG_XCRESULT=${DERIVED}/Tests.xcresult" >> "$GITHUB_ENV"
+
           xcodebuild test \
             -scheme "$SCHEME" \
             -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
@@ -192,6 +200,10 @@ jobs:
             CODE_SIGN_IDENTITY= \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO
+
+      - name: Coverage summary
+        if: always() && env.PKG_XCRESULT != ''
+        run: scripts/coverage_summary.sh "$PKG_XCRESULT" "$PKG_NAME" >> "$GITHUB_STEP_SUMMARY"
 
   ui-test:
     name: UI Tests
@@ -227,6 +239,10 @@ jobs:
             -test-timeouts-enabled YES \
             -default-test-execution-time-allowance 60 \
             -maximum-test-execution-time-allowance 120
+
+      - name: Coverage summary
+        if: always()
+        run: scripts/coverage_summary.sh UiTestResult.xcresult Rokt-Widget >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload test results
         if: always()
