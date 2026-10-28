@@ -2,8 +2,9 @@
 #
 # Prints line coverage per target from an Xcode result bundle as a Markdown table.
 #
-# CI appends the output to each test job's summary. Locally, run it on any .xcresult built with
-# -enableCodeCoverage YES, including one downloaded from a CI run's artifacts.
+# CI writes it to each test job's summary and to the coverage comment on the pull request. Locally,
+# run it on any .xcresult built with -enableCodeCoverage YES, including one downloaded from a CI
+# run's artifacts.
 #
 # Arguments:
 #   $1    - Path to the .xcresult bundle
@@ -22,8 +23,7 @@ shift
 xcrun xccov view --report --only-targets --json "${RESULT_BUNDLE}" |
 	jq -r '
 		$ARGS.positional as $targets
-		| "### Code coverage", "",
-		  "| Target | Covered lines | Coverage |",
+		| "| Target | Covered lines | Coverage |",
 		  "| --- | ---: | ---: |",
 		  (.[]
 		   | select(($targets | length) == 0 or (.name | IN($targets[])))
