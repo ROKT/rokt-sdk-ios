@@ -52,6 +52,7 @@ Only the parts `ls` will not tell you:
 | Consumer contract only        | `xcodebuild test -scheme Rokt-Widget -only-testing:ContractTests`, `TEST_RUNNER_PACT_OUTPUT_DIR` set — trap 2 |
 | Unused-code scan              | index-store build first, then `periphery scan` — see trap 4                                                   |
 | SDK size delta                | `Tests/SizeReport/measure_size.sh` (`--json` for the CI shape)                                                |
+| Coverage per target           | `scripts/coverage_summary.sh R.xcresult [target…]` on a test run with `-enableCodeCoverage YES`               |
 
 ### Command traps
 
