@@ -150,10 +150,8 @@ Only the parts `ls` will not tell you:
 
 ## Secret scanning
 
-Trufflehog runs inside `trunk check`, pinned below its latest release because a newer detector
-reports XCTest method names as verified credentials — the reason is in `.trunk/trunk.yaml`. It
-catches secrets, not PII: nothing in CI checks the P1 items below, including PII in JSON test
-fixtures.
+TruffleHog runs inside `trunk check`. It catches secrets, not PII: nothing in CI checks the P1
+items below, including PII in JSON test fixtures.
 
 ## Review guidelines
 
