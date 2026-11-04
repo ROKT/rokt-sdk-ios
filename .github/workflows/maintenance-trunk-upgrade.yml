@@ -12,12 +12,13 @@ jobs:
   trunk-upgrade:
     name: Run trunk upgrade
     runs-on: ubuntu-latest
+    environment: release
     steps:
       - name: Generate a token
         id: generate-token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          app-id: ${{ secrets.SDK_RELEASE_GITHUB_APP_ID }}
+          client-id: ${{ secrets.SDK_RELEASE_GITHUB_CLIENT_ID }}
           private-key: ${{ secrets.SDK_RELEASE_GITHUB_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: |
