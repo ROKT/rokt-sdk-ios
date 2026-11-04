@@ -61,7 +61,9 @@ Partners consume **RoktUXHelper** from [`github.com/ROKT/rokt-ux-helper-ios`](ht
 
 ### GitHub App access
 
-The release GitHub App (`SDK_RELEASE_GITHUB_APP_ID` / `SDK_RELEASE_GITHUB_APP_PRIVATE_KEY`) must have **contents: write** on `rokt-payment-extension-ios` under **ROKT** for subtree mirroring, plus any existing repos (e.g. `rokt-docs`, `rokt-demo-ios`).
+The release GitHub App (`SDK_RELEASE_GITHUB_CLIENT_ID` / `SDK_RELEASE_GITHUB_APP_PRIVATE_KEY`) must have **contents: write** on `rokt-payment-extension-ios` under **ROKT** for subtree mirroring, plus any existing repos (e.g. `rokt-docs`, `rokt-demo-ios`).
+
+Both secrets live in the **`release`** environment, which allows only `main` and maintenance branches listed by exact name. When you cut a new `maintenance/<major>.x`, add it to that environment's deployment branches, or its Release – Publish run stops at **Create GitHub release (Rokt-Widget)**, before it creates the tag or publishes anything. Add the branch, then re-run the failed jobs.
 
 ### First-time subtree mirror
 
