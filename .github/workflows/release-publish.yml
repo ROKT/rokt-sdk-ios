@@ -220,6 +220,7 @@ jobs:
       needs.create-release.result == 'success' &&
       needs.mirror-package.result == 'success'
     runs-on: macos-latest
+    environment: release
     outputs:
       pushed: ${{ steps.trunk-push.outcome == 'success' }}
     steps:
@@ -264,6 +265,7 @@ jobs:
       needs.create-release.result == 'success' &&
       needs.publish-mirrored-podspecs.outputs.pushed == 'true'
     runs-on: macos-latest
+    environment: release
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
