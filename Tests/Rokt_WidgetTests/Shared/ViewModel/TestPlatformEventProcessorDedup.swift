@@ -101,6 +101,26 @@ final class TestPlatformEventProcessorDedup: XCTestCase {
         ]]]
     }
 
+    // A layout impression as the renderer emits it: every render carries fresh timing values.
+    private func layoutImpressionPayload(pageInstanceGuid: String = "page-1", renderedAt: String) -> [String: Any] {
+        ["events": [[
+            "event_type": "impression",
+            "instance_id": UUID().uuidString,
+            "session_id": "session-1",
+            "timestamp": 1_700_000_000_000,
+            "data": [
+                "parent_id": "layout-1",
+                "token": "test-layout-token",
+                "page_instance_guid": pageInstanceGuid,
+                "plugin_id": "plugin-1",
+                "page_render_engine": "layouts",
+                "event_time": renderedAt,
+                "page_signal_load_start": renderedAt,
+                "page_signal_load_complete": renderedAt
+            ]
+        ]]]
+    }
+
     // MARK: - (a) Cache OFF: duplicate event is NOT re-sent
 
     func testCacheOffDuplicateEventIsNotResent() {
@@ -113,6 +133,35 @@ final class TestPlatformEventProcessorDedup: XCTestCase {
 
         XCTAssertEqual(stub.callCount, 1)
         XCTAssertEqual(impl.sentEventHashes.count, 1)
+    }
+
+    // MARK: - (a2) A re-rendered layout impression is NOT re-sent
+
+    // A cached layout shown again renders with new timing values; it is still the same impression.
+    func testLayoutImpressionRenderedAgainIsNotResent() {
+        sut.process(layoutImpressionPayload(renderedAt: "2026-01-01T10:00:00.000Z"),
+                    executeId: "1", cacheProperties: nil)
+        waitUntil { self.stub.callCount == 1 }
+
+        sut.process(layoutImpressionPayload(renderedAt: "2026-01-01T10:30:00.000Z"),
+                    executeId: "2", cacheProperties: nil)
+        settle()
+
+        XCTAssertEqual(stub.callCount, 1)
+        XCTAssertEqual(impl.sentEventHashes.count, 1)
+    }
+
+    func testLayoutImpressionForAnotherPageInstanceIsSent() {
+        sut.process(layoutImpressionPayload(pageInstanceGuid: "page-1", renderedAt: "2026-01-01T10:00:00.000Z"),
+                    executeId: "1", cacheProperties: nil)
+        waitUntil { self.stub.callCount == 1 }
+
+        sut.process(layoutImpressionPayload(pageInstanceGuid: "page-2", renderedAt: "2026-01-01T10:00:00.000Z"),
+                    executeId: "2", cacheProperties: nil)
+        waitUntil { self.stub.callCount == 2 }
+
+        XCTAssertEqual(stub.callCount, 2)
+        XCTAssertEqual(impl.sentEventHashes.count, 2)
     }
 
     // MARK: - (b) Exempt (user-interaction) event IS re-sent even when duplicated
