@@ -12,6 +12,9 @@ class PlatformEventProcessor {
     private static let dataPluginIdKey = "plugin_id"
     private static let dataPluginNameKey = "plugin_name"
     private static let dataEventTimeKey = "event_time"
+    private static let pageSignalLoadCompleteKey = "page_signal_load_complete"
+    // Fresh on every render, so a re-shown layout would otherwise never match its earlier impression.
+    private static let perRenderTimingKeys = [dataEventTimeKey, pageSignalLoad, pageSignalLoadCompleteKey]
 
     // Routing keys the renderer flattens into `data`; kept out of the dedup attribute set.
     private static let parentIdKey = "parent_id"
@@ -174,6 +177,7 @@ class PlatformEventProcessor {
         attributes.removeValue(forKey: parentIdKey)
         attributes.removeValue(forKey: tokenKey)
         attributes.removeValue(forKey: pageInstanceGuidKey)
+        perRenderTimingKeys.forEach { attributes.removeValue(forKey: $0) }
         return ProcessedEvent(
             sessionId: event.sessionId,
             parentGuid: event.data[parentIdKey] ?? "",
