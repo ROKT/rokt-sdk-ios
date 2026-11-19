@@ -9,6 +9,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [5.5.6] - 2026-11-19
+
+### Core
+
+#### Fixed
+
+- Deduplicate layout impressions when a cached layout is shown again ([#370](https://github.com/ROKT/rokt-sdk-ios/pull/370))
+- Report a failed init only when it gives up ([#353](https://github.com/ROKT/rokt-sdk-ios/pull/353))
+
+#### Changed
+
+- Create the release tag on the released commit ([#368](https://github.com/ROKT/rokt-sdk-ios/pull/368))
+- Bump peter-evans/create-pull-request from 8.1.1 to 8.1.2 ([#365](https://github.com/ROKT/rokt-sdk-ios/pull/365))
+- Bump softprops/action-gh-release from 3.0.3 to 3.0.4 ([#366](https://github.com/ROKT/rokt-sdk-ios/pull/366))
+- Run the CocoaPods publish jobs in the release environment ([#367](https://github.com/ROKT/rokt-sdk-ios/pull/367))
+- Bump zizmorcore/zizmor-action from 0.8.0 to 0.8.1 ([#364](https://github.com/ROKT/rokt-sdk-ios/pull/364))
+- Upgrade trunk ([#361](https://github.com/ROKT/rokt-sdk-ios/pull/361))
+- Run the release GitHub App jobs in a release environment ([#363](https://github.com/ROKT/rokt-sdk-ios/pull/363))
+- Bump zizmorcore/zizmor-action from 0.7.1 to 0.8.0 ([#362](https://github.com/ROKT/rokt-sdk-ios/pull/362))
+- Keep releases green when the CocoaPods trunk push fails ([#359](https://github.com/ROKT/rokt-sdk-ios/pull/359))
+- Report coverage in a pull request comment ([#357](https://github.com/ROKT/rokt-sdk-ios/pull/357))
+- Bump zizmorcore/zizmor-action from 0.6.4 to 0.7.1 ([#355](https://github.com/ROKT/rokt-sdk-ios/pull/355))
+- Remove Codecov ([#356](https://github.com/ROKT/rokt-sdk-ios/pull/356))
+- Bump actions/create-github-app-token from 3.2.0 to 3.3.0 ([#354](https://github.com/ROKT/rokt-sdk-ios/pull/354))
+- Bump actions/upload-artifact from 7.0.1 to 7.0.2 ([#351](https://github.com/ROKT/rokt-sdk-ios/pull/351))
+- Bump actions/download-artifact from 8.0.1 to 8.0.2 ([#350](https://github.com/ROKT/rokt-sdk-ios/pull/350))
+
+### Kits
+
+#### Kits
+
+##### Changed
+
+- Stop force-pushing the payment extension mirror ([#369](https://github.com/ROKT/rokt-sdk-ios/pull/369))
+
+#### Rokt-payment-extension-ios
+
+##### Changed
+
+- Add CODEOWNERS to the payment extension mirror ([#360](https://github.com/ROKT/rokt-sdk-ios/pull/360))
+
 ## [5.5.5] - 2026-10-14
 
 ### Core
@@ -692,7 +733,8 @@ For a complete migration walkthrough with before/after code examples, see the [v
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.5.5...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.5.6...HEAD
+[5.5.6]: https://github.com/ROKT/rokt-sdk-ios/compare/5.5.5...5.5.6
 [5.5.5]: https://github.com/ROKT/rokt-sdk-ios/compare/5.5.4...5.5.5
 [5.5.4]: https://github.com/ROKT/rokt-sdk-ios/compare/5.5.3...5.5.4
 [5.5.3]: https://github.com/ROKT/rokt-sdk-ios/compare/5.5.2...5.5.3
