@@ -92,6 +92,8 @@ jobs:
         uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
           tag_name: ${{ steps.version-file.outputs.release-version }}
+          # Tag the commit this run releases, not main's tip when the step runs.
+          target_commitish: ${{ github.sha }}
           name: Release ${{ steps.version-file.outputs.release-version }}
           make_latest: ${{ github.ref_name == 'main' }}
           body: |
