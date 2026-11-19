@@ -7,7 +7,6 @@
     "podspec": "Packages/rokt-payment-extension-ios/RoktPaymentExtension.podspec",
     "changelog_file": "CHANGELOG.md",
     "cocoapods_publish_order": 1,
-    "pod_trunk_name": "RoktPaymentExtension",
-    "mirror_force_push_main": true
+    "pod_trunk_name": "RoktPaymentExtension"
   }
 ]
