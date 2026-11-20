@@ -33,6 +33,7 @@ class RoktInternalImplementation {
     static let apiClearSessionCode = "[API_CLEAR_SESSION]"
     static let apiHandleURLCallbackCode = "[API_HANDLE_URL_CALLBACK]"
     static let apiSetPayPalRedirectSchemeCode = "[API_SET_PAYPAL_REDIRECT_SCHEME]"
+    static let apiSetPrivacyControlCode = "[API_SET_PRIVACY_CONTROL]"
     private static let maxPendingApiLogs = 10
     private static let initFailedError = "INIT_FAILED"
     private static let fontFailedError = "FONT_FAILED"
@@ -99,6 +100,12 @@ class RoktInternalImplementation {
     var isInitialized = false
     var isInitFailedForFont = false
     private(set) var frameworkType: RoktFrameworkType = .iOS
+    private var _privacyControl: RoktPrivacyControl?
+    private var hasExecutedInSession = false
+    private let privacyControlLock = NSLock()
+    var privacyControl: RoktPrivacyControl? {
+        privacyControlLock.withLock { _privacyControl }
+    }
     // Public-API logs that arrive before init (setCustomBaseURL / setFrameworkType). Held until init
     // sets `roktTagId`, then flushed — the diagnostics send needs the tag id for partner attribution.
     private var pendingApiLogs: [(code: String, info: [String: String])] = []
@@ -385,6 +392,98 @@ class RoktInternalImplementation {
     func setFrameworkType(_ frameworkType: RoktFrameworkType) {
         self.frameworkType = frameworkType
         logApiCallBuffered(Self.apiSetFrameworkTypeCode, ["frameworkType": frameworkType.toString])
+    }
+
+    private static let lastPrivacyControlSignatureKey = "com.rokt.sdk.lastPrivacyControlSignature"
+
+    // The effective opt-outs, so an unset flag and an explicit `false` compare equal.
+    private static func privacyControlSignature(_ privacyControl: RoktPrivacyControl?) -> String {
+        [privacyControl?.noFunctional, privacyControl?.noTargeting, privacyControl?.doNotShareOrSell]
+            .map { "\($0?.boolValue == true)" }
+            .joined(separator: "|")
+    }
+
+    private static func diagnosticValue(_ flag: NSNumber?) -> String {
+        flag.map { "\($0.boolValue)" } ?? "unset"
+    }
+
+    /// Merges `privacyControl` into the stored flags: a `nil` flag keeps its earlier value.
+    func setPrivacyControl(_ privacyControl: RoktPrivacyControl) {
+        logApiCallBuffered(
+            Self.apiSetPrivacyControlCode,
+            [
+                "noFunctional": Self.diagnosticValue(privacyControl.noFunctional),
+                "noTargeting": Self.diagnosticValue(privacyControl.noTargeting),
+                "doNotShareOrSell": Self.diagnosticValue(privacyControl.doNotShareOrSell)
+            ]
+        )
+        // A call that sets no flag changes nothing: not the flags, the stored signature or the cache.
+        guard privacyControl.noFunctional != nil
+            || privacyControl.noTargeting != nil
+            || privacyControl.doNotShareOrSell != nil
+        else { return }
+
+        // UserDefaults posts its change notification synchronously, so it is read and written outside
+        // the lock: an observer that calls back into the SDK must not find the lock held.
+        let storedSignature = UserDefaults.standard.string(forKey: Self.lastPrivacyControlSignatureKey)
+        let (didChange, newSignature) = privacyControlLock.withLock { () -> (Bool, String) in
+            let current = _privacyControl
+            let merged = RoktPrivacyControl(
+                noFunctionalNumber: privacyControl.noFunctional ?? current?.noFunctional,
+                noTargetingNumber: privacyControl.noTargeting ?? current?.noTargeting,
+                doNotShareOrSellNumber: privacyControl.doNotShareOrSell ?? current?.doNotShareOrSell
+            )
+            let newSignature = Self.privacyControlSignature(merged)
+            let previousSignature: String? = if let current {
+                Self.privacyControlSignature(current)
+            } else if let storedSignature {
+                storedSignature
+            } else if hasExecutedInSession {
+                Self.privacyControlSignature(nil)
+            } else {
+                nil
+            }
+            _privacyControl = merged
+            let changed = if let previousSignature {
+                previousSignature != newSignature
+            } else {
+                false
+            }
+            if changed {
+                mustBypassCacheOnNextExecute = true
+            }
+            return (changed, newSignature)
+        }
+        // shortcut: two concurrent calls can persist the older signature, so the next launch clears the
+        // cache once too often or too few; cache keys carry the effective flags, so no stale experience
+        // is served. Order the writes on a serial queue if that ever matters.
+        if storedSignature != newSignature {
+            UserDefaults.standard.set(newSignature, forKey: Self.lastPrivacyControlSignatureKey)
+        }
+        if didChange {
+            ExperienceCacheManager.clearCache()
+        }
+    }
+
+    private func privacyControlMatches(_ other: RoktPrivacyControl?) -> Bool {
+        privacyControlLock.withLock {
+            Self.privacyControlSignature(_privacyControl) == Self.privacyControlSignature(other)
+        }
+    }
+
+    private func effectiveCacheAttributes(
+        for attributes: [String: String],
+        privacyControl: RoktPrivacyControl?
+    ) -> [String: String] {
+        var cacheAttributes = roktConfig.cacheConfig.getCacheAttributesOrFallback(attributes)
+        let privacyPayload = RoktAPIHelper.getPrivacyControlPayload(
+            attributes: attributes,
+            privacyControl: privacyControl
+        )
+        for (key, isEnabled) in privacyPayload where isEnabled {
+            cacheAttributes[key] = "true"
+        }
+        return cacheAttributes
     }
 
     // MARK: - Public API usage diagnostics
@@ -1477,7 +1576,9 @@ class RoktInternalImplementation {
         TxnSessionManager.clearPersistedSession(store: txnSessionStore)
         // The cached experience was fetched inside the dropped session, so it goes with it.
         ExperienceCacheManager.clearCache()
-        mustBypassCacheOnNextExecute = true
+        privacyControlLock.withLock {
+            mustBypassCacheOnNextExecute = true
+        }
     }
 
     private func defaultTxnEventService(roktTagId: String) -> TxnEventService {
@@ -1554,8 +1655,14 @@ class RoktInternalImplementation {
         // Latched once per execute, after the guard so a rejected call does not consume it. It gates
         // the experience response read; view state is only restored along with a response read from
         // the cache, so a suppressed read suppresses both.
-        cacheSuppressedForCurrentExecute = mustBypassCacheOnNextExecute
-        mustBypassCacheOnNextExecute = false
+        let (requestPrivacyControl, bypassCache) = privacyControlLock.withLock { () -> (RoktPrivacyControl?, Bool) in
+            let current = _privacyControl
+            let bypass = mustBypassCacheOnNextExecute
+            mustBypassCacheOnNextExecute = false
+            hasExecutedInSession = true
+            return (current, bypass)
+        }
+        cacheSuppressedForCurrentExecute = bypassCache
         if #available(iOS 14.5, *) {
             if !initFeatureFlags.isEnabled(.roktTrackingStatus) &&
                 isPrivacyDenied(ATTrackingManager.trackingAuthorizationStatus) {
@@ -1588,7 +1695,10 @@ class RoktInternalImplementation {
             if #available(iOS 15, *) {
                 FontManager.reRegisterFonts {
                     // use the available cached experience
-                    let cacheAttributes = self.roktConfig.cacheConfig.getCacheAttributesOrFallback(attributes)
+                    let cacheAttributes = self.effectiveCacheAttributes(
+                        for: attributes,
+                        privacyControl: requestPrivacyControl
+                    )
 
                     if self.shouldReadFromCache(),
                        let cachedExperience = ExperienceCacheManager.getCachedExperienceResponse(
@@ -1603,7 +1713,7 @@ class RoktInternalImplementation {
                             cachedExperience.experienceResponse,
                             selectionId: selectionId,
                             viewName: viewName,
-                            attributes: attributes,
+                            attributes: cacheAttributes,
                             cacheGeneration: cachedExperience.generation
                         ) else {
                             self.conclude(withFailure: true, executeId: selectionId)
@@ -1640,23 +1750,24 @@ class RoktInternalImplementation {
                             // an accepted tradeoff, not an oversight: the main fix here is keeping that
                             // check off the calling thread and starting it at SDK init, which already
                             // closes almost all of this window; see PR discussion for the decision.
+                            let attributesForPluginStates = self.effectiveCacheAttributes(
+                                for: attributes,
+                                privacyControl: requestPrivacyControl
+                            )
                             var cacheGeneration: String?
-                            if self.isCacheEnabledAndConfigured() {
-                                let cacheAttributes = self.roktConfig.cacheConfig.getCacheAttributesOrFallback(attributes)
+                            if self.isCacheEnabledAndConfigured(),
+                               self.privacyControlMatches(requestPrivacyControl) {
                                 let generation = UUID().uuidString
                                 cacheGeneration = generation
 
                                 ExperienceCacheManager.cacheExperienceResponse(
                                     viewName: viewName,
-                                    attributes: cacheAttributes,
+                                    attributes: attributesForPluginStates,
                                     experienceResponse: page,
                                     generation: generation
                                 )
                             }
 
-                            // Use cacheAttributes for plugin view states if cache is enabled for consistency
-                            let attributesForPluginStates = self.roktConfig.cacheConfig
-                                .getCacheAttributesOrFallback(attributes)
                             guard let layoutPageExecutePayload = self.processLayoutPageExecutePayload(
                                 page,
                                 selectionId: selectionId,
@@ -1698,6 +1809,7 @@ class RoktInternalImplementation {
                             viewName: viewName,
                             attributes: attributes,
                             config: self.roktConfig,
+                            privacyControl: requestPrivacyControl,
                             onRequestStart: onExperiencesRequestStart,
                             successLayout: onSuccess,
                             failure: onFailure
@@ -1769,8 +1881,11 @@ class RoktInternalImplementation {
         )
 
         if let cacheGeneration {
-            // For cached experiences, use cacheAttributes for consistency
-            let cacheAttributes = roktConfig.cacheConfig.getCacheAttributesOrFallback(attributes)
+            // For cached experiences, use effectiveCacheAttributes for consistency across response and view states
+            let cacheAttributes = effectiveCacheAttributes(
+                for: attributes,
+                privacyControl: self.privacyControl
+            )
             let experiencesViewState = ExperienceCacheManager.getCachedExperiencesViewState(
                 viewName: viewName, attributes: cacheAttributes, generation: cacheGeneration
             )

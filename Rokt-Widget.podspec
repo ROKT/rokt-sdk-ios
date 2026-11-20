@@ -23,6 +23,6 @@ Pod::Spec.new do |s|
   }
 
   s.dependency 'DcuiSchema', '2.10.0'
-  s.dependency 'RoktContracts', '>= 2.0.2', '< 3.0'
+  s.dependency 'RoktContracts', '>= 2.1.0', '< 3.0'
   s.dependency 'RoktUXHelper', '>= 2.1.0', '< 3.0'
 end
