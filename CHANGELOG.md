@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/2.0.0.
 
 ## [Unreleased]
 
+## [5.6.0] - 2026-11-20
+
+### Core
+
+#### Changed
+
+- Start Release – Publish on VERSION changes only ([#372](https://github.com/ROKT/rokt-sdk-ios/pull/372))
+
+### Kits
+
+#### Rokt-payment-extension-ios
+
+##### Added
+
+- Add Rokt.setPrivacyControl with opt-out precedence ([#373](https://github.com/ROKT/rokt-sdk-ios/pull/373))
+
 ## [5.5.6] - 2026-11-19
 
 ### Core
@@ -733,7 +749,8 @@ For a complete migration walkthrough with before/after code examples, see the [v
 - Fix threading crash in BaseDependencyInjection sharedItems
 - Open linked URLs from bottomsheet in full-screen height
 
-[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.5.6...HEAD
+[unreleased]: https://github.com/ROKT/rokt-sdk-ios/compare/5.6.0...HEAD
+[5.6.0]: https://github.com/ROKT/rokt-sdk-ios/compare/5.5.6...5.6.0
 [5.5.6]: https://github.com/ROKT/rokt-sdk-ios/compare/5.5.5...5.5.6
 [5.5.5]: https://github.com/ROKT/rokt-sdk-ios/compare/5.5.4...5.5.5
 [5.5.4]: https://github.com/ROKT/rokt-sdk-ios/compare/5.5.3...5.5.4
