@@ -13,6 +13,7 @@ class TestRokt: XCTestCase {
             UserDefaults.standard.removePersistentDomain(forName: bundleID)
             UserDefaults.standard.synchronize()
         }
+        UserDefaults.standard.removeObject(forKey: "com.rokt.sdk.lastPrivacyControlSignature")
         Rokt.shared.roktImplementation.removeAllGlobalEventListeners()
     }
 
@@ -629,5 +630,423 @@ class TestRokt: XCTestCase {
 
         // Empty string should be a no-op - original session should remain
         XCTAssertEqual(Rokt.shared.roktImplementation.getSessionId(), originalSessionId)
+    }
+
+    // MARK: - setPrivacyControl Tests
+
+    func test_setPrivacyControl_storesInMemoryAndUpdatesOnSubsequentCall() {
+        let roktInternalImplementation = RoktInternalImplementation()
+        XCTAssertNil(roktInternalImplementation.privacyControl)
+
+        let initial = RoktPrivacyControl(
+            noFunctional: true,
+            noTargeting: false,
+            doNotShareOrSell: true
+        )
+        roktInternalImplementation.setPrivacyControl(initial)
+
+        XCTAssertEqual(roktInternalImplementation.privacyControl?.noFunctional, true)
+        XCTAssertEqual(roktInternalImplementation.privacyControl?.noTargeting, false)
+        XCTAssertEqual(roktInternalImplementation.privacyControl?.doNotShareOrSell, true)
+
+        let updated = RoktPrivacyControl(
+            noFunctional: false,
+            noTargeting: true,
+            doNotShareOrSell: false
+        )
+        roktInternalImplementation.setPrivacyControl(updated)
+
+        XCTAssertEqual(roktInternalImplementation.privacyControl?.noFunctional, false)
+        XCTAssertEqual(roktInternalImplementation.privacyControl?.noTargeting, true)
+        XCTAssertEqual(roktInternalImplementation.privacyControl?.doNotShareOrSell, false)
+    }
+
+    func test_setPrivacyControl_partialCall_keepsOtherFlags() {
+        let roktInternalImplementation = RoktInternalImplementation()
+
+        roktInternalImplementation.setPrivacyControl(RoktPrivacyControl(noTargeting: true))
+        roktInternalImplementation.setPrivacyControl(RoktPrivacyControl(noFunctional: true))
+
+        XCTAssertEqual(roktInternalImplementation.privacyControl?.noFunctional, true)
+        XCTAssertEqual(roktInternalImplementation.privacyControl?.noTargeting, true)
+        XCTAssertNil(roktInternalImplementation.privacyControl?.doNotShareOrSell)
+    }
+
+    func test_setPrivacyControl_trueThenFalse_clearsFlag() {
+        let roktInternalImplementation = RoktInternalImplementation()
+
+        roktInternalImplementation.setPrivacyControl(RoktPrivacyControl(noTargeting: true))
+        roktInternalImplementation.setPrivacyControl(RoktPrivacyControl(noTargeting: false))
+
+        XCTAssertEqual(roktInternalImplementation.privacyControl?.noTargeting, false)
+    }
+
+    func test_setPrivacyControl_emptyCall_changesNothing() {
+        let signatureKey = "com.rokt.sdk.lastPrivacyControlSignature"
+        let roktInternalImplementation = RoktInternalImplementation()
+        roktInternalImplementation.setPrivacyControl(RoktPrivacyControl(noTargeting: true))
+        let storedSignature = UserDefaults.standard.string(forKey: signatureKey)
+
+        roktInternalImplementation.setPrivacyControl(RoktPrivacyControl())
+
+        XCTAssertNil(roktInternalImplementation.privacyControl?.noFunctional)
+        XCTAssertEqual(roktInternalImplementation.privacyControl?.noTargeting, true)
+        XCTAssertNil(roktInternalImplementation.privacyControl?.doNotShareOrSell)
+        XCTAssertEqual(UserDefaults.standard.string(forKey: signatureKey), storedSignature)
+        XCTAssertEqual(storedSignature, "false|true|false")
+    }
+
+    func test_setPrivacyControl_emptyCallAfterRestart_keepsStoredSignature() {
+        let signatureKey = "com.rokt.sdk.lastPrivacyControlSignature"
+        UserDefaults.standard.set("false|true|false", forKey: signatureKey)
+        let relaunchedImplementation = RoktInternalImplementation()
+
+        relaunchedImplementation.setPrivacyControl(RoktPrivacyControl())
+
+        XCTAssertNil(relaunchedImplementation.privacyControl)
+        XCTAssertEqual(UserDefaults.standard.string(forKey: signatureKey), "false|true|false")
+    }
+
+    func test_setPrivacyControl_calledAgainFromDefaultsObserver_doesNotDeadlock() {
+        let roktInternalImplementation = RoktInternalImplementation()
+        var reentered = false
+        let observer = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification,
+            object: nil,
+            queue: nil
+        ) { _ in
+            guard !reentered else { return }
+            reentered = true
+            roktInternalImplementation.setPrivacyControl(RoktPrivacyControl(noFunctional: true))
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        let finished = expectation(description: "setPrivacyControl returns")
+        DispatchQueue.global().async {
+            roktInternalImplementation.setPrivacyControl(RoktPrivacyControl(noTargeting: true))
+            finished.fulfill()
+        }
+
+        wait(for: [finished], timeout: 2.0)
+        XCTAssertEqual(roktInternalImplementation.privacyControl?.noFunctional, true)
+        XCTAssertEqual(roktInternalImplementation.privacyControl?.noTargeting, true)
+    }
+
+    func test_setPrivacyControl_concurrentPartialCalls_keepEveryFlag() {
+        let roktInternalImplementation = RoktInternalImplementation()
+
+        DispatchQueue.concurrentPerform(iterations: 200) { iteration in
+            roktInternalImplementation.setPrivacyControl(
+                iteration.isMultiple(of: 2)
+                    ? RoktPrivacyControl(noFunctional: true)
+                    : RoktPrivacyControl(noTargeting: true)
+            )
+        }
+
+        XCTAssertEqual(roktInternalImplementation.privacyControl?.noFunctional, true)
+        XCTAssertEqual(roktInternalImplementation.privacyControl?.noTargeting, true)
+    }
+
+    func test_Rokt_setPrivacyControl_flagOverload_mergesLikeObjectForm() {
+        let originalImpl = Rokt.shared.roktImplementation
+        let isolatedImpl = RoktInternalImplementation()
+        Rokt.shared.roktImplementation = isolatedImpl
+        defer { Rokt.shared.roktImplementation = originalImpl }
+
+        Rokt.setPrivacyControl(noTargeting: true)
+        Rokt.setPrivacyControl(noFunctional: true)
+
+        XCTAssertEqual(isolatedImpl.privacyControl?.noFunctional, true)
+        XCTAssertEqual(isolatedImpl.privacyControl?.noTargeting, true)
+        XCTAssertNil(isolatedImpl.privacyControl?.doNotShareOrSell)
+    }
+
+    func test_Rokt_setPrivacyControl_updatesSharedImplementation() {
+        let originalImpl = Rokt.shared.roktImplementation
+        let isolatedImpl = RoktInternalImplementation()
+        Rokt.shared.roktImplementation = isolatedImpl
+        defer { Rokt.shared.roktImplementation = originalImpl }
+
+        let privacyControl = RoktPrivacyControl(
+            noFunctional: true,
+            noTargeting: true,
+            doNotShareOrSell: false
+        )
+        Rokt.setPrivacyControl(privacyControl)
+
+        XCTAssertEqual(Rokt.shared.roktImplementation.privacyControl?.noFunctional, true)
+        XCTAssertEqual(Rokt.shared.roktImplementation.privacyControl?.noTargeting, true)
+        XCTAssertEqual(Rokt.shared.roktImplementation.privacyControl?.doNotShareOrSell, false)
+    }
+
+    func test_execute_persistsSetPrivacyControlAcrossRequestsWithOptOutPrecedence() throws {
+        final class RecordingOffersHTTPClient: HTTPClientAdapter {
+            var recordedParameters: [RoktHTTPParameters] = []
+            func updateTimeout(timeout: Double) {}
+            @discardableResult
+            func startRequestWith(
+                urlAddress: String,
+                method: RoktHTTPMethod,
+                parameters: RoktHTTPParameters?,
+                parameterArray: RoktHTTPParameterArray?,
+                headers: RoktHTTPHeaders?,
+                onRequestStart: (() -> Void)?,
+                requestTimeout: TimeInterval?,
+                completionQueue: DispatchQueue,
+                completionHandler: ((RoktHTTPRequestResult) -> Void)?
+            ) -> URLRequest? {
+                if let parameters {
+                    recordedParameters.append(parameters)
+                }
+                let url = URL(string: urlAddress) ?? URL(string: Environment.Prod.gatewayBaseURL)!
+                let result = RoktHTTPRequestResult(
+                    httpURLResponse: HTTPURLResponse(url: url, statusCode: 500, httpVersion: nil, headerFields: nil),
+                    responseData: nil,
+                    responseError: nil,
+                    jsonSerialisedResponseData: .success(NSNull())
+                )
+                completionQueue.async { completionHandler?(result) }
+                return nil
+            }
+            func downloadFile(
+                source urlAddress: String,
+                destinationURL: URL,
+                options: [RoktDownloadOptions],
+                parameters: RoktHTTPParameters?,
+                headers: RoktHTTPHeaders?,
+                requestTimeout: TimeInterval?,
+                completionQueue: DispatchQueue,
+                completionHandler: ((RoktDownloadResult) -> Void)?
+            ) {}
+        }
+
+        let httpClient = RecordingOffersHTTPClient()
+        let roktInternalImplementation = RoktInternalImplementation()
+        roktInternalImplementation.roktTagId = "test-tag"
+        roktInternalImplementation.isInitialized = true
+        roktInternalImplementation.diagnosticsSender = { _, _, _ in }
+        roktInternalImplementation.makeOffersServiceOverride = { tagId in
+            OffersService(
+                environment: .Prod,
+                accountId: tagId,
+                sdkVersion: "1.0.0",
+                layoutSchemaVersion: "2.8",
+                sessionManager: TxnSessionManager(),
+                httpClient: httpClient,
+                maxRetries: 0,
+                sleep: { _ in },
+                triggeredEvents: { [] },
+                captureEvents: { _ in }
+            )
+        }
+
+        roktInternalImplementation.setPrivacyControl(
+            RoktPrivacyControl(
+                noFunctional: true,
+                noTargeting: false,
+                doNotShareOrSell: false
+            )
+        )
+
+        let firstDone = expectation(description: "first execute completes")
+        roktInternalImplementation.execute(
+            viewName: "checkout",
+            attributes: ["noFunctional": "false", "noTargeting": "true"],
+            config: nil
+        ) { event in
+            if event is RoktEvent.PlacementFailure {
+                firstDone.fulfill()
+            }
+        }
+        wait(for: [firstDone], timeout: 5)
+
+        let secondDone = expectation(description: "second execute completes")
+        roktInternalImplementation.execute(
+            viewName: "confirmation",
+            attributes: [:],
+            config: nil
+        ) { event in
+            if event is RoktEvent.PlacementFailure {
+                secondDone.fulfill()
+            }
+        }
+        wait(for: [secondDone], timeout: 5)
+
+        XCTAssertEqual(httpClient.recordedParameters.count, 2)
+        let firstPrivacy = try XCTUnwrap(httpClient.recordedParameters[0]["privacy_control"] as? [String: Any])
+        XCTAssertEqual(firstPrivacy["no_functional"] as? Bool, true)
+        XCTAssertEqual(firstPrivacy["no_targeting"] as? Bool, true)
+        XCTAssertEqual(firstPrivacy["do_not_share_or_sell"] as? Bool, false)
+
+        let secondPrivacy = try XCTUnwrap(httpClient.recordedParameters[1]["privacy_control"] as? [String: Any])
+        XCTAssertEqual(secondPrivacy["no_functional"] as? Bool, true)
+        XCTAssertEqual(secondPrivacy["no_targeting"] as? Bool, false)
+        XCTAssertEqual(secondPrivacy["do_not_share_or_sell"] as? Bool, false)
+    }
+
+    func test_execute_whenPrivacyControlChangesAfterCachedExperience_bypassesCacheAndSendsUpdatedFlags() throws {
+        Self.prepareExperienceCacheTestFiles()
+        defer { ExperienceCacheManager.clearCache() }
+
+        final class RecordingOffersHTTPClient: HTTPClientAdapter {
+            var recordedParameters: [RoktHTTPParameters] = []
+            func updateTimeout(timeout: Double) {}
+            @discardableResult
+            func startRequestWith(
+                urlAddress: String,
+                method: RoktHTTPMethod,
+                parameters: RoktHTTPParameters?,
+                parameterArray: RoktHTTPParameterArray?,
+                headers: RoktHTTPHeaders?,
+                onRequestStart: (() -> Void)?,
+                requestTimeout: TimeInterval?,
+                completionQueue: DispatchQueue,
+                completionHandler: ((RoktHTTPRequestResult) -> Void)?
+            ) -> URLRequest? {
+                if let parameters {
+                    recordedParameters.append(parameters)
+                }
+                let url = URL(string: urlAddress) ?? URL(string: Environment.Prod.gatewayBaseURL)!
+                let result = RoktHTTPRequestResult(
+                    httpURLResponse: HTTPURLResponse(url: url, statusCode: 500, httpVersion: nil, headerFields: nil),
+                    responseData: nil,
+                    responseError: nil,
+                    jsonSerialisedResponseData: .success(NSNull())
+                )
+                completionQueue.async { completionHandler?(result) }
+                return nil
+            }
+            func downloadFile(
+                source urlAddress: String,
+                destinationURL: URL,
+                options: [RoktDownloadOptions],
+                parameters: RoktHTTPParameters?,
+                headers: RoktHTTPHeaders?,
+                requestTimeout: TimeInterval?,
+                completionQueue: DispatchQueue,
+                completionHandler: ((RoktDownloadResult) -> Void)?
+            ) {}
+        }
+
+        let httpClient = RecordingOffersHTTPClient()
+        let roktInternalImplementation = RoktInternalImplementation()
+        roktInternalImplementation.roktTagId = "test-tag"
+        roktInternalImplementation.isInitialized = true
+        roktInternalImplementation.initFeatureFlags = TxnFeatureFlags(
+            flags: ["mobile-sdk-use-sdk-cache": .bool(true)]
+        ).toInitFeatureFlags()
+        roktInternalImplementation.diagnosticsSender = { _, _, _ in }
+        roktInternalImplementation.makeOffersServiceOverride = { tagId in
+            OffersService(
+                environment: .Prod,
+                accountId: tagId,
+                sdkVersion: "1.0.0",
+                layoutSchemaVersion: "2.8",
+                sessionManager: TxnSessionManager(),
+                httpClient: httpClient,
+                maxRetries: 0,
+                sleep: { _ in },
+                triggeredEvents: { [] },
+                captureEvents: { _ in }
+            )
+        }
+
+        let cachedExp = expectation(description: "cached response written")
+        ExperienceCacheManager.cacheExperienceResponse(
+            viewName: "checkout",
+            attributes: [:],
+            experienceResponse: "{}",
+            generation: UUID().uuidString,
+            success: { cachedExp.fulfill() }
+        )
+        wait(for: [cachedExp], timeout: 2)
+
+        let cacheConfig = RoktConfig.Builder()
+            .cacheConfig(RoktConfig.CacheConfig(cacheDuration: 3600, cacheAttributes: nil))
+            .build()
+
+        let firstDone = expectation(description: "first execute hits cache")
+        roktInternalImplementation.execute(
+            viewName: "checkout",
+            attributes: [:],
+            config: cacheConfig
+        ) { event in
+            if event is RoktEvent.PlacementFailure {
+                firstDone.fulfill()
+            }
+        }
+        wait(for: [firstDone], timeout: 5)
+        XCTAssertEqual(
+            httpClient.recordedParameters.count,
+            0,
+            "cached response should satisfy first execute without network request"
+        )
+
+        roktInternalImplementation.setPrivacyControl(
+            RoktPrivacyControl(
+                noFunctional: false,
+                noTargeting: true,
+                doNotShareOrSell: false
+            )
+        )
+
+        let secondDone = expectation(description: "second execute bypasses cache after privacy control change")
+        roktInternalImplementation.execute(
+            viewName: "checkout",
+            attributes: [:],
+            config: cacheConfig
+        ) { event in
+            if event is RoktEvent.PlacementFailure {
+                secondDone.fulfill()
+            }
+        }
+        wait(for: [secondDone], timeout: 5)
+
+        XCTAssertEqual(httpClient.recordedParameters.count, 1)
+        let secondPrivacy = try XCTUnwrap(httpClient.recordedParameters[0]["privacy_control"] as? [String: Any])
+        XCTAssertEqual(secondPrivacy["no_functional"] as? Bool, false)
+        XCTAssertEqual(secondPrivacy["no_targeting"] as? Bool, true)
+        XCTAssertEqual(secondPrivacy["do_not_share_or_sell"] as? Bool, false)
+
+        // Simulate cold launch with the same opt-out flags: the persisted signature matches,
+        // so the cached entry stored under those opt-out flags is retained.
+        let cachedOptOutExp = expectation(description: "opt-out cached response written")
+        ExperienceCacheManager.cacheExperienceResponse(
+            viewName: "checkout",
+            attributes: ["noTargeting": "true"],
+            experienceResponse: "{}",
+            generation: UUID().uuidString,
+            success: { cachedOptOutExp.fulfill() }
+        )
+        wait(for: [cachedOptOutExp], timeout: 2)
+
+        let relaunchedImpl = RoktInternalImplementation()
+        relaunchedImpl.roktTagId = "test-tag"
+        relaunchedImpl.isInitialized = true
+        relaunchedImpl.initFeatureFlags = TxnFeatureFlags(
+            flags: ["mobile-sdk-use-sdk-cache": .bool(true)]
+        ).toInitFeatureFlags()
+        relaunchedImpl.diagnosticsSender = { _, _, _ in }
+        relaunchedImpl.makeOffersServiceOverride = roktInternalImplementation.makeOffersServiceOverride
+        relaunchedImpl.setPrivacyControl(
+            RoktPrivacyControl(
+                noFunctional: false,
+                noTargeting: true,
+                doNotShareOrSell: false
+            )
+        )
+
+        let thirdDone = expectation(description: "third execute hits opt-out cache after cold launch")
+        relaunchedImpl.execute(
+            viewName: "checkout",
+            attributes: [:],
+            config: cacheConfig
+        ) { event in
+            if event is RoktEvent.PlacementFailure {
+                thirdDone.fulfill()
+            }
+        }
+        wait(for: [thirdDone], timeout: 5)
+        XCTAssertEqual(httpClient.recordedParameters.count, 1)
     }
 }

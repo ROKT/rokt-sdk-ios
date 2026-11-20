@@ -15,7 +15,7 @@ Pod::Spec.new do |s|
   s.ios.deployment_target = '15.0'
   s.source_files = 'Sources/RoktPaymentExtension/**/*.swift'
   s.frameworks = 'Foundation', 'PassKit'
-  s.dependency 'RoktContracts', '~> 2.0.2'
+  s.dependency 'RoktContracts', '>= 2.0.2', '< 3.0'
   s.dependency 'StripeApplePay', '~> 25.0'
   s.dependency 'StripePayments', '~> 25.0'
 end

@@ -347,4 +347,57 @@ internal import RoktUXHelper
     public static func clearSession() {
         shared.roktImplementation.clearSession()
     }
+
+    /// Sets privacy flags for every placement request in this app session.
+    ///
+    /// Only the flags you set change: a flag left `nil` keeps the value from an earlier call, and
+    /// `false` clears an earlier `true`. When the attributes of a placement call also carry a
+    /// privacy flag, opt-out wins: the request opts out if either says `true`, so `false` here never
+    /// undoes a `true` passed per call. The flags are kept in memory and can be set before
+    /// ``initWith(roktTagId:)`` completes.
+    ///
+    /// This is for apps that use the Rokt SDK directly. If your app uses the mParticle SDK with the
+    /// Rokt kit, set consent with the mParticle consent API instead: the kit does not see this call.
+    ///
+    /// ```swift
+    /// Rokt.setPrivacyControl(RoktPrivacyControl(noTargeting: true))
+    /// ```
+    ///
+    /// ```objc
+    /// [Rokt setPrivacyControl:[[RoktPrivacyControl alloc] initWithNoFunctional:nil
+    ///                                                              noTargeting:@YES
+    ///                                                         doNotShareOrSell:nil]];
+    /// ```
+    ///
+    /// - Parameter privacyControl: The flags to change. `nil` flags keep their current value.
+    public static func setPrivacyControl(_ privacyControl: RoktPrivacyControl) {
+        shared.roktImplementation.setPrivacyControl(privacyControl)
+    }
+
+    /// Sets privacy flags for every placement request in this app session.
+    ///
+    /// Same as ``setPrivacyControl(_:)``: only the flags you pass change, `false` clears an earlier
+    /// `true`, and opt-out wins against the privacy attributes of a placement call.
+    ///
+    /// ```swift
+    /// Rokt.setPrivacyControl(noTargeting: true)
+    /// ```
+    ///
+    /// - Parameters:
+    ///   - noFunctional: `true` opts out of functional data usage, `nil` leaves it as is.
+    ///   - noTargeting: `true` opts out of targeting, `nil` leaves it as is.
+    ///   - doNotShareOrSell: `true` opts out of data sharing or sale, `nil` leaves it as is.
+    public static func setPrivacyControl(
+        noFunctional: Bool? = nil,
+        noTargeting: Bool? = nil,
+        doNotShareOrSell: Bool? = nil
+    ) {
+        setPrivacyControl(
+            RoktPrivacyControl(
+                noFunctional: noFunctional,
+                noTargeting: noTargeting,
+                doNotShareOrSell: doNotShareOrSell
+            )
+        )
+    }
 }

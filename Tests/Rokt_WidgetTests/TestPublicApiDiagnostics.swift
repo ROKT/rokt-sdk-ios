@@ -40,6 +40,60 @@ final class TestPublicApiDiagnostics: XCTestCase {
         XCTAssertEqual(received?.severity, "INFO")
     }
 
+    func test_setPrivacyControl_sendsApiSetPrivacyControlInfoDiagnostic() {
+        let originalImpl = Rokt.shared.roktImplementation
+        let isolatedImpl = RoktInternalImplementation()
+        isolatedImpl.roktTagId = "123"
+        Rokt.shared.roktImplementation = isolatedImpl
+        defer { Rokt.shared.roktImplementation = originalImpl }
+
+        let exp = expectation(description: "diagnostic received")
+        var received: StubbedDiagnosticsModel?
+        stubDiagnostics(onDiagnosticsModelReceive: { model in
+            received = model
+            exp.fulfill()
+        })
+
+        Rokt.setPrivacyControl(
+            RoktPrivacyControl(noFunctional: true, noTargeting: false, doNotShareOrSell: true)
+        )
+
+        wait(for: [exp], timeout: 1.0)
+        XCTAssertEqual(received?.code, "[API_SET_PRIVACY_CONTROL]")
+        XCTAssertEqual(received?.severity, "INFO")
+    }
+
+    func test_setPrivacyControl_logsUnsetForFlagsNotPassed() {
+        let isolatedImpl = RoktInternalImplementation()
+        isolatedImpl.roktTagId = nil
+
+        isolatedImpl.setPrivacyControl(RoktPrivacyControl(noTargeting: true))
+
+        let logged = isolatedImpl.setRoktTagIdAndDrainPendingApiLogs("123")
+        XCTAssertEqual(logged.first?.code, "[API_SET_PRIVACY_CONTROL]")
+        XCTAssertEqual(
+            logged.first?.info,
+            ["noFunctional": "unset", "noTargeting": "true", "doNotShareOrSell": "unset"]
+        )
+    }
+
+    func test_setPrivacyControl_beforeInit_buffersDiagnosticUntilTagIdIsSet() {
+        let originalImpl = Rokt.shared.roktImplementation
+        let isolatedImpl = RoktInternalImplementation()
+        isolatedImpl.roktTagId = nil
+        Rokt.shared.roktImplementation = isolatedImpl
+        defer { Rokt.shared.roktImplementation = originalImpl }
+
+        Rokt.setPrivacyControl(
+            RoktPrivacyControl(noFunctional: false, noTargeting: true, doNotShareOrSell: false)
+        )
+
+        let drained = isolatedImpl.setRoktTagIdAndDrainPendingApiLogs("123")
+        XCTAssertEqual(drained.count, 1)
+        XCTAssertEqual(drained.first?.code, "[API_SET_PRIVACY_CONTROL]")
+        XCTAssertEqual(drained.first?.info["noTargeting"], "true")
+    }
+
     func test_bufferedApiCall_afterInit_sendsInline() {
         let exp = expectation(description: "diagnostic received")
         var code: String?

@@ -1,4 +1,5 @@
 import AppTrackingTransparency
+import RoktContracts
 import XCTest
 @testable import Rokt_Widget
 
@@ -293,6 +294,78 @@ final class TestOffersService: XCTestCase {
         XCTAssertEqual(attributes?["email"] as? String, "a@b.com")
         // Privacy keys (incl. gpcEnabled) are stripped from the forwarded attributes.
         XCTAssertNil(attributes?["noFunctional"])
+        XCTAssertNil(attributes?["gpcEnabled"])
+    }
+
+    func test_getExperienceData_withSetOncePrivacyControl_sendsPrivacyControlInRequestBody() {
+        let stub = StubHTTPClient(responseData: Data(offersResponse.utf8), statusCode: 200)
+        let service = makeService(stub)
+        let sessionPrivacy = RoktPrivacyControl(
+            noFunctional: true,
+            noTargeting: false,
+            doNotShareOrSell: true
+        )
+
+        let completed = expectation(description: "request built with set-once privacyControl")
+        service.getExperienceData(
+            viewName: "checkout",
+            attributes: ["email": "a@b.com"],
+            config: nil,
+            privacyControl: sessionPrivacy,
+            successLayout: { _ in completed.fulfill() },
+            failure: { error, _, _ in XCTFail("unexpected failure: \(error)") }
+        )
+
+        wait(for: [completed], timeout: 5)
+
+        let body = try? XCTUnwrap(stub.lastParameters as? [String: Any])
+        let privacyControl = body?["privacy_control"] as? [String: Any]
+        XCTAssertEqual(privacyControl?["no_functional"] as? Bool, true)
+        XCTAssertEqual(privacyControl?["no_targeting"] as? Bool, false)
+        XCTAssertEqual(privacyControl?["do_not_share_or_sell"] as? Bool, true)
+    }
+
+    func test_getExperienceData_withSetOnceAndPerCallAttributes_appliesOptOutPrecedence() {
+        let stub = StubHTTPClient(responseData: Data(offersResponse.utf8), statusCode: 200)
+        let service = makeService(stub)
+        let sessionPrivacy = RoktPrivacyControl(
+            noFunctional: true,
+            noTargeting: false,
+            doNotShareOrSell: false
+        )
+
+        let completed = expectation(description: "request built with merged privacyControl")
+        service.getExperienceData(
+            viewName: "checkout",
+            attributes: [
+                "noFunctional": "false",
+                "noTargeting": "true",
+                "doNotShareOrSell": "false",
+                "gpcEnabled": "true",
+                "email": "a@b.com"
+            ],
+            config: nil,
+            privacyControl: sessionPrivacy,
+            successLayout: { _ in completed.fulfill() },
+            failure: { error, _, _ in XCTFail("unexpected failure: \(error)") }
+        )
+
+        wait(for: [completed], timeout: 5)
+
+        let body = try? XCTUnwrap(stub.lastParameters as? [String: Any])
+        let privacyControl = body?["privacy_control"] as? [String: Any]
+        XCTAssertEqual(privacyControl?["no_functional"] as? Bool, true)
+        XCTAssertEqual(privacyControl?["no_targeting"] as? Bool, true)
+        XCTAssertEqual(privacyControl?["do_not_share_or_sell"] as? Bool, false)
+
+        let privacy = body?["privacy"] as? [String: Any]
+        XCTAssertEqual(privacy?["gpc_enabled"] as? Bool, true)
+
+        let attributes = body?["attributes"] as? [String: Any]
+        XCTAssertEqual(attributes?["email"] as? String, "a@b.com")
+        XCTAssertNil(attributes?["noFunctional"])
+        XCTAssertNil(attributes?["noTargeting"])
+        XCTAssertNil(attributes?["doNotShareOrSell"])
         XCTAssertNil(attributes?["gpcEnabled"])
     }
 

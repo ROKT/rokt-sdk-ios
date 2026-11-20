@@ -1,4 +1,5 @@
 import Foundation
+import RoktContracts
 
 /// Fetches offers, rolls the session forward, and adapts the response for rendering.
 internal struct OffersService {
@@ -77,6 +78,7 @@ internal struct OffersService {
         viewName: String?,
         attributes: [String: String],
         config: RoktConfig?,
+        privacyControl: RoktPrivacyControl? = nil,
         onRequestStart: (() -> Void)? = nil,
         successLayout: ((String?) -> Void)? = nil,
         failure: ((Error, Int?, String) -> Void)? = nil
@@ -85,8 +87,11 @@ internal struct OffersService {
 
         // Extract privacy KVPs before sanitising, then enrich the remaining attributes.
         // gpc_enabled travels under `privacy`, separate from `privacy_control`, to match Android.
-        let privacyPayload = RoktAPIHelper.getPrivacyControlPayload(attributes: attributes)
-        let privacyControl = buildPrivacyControl(from: privacyPayload)
+        let privacyPayload = RoktAPIHelper.getPrivacyControlPayload(
+            attributes: attributes,
+            privacyControl: privacyControl
+        )
+        let selectPrivacyControl = buildPrivacyControl(from: privacyPayload)
         let privacy = buildPrivacy(from: privacyPayload)
         let sanitisedAttributes = RoktAPIHelper.removePrivacyControlAttributes(attributes: attributes)
         let enrichedAttributes = attributeEnrichment.enrich(attributes: sanitisedAttributes, config: config)
@@ -96,7 +101,7 @@ internal struct OffersService {
                 let experience = try await fetchExperienceString(
                     pageIdentifier: viewName ?? "",
                     attributes: enrichedAttributes,
-                    privacyControl: privacyControl,
+                    privacyControl: selectPrivacyControl,
                     privacy: privacy
                 )
                 completionQueue.async { successLayout?(experience) }
