@@ -50,7 +50,7 @@ Partners consume **RoktUXHelper** from [`github.com/ROKT/rokt-ux-helper-ios`](ht
 ## Release flow
 
 1. **Draft**: [Release – Draft](.github/workflows/release-draft.yml) — bump type only. Opens a PR that bumps the ecosystem version everywhere above and updates the root `CHANGELOG.md` (with `kits-path: Packages` for scoped entries).
-2. **Publish**: [Release – Publish](.github/workflows/release-publish.yml) runs when **`VERSION`** (root) or root **`CHANGELOG.md`** changes on `main` / `maintenance/*`.
+2. **Publish**: [Release – Publish](.github/workflows/release-publish.yml) runs when **`VERSION`** (root) changes on `main` / `maintenance/*`.
 
 **Release – Publish** (same commit / same version):
 
