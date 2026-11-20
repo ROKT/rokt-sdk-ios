@@ -7,7 +7,6 @@ on:
       - maintenance/*
     paths:
       - VERSION
-      - CHANGELOG.md
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
