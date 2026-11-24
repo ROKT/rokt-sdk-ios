@@ -21,55 +21,72 @@ let kPipelineWaitTimeout: NimbleTimeInterval = .seconds(30)
 
 // MARK: Event expectations
 
-/// Waits once for a whole set of expected events to arrive, instead of giving each event
-/// its own polling budget.
-///
-/// The per-event form these specs used to spell out looked like this:
-///
-///     expect(events.contains(a)).toEventually(beTrue(), timeout: .seconds(10))
-///     expect(events.contains(b)).toEventually(beTrue(), timeout: .seconds(10))
-///     ...
-///
-/// Those budgets run in sequence rather than being shared, so the *first* assertion
-/// silently absorbed the entire remaining latency of the placement pipeline — init, offers,
-/// render, then the event POST the stub records. Every later assertion then found its event
-/// already recorded and returned immediately. On a slow CI runner, where that pipeline is
-/// occasionally slower than the 10s the first line allowed, the run failed on exactly one
-/// line — always whichever event happened to be checked first — and passed on retry with no
-/// code change. It read like a broken event when the only thing wrong was that one
-/// assertion's share of the budget.
-///
-/// Waiting on the set as a whole removes that asymmetry: one budget for one pipeline, and
-/// the failure lists every event still missing instead of only the first.
-///
-/// - Parameters:
-///   - expected: Events that must all be recorded before the timeout elapses.
-///   - events: Re-read on every poll, so pass the recording array itself.
-///   - timeout: Budget for the whole set.
+/// Waits once for the required count of each listed (type, parent) pair and drains pending
+/// event deliveries at a test-controlled boundary before failing on any overcounted listed pair.
 func expectEventuallyRecorded(_ expected: [EventModel],
                               in events: @escaping @autoclosure () -> [EventModel],
-                              timeout: NimbleTimeInterval = .seconds(30),
+                              timeout: NimbleTimeInterval = kPipelineWaitTimeout,
                               file: Nimble.FileString = #file,
                               line: UInt = #line) {
-    expect(file: file, line: line, describeMissingEvents(expected, in: events()))
-        .toEventually(beEmpty(),
-                      timeout: timeout,
-                      description: "all expected events to be recorded")
+    let expectedCounts = countEvents(expected, matchPageInstance: false)
+    expect(file: file, line: line) { () -> [String] in
+        let missing = describeEventCountDifferences(
+            expectedCounts,
+            countEvents(events(), matchPageInstance: false),
+            report: { expectedCount, actualCount in actualCount < expectedCount }
+        )
+        if !missing.isEmpty {
+            return missing
+        }
+        EventQueue.flush()
+        if !EventDeliveryFence.shared.isIdle {
+            return ["waiting for event delivery to complete"]
+        }
+        return []
+    }
+    .toEventually(beEmpty(), timeout: timeout, description: "missing expected events or delivery still in flight")
+    let excess = describeEventCountDifferences(
+        expectedCounts,
+        countEvents(events(), matchPageInstance: false),
+        report: { expectedCount, actualCount in actualCount > expectedCount }
+    )
+    expect(file: file, line: line, excess).to(beEmpty(), description: "overcounted expected events")
 }
 
-/// Rendered as strings so a failure names the missing events by type and parent guid —
-/// that pair is what identifies which stage of the placement never reported.
-private func describeMissingEvents(_ expected: [EventModel], in events: [EventModel]) -> [String] {
-    expected.filter { !events.contains($0) }
-        .map { "\($0.eventType)(parent: \($0.parentGuid))" }
+/// Compares a snapshot by (type, parent, page instance), including unlisted events.
+func expectRecordedExactly(_ expected: [EventModel], in events: [EventModel],
+                           file: Nimble.FileString = #file, line: UInt = #line) {
+    let differences = describeEventCountDifferences(countEvents(expected), countEvents(events),
+                                                    includingUnlisted: true, report: { $0 != $1 })
+    expect(file: file, line: line, differences).to(beEmpty(), description: "event counts to match exactly")
+}
+
+private func countEvents(_ events: [EventModel], matchPageInstance: Bool = true) -> [EventModel.CountKey: Int] {
+    events.reduce(into: [:]) { counts, event in
+        counts[event.countKey(matchPageInstance: matchPageInstance), default: 0] += 1
+    }
+}
+
+private func describeEventCountDifferences(_ expected: [EventModel.CountKey: Int],
+                                           _ actual: [EventModel.CountKey: Int],
+                                           includingUnlisted: Bool = false,
+                                           report: (Int, Int) -> Bool) -> [String] {
+    let keys = includingUnlisted ? Set(expected.keys).union(actual.keys) : Set(expected.keys)
+    return keys.compactMap { key -> String? in
+        let wanted = expected[key, default: 0]
+        let recorded = actual[key, default: 0]
+        guard report(wanted, recorded) else { return nil }
+        let page = key.pageInstanceGuid.map { ", page: \($0)" } ?? ""
+        return "\(key.eventType)(parent: \(key.parentGuid)\(page)): expected \(wanted), recorded \(recorded)"
+    }.sorted()
 }
 
 // MARK: Cache file utils
 
 extension QuickSpec {
     func getJsonFileContents(_ fileName: String) -> String? {
-        let path = Bundle(for: type(of: self)).path(forResource: fileName, ofType: "json")!
-        return try? String(contentsOfFile: path)
+        guard let url = Bundle(for: type(of: self)).url(forResource: fileName, withExtension: "json") else { return nil }
+        return try? String(contentsOf: url, encoding: .utf8)
     }
 
     /// The experience page the offers path renders for a v1 layout fixture, reshaped

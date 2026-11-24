@@ -16,6 +16,154 @@ var txnEventResourceURL: String {
     config.environment.gatewayBaseURL + "/v2/sessions/events"
 }
 
+// MARK: - EventDeliveryFence
+
+/// Tracks in-flight event dispatches and mock main-queue deliveries so specs can flush
+/// queued events and await a deterministic delivery boundary instead of sleeping.
+final class EventDeliveryFence {
+    static let shared = EventDeliveryFence()
+
+    private let lock = NSLock()
+    private var generation = 0
+    private var activeDispatches = 0
+    private var activeDeliveries = 0
+
+    var currentGeneration: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return generation
+    }
+
+    var isIdle: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return activeDispatches == 0 && activeDeliveries == 0
+    }
+
+    @discardableResult
+    func reset() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        generation += 1
+        activeDispatches = 0
+        activeDeliveries = 0
+        return generation
+    }
+
+    func beginDispatch() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        activeDispatches += 1
+        return generation
+    }
+
+    func endDispatch(generation expectedGeneration: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard generation == expectedGeneration, activeDispatches > 0 else { return }
+        activeDispatches -= 1
+    }
+
+    func beginDelivery(generation expectedGeneration: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard generation == expectedGeneration else { return }
+        activeDeliveries += 1
+    }
+
+    func endDelivery(generation expectedGeneration: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard generation == expectedGeneration, activeDeliveries > 0 else { return }
+        activeDeliveries -= 1
+    }
+}
+
+// MARK: - TrackingEventHTTPClient
+
+private final class TrackingEventHTTPClient: HTTPClientAdapter {
+    private let wrapped: HTTPClientAdapter
+    private let generation: Int
+
+    init(wrapped: HTTPClientAdapter) {
+        self.wrapped = wrapped
+        generation = EventDeliveryFence.shared.beginDispatch()
+    }
+
+    deinit {
+        EventDeliveryFence.shared.endDispatch(generation: generation)
+    }
+
+    func updateTimeout(timeout: Double) {
+        wrapped.updateTimeout(timeout: timeout)
+    }
+
+    @discardableResult
+    func startRequestWith(
+        urlAddress: String,
+        method: RoktHTTPMethod,
+        parameters: RoktHTTPParameters?,
+        parameterArray: RoktHTTPParameterArray?,
+        headers: RoktHTTPHeaders?,
+        onRequestStart: (() -> Void)?,
+        requestTimeout: TimeInterval?,
+        completionQueue: DispatchQueue,
+        completionHandler: ((RoktHTTPRequestResult) -> Void)?
+    ) -> URLRequest? {
+        wrapped.startRequestWith(
+            urlAddress: urlAddress,
+            method: method,
+            parameters: parameters,
+            parameterArray: parameterArray,
+            headers: headers,
+            onRequestStart: onRequestStart,
+            requestTimeout: requestTimeout,
+            completionQueue: completionQueue,
+            completionHandler: completionHandler
+        )
+    }
+
+    func downloadFile(
+        source urlAddress: String,
+        destinationURL: URL,
+        options: [RoktDownloadOptions],
+        parameters: RoktHTTPParameters?,
+        headers: RoktHTTPHeaders?,
+        requestTimeout: TimeInterval?,
+        completionQueue: DispatchQueue,
+        completionHandler: ((RoktDownloadResult) -> Void)?
+    ) {
+        wrapped.downloadFile(
+            source: urlAddress,
+            destinationURL: destinationURL,
+            options: options,
+            parameters: parameters,
+            headers: headers,
+            requestTimeout: requestTimeout,
+            completionQueue: completionQueue,
+            completionHandler: completionHandler
+        )
+    }
+}
+
+private func configureTrackedEventService(on implementation: RoktInternalImplementation) {
+    implementation.makeTxnEventServiceOverride = { [weak implementation] tagId in
+        let client = TrackingEventHTTPClient(wrapped: NetworkingHelper.shared.httpClient)
+        return TxnEventService(
+            environment: config.environment,
+            accountId: tagId,
+            sdkVersion: libraryVersion,
+            sessionManager: TxnSessionManager(
+                roktTagId: tagId,
+                store: implementation?.txnSessionStore ?? UserDefaultsTxnSessionStore()
+            ),
+            httpClient: client,
+            deviceHeaders: NetworkingHelper.txnDeviceHeaders(),
+            pendingStore: implementation?.txnPendingEventStore
+        )
+    }
+}
+
 // The UI test harness drives the SDK through Mocker-intercepted network calls. In the
 // `.Mock` environment the SDK swaps in offline transports (init/offers/events) that never
 // touch the network, and diagnostics/timings short-circuit via `RoktAPIHelper.isMock()` —
@@ -29,6 +177,8 @@ func useNetworkedMockEnvironment() {
     config.environment = .Prod
     Mocker.removeAll()
     mockRecordingGeneration += 1
+    EventDeliveryFence.shared.reset()
+    Rokt.shared.roktImplementation.makeTxnEventServiceOverride = nil
 
     // `sendTimingEvents` posts performance metrics to a second, separate endpoint that no
     // spec asserts on. Left unstubbed it failed on every call, and its failure handler
@@ -255,10 +405,15 @@ extension StubMethodsProvider {
 
     // Mirrors the legacy events stub for the v2 endpoint, translating the wire shape back into EventModel
     // so the same assertions hold whether events flow through the legacy or txn path.
-    func registerTxnEventsStub(onEventReceive: ((EventModel) -> Void)?) {
+    func registerTxnEventsStub(delay: DispatchTimeInterval? = nil,
+                               onEventReceive: ((EventModel) -> Void)?) {
         guard let url = URL(string: txnEventResourceURL) else { return }
         var mock = Mock(url: url, dataType: .json, statusCode: 200, data: [.post: Data()])
+        if let delay {
+            mock.delay = delay
+        }
 
+        let fenceGeneration = EventDeliveryFence.shared.currentGeneration
         mock.onRequest = { request, _ in
             guard let body = request.httpBodyStream?.readfully(),
                   let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
@@ -270,11 +425,13 @@ extension StubMethodsProvider {
                 let legacyType = txnType == "user_interaction" && data?["interaction_type"] as? String == "activation"
                     ? "SignalActivation"
                     : mappedType
-                onEventReceive?(
-                    EventModel(eventType: legacyType,
-                               parentGuid: data?["parent_id"] as? String ?? "",
-                               pageInstanceGuid: data?["page_instance_guid"] as? String)
-                )
+                let model = EventModel(eventType: legacyType,
+                                       parentGuid: data?["parent_id"] as? String ?? "",
+                                       pageInstanceGuid: data?["page_instance_guid"] as? String)
+                if let onEventReceive {
+                    EventDeliveryFence.shared.beginDelivery(generation: fenceGeneration)
+                    onEventReceive(model)
+                }
             }
         }
         mock.register()
@@ -361,11 +518,24 @@ extension StubMethodsProvider {
     }
 
     func stubEvents(onEventReceive: ((EventModel) -> Void)? = nil) {
+        stubEventsImpl(delay: nil, onEventReceive: onEventReceive)
+    }
+
+    private func stubEventsImpl(delay: DispatchTimeInterval?,
+                                onEventReceive: ((EventModel) -> Void)?) {
         let configuration = URLSessionConfiguration.default
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        registerTxnEventsStub(onEventReceive: recordingForCurrentGeneration(onEventReceive))
+        let fenceGeneration = EventDeliveryFence.shared.reset()
+        configureTrackedEventService(on: Rokt.shared.roktImplementation)
+        let wrappedReceive: ((EventModel) -> Void)? = onEventReceive.map { callback in
+            { event in
+                defer { EventDeliveryFence.shared.endDelivery(generation: fenceGeneration) }
+                callback(event)
+            }
+        }
+        registerTxnEventsStub(delay: delay, onEventReceive: recordingForCurrentGeneration(wrappedReceive))
     }
 
     func stubTimings(onTimingsRequestReceive: ((MockTimingsRequest) -> Void)? = nil) {
@@ -505,11 +675,24 @@ extension XCTestCase: StubMethodsProvider {
     }
 
     func stubEvents(onEventReceive: ((EventModel) -> Void)? = nil) {
+        stubEvents(delay: nil, onEventReceive: onEventReceive)
+    }
+
+    func stubEvents(delay: DispatchTimeInterval?,
+                    onEventReceive: ((EventModel) -> Void)? = nil) {
         let configuration = URLSessionConfiguration.default
         configuration.protocolClasses = [MockingURLProtocol.self] + (configuration.protocolClasses ?? [])
         NetworkingHelper.shared.httpClient = RoktHTTPClient(sessionConfiguration: configuration)
 
-        registerTxnEventsStub(onEventReceive: recordingForCurrentGeneration(onEventReceive))
+        let fenceGeneration = EventDeliveryFence.shared.reset()
+        configureTrackedEventService(on: Rokt.shared.roktImplementation)
+        let wrappedReceive: ((EventModel) -> Void)? = onEventReceive.map { callback in
+            { event in
+                defer { EventDeliveryFence.shared.endDelivery(generation: fenceGeneration) }
+                callback(event)
+            }
+        }
+        registerTxnEventsStub(delay: delay, onEventReceive: recordingForCurrentGeneration(wrappedReceive))
     }
 
     func stubTimings(onTimingsRequestReceive: ((MockTimingsRequest) -> Void)? = nil) {
