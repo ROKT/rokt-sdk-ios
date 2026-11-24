@@ -29,10 +29,94 @@ final class RoktHTTPClientTests: XCTestCase {
         // default is 7 days - https://developer.apple.com/documentation/foundation/nsurlsessionconfiguration/1408153-timeoutintervalforresource
         XCTAssertEqual(sut.session.configuration.timeoutIntervalForResource, 7 * 24 * 60 * 60, accuracy: 0.1)
 
+        let originalSession = sut.session
         sut.updateTimeout(timeout: 123)
 
+        XCTAssertFalse(sut.session === originalSession)
         XCTAssertEqual(sut.session.configuration.timeoutIntervalForRequest, 123, accuracy: 0.1)
         XCTAssertEqual(sut.session.configuration.timeoutIntervalForResource, 123, accuracy: 0.1)
+    }
+
+    func test_updateTimeout_reusesSessionOnlyWhenBothTimeoutsMatch() {
+        for (requestTimeout, resourceTimeout) in [(9.0, 30.0), (30.0, 9.0)] {
+            let configuration = URLSessionConfiguration.ephemeral
+            configuration.timeoutIntervalForRequest = requestTimeout
+            configuration.timeoutIntervalForResource = resourceTimeout
+            let sut = RoktHTTPClient(sessionConfiguration: configuration)
+            let originalSession = sut.session
+
+            sut.updateTimeout(timeout: 9)
+
+            let updatedSession = sut.session
+            XCTAssertFalse(updatedSession === originalSession)
+            XCTAssertEqual(updatedSession.configuration.timeoutIntervalForRequest, 9, accuracy: 0.1)
+            XCTAssertEqual(updatedSession.configuration.timeoutIntervalForResource, 9, accuracy: 0.1)
+
+            sut.updateTimeout(timeout: 9)
+
+            XCTAssertTrue(sut.session === updatedSession)
+        }
+    }
+
+    func test_updateTimeout_drainsReplacedSessionAndClosesFinalSessionOnTeardown() throws {
+        RoktHTTPUrlProtocolStub.stopInterceptingRequests()
+        let originalTimeout: TimeInterval = 30
+        let updatedTimeout: TimeInterval = 9
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = originalTimeout
+        configuration.protocolClasses = [DeferredResponseURLProtocol.self]
+        let oldSessionClosed = expectation(description: "old session invalidated")
+        let newSessionClosed = expectation(description: "new session invalidated")
+        var sut: RoktHTTPClient? = RoktHTTPClient(sessionConfiguration: configuration) { configuration in
+            let invalidated = configuration.timeoutIntervalForRequest == originalTimeout
+                ? oldSessionClosed : newSessionClosed
+            return URLSession(
+                configuration: configuration,
+                delegate: SessionInvalidationObserver(invalidated: invalidated),
+                delegateQueue: nil
+            )
+        }
+
+        let oldURL = anyURL().appendingPathComponent("before-update")
+        let newURL = anyURL().appendingPathComponent("after-update")
+        let data = anyData()
+        let requestLock = NSLock()
+        var heldRequest: DeferredResponseURLProtocol?
+        let oldRequestStarted = expectation(description: "old request started loading")
+        DeferredResponseURLProtocol.setHandler { loading in
+            if loading.request.url == oldURL {
+                requestLock.withLock { heldRequest = loading }
+                oldRequestStarted.fulfill()
+            } else {
+                loading.respond(with: data)
+            }
+        }
+        defer { DeferredResponseURLProtocol.setHandler(nil) }
+
+        let oldRequestCompleted = expectation(description: "old request completed")
+        sut?.startRequestWith(urlAddress: oldURL.absoluteString, method: .get) { result in
+            XCTAssertNil(result.responseError)
+            XCTAssertEqual(result.httpURLResponse?.statusCode, 200)
+            XCTAssertEqual(result.responseData, data)
+            oldRequestCompleted.fulfill()
+        }
+        wait(for: [oldRequestStarted], timeout: 5)
+        let loading = try XCTUnwrap(requestLock.withLock { heldRequest })
+
+        sut?.updateTimeout(timeout: updatedTimeout)
+        loading.respond(with: data)
+
+        let newRequestCompleted = expectation(description: "new request completed")
+        sut?.startRequestWith(urlAddress: newURL.absoluteString, method: .get) { result in
+            XCTAssertNil(result.responseError)
+            XCTAssertEqual(result.httpURLResponse?.statusCode, 200)
+            XCTAssertEqual(result.responseData, data)
+            newRequestCompleted.fulfill()
+        }
+        wait(for: [oldRequestCompleted, newRequestCompleted, oldSessionClosed], timeout: 5)
+
+        sut = nil
+        wait(for: [newSessionClosed], timeout: 5)
     }
 
     // MARK: - Concurrency: the shared session must not be raced
@@ -531,6 +615,46 @@ final class RoktHTTPClientTests: XCTestCase {
     }
 
     // MARK: - Helpers
+
+    private final class SessionInvalidationObserver: NSObject, URLSessionDelegate, @unchecked Sendable {
+        private let invalidated: XCTestExpectation
+
+        init(invalidated: XCTestExpectation) {
+            self.invalidated = invalidated
+        }
+
+        func urlSession(_ session: URLSession, didBecomeInvalidWithError error: Error?) {
+            XCTAssertNil(error)
+            invalidated.fulfill()
+        }
+    }
+
+    private final class DeferredResponseURLProtocol: URLProtocol {
+        private static let handlerLock = NSLock()
+        private static var handler: ((DeferredResponseURLProtocol) -> Void)?
+
+        static func setHandler(_ newHandler: ((DeferredResponseURLProtocol) -> Void)?) {
+            handlerLock.withLock { handler = newHandler }
+        }
+
+        override class func canInit(with request: URLRequest) -> Bool { true }
+
+        override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+        override func startLoading() {
+            let handler = Self.handlerLock.withLock { Self.handler }
+            handler?(self)
+        }
+
+        override func stopLoading() {}
+
+        func respond(with data: Data) {
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: data)
+            client?.urlProtocolDidFinishLoading(self)
+        }
+    }
 
     private func makeSUT(file: StaticString = #file, line: UInt = #line) -> RoktHTTPClient {
         let configuration = URLSessionConfiguration.ephemeral

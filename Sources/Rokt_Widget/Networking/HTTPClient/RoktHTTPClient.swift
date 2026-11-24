@@ -67,6 +67,7 @@ internal final class RoktHTTPClient: HTTPClientAdapter {
 
     private let acceptableStatusCodes = Array(200..<300)
     private let emptyDataStatusCodes: Set<Int> = [204, 205]
+    private let makeAPISession: (URLSessionConfiguration) -> URLSession
 
     private(set) var session: URLSession = .shared
     // Serialises `session`, which `updateTimeout` reassigns on the request hot path.
@@ -85,11 +86,13 @@ internal final class RoktHTTPClient: HTTPClientAdapter {
 
     init(
         sessionConfiguration: URLSessionConfiguration = .default,
-        encoders: [RoktHTTPParameterEncoder] = [RoktHTTPURLEncoder(), RoktHTTPBodyEncoder()]
+        encoders: [RoktHTTPParameterEncoder] = [RoktHTTPURLEncoder(), RoktHTTPBodyEncoder()],
+        makeAPISession: @escaping (URLSessionConfiguration) -> URLSession = { URLSession(configuration: $0) }
     ) {
         let configuration = (sessionConfiguration.copy() as? URLSessionConfiguration) ?? sessionConfiguration
         Self.disableCookieHandling(on: configuration)
-        self.session = URLSession(configuration: configuration)
+        self.makeAPISession = makeAPISession
+        self.session = makeAPISession(configuration)
         self.downloadSession = URLSession(
             configuration: Self.downloadConfiguration(from: configuration)
         )
@@ -133,12 +136,18 @@ internal final class RoktHTTPClient: HTTPClientAdapter {
         defer { sessionLock.unlock() }
 
         let currentConfiguration = session.configuration
+        if currentConfiguration.timeoutIntervalForRequest == timeout,
+           currentConfiguration.timeoutIntervalForResource == timeout {
+            return
+        }
 
         currentConfiguration.timeoutIntervalForRequest = timeout
         currentConfiguration.timeoutIntervalForResource = timeout
         Self.disableCookieHandling(on: currentConfiguration)
 
-        self.session = URLSession(configuration: currentConfiguration)
+        let previousSession = session
+        session = makeAPISession(currentConfiguration)
+        previousSession.finishTasksAndInvalidate()
     }
 
     // Runs `body` under the lock; callers create and resume the task inside, binding it
@@ -293,6 +302,7 @@ internal final class RoktHTTPClient: HTTPClientAdapter {
     }
 
     deinit {
+        session.finishTasksAndInvalidate()
         downloadSession.finishTasksAndInvalidate()
     }
 }
