@@ -3,6 +3,7 @@ import UIKit
 import XCTest
 import Quick
 import Nimble
+import Mocker
 @testable import Rokt_Widget
 @testable import RoktUXHelper
 
@@ -435,40 +436,113 @@ class RoktExperienceCacheExecuteTests: QuickSpec {
                         .toEventually(beTrue(), timeout: kPipelineWaitTimeout)
                 }
 
-                it("does not use cached sent events on non-matching attributes") {
-                    // Set cache config with cache attributes
-                    let config = RoktConfig.Builder()
-                        .cacheConfig(RoktConfig.CacheConfig(
-                        ))
-                        .build()
-
-                    var initialEvents = []
-                    self.stubEvents { event in
-                        initialEvents.append(event)
+                it("sends a layout impression for each fresh response when cache attributes differ") {
+                    let pageInstance = "bfbc0187-2d0f-4ad4-be6b-7545f9273567"
+                    let impression = EventModel(eventType: "SignalImpression",
+                                                parentGuid: "31b61e93-24bd-4735-995a-2f14d0673ec3",
+                                                pageInstanceGuid: pageInstance)
+                    guard let initFixture = self.getJsonFileContents(kValidInitWithCacheFilename),
+                          let offersFixture = self.getJsonFileContents(kValidLayoutOverlayFilename),
+                          offersFixture.contains(pageInstance), offersFixture.contains(impression.parentGuid),
+                          var initResponse = (try? JSONSerialization.jsonObject(with: Data(initFixture.utf8)))
+                          as? [String: Any] else {
+                        return XCTFail("Invalid init or layout fixture")
+                    }
+                    initResponse.removeValue(forKey: "fonts")
+                    guard let initData = try? JSONSerialization.data(withJSONObject: initResponse),
+                          let offersBody = makeOffersData(fromV1Experience: Data(offersFixture.utf8)) else {
+                        return XCTFail("Could not encode init or offers fixture")
                     }
 
-                    // Initial execute
-                    self.executeRokt(attributes: self.mockedAttributes, config: config)
-
-                    let exp = self.expectation(description: "Await execute and events")
-                    _ = XCTWaiter.wait(for: [exp], timeout: 2)
-
-                    // Check initial sent events
-                    expect(initialEvents).toEventuallyNot(beNil(), timeout: kPipelineWaitTimeout)
-
-                    var secondEvents = []
-                    self.stubEvents { event in
-                        secondEvents.append(event)
+                    let previousEnvironment = config.environment
+                    let previousImplementation = Rokt.shared.roktImplementation
+                    config.environment = .custom(baseURL: "https://example.invalid")
+                    guard let offersURL = URL(string: txnOffersResourceURL) else {
+                        config.environment = previousEnvironment
+                        return XCTFail("Invalid offers mock URL")
+                    }
+                    Mocker.removeAll()
+                    mockImplementation.txnPendingEventStore = TxnPendingEventStore(fileURL: nil)
+                    Rokt.shared.roktImplementation = mockImplementation
+                    defer {
+                        testVC.dismiss(animated: false)
+                        Rokt.shared.roktImplementation = previousImplementation
+                        config.environment = previousEnvironment
                     }
 
-                    // Second execute with different attributes
-                    self.executeRokt(attributes: self.mockedNonMatchingAttributes, config: config)
+                    self.registerTxnInitStub(legacyData: initData, statusCode: 200)
+                    var offersRequestCount = 0
+                    var offersMock = Mock(url: offersURL, dataType: .json, statusCode: 200,
+                                          data: [.post: offersBody])
+                    offersMock.onRequest = { _, _ in
+                        DispatchQueue.main.async {
+                            offersRequestCount += 1
+                        }
+                    }
+                    offersMock.register()
+                    for endpoint in [timingsResourceURL, timingsEventsResourceURL] {
+                        guard let url = URL(string: endpoint) else { return XCTFail("Invalid timing mock URL") }
+                        Mock(url: url, dataType: .json, statusCode: 200, data: [.post: Data()]).register()
+                    }
+                    self.stubDiagnostics()
+                    var events: [EventModel] = []
+                    self.stubEvents { event in
+                        events.append(event)
+                    }
 
-                    let exp2 = self.expectation(description: "Await execute and events")
-                    _ = XCTWaiter.wait(for: [exp2], timeout: 2)
+                    let cacheConfig = RoktConfig.Builder().cacheConfig(RoktConfig.CacheConfig()).build()
 
-                    // Check second sent events
-                    expect(secondEvents).toEventuallyNot(beNil(), timeout: kPipelineWaitTimeout)
+                    func hasRecordedAndCachedFirstResponse() -> Bool {
+                        guard offersRequestCount >= 1,
+                              events.contains(where: { $0.countKey() == impression.countKey() }),
+                              let properties = mockImplementation.executingLayoutPage?.cacheProperties else {
+                            return false
+                        }
+                        return ExperienceCacheManager.getCachedExperienceResponse(
+                            viewName: properties.viewName,
+                            attributes: properties.experienceCacheAttributes,
+                            cacheDuration: cacheConfig.cacheConfig.cacheDuration
+                        )?.generation == properties.generation
+                    }
+
+                    self.executeRokt(attributes: ["confirmation": "first"], config: cacheConfig)
+                    expect { () -> Bool in
+                        guard hasRecordedAndCachedFirstResponse() else { return false }
+                        EventQueue.flush()
+                        return EventDeliveryFence.shared.isIdle
+                    }
+                    .toEventually(beTrue(), timeout: kPipelineWaitTimeout,
+                                  description: "first layout impression, cached response, and settled delivery")
+                    expect(offersRequestCount).to(equal(1), description: "single offers fetch on first execute")
+                    expectRecordedExactly([impression], in: events.filter { $0 == impression })
+                    guard offersRequestCount == 1,
+                          events.filter({ $0 == impression }).count == 1 else { return }
+
+                    let implementation = Rokt.shared.roktImplementation
+                    testVC.dismiss(animated: false) {
+                        events.removeAll()
+                        implementation.execute(attributes: ["confirmation": "second"], config: cacheConfig)
+                    }
+                    var dismissalStarted = false
+                    var secondDismissed = false
+                    expect { () -> Bool in
+                        let hasImpression = events.contains { $0.countKey() == impression.countKey() }
+                        if !dismissalStarted, offersRequestCount >= 2, hasImpression {
+                            dismissalStarted = true
+                            testVC.dismiss(animated: false) {
+                                secondDismissed = true
+                            }
+                        }
+                        guard secondDismissed, offersRequestCount >= 2, hasImpression else {
+                            return false
+                        }
+                        EventQueue.flush()
+                        return EventDeliveryFence.shared.isIdle
+                    }
+                    .toEventually(beTrue(), timeout: kPipelineWaitTimeout,
+                                  description: "second layout impression after fresh offers fetch and settled delivery")
+                    expect(offersRequestCount).to(equal(2), description: "fresh offers fetch on cache miss")
+                    expectRecordedExactly([impression], in: events.filter { $0 == impression })
                 }
 
                 it("uses initial plugin view states on non-matching attributes") {
